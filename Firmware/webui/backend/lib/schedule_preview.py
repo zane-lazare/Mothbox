@@ -25,8 +25,13 @@ from webui.backend.lib.schedule_conflict import (
     generate_pattern_executions,
 )
 from webui.backend.lib.schedule_schema import (
-    EventPattern,
+    FixedTimeTrigger,
+    IntervalTrigger,
+    MoonPhaseTrigger,
+    Routine,
     Schedule,
+    SensorTrigger,
+    SolarTrigger,
 )
 
 # Optional import for GPS location from controls.txt
@@ -262,24 +267,35 @@ def _get_default_location() -> tuple[float | None, float | None]:
 
 def _get_trigger_info(schedule: Schedule) -> str:
     """
-    Generate human-readable trigger description.
+    Generate human-readable trigger description (Schema 3.0).
 
     Args:
         schedule: Schedule to describe
 
     Returns:
         Trigger description string (e.g., "interval:60m", "sunset+30", "moon:full")
+        For multiple routines, returns description of first routine's trigger.
     """
-    trigger_type = schedule.trigger_type
+    if not schedule.routines:
+        return "unknown"
 
-    if trigger_type == "interval" and schedule.interval_trigger:
-        interval = schedule.interval_trigger.interval_minutes
-        window = schedule.interval_trigger.time_window
-        return f"interval:{interval}m ({window.start_time}-{window.end_time})"
+    # Get the first routine's trigger for summary
+    routine = schedule.routines[0]
+    trigger = routine.trigger
 
-    elif trigger_type == "solar" and schedule.solar_trigger:
-        event = schedule.solar_trigger.solar_event
-        offset = schedule.solar_trigger.offset_minutes
+    if trigger is None:
+        return "unknown"
+
+    if isinstance(trigger, IntervalTrigger):
+        interval = trigger.interval_minutes
+        window = trigger.time_window
+        if window:
+            return f"interval:{interval}m ({window.start_time}-{window.end_time})"
+        return f"interval:{interval}m"
+
+    elif isinstance(trigger, SolarTrigger):
+        event = trigger.solar_event
+        offset = trigger.offset_minutes
         if offset > 0:
             return f"{event}+{offset}"
         elif offset < 0:
@@ -287,9 +303,9 @@ def _get_trigger_info(schedule: Schedule) -> str:
         else:
             return event
 
-    elif trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        phases = schedule.moon_phase_trigger.phases
-        offset = schedule.moon_phase_trigger.offset_days
+    elif isinstance(trigger, MoonPhaseTrigger):
+        phases = trigger.phases
+        offset = trigger.offset_days
         phases_str = ",".join(phases)
         if offset > 0:
             return f"moon:{phases_str}+{offset}d"
@@ -298,34 +314,34 @@ def _get_trigger_info(schedule: Schedule) -> str:
         else:
             return f"moon:{phases_str}"
 
-    elif trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        time_str = schedule.fixed_time_trigger.time
+    elif isinstance(trigger, FixedTimeTrigger):
+        time_str = trigger.time
         return f"daily:{time_str}"
 
-    elif trigger_type == "sensor" and schedule.sensor_trigger:
-        sensor = schedule.sensor_trigger.sensor_type
+    elif isinstance(trigger, SensorTrigger):
+        sensor = trigger.sensor_type
         return f"sensor:{sensor}"
 
-    return trigger_type
+    return "unknown"
 
 
 def _expand_actions(
-    pattern: EventPattern,
+    routine: Routine,
     trigger_time: datetime,
 ) -> list[ActionExecution]:
     """
-    Expand pattern actions to absolute times.
+    Expand routine actions to absolute times (Schema 3.0).
 
     Args:
-        pattern: EventPattern with actions to expand
-        trigger_time: Pattern execution start time
+        routine: Routine with actions to expand
+        trigger_time: Routine execution start time
 
     Returns:
         List of ActionExecution with absolute times
     """
     actions = []
 
-    for action in pattern.actions:
+    for action in routine.actions:
         action_time = trigger_time + timedelta(minutes=action.offset_minutes)
         actions.append(
             ActionExecution(
@@ -346,25 +362,25 @@ def _expand_actions(
 def _convert_execution(
     execution: PatternExecution,
     trigger_info: str,
-    pattern_cache: dict[str, EventPattern],
+    routine_cache: dict[str, Routine],
 ) -> PreviewExecution:
     """
-    Convert PatternExecution to PreviewExecution with expanded actions.
+    Convert PatternExecution to PreviewExecution with expanded actions (Schema 3.0).
 
     Args:
         execution: PatternExecution from schedule_conflict.py
         trigger_info: Trigger description string
-        pattern_cache: Dict mapping pattern_id to EventPattern for O(1) lookup
+        routine_cache: Dict mapping routine_id to Routine for O(1) lookup
 
     Returns:
         PreviewExecution with expanded actions
     """
-    # Look up pattern from cache - O(1) instead of O(n) linear search
-    pattern = pattern_cache.get(execution.pattern_id)
+    # Look up routine from cache - O(1) instead of O(n) linear search
+    routine = routine_cache.get(execution.pattern_id)
 
     actions = []
-    if pattern:
-        actions = _expand_actions(pattern, execution.start_time)
+    if routine:
+        actions = _expand_actions(routine, execution.start_time)
 
     return PreviewExecution(
         start_time=execution.start_time,
@@ -453,10 +469,14 @@ def generate_preview(
     trigger_info = _get_trigger_info(schedule)
 
     # Warn about sensor triggers - they're event-driven with no predictable schedule
-    if schedule.trigger_type == "sensor":
+    # Check if any routine uses a sensor trigger
+    has_sensor_trigger = any(
+        isinstance(r.trigger, SensorTrigger) for r in schedule.routines if r.trigger
+    )
+    if has_sensor_trigger:
         warning_msg = (
             "Sensor triggers are event-driven and cannot be previewed. "
-            "Preview will show 0 executions."
+            "Preview will show 0 executions for sensor-triggered routines."
         )
         logger.info(warning_msg)
         warnings.append(warning_msg)
@@ -471,11 +491,11 @@ def generate_preview(
         timezone_name=timezone_name,
     )
 
-    # Build pattern cache once - O(n) where n = number of patterns
-    pattern_cache = {p.pattern_id: p for p in schedule.event_patterns}
+    # Build routine cache once - O(n) where n = number of routines
+    routine_cache = {r.routine_id: r for r in schedule.routines}
 
     # Convert to preview executions with expanded actions
-    executions = [_convert_execution(exec, trigger_info, pattern_cache) for exec in raw_executions]
+    executions = [_convert_execution(exec, trigger_info, routine_cache) for exec in raw_executions]
 
     # Detect conflicts
     conflict_report = detect_conflicts(

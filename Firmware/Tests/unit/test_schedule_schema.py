@@ -29,16 +29,16 @@ try:
         MAX_DESCRIPTION_LENGTH,
         MAX_OFFSET_MINUTES,
         MAX_PATTERN_NAME_LENGTH,
-        MAX_PATTERNS_PER_SCHEDULE,
+        MAX_ROUTINES_PER_SCHEDULE,
         MOON_PHASES,
         PRIMARY_TRIGGER_TYPES,
         SCHEDULE_SCHEMA_VERSION,
-        TRIGGER_CLASS_MAP,
-        TRIGGER_TYPE_MAP,
         SENSOR_COMPARISONS,
         SENSOR_TYPES,
         SOLAR_EVENTS,
         SUPPORTED_VERSIONS,
+        TRIGGER_CLASS_MAP,
+        TRIGGER_TYPE_MAP,
         TRIGGER_TYPES,
         # Dataclasses
         Action,
@@ -63,6 +63,7 @@ try:
         validate_moon_phase_trigger,
         validate_recurring_days_trigger,
         validate_routine,
+        validate_routine_ids_unique,
         validate_schedule,
         validate_sensor_trigger,
         validate_solar_trigger,
@@ -204,17 +205,13 @@ def sample_sensor_trigger(sample_time_window):
 
 
 @pytest.fixture
-def sample_schedule(sample_event_pattern, sample_interval_trigger):
-    """Create a sample Schedule for testing."""
+def sample_schedule(sample_routine_interval):
+    """Create a sample Schedule for testing (Schema 3.0)."""
     return Schedule(
         schedule_id="87654321-4321-8765-4321-876543218765",
         name="Nightly Moth Survey",
         description="Hourly captures from dusk to dawn",
-        event_patterns=[sample_event_pattern],
-        trigger_type="interval",
-        interval_trigger=sample_interval_trigger,
-        start_date="2024-06-01",
-        end_date="2024-08-31",
+        routines=[sample_routine_interval],
         deployment_id=None,
         create_deployment=False,
         enabled=True,
@@ -232,7 +229,7 @@ class TestScheduleSchemaConstants:
 
     def test_schema_version_defined(self):
         """SCHEDULE_SCHEMA_VERSION should be defined."""
-        assert SCHEDULE_SCHEMA_VERSION == "2.0"
+        assert SCHEDULE_SCHEMA_VERSION == "3.0"
 
     def test_supported_versions_includes_current(self):
         """SUPPORTED_VERSIONS should include current version."""
@@ -307,7 +304,7 @@ class TestScheduleSchemaConstants:
         assert MAX_PATTERN_NAME_LENGTH == 200
         assert MAX_DESCRIPTION_LENGTH == 2000
         assert MAX_ACTIONS_PER_PATTERN == 20
-        assert MAX_PATTERNS_PER_SCHEDULE == 10
+        assert MAX_ROUTINES_PER_SCHEDULE == 10
         assert MAX_OFFSET_MINUTES == 1440
 
 
@@ -1241,21 +1238,21 @@ class TestSchedule:
         """Schedule can be created."""
         assert sample_schedule.schedule_id == "87654321-4321-8765-4321-876543218765"
         assert sample_schedule.name == "Nightly Moth Survey"
-        assert len(sample_schedule.event_patterns) == 1
-        assert sample_schedule.trigger_type == "interval"
-        assert sample_schedule.interval_trigger is not None
+        assert len(sample_schedule.routines) == 1
         assert sample_schedule.enabled is True
         assert sample_schedule.is_active is False
 
-    def test_uuid_generation_on_empty_id(self):
+    def test_uuid_generation_on_empty_id(self, sample_routine_interval):
         """Schedule generates UUID when schedule_id is empty."""
-        schedule = Schedule(schedule_id="", name="Test", trigger_type="interval")
+        schedule = Schedule(schedule_id="", name="Test", routines=[sample_routine_interval])
         uuid.UUID(schedule.schedule_id)
 
-    def test_timestamps_generated(self):
+    def test_timestamps_generated(self, sample_routine_interval):
         """Schedule generates timestamps when empty."""
         schedule = Schedule(
-            schedule_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", name="Test", trigger_type="interval"
+            schedule_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            name="Test",
+            routines=[sample_routine_interval],
         )
         assert schedule.created_at != ""
         assert schedule.modified_at != ""
@@ -1263,15 +1260,16 @@ class TestSchedule:
         datetime.fromisoformat(schedule.created_at.replace("Z", "+00:00"))
 
     def test_total_duration_minutes(self, sample_schedule):
-        """Schedule.total_duration_minutes sums pattern durations."""
-        # Single pattern with duration 15
-        assert sample_schedule.total_duration_minutes == 15
+        """Schedule.total_duration_minutes sums routine durations."""
+        # Single routine with duration 2 (from sample_routine_interval actions)
+        assert sample_schedule.total_duration_minutes == 2
 
-    def test_total_duration_multiple_patterns(self, sample_event_pattern):
-        """Schedule.total_duration_minutes handles multiple patterns."""
-        pattern2 = EventPattern(
-            pattern_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+    def test_total_duration_multiple_routines(self, sample_routine_interval):
+        """Schedule.total_duration_minutes handles multiple routines."""
+        routine2 = Routine(
+            routine_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
             name="Extra",
+            trigger=SolarTrigger(solar_event="dusk"),
             actions=[
                 Action(action_type="gpio", action_name="flash_on", offset_minutes=10),
             ],
@@ -1279,11 +1277,10 @@ class TestSchedule:
         schedule = Schedule(
             schedule_id="dddddddd-dddd-dddd-dddd-dddddddddddd",
             name="Multi",
-            trigger_type="interval",
-            event_patterns=[sample_event_pattern, pattern2],
+            routines=[sample_routine_interval, routine2],
         )
-        # 15 + 10 = 25
-        assert schedule.total_duration_minutes == 25
+        # 2 + 10 = 12
+        assert schedule.total_duration_minutes == 12
 
     def test_to_dict_includes_schema_version(self, sample_schedule):
         """Schedule.to_dict() includes schema_version."""
@@ -1291,28 +1288,17 @@ class TestSchedule:
         assert data["schema_version"] == SCHEDULE_SCHEMA_VERSION
         assert data["schedule_id"] == "87654321-4321-8765-4321-876543218765"
         assert data["name"] == "Nightly Moth Survey"
-        assert len(data["event_patterns"]) == 1
+        assert len(data["routines"]) == 1
 
-    def test_from_dict(self, sample_event_pattern, sample_time_window):
-        """Schedule.from_dict() creates instance from dict."""
+    def test_from_dict(self, sample_routine_interval):
+        """Schedule.from_dict() creates instance from dict (schema 3.0)."""
+        routine_data = sample_routine_interval.to_dict()
         data = {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "schedule_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
             "name": "Test Schedule",
             "description": "A test schedule",
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "trigger_type": "interval",
-            "interval_trigger": {
-                "interval_minutes": 30,
-                "time_window": sample_time_window.to_dict(),
-                "days_of_week": None,
-            },
-            "solar_trigger": None,
-            "moon_phase_trigger": None,
-            "fixed_time_trigger": None,
-            "sensor_trigger": None,
-            "start_date": "2024-01-01",
-            "end_date": "2024-12-31",
+            "routines": [routine_data],
             "deployment_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
             "create_deployment": True,
             "enabled": True,
@@ -1324,9 +1310,26 @@ class TestSchedule:
         schedule = Schedule.from_dict(data)
         assert schedule.schedule_id == "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
         assert schedule.name == "Test Schedule"
-        assert len(schedule.event_patterns) == 1
-        assert schedule.interval_trigger is not None
-        assert schedule.interval_trigger.interval_minutes == 30
+        assert len(schedule.routines) == 1
+
+    def test_from_dict_rejects_old_event_patterns_format(self):
+        """Schedule.from_dict() rejects old event_patterns format."""
+        data = {
+            "name": "Old Format",
+            "event_patterns": [],
+        }
+        with pytest.raises(ValueError, match="event_patterns.*no longer supported"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_rejects_old_trigger_type_format(self):
+        """Schedule.from_dict() rejects old trigger_type format."""
+        data = {
+            "name": "Old Format",
+            "routines": [],
+            "trigger_type": "interval",
+        }
+        with pytest.raises(ValueError, match="Schedule-level triggers.*no longer supported"):
+            Schedule.from_dict(data)
 
     def test_round_trip_serialization(self, sample_schedule):
         """Schedule survives JSON round-trip."""
@@ -1336,7 +1339,7 @@ class TestSchedule:
         restored = Schedule.from_dict(loaded)
         assert restored.schedule_id == sample_schedule.schedule_id
         assert restored.name == sample_schedule.name
-        assert len(restored.event_patterns) == len(sample_schedule.event_patterns)
+        assert len(restored.routines) == len(sample_schedule.routines)
 
 
 # =============================================================================
@@ -1619,7 +1622,7 @@ class TestValidateSensorTrigger:
 
 
 class TestValidateSchedule:
-    """Test validate_schedule function."""
+    """Test validate_schedule function for Schema 3.0."""
 
     def test_valid_schedule(self, sample_schedule):
         """Valid schedule passes validation."""
@@ -1627,82 +1630,110 @@ class TestValidateSchedule:
         assert valid is True
         assert error is None
 
-    def test_empty_name_fails(self, sample_event_pattern):
+    def test_empty_name_fails(self, sample_routine_interval):
         """Empty name fails validation."""
         schedule = Schedule(
             schedule_id="66666666-6666-6666-6666-666666666666",
             name="",
-            trigger_type="interval",
-            event_patterns=[sample_event_pattern],
+            routines=[sample_routine_interval],
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
         assert "name" in error.lower()
 
-    def test_no_patterns_fails(self):
-        """Schedule with no patterns fails validation."""
+    def test_no_routines_fails(self):
+        """Schedule with no routines fails validation."""
         schedule = Schedule(
             schedule_id="77777777-7777-7777-7777-777777777777",
             name="Empty",
-            trigger_type="interval",
-            event_patterns=[],
+            routines=[],
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
-        assert "pattern" in error.lower()
+        assert "routine" in error.lower()
 
-    def test_invalid_trigger_type_fails(self, sample_event_pattern):
-        """Invalid trigger_type fails validation."""
+    def test_too_many_routines_fails(self, sample_routine_interval):
+        """Schedule with too many routines fails validation."""
+        routines = []
+        for i in range(MAX_ROUTINES_PER_SCHEDULE + 1):
+            routines.append(
+                Routine(
+                    routine_id=f"aaaaaaaa-aaaa-aaaa-aaaa-{i:012d}",
+                    name=f"Routine {i}",
+                    trigger=sample_routine_interval.trigger,
+                    actions=[Action(action_type="gpio", action_name="attract_on")],
+                )
+            )
         schedule = Schedule(
             schedule_id="88888888-8888-8888-8888-888888888888",
-            name="Bad Trigger",
-            trigger_type="invalid",
-            event_patterns=[sample_event_pattern],
+            name="Too Many Routines",
+            routines=routines,
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
-        assert "trigger" in error.lower()
+        assert "routine" in error.lower()
 
-    def test_missing_trigger_config_fails(self, sample_event_pattern):
-        """Missing trigger config for trigger_type fails validation."""
-        schedule = Schedule(
-            schedule_id="99999999-9999-9999-9999-999999999999",
-            name="No Config",
-            trigger_type="interval",
-            event_patterns=[sample_event_pattern],
-            interval_trigger=None,
-        )
-        valid, error = validate_schedule(schedule)
-        assert valid is False
-        assert "interval" in error.lower()
-
-    def test_invalid_date_format_fails(self, sample_event_pattern, sample_interval_trigger):
-        """Invalid date format fails validation."""
-        schedule = Schedule(
-            schedule_id="aaaa1111-aaaa-1111-aaaa-111111111111",
-            name="Bad Date",
-            trigger_type="interval",
-            event_patterns=[sample_event_pattern],
-            interval_trigger=sample_interval_trigger,
-            start_date="not-a-date",
-        )
-        valid, error = validate_schedule(schedule)
-        assert valid is False
-        assert "date" in error.lower()
-
-    def test_invalid_schedule_id_format_fails(self, sample_event_pattern, sample_interval_trigger):
+    def test_invalid_schedule_id_format_fails(self, sample_routine_interval):
         """Schedule with invalid UUID format for schedule_id fails validation."""
         schedule = Schedule(
             schedule_id="not-a-uuid",
             name="Invalid ID",
-            trigger_type="interval",
-            event_patterns=[sample_event_pattern],
-            interval_trigger=sample_interval_trigger,
+            routines=[sample_routine_interval],
         )
         valid, error = validate_schedule(schedule)
         assert valid is False
         assert "schedule_id" in error.lower()
         assert "uuid" in error.lower()
+
+    def test_duplicate_routine_ids_fails(self, sample_routine_interval):
+        """Schedule with duplicate routine IDs fails validation."""
+        routine2 = Routine(
+            routine_id=sample_routine_interval.routine_id,  # Same ID
+            name="Duplicate ID Routine",
+            trigger=sample_routine_interval.trigger,
+            actions=[Action(action_type="gpio", action_name="flash_on")],
+        )
+        schedule = Schedule(
+            schedule_id="99999999-9999-9999-9999-999999999999",
+            name="Duplicate Routine IDs",
+            routines=[sample_routine_interval, routine2],
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "duplicate" in error.lower()
+
+    def test_invalid_routine_fails(self):
+        """Schedule with invalid routine fails validation."""
+        # Create a routine with invalid trigger (zero interval)
+        bad_routine = Routine(
+            routine_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            name="Bad Interval Routine",
+            trigger=IntervalTrigger(
+                interval_minutes=0,  # Invalid: must be >= 1
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        schedule = Schedule(
+            schedule_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
+            name="Has Invalid Routine",
+            routines=[bad_routine],
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "routine" in error.lower() or "interval" in error.lower()
+
+    def test_description_too_long_fails(self, sample_routine_interval):
+        """Schedule with description exceeding max length fails validation."""
+        schedule = Schedule(
+            schedule_id="dddddddd-dddd-dddd-dddd-dddddddddddd",
+            name="Long Description",
+            description="x" * (MAX_DESCRIPTION_LENGTH + 1),
+            routines=[sample_routine_interval],
+        )
+        valid, error = validate_schedule(schedule)
+        assert valid is False
+        assert "description" in error.lower()
 
 
 # =============================================================================
@@ -1958,555 +1989,414 @@ class TestTriggerFromDict:
             trigger_from_dict({"trigger_type": "invalid"})
 
 
-class TestScheduleWithCronTrigger:
-    """Tests for Schedule with cron trigger type."""
+class TestRoutineWithCronTrigger:
+    """Tests for Routine with cron trigger type."""
 
-    def test_schedule_with_cron_trigger_validates(self, sample_event_pattern):
-        """Schedule with valid cron trigger passes validation."""
-        cron_trigger = CronTrigger(cron_expression="0 21 * * *")
-        schedule = Schedule(
-            schedule_id="",
-            name="Expert Mode Schedule",
-            event_patterns=[sample_event_pattern],
-            trigger_type="cron",
-            cron_trigger=cron_trigger,
+    def test_routine_with_cron_trigger_validates(self):
+        """Routine with valid cron trigger passes validation."""
+        routine = Routine(
+            routine_id="eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+            name="Expert Mode Routine",
+            trigger=CronTrigger(cron_expression="0 21 * * *"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
         )
-        valid, error = validate_schedule(schedule)
+        valid, error = validate_routine(routine)
         assert valid is True
         assert error is None
 
-    def test_schedule_cron_trigger_type_requires_cron_trigger(self, sample_event_pattern):
-        """Schedule with trigger_type='cron' but missing cron_trigger fails validation."""
-        schedule = Schedule(
-            schedule_id="",
-            name="Missing Cron Config",
-            event_patterns=[sample_event_pattern],
-            trigger_type="cron",
-            cron_trigger=None,
+    def test_routine_with_invalid_cron_expression_fails(self):
+        """Routine with invalid cron expression fails validation."""
+        routine = Routine(
+            routine_id="ffffffff-ffff-ffff-ffff-ffffffffffff",
+            name="Bad Cron Routine",
+            trigger=CronTrigger(cron_expression="invalid cron"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
         )
-        valid, error = validate_schedule(schedule)
+        valid, error = validate_routine(routine)
         assert valid is False
         assert "cron" in error.lower()
 
-    def test_schedule_with_invalid_cron_expression_fails(self, sample_event_pattern):
-        """Schedule with invalid cron expression fails validation."""
-        cron_trigger = CronTrigger(cron_expression="invalid cron")
-        schedule = Schedule(
-            schedule_id="",
-            name="Bad Cron",
-            event_patterns=[sample_event_pattern],
-            trigger_type="cron",
-            cron_trigger=cron_trigger,
-        )
-        valid, error = validate_schedule(schedule)
-        assert valid is False
-        assert "cron" in error.lower()
-
-    def test_schedule_cron_trigger_serialization(self, sample_event_pattern):
-        """Schedule with cron trigger serializes and deserializes correctly."""
-        cron_trigger = CronTrigger(cron_expression="0 */2 * * *")
-        schedule = Schedule(
-            schedule_id="",
-            name="Cron Schedule",
-            event_patterns=[sample_event_pattern],
-            trigger_type="cron",
-            cron_trigger=cron_trigger,
+    def test_routine_cron_trigger_serialization(self):
+        """Routine with cron trigger serializes and deserializes correctly."""
+        routine = Routine(
+            routine_id="11111111-2222-3333-4444-555555555555",
+            name="Cron Routine",
+            trigger=CronTrigger(cron_expression="0 */2 * * *"),
+            actions=[Action(action_type="gpio", action_name="flash_on")],
         )
 
         # Serialize
-        data = schedule.to_dict()
-        assert data["trigger_type"] == "cron"
-        assert data["cron_trigger"]["cron_expression"] == "0 */2 * * *"
+        data = routine.to_dict()
+        assert data["trigger"]["trigger_type"] == "cron"
+        assert data["trigger"]["cron_expression"] == "0 */2 * * *"
 
         # Deserialize
-        restored = Schedule.from_dict(data)
-        assert restored.trigger_type == "cron"
-        assert restored.cron_trigger.cron_expression == "0 */2 * * *"
+        restored = Routine.from_dict(data)
+        assert isinstance(restored.trigger, CronTrigger)
+        assert restored.trigger.cron_expression == "0 */2 * * *"
 
 
-class TestScheduleWithRecurringDaysTrigger:
-    """Tests for Schedule with recurring_days trigger type."""
+class TestRoutineWithRecurringDaysTrigger:
+    """Tests for Routine with recurring_days trigger type."""
 
-    def test_schedule_with_recurring_days_trigger_validates(self, sample_event_pattern):
-        """Schedule with valid recurring_days trigger passes validation."""
-        recurring_days_trigger = RecurringDaysTrigger(
-            every_n_days=3,
-            time="21:00",
-            start_date="2025-01-01",
-        )
-        schedule = Schedule(
-            schedule_id="",
+    def test_routine_with_recurring_days_trigger_validates(self):
+        """Routine with valid recurring_days trigger passes validation."""
+        routine = Routine(
+            routine_id="22222222-3333-4444-5555-666666666666",
             name="GPS Sync Every 3 Days",
-            event_patterns=[sample_event_pattern],
-            trigger_type="recurring_days",
-            recurring_days_trigger=recurring_days_trigger,
+            trigger=RecurringDaysTrigger(
+                every_n_days=3,
+                time="21:00",
+                start_date="2025-01-01",
+            ),
+            actions=[Action(action_type="gps_sync", action_name="sync")],
         )
-        valid, error = validate_schedule(schedule)
+        valid, error = validate_routine(routine)
         assert valid is True
         assert error is None
 
-    def test_schedule_recurring_days_trigger_type_requires_trigger(self, sample_event_pattern):
-        """Schedule with trigger_type='recurring_days' but missing trigger fails validation."""
-        schedule = Schedule(
-            schedule_id="",
-            name="Missing Recurring Days Config",
-            event_patterns=[sample_event_pattern],
-            trigger_type="recurring_days",
-            recurring_days_trigger=None,
-        )
-        valid, error = validate_schedule(schedule)
-        assert valid is False
-        assert "recurring_days" in error.lower()
-
-    def test_schedule_with_invalid_recurring_days_fails(self, sample_event_pattern):
-        """Schedule with invalid every_n_days fails validation."""
-        recurring_days_trigger = RecurringDaysTrigger(
-            every_n_days=0,  # Invalid: must be at least 1
-            time="21:00",
-        )
-        schedule = Schedule(
-            schedule_id="",
+    def test_routine_with_invalid_recurring_days_fails(self):
+        """Routine with invalid every_n_days fails validation."""
+        routine = Routine(
+            routine_id="33333333-4444-5555-6666-777777777777",
             name="Invalid Recurring Days",
-            event_patterns=[sample_event_pattern],
-            trigger_type="recurring_days",
-            recurring_days_trigger=recurring_days_trigger,
+            trigger=RecurringDaysTrigger(
+                every_n_days=0,  # Invalid: must be at least 1
+                time="21:00",
+            ),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
         )
-        valid, error = validate_schedule(schedule)
+        valid, error = validate_routine(routine)
         assert valid is False
         assert "at least 1" in error
 
-    def test_schedule_recurring_days_trigger_serialization(self, sample_event_pattern):
-        """Schedule with recurring_days trigger serializes and deserializes correctly."""
-        recurring_days_trigger = RecurringDaysTrigger(
-            every_n_days=7,
-            time="09:00",
-            start_date="2025-06-01",
-        )
-        schedule = Schedule(
-            schedule_id="",
+    def test_routine_recurring_days_trigger_serialization(self):
+        """Routine with recurring_days trigger serializes and deserializes correctly."""
+        routine = Routine(
+            routine_id="44444444-5555-6666-7777-888888888888",
             name="Weekly Sync",
-            event_patterns=[sample_event_pattern],
-            trigger_type="recurring_days",
-            recurring_days_trigger=recurring_days_trigger,
+            trigger=RecurringDaysTrigger(
+                every_n_days=7,
+                time="09:00",
+                start_date="2025-06-01",
+            ),
+            actions=[Action(action_type="gps_sync", action_name="sync")],
         )
 
         # Serialize
-        data = schedule.to_dict()
-        assert data["trigger_type"] == "recurring_days"
-        assert data["recurring_days_trigger"]["every_n_days"] == 7
-        assert data["recurring_days_trigger"]["time"] == "09:00"
-        assert data["recurring_days_trigger"]["start_date"] == "2025-06-01"
+        data = routine.to_dict()
+        assert data["trigger"]["trigger_type"] == "recurring_days"
+        assert data["trigger"]["every_n_days"] == 7
+        assert data["trigger"]["time"] == "09:00"
+        assert data["trigger"]["start_date"] == "2025-06-01"
 
         # Deserialize
+        restored = Routine.from_dict(data)
+        assert isinstance(restored.trigger, RecurringDaysTrigger)
+        assert restored.trigger.every_n_days == 7
+        assert restored.trigger.time == "09:00"
+        assert restored.trigger.start_date == "2025-06-01"
+
+
+# =============================================================================
+# SCHEMA 3.0 - SCHEDULE FROM_DICT TESTS
+# =============================================================================
+
+
+class TestScheduleFromDict:
+    """Test Schedule.from_dict() for Schema 3.0."""
+
+    def test_from_dict_valid_schedule(self, sample_routine_interval):
+        """Valid schedule data deserializes correctly."""
+        data = {
+            "schedule_id": "55555555-6666-7777-8888-999999999999",
+            "name": "My Test Schedule",
+            "description": "A test schedule",
+            "routines": [sample_routine_interval.to_dict()],
+            "enabled": True,
+            "is_active": False,
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.schedule_id == "55555555-6666-7777-8888-999999999999"
+        assert schedule.name == "My Test Schedule"
+        assert schedule.description == "A test schedule"
+        assert len(schedule.routines) == 1
+        assert schedule.enabled is True
+        assert schedule.is_active is False
+
+    def test_from_dict_rejects_event_patterns(self, sample_event_pattern):
+        """from_dict rejects old schema with event_patterns."""
+        data = {
+            "name": "Old Schema Schedule",
+            "event_patterns": [sample_event_pattern.to_dict()],
+            "trigger_type": "interval",
+        }
+        with pytest.raises(ValueError, match="event_patterns.*no longer supported"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_rejects_schedule_level_trigger_type(self, sample_routine_interval):
+        """from_dict rejects old schema with schedule-level trigger_type."""
+        data = {
+            "name": "Old Schema Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+            "trigger_type": "interval",
+        }
+        with pytest.raises(ValueError, match="Schedule-level triggers.*no longer supported"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_rejects_schedule_level_trigger(self, sample_routine_interval):
+        """from_dict rejects old schema with schedule-level trigger object."""
+        data = {
+            "name": "Old Schema Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
+        }
+        with pytest.raises(ValueError, match="Schedule-level triggers.*no longer supported"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_multiple_routines(self):
+        """Schedule with multiple routines deserializes correctly."""
+        routine1 = Routine(
+            routine_id="aaaa1111-aaaa-1111-aaaa-111111111111",
+            name="Morning Routine",
+            trigger=FixedTimeTrigger(time="06:00"),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        routine2 = Routine(
+            routine_id="bbbb2222-bbbb-2222-bbbb-222222222222",
+            name="Evening Routine",
+            trigger=SolarTrigger(solar_event="sunset"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        data = {
+            "schedule_id": "cccc3333-cccc-3333-cccc-333333333333",
+            "name": "Multi-Routine Schedule",
+            "routines": [routine1.to_dict(), routine2.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert len(schedule.routines) == 2
+        assert schedule.routines[0].name == "Morning Routine"
+        assert schedule.routines[1].name == "Evening Routine"
+        assert isinstance(schedule.routines[0].trigger, FixedTimeTrigger)
+        assert isinstance(schedule.routines[1].trigger, SolarTrigger)
+
+    def test_from_dict_accepts_valid_schema_version(self, sample_routine_interval):
+        """Valid schema version 3.0 should be accepted."""
+        data = {
+            "schema_version": "3.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.name == "Test Schedule"
+
+    def test_from_dict_rejects_unsupported_schema_version(self, sample_routine_interval):
+        """Unsupported schema versions should raise ValueError."""
+        data = {
+            "schema_version": "2.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unsupported schema version"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_rejects_future_schema_version(self, sample_routine_interval):
+        """Future schema versions should raise ValueError."""
+        data = {
+            "schema_version": "4.0",
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        with pytest.raises(ValueError, match="Unsupported schema version"):
+            Schedule.from_dict(data)
+
+    def test_from_dict_accepts_missing_schema_version(self, sample_routine_interval):
+        """Missing schema_version should be accepted (for API payloads)."""
+        data = {
+            "name": "Test Schedule",
+            "routines": [sample_routine_interval.to_dict()],
+        }
+        schedule = Schedule.from_dict(data)
+        assert schedule.name == "Test Schedule"
+
+
+class TestRoutineIdsUniqueValidation:
+    """Tests for empty routine ID validation in validate_routine_ids_unique()."""
+
+    def test_empty_routine_id_rejected(self):
+        """Empty string routine IDs should be rejected."""
+        # Create routine normally then force empty ID to bypass post_init
+        routine = Routine(
+            routine_id="temp-id",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine.routine_id = ""  # Force empty after init
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert not valid
+        assert "empty" in error.lower()
+
+    def test_none_routine_id_rejected(self):
+        """None routine IDs should be rejected."""
+        routine = Routine(
+            routine_id="temp-id",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        routine.routine_id = None  # Force None after init
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert not valid
+        assert "empty" in error.lower()
+
+    def test_valid_routine_ids_accepted(self):
+        """Valid non-empty routine IDs should be accepted."""
+        routine = Routine(
+            routine_id="valid-uuid-here",
+            name="Test Routine",
+            trigger=FixedTimeTrigger(time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+
+        schedule = Schedule(
+            schedule_id="test-schedule-id",
+            name="Test Schedule",
+            routines=[routine],
+        )
+        valid, error = validate_routine_ids_unique(schedule)
+        assert valid
+        assert error is None
+
+
+class TestScheduleSerialization:
+    """Test Schedule serialization (to_dict/from_dict) round-trip."""
+
+    def test_schedule_round_trip(self, sample_schedule):
+        """Schedule survives serialization round-trip."""
+        data = sample_schedule.to_dict()
         restored = Schedule.from_dict(data)
-        assert restored.trigger_type == "recurring_days"
-        assert restored.recurring_days_trigger.every_n_days == 7
-        assert restored.recurring_days_trigger.time == "09:00"
-        assert restored.recurring_days_trigger.start_date == "2025-06-01"
 
-    def test_schedule_from_frontend_recurring_days_format(self, sample_event_pattern):
-        """Schedule.from_dict handles frontend recurring_days format."""
-        frontend_data = {
-            "name": "Frontend Recurring Days Schedule",
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "trigger": {
-                "trigger_type": "recurring_days",
-                "every_n_days": 5,
-                "time": "18:00",
-                "start_date": "2025-03-15",
-            },
-        }
+        assert restored.schedule_id == sample_schedule.schedule_id
+        assert restored.name == sample_schedule.name
+        assert restored.description == sample_schedule.description
+        assert len(restored.routines) == len(sample_schedule.routines)
+        assert restored.enabled == sample_schedule.enabled
+        assert restored.is_active == sample_schedule.is_active
 
-        schedule = Schedule.from_dict(frontend_data)
-        assert schedule.trigger_type == "recurring_days"
-        assert schedule.recurring_days_trigger is not None
-        assert schedule.recurring_days_trigger.every_n_days == 5
-        assert schedule.recurring_days_trigger.time == "18:00"
-        assert schedule.recurring_days_trigger.start_date == "2025-03-15"
+    def test_schedule_json_round_trip(self, sample_schedule):
+        """Schedule survives JSON round-trip."""
+        data = sample_schedule.to_dict()
+        json_str = json.dumps(data)
+        restored_data = json.loads(json_str)
+        restored = Schedule.from_dict(restored_data)
 
+        assert restored.schedule_id == sample_schedule.schedule_id
+        assert restored.name == sample_schedule.name
 
-# =============================================================================
-# FRONTEND FORMAT CONVERSION TESTS (Issue #280)
-# =============================================================================
+    def test_to_dict_includes_schema_version(self, sample_schedule):
+        """to_dict includes schema_version field."""
+        data = sample_schedule.to_dict()
+        assert data["schema_version"] == "3.0"
 
-
-class TestScheduleFromDictFrontendFormat:
-    """Test Schedule.from_dict() with frontend JSON format conversion."""
-
-    def test_is_frontend_format_with_trigger_object(self):
-        """Returns True when 'trigger' key exists."""
-        data = {
-            "name": "Test",
-            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
-        }
-        assert Schedule._is_frontend_format(data) is True
-
-    def test_is_frontend_format_without_trigger_object(self):
-        """Returns False for backend format."""
-        data = {
-            "name": "Test",
-            "trigger_type": "interval",
-            "interval_trigger": {"interval_minutes": 60},
-        }
-        assert Schedule._is_frontend_format(data) is False
-
-    def test_parse_frontend_interval_trigger(self):
-        """Converts flat interval fields."""
-        trigger_data = {
-            "trigger_type": "interval",
-            "interval_minutes": 60,
-            "time_window_start": "21:00",
-            "time_window_end": "05:00",
-            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-        }
-        result = Schedule._parse_interval_trigger_frontend(trigger_data)
-        assert isinstance(result, IntervalTrigger)
-        assert result.interval_minutes == 60
-        assert result.time_window.start_time == "21:00"
-        assert result.time_window.end_time == "05:00"
-        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
-
-    def test_parse_frontend_solar_trigger(self):
-        """Converts solar trigger."""
-        trigger_data = {
-            "trigger_type": "solar",
-            "solar_event": "sunset",
-            "offset_minutes": 30,
-            "days_of_week": [0, 1, 2, 3, 4],
-        }
-        result = Schedule._parse_solar_trigger_frontend(trigger_data)
-        assert isinstance(result, SolarTrigger)
-        assert result.solar_event == "sunset"
-        assert result.offset_minutes == 30
-        assert result.days_of_week == [0, 1, 2, 3, 4]
-
-    def test_parse_frontend_moon_phase_trigger(self):
-        """Converts moon_phase (string to list)."""
-        trigger_data = {
-            "trigger_type": "moon_phase",
-            "moon_phase": "full",
-            "time_of_day": "21:00",
-            "offset_days": 2,
-        }
-        result = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
-        assert isinstance(result, MoonPhaseTrigger)
-        assert result.phases == ["full"]
-        assert result.offset_days == 2
-        assert result.time_window.start_time == "21:00"
-
-    def test_parse_frontend_fixed_time_trigger(self):
-        """Converts time_of_day to time."""
-        trigger_data = {
-            "trigger_type": "fixed_time",
-            "time_of_day": "21:00",
-            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-        }
-        result = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
-        assert isinstance(result, FixedTimeTrigger)
-        assert result.time == "21:00"
-        assert result.days_of_week == [0, 1, 2, 3, 4, 5, 6]
-
-    def test_parse_frontend_sensor_trigger(self):
-        """Converts sensor fields."""
-        trigger_data = {
-            "trigger_type": "sensor",
-            "sensor_type": "motion",
-            "threshold": 0.0,
-            "comparison": "gt",
-            "cooldown_minutes": 5,
-        }
-        result = Schedule._parse_sensor_trigger_frontend(trigger_data)
-        assert isinstance(result, SensorTrigger)
-        assert result.sensor_type == "motion"
-        assert result.threshold == 0.0
-        assert result.comparison == "gt"
-        assert result.cooldown_minutes == 5
-
-    def test_parse_frontend_cron_trigger(self):
-        """Converts cron_expression."""
-        trigger_data = {
-            "trigger_type": "cron",
-            "cron_expression": "0 21 * * *",
-        }
-        result = Schedule._parse_cron_trigger_frontend(trigger_data)
-        assert isinstance(result, CronTrigger)
-        assert result.cron_expression == "0 21 * * *"
-
-    def test_from_dict_frontend_interval_full(self, sample_event_pattern):
-        """Full Schedule creation with interval."""
-        data = {
-            "schedule_id": "test-uuid-1234",
-            "name": "My Schedule",
-            "trigger": {
-                "trigger_type": "interval",
-                "interval_minutes": 60,
-                "time_window_start": "21:00",
-                "time_window_end": "05:00",
-                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-            },
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "date_range": {"start_date": "2024-06-01", "end_date": "2024-08-31"},
-        }
-        schedule = Schedule.from_dict(data)
-        assert schedule.schedule_id == "test-uuid-1234"
-        assert schedule.name == "My Schedule"
-        assert schedule.trigger_type == "interval"
-        assert schedule.interval_trigger.interval_minutes == 60
-        assert schedule.interval_trigger.time_window.start_time == "21:00"
-        assert schedule.start_date == "2024-06-01"
-        assert schedule.end_date == "2024-08-31"
-
-    def test_from_dict_frontend_solar_full(self, sample_event_pattern):
-        """Full Schedule creation with solar."""
-        data = {
-            "schedule_id": "test-uuid-5678",
-            "name": "Solar Schedule",
-            "trigger": {
-                "trigger_type": "solar",
-                "solar_event": "sunset",
-                "offset_minutes": 30,
-                "days_of_week": [0, 1, 2, 3, 4],
-            },
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        schedule = Schedule.from_dict(data)
-        assert schedule.trigger_type == "solar"
-        assert schedule.solar_trigger.solar_event == "sunset"
-        assert schedule.solar_trigger.offset_minutes == 30
-        assert schedule.solar_trigger.days_of_week == [0, 1, 2, 3, 4]
-
-    def test_from_dict_frontend_with_date_range(self, sample_event_pattern):
-        """Unwraps date_range object."""
-        data = {
-            "name": "Date Range Test",
-            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "date_range": {"start_date": "2024-01-01", "end_date": "2024-12-31"},
-        }
-        schedule = Schedule.from_dict(data)
-        assert schedule.start_date == "2024-01-01"
-        assert schedule.end_date == "2024-12-31"
-
-    def test_from_dict_backend_format_still_works(self, sample_event_pattern, sample_time_window):
-        """Backward compatibility."""
-        data = {
-            "schedule_id": "backend-uuid",
-            "name": "Backend Format Schedule",
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "trigger_type": "interval",
-            "interval_trigger": {
-                "interval_minutes": 30,
-                "time_window": sample_time_window.to_dict(),
-                "days_of_week": [5, 6],
-            },
-            "start_date": "2024-01-01",
-            "end_date": "2024-12-31",
-        }
-        schedule = Schedule.from_dict(data)
-        assert schedule.schedule_id == "backend-uuid"
-        assert schedule.name == "Backend Format Schedule"
-        assert schedule.trigger_type == "interval"
-        assert schedule.interval_trigger.interval_minutes == 30
-        assert schedule.start_date == "2024-01-01"
+    def test_to_dict_serializes_routines(self, sample_schedule):
+        """to_dict properly serializes routines."""
+        data = sample_schedule.to_dict()
+        assert "routines" in data
+        assert len(data["routines"]) == 1
+        routine_data = data["routines"][0]
+        assert "routine_id" in routine_data
+        assert "name" in routine_data
+        assert "trigger" in routine_data
+        assert "actions" in routine_data
 
 
-class TestFrontendFormatValidation:
-    """Tests for validation of malformed frontend data."""
+class TestScheduleWithMixedTriggerTypes:
+    """Test schedules with routines using different trigger types."""
 
-    # Uses module-level sample_event_pattern fixture
+    def test_schedule_with_interval_and_solar_routines(self):
+        """Schedule can have routines with different trigger types."""
+        interval_routine = Routine(
+            routine_id="dddd4444-dddd-4444-dddd-444444444444",
+            name="Hourly Check",
+            trigger=IntervalTrigger(
+                interval_minutes=60,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="gpio", action_name="flash_on")],
+        )
+        solar_routine = Routine(
+            routine_id="eeee5555-eeee-5555-eeee-555555555555",
+            name="Sunset Start",
+            trigger=SolarTrigger(solar_event="sunset", offset_minutes=30),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        schedule = Schedule(
+            schedule_id="ffff6666-ffff-6666-ffff-666666666666",
+            name="Mixed Trigger Schedule",
+            routines=[interval_routine, solar_routine],
+        )
 
-    def test_missing_trigger_type(self, sample_event_pattern):
-        """Empty trigger object should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="trigger_type is required"):
-            Schedule.from_dict(data)
+        valid, error = validate_schedule(schedule)
+        assert valid is True
+        assert error is None
 
-    def test_invalid_trigger_type(self, sample_event_pattern):
-        """Unknown trigger type should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "unknown_type"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="Unknown trigger_type"):
-            Schedule.from_dict(data)
+        # Round-trip
+        data = schedule.to_dict()
+        restored = Schedule.from_dict(data)
+        assert len(restored.routines) == 2
+        assert isinstance(restored.routines[0].trigger, IntervalTrigger)
+        assert isinstance(restored.routines[1].trigger, SolarTrigger)
 
-    def test_missing_interval_minutes(self, sample_event_pattern):
-        """Interval trigger without interval_minutes should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "interval"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="interval_minutes is required"):
-            Schedule.from_dict(data)
+    def test_schedule_with_all_trigger_types(self):
+        """Schedule with routines using all trigger types validates."""
+        routines = [
+            Routine(
+                routine_id="11111111-1111-1111-1111-111111111111",
+                name="Interval Routine",
+                trigger=IntervalTrigger(
+                    interval_minutes=30,
+                    time_window=TimeWindow(start_time="20:00", end_time="06:00"),
+                ),
+                actions=[Action(action_type="gpio", action_name="attract_on")],
+            ),
+            Routine(
+                routine_id="22222222-2222-2222-2222-222222222222",
+                name="Solar Routine",
+                trigger=SolarTrigger(solar_event="sunrise"),
+                actions=[Action(action_type="gpio", action_name="attract_off")],
+            ),
+            Routine(
+                routine_id="33333333-3333-3333-3333-333333333333",
+                name="Fixed Time Routine",
+                trigger=FixedTimeTrigger(time="12:00"),
+                actions=[Action(action_type="camera", action_name="takephoto")],
+            ),
+            Routine(
+                routine_id="44444444-4444-4444-4444-444444444444",
+                name="Cron Routine",
+                trigger=CronTrigger(cron_expression="0 */6 * * *"),
+                actions=[Action(action_type="gps_sync", action_name="sync")],
+            ),
+        ]
+        schedule = Schedule(
+            schedule_id="00000000-0000-0000-0000-000000000000",
+            name="All Trigger Types",
+            routines=routines,
+        )
 
-    def test_missing_solar_event(self, sample_event_pattern):
-        """Solar trigger without solar_event should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "solar"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="solar_event is required"):
-            Schedule.from_dict(data)
-
-    def test_missing_moon_phase(self, sample_event_pattern):
-        """Moon phase trigger without phases should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "moon_phase"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="moon_phase or phases is required"):
-            Schedule.from_dict(data)
-
-    def test_missing_sensor_type(self, sample_event_pattern):
-        """Sensor trigger without sensor_type should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "sensor"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="sensor_type is required"):
-            Schedule.from_dict(data)
-
-    def test_missing_cron_expression(self, sample_event_pattern):
-        """Cron trigger without cron_expression should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "cron"},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="cron_expression is required"):
-            Schedule.from_dict(data)
-
-    def test_null_date_range(self, sample_event_pattern):
-        """Null date_range should not cause errors."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "interval", "interval_minutes": 60},
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "date_range": None,
-        }
-        # Should not raise - None date_range is valid
-        schedule = Schedule.from_dict(data)
-        assert schedule.start_date is None
-        assert schedule.end_date is None
-
-    def test_missing_time_of_day(self, sample_event_pattern):
-        """Fixed time trigger without time_of_day should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {
-                "trigger_type": "fixed_time",
-                "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-            },
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="time_of_day is required"):
-            Schedule.from_dict(data)
-
-    def test_moon_phase_empty_string(self, sample_event_pattern):
-        """Empty string moon_phase should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "moon_phase", "moon_phase": ""},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="moon_phase or phases is required"):
-            Schedule.from_dict(data)
-
-    def test_moon_phase_empty_list(self, sample_event_pattern):
-        """Empty list phases should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "moon_phase", "phases": []},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="moon_phase or phases is required"):
-            Schedule.from_dict(data)
-
-    def test_moon_phase_none_value(self, sample_event_pattern):
-        """None moon_phase should raise ValueError."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {"trigger_type": "moon_phase", "moon_phase": None},
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        with pytest.raises(ValueError, match="moon_phase or phases is required"):
-            Schedule.from_dict(data)
-
-    def test_interval_trigger_nested_time_window(self, sample_event_pattern):
-        """Interval trigger with nested time_window format."""
-        data = {
-            "name": "Test Schedule",
-            "trigger": {
-                "trigger_type": "interval",
-                "interval_minutes": 60,
-                "time_window": {"start_time": "21:00", "end_time": "05:00"},
-            },
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        schedule = Schedule.from_dict(data)
-        assert schedule.interval_trigger.time_window.start_time == "21:00"
-        assert schedule.interval_trigger.time_window.end_time == "05:00"
-
-    def test_interval_trigger_nested_time_window_takes_priority(self, sample_event_pattern):
-        """Nested time_window object takes priority over flat time_window_start/end fields.
-
-        When both formats are present, the nested object wins. This documents
-        the expected behavior for conflicting inputs.
-        """
-        data = {
-            "name": "Test Schedule",
-            "trigger": {
-                "trigger_type": "interval",
-                "interval_minutes": 60,
-                # Nested object - should take priority
-                "time_window": {"start_time": "20:00", "end_time": "06:00"},
-                # Flat fields - should be ignored
-                "time_window_start": "21:00",
-                "time_window_end": "05:00",
-            },
-            "event_patterns": [sample_event_pattern.to_dict()],
-        }
-        schedule = Schedule.from_dict(data)
-        # Nested object wins
-        assert schedule.interval_trigger.time_window.start_time == "20:00"
-        assert schedule.interval_trigger.time_window.end_time == "06:00"
-
-
-class TestDeepCopyDefensiveProgramming:
-    """Tests that verify deepcopy is used to prevent input mutation."""
-
-    # Uses module-level sample_event_pattern fixture
-
-    def test_from_dict_does_not_mutate_input(self, sample_event_pattern):
-        """Schedule.from_dict should not mutate the input data."""
-        original_trigger = {
-            "trigger_type": "interval",
-            "interval_minutes": 60,
-            "time_window": {"start_time": "20:00", "end_time": "06:00"},
-        }
-        data = {
-            "name": "Test Schedule",
-            "trigger": original_trigger.copy(),
-            "event_patterns": [sample_event_pattern.to_dict()],
-            "date_range": {"start_date": "2025-01-01", "end_date": "2025-12-31"},
-        }
-
-        # Make a deep copy to compare after
-        import copy
-
-        original_data = copy.deepcopy(data)
-
-        # Parse the schedule
-        Schedule.from_dict(data)
-
-        # Input should not be mutated
-        assert data == original_data
+        valid, error = validate_schedule(schedule)
+        assert valid is True
+        assert error is None

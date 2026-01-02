@@ -42,18 +42,18 @@ except ImportError:
 # Import schema classes
 try:
     from webui.backend.lib.schedule_schema import (
-        EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         MoonPhaseTrigger,
         Action,
+        Routine,
         Schedule,
         SensorTrigger,
         SolarTrigger,
         TimeWindow,
     )
 except ImportError:
-    EventPattern = None
+    Routine = None
     Schedule = None
 
 # Import conflict types
@@ -84,9 +84,9 @@ def sample_action():
 
 
 @pytest.fixture
-def sample_pattern():
-    """Create a sample EventPattern with multiple actions."""
-    actions = [
+def sample_actions():
+    """Create sample actions for routines."""
+    return [
         Action(
             action_type="gpio",
             action_name="attract_on",
@@ -107,18 +107,10 @@ def sample_pattern():
         ),
     ]
 
-    return EventPattern(
-        pattern_id="uv-capture-cycle",
-        name="UV Capture Cycle",
-        description="Standard UV light photo capture sequence",
-        actions=actions,
-        category="user",
-    )
-
 
 @pytest.fixture
-def sample_interval_schedule(sample_pattern):
-    """Create a schedule with interval trigger."""
+def sample_routine(sample_actions):
+    """Create a sample Routine for action expansion tests (Schema 3.0)."""
     time_window = TimeWindow(
         start_time="21:00",
         end_time="05:00",
@@ -129,79 +121,125 @@ def sample_interval_schedule(sample_pattern):
         time_window=time_window,
     )
 
+    return Routine(
+        routine_id="uv-capture-cycle",
+        name="UV Capture Cycle",
+        description="Standard UV light photo capture sequence",
+        trigger=trigger,
+        actions=sample_actions,
+    )
+
+
+@pytest.fixture
+def sample_interval_schedule(sample_actions):
+    """Create a schedule with interval trigger (Schema 3.0)."""
+    time_window = TimeWindow(
+        start_time="21:00",
+        end_time="05:00",
+    )
+
+    trigger = IntervalTrigger(
+        interval_minutes=60,
+        time_window=time_window,
+    )
+
+    routine = Routine(
+        routine_id="uv-capture-cycle",
+        name="UV Capture Cycle",
+        description="Standard UV light photo capture sequence",
+        trigger=trigger,
+        actions=sample_actions,
+    )
+
     return Schedule(
         schedule_id="nightly-survey",
         name="Nightly Moth Survey",
         description="Hourly captures from 9 PM to 5 AM",
-        event_patterns=[sample_pattern],
-        trigger_type="interval",
-        interval_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
 
 @pytest.fixture
-def sample_solar_schedule(sample_pattern):
-    """Create a schedule with solar trigger."""
+def sample_solar_schedule(sample_actions):
+    """Create a schedule with solar trigger (Schema 3.0)."""
     trigger = SolarTrigger(
         solar_event="sunset",
         offset_minutes=30,
         days_of_week=None,
     )
 
+    routine = Routine(
+        routine_id="sunset-routine",
+        name="Sunset Capture",
+        description="Capture 30 minutes after sunset",
+        trigger=trigger,
+        actions=sample_actions,
+    )
+
     return Schedule(
         schedule_id="sunset-survey",
         name="Sunset Survey",
         description="Capture 30 minutes after sunset",
-        event_patterns=[sample_pattern],
-        trigger_type="solar",
-        solar_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
 
 @pytest.fixture
-def sample_moon_schedule(sample_pattern):
-    """Create a schedule with moon phase trigger."""
+def sample_moon_schedule(sample_actions):
+    """Create a schedule with moon phase trigger (Schema 3.0)."""
     trigger = MoonPhaseTrigger(
         phases=["full"],
         offset_days=2,
         time_window=None,
     )
 
+    routine = Routine(
+        routine_id="fullmoon-routine",
+        name="Full Moon Capture",
+        description="Capture around full moon",
+        trigger=trigger,
+        actions=sample_actions,
+    )
+
     return Schedule(
         schedule_id="fullmoon-survey",
         name="Full Moon Survey",
         description="Capture around full moon",
-        event_patterns=[sample_pattern],
-        trigger_type="moon_phase",
-        moon_phase_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
 
 @pytest.fixture
-def sample_fixed_time_schedule(sample_pattern):
-    """Create a schedule with fixed time trigger."""
+def sample_fixed_time_schedule(sample_actions):
+    """Create a schedule with fixed time trigger (Schema 3.0)."""
     trigger = FixedTimeTrigger(
         time="21:00",
         days_of_week=None,
+    )
+
+    routine = Routine(
+        routine_id="fixed-routine",
+        name="Nightly Capture",
+        description="Capture every night at 9 PM",
+        trigger=trigger,
+        actions=sample_actions,
     )
 
     return Schedule(
         schedule_id="nightly-fixed",
         name="Nightly Fixed Time",
         description="Capture every night at 9 PM",
-        event_patterns=[sample_pattern],
-        trigger_type="fixed_time",
-        fixed_time_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
 
 @pytest.fixture
-def sample_sensor_schedule(sample_pattern):
-    """Create a schedule with sensor trigger."""
+def sample_sensor_schedule(sample_actions):
+    """Create a schedule with sensor trigger (Schema 3.0)."""
     trigger = SensorTrigger(
         sensor_type="motion",
         threshold=1.0,
@@ -210,13 +248,19 @@ def sample_sensor_schedule(sample_pattern):
         time_window=None,
     )
 
+    routine = Routine(
+        routine_id="motion-routine",
+        name="Motion Capture",
+        description="Capture on motion detection",
+        trigger=trigger,
+        actions=sample_actions,
+    )
+
     return Schedule(
         schedule_id="motion-triggered",
         name="Motion Triggered",
         description="Capture on motion detection",
-        event_patterns=[sample_pattern],
-        trigger_type="sensor",
-        sensor_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
@@ -517,18 +561,22 @@ class TestTriggerInfo:
 
         assert info == "sunset+30"
 
-    def test_solar_trigger_info_negative_offset(self, sample_pattern):
-        """Test solar trigger info with negative offset."""
+    def test_solar_trigger_info_negative_offset(self, sample_actions):
+        """Test solar trigger info with negative offset (Schema 3.0)."""
         trigger = SolarTrigger(
             solar_event="sunrise",
             offset_minutes=-15,
         )
+        routine = Routine(
+            routine_id="test-routine",
+            name="Test Routine",
+            trigger=trigger,
+            actions=sample_actions,
+        )
         schedule = Schedule(
             schedule_id="test",
             name="Test",
-            event_patterns=[sample_pattern],
-            trigger_type="solar",
-            solar_trigger=trigger,
+            routines=[routine],
         )
 
         info = _get_trigger_info(schedule)
@@ -561,13 +609,14 @@ class TestTriggerInfo:
 
 
 class TestActionExpansion:
-    """Tests for action expansion."""
+    """Tests for action expansion (Schema 3.0 - uses Routine instead of EventPattern)."""
 
     def test_expand_single_action(self):
-        """Test expanding single action pattern."""
-        pattern = EventPattern(
-            pattern_id="single",
+        """Test expanding single action routine."""
+        routine = Routine(
+            routine_id="single",
             name="Single Action",
+            trigger=FixedTimeTrigger(time="21:00"),
             actions=[
                 Action(
                     action_type="camera",
@@ -578,17 +627,17 @@ class TestActionExpansion:
         )
 
         trigger_time = datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC)
-        actions = _expand_actions(pattern, trigger_time)
+        actions = _expand_actions(routine, trigger_time)
 
         assert len(actions) == 1
         assert actions[0].time == trigger_time
         assert actions[0].action_name == "takephoto"
         assert actions[0].offset_minutes == 0
 
-    def test_expand_multiple_actions(self, sample_pattern):
-        """Test expanding multi-action pattern."""
+    def test_expand_multiple_actions(self, sample_routine):
+        """Test expanding multi-action routine."""
         trigger_time = datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC)
-        actions = _expand_actions(sample_pattern, trigger_time)
+        actions = _expand_actions(sample_routine, trigger_time)
 
         assert len(actions) == 3
 
@@ -606,10 +655,11 @@ class TestActionExpansion:
 
     def test_expand_actions_sorted_by_time(self):
         """Test that expanded actions are sorted by time."""
-        # Create pattern with unsorted offsets
-        pattern = EventPattern(
-            pattern_id="unsorted",
+        # Create routine with unsorted offsets
+        routine = Routine(
+            routine_id="unsorted",
             name="Unsorted",
+            trigger=FixedTimeTrigger(time="21:00"),
             actions=[
                 Action(
                     action_type="gpio",
@@ -630,17 +680,17 @@ class TestActionExpansion:
         )
 
         trigger_time = datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC)
-        actions = _expand_actions(pattern, trigger_time)
+        actions = _expand_actions(routine, trigger_time)
 
         # Should be sorted by time
         assert actions[0].action_name == "action_a"
         assert actions[1].action_name == "action_b"
         assert actions[2].action_name == "action_c"
 
-    def test_expand_actions_preserves_metadata(self, sample_pattern):
+    def test_expand_actions_preserves_metadata(self, sample_routine):
         """Test that action expansion preserves description."""
         trigger_time = datetime(2025, 6, 15, 21, 0, 0, tzinfo=UTC)
-        actions = _expand_actions(sample_pattern, trigger_time)
+        actions = _expand_actions(sample_routine, trigger_time)
 
         # Check first action has description
         assert actions[0].description == "Turn on UV attract lights"
@@ -1076,12 +1126,12 @@ class TestPreviewGeneration:
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")
     @patch("webui.backend.lib.schedule_preview.generate_pattern_executions")
     def test_generate_preview_counts_actions(
-        self, mock_gen_exec, mock_detect, sample_interval_schedule, sample_pattern
+        self, mock_gen_exec, mock_detect, sample_interval_schedule
     ):
         """Test generate_preview correctly counts actions."""
         from webui.backend.lib.schedule_conflict import PatternExecution
 
-        # Mock 2 pattern executions
+        # Mock 2 routine executions (pattern_id is routine_id in Schema 3.0)
         mock_exec_1 = PatternExecution(
             pattern_id="uv-capture-cycle",
             pattern_name="UV Capture Cycle",
@@ -1105,7 +1155,7 @@ class TestPreviewGeneration:
         result = generate_preview(sample_interval_schedule, days=1)
 
         assert result.total_executions == 2
-        # Each execution has 3 actions (from sample_pattern)
+        # Each execution has 3 actions (from routine in sample_interval_schedule)
         assert result.total_actions == 6
 
     @patch("webui.backend.lib.schedule_preview.detect_conflicts")

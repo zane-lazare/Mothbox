@@ -221,9 +221,9 @@ def non_overlapping_executions():
 
 @pytest.fixture
 def sample_schedule():
-    """Create a valid Schedule for conflict testing."""
+    """Create a valid Schedule for conflict testing (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        EventPattern,
+        Routine,
         IntervalTrigger,
         Action,
         Schedule,
@@ -248,14 +248,6 @@ def sample_schedule():
         ),
     ]
 
-    pattern = EventPattern(
-        pattern_id="test-pattern",
-        name="UV Capture Cycle",
-        description="Standard UV light photo capture sequence",
-        actions=actions,
-        category="user",
-    )
-
     time_window = TimeWindow(
         start_time="21:00",
         end_time="23:00",
@@ -266,30 +258,41 @@ def sample_schedule():
         time_window=time_window,
     )
 
+    routine = Routine(
+        routine_id="test-routine",
+        name="UV Capture Cycle",
+        description="Standard UV light photo capture sequence",
+        trigger=trigger,
+        actions=actions,
+    )
+
     return Schedule(
         schedule_id="test-schedule",
         name="Nightly Moth Survey",
         description="30-minute interval captures from 9 PM to 11 PM",
-        event_patterns=[pattern],
-        trigger_type="interval",
-        interval_trigger=trigger,
+        routines=[routine],
         enabled=True,
     )
 
 
 @pytest.fixture
 def conflicting_schedule():
-    """Create a Schedule with patterns that will conflict."""
+    """Create a Schedule with routines that will conflict (Schema 3.0)."""
     from webui.backend.lib.schedule_schema import (
-        EventPattern,
+        Routine,
         IntervalTrigger,
         Action,
         Schedule,
         TimeWindow,
     )
 
-    # Pattern 1: Takes 20 minutes
-    pattern1_actions = [
+    time_window = TimeWindow(
+        start_time="21:00",
+        end_time="22:00",
+    )
+
+    # Routine 1: Takes 20 minutes, 15-min interval
+    routine1_actions = [
         Action(
             action_type="gpio",
             action_name="attract_on",
@@ -307,14 +310,18 @@ def conflicting_schedule():
         ),
     ]
 
-    pattern1 = EventPattern(
-        pattern_id="pattern-1",
+    routine1 = Routine(
+        routine_id="routine-1",
         name="Long Capture",
-        actions=pattern1_actions,
+        trigger=IntervalTrigger(
+            interval_minutes=15,
+            time_window=time_window,
+        ),
+        actions=routine1_actions,
     )
 
-    # Pattern 2: Also takes 20 minutes - will overlap with 15-min interval
-    pattern2_actions = [
+    # Routine 2: Also takes 20 minutes, same interval - will overlap
+    routine2_actions = [
         Action(
             action_type="gpio",
             action_name="flash_on",
@@ -332,29 +339,20 @@ def conflicting_schedule():
         ),
     ]
 
-    pattern2 = EventPattern(
-        pattern_id="pattern-2",
+    routine2 = Routine(
+        routine_id="routine-2",
         name="Flash Capture",
-        actions=pattern2_actions,
-    )
-
-    time_window = TimeWindow(
-        start_time="21:00",
-        end_time="22:00",
-    )
-
-    # 15 minute interval but patterns take 20 minutes each = overlap
-    trigger = IntervalTrigger(
-        interval_minutes=15,
-        time_window=time_window,
+        trigger=IntervalTrigger(
+            interval_minutes=15,
+            time_window=time_window,
+        ),
+        actions=routine2_actions,
     )
 
     return Schedule(
         schedule_id="conflict-schedule",
         name="Conflicting Schedule",
-        event_patterns=[pattern1, pattern2],
-        trigger_type="interval",
-        interval_trigger=trigger,
+        routines=[routine1, routine2],
         enabled=True,
     )
 
@@ -1026,10 +1024,10 @@ class TestPatternExecutionGeneration:
 
     def test_empty_execution_list_outside_window(self, sample_schedule):
         """No executions generated when date has no scheduled times."""
-        # Modify schedule to have day_of_week restriction
+        # Modify the routine's trigger to have day_of_week restriction
         from webui.backend.lib.schedule_schema import IntervalTrigger, TimeWindow
 
-        sample_schedule.interval_trigger = IntervalTrigger(
+        sample_schedule.routines[0].trigger = IntervalTrigger(
             interval_minutes=30,
             time_window=TimeWindow(start_time="21:00", end_time="23:00"),
             days_of_week=[0, 1, 2],  # Mon, Tue, Wed only
@@ -1257,19 +1255,24 @@ class TestConstants:
 class TestTriggerTypeHandling:
     """Tests for different trigger types in generate_pattern_executions()."""
 
-    def test_schedule_date_range_before_start(self):
-        """Schedule with start_date in future should generate no executions."""
+    def test_routine_with_days_of_week(self):
+        """Routine with day restrictions should skip other days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             IntervalTrigger,
             Action,
             Schedule,
             TimeWindow,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
-            name="Test Pattern",
+        routine = Routine(
+            routine_id="r1",
+            name="Test Routine",
+            trigger=IntervalTrigger(
+                interval_minutes=30,
+                time_window=TimeWindow(start_time="21:00", end_time="23:00"),
+                days_of_week=[0, 1, 2],  # Mon, Tue, Wed only
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1277,44 +1280,44 @@ class TestTriggerTypeHandling:
             )],
         )
 
-        # Schedule starts in the future
+        # June 15, 2024 is Saturday (weekday 5)
         schedule = Schedule(
-            schedule_id="future-schedule",
-            name="Future Schedule",
-            event_patterns=[pattern],
-            trigger_type="interval",
-            interval_trigger=IntervalTrigger(
-                interval_minutes=30,
-                time_window=TimeWindow(start_time="21:00", end_time="23:00"),
-            ),
-            start_date="2030-01-01",  # Far in the future
+            schedule_id="weekday-schedule",
+            name="Weekday Schedule",
+            routines=[routine],
             enabled=True,
         )
 
         executions = generate_pattern_executions(
             schedule,
-            date(2024, 6, 15),
+            date(2024, 6, 15),  # Saturday
             date(2024, 6, 15),
             latitude=0.0,
             longitude=0.0,
             timezone_name="UTC",
         )
 
+        # Saturday is not in Mon/Tue/Wed, so no executions
         assert len(executions) == 0
 
-    def test_schedule_date_range_after_end(self):
-        """Schedule with end_date in past should generate no executions."""
+    def test_routine_on_valid_day(self):
+        """Routine should generate executions on valid days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             IntervalTrigger,
             Action,
             Schedule,
             TimeWindow,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
-            name="Test Pattern",
+        routine = Routine(
+            routine_id="r1",
+            name="Test Routine",
+            trigger=IntervalTrigger(
+                interval_minutes=30,
+                time_window=TimeWindow(start_time="21:00", end_time="23:00"),
+                days_of_week=[0, 1, 2],  # Mon, Tue, Wed only
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1322,43 +1325,39 @@ class TestTriggerTypeHandling:
             )],
         )
 
-        # Schedule ended in the past
+        # June 17, 2024 is Monday (weekday 0)
         schedule = Schedule(
-            schedule_id="past-schedule",
-            name="Past Schedule",
-            event_patterns=[pattern],
-            trigger_type="interval",
-            interval_trigger=IntervalTrigger(
-                interval_minutes=30,
-                time_window=TimeWindow(start_time="21:00", end_time="23:00"),
-            ),
-            end_date="2020-01-01",  # In the past
+            schedule_id="weekday-schedule",
+            name="Weekday Schedule",
+            routines=[routine],
             enabled=True,
         )
 
         executions = generate_pattern_executions(
             schedule,
-            date(2024, 6, 15),
-            date(2024, 6, 15),
+            date(2024, 6, 17),  # Monday
+            date(2024, 6, 17),
             latitude=0.0,
             longitude=0.0,
             timezone_name="UTC",
         )
 
-        assert len(executions) == 0
+        # Monday is valid, should have executions
+        assert len(executions) > 0
 
     def test_fixed_time_trigger_generation(self):
-        """Fixed time trigger should generate single execution per day."""
+        """Fixed time trigger should generate single execution per day (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             FixedTimeTrigger,
             Action,
             Schedule,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Daily Photo",
+            trigger=FixedTimeTrigger(time="12:00"),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1369,9 +1368,7 @@ class TestTriggerTypeHandling:
         schedule = Schedule(
             schedule_id="fixed-schedule",
             name="Fixed Time Schedule",
-            event_patterns=[pattern],
-            trigger_type="fixed_time",
-            fixed_time_trigger=FixedTimeTrigger(time="12:00"),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1393,17 +1390,21 @@ class TestTriggerTypeHandling:
             assert exec.start_time.minute == 0
 
     def test_fixed_time_with_days_of_week(self):
-        """Fixed time with day restrictions should skip other days."""
+        """Fixed time with day restrictions should skip other days (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             FixedTimeTrigger,
             Action,
             Schedule,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Daily Photo",
+            trigger=FixedTimeTrigger(
+                time="12:00",
+                days_of_week=[0, 1, 2, 3, 4],  # Weekdays only
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1415,12 +1416,7 @@ class TestTriggerTypeHandling:
         schedule = Schedule(
             schedule_id="fixed-schedule",
             name="Fixed Time Schedule",
-            event_patterns=[pattern],
-            trigger_type="fixed_time",
-            fixed_time_trigger=FixedTimeTrigger(
-                time="12:00",
-                days_of_week=[0, 1, 2, 3, 4],  # Weekdays only
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1437,18 +1433,23 @@ class TestTriggerTypeHandling:
         assert len(executions) == 0
 
     def test_sensor_trigger_generation(self):
-        """Sensor trigger with time window should generate placeholder execution."""
+        """Sensor trigger with time window should generate placeholder execution (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             Action,
             Schedule,
             SensorTrigger,
             TimeWindow,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Motion Capture",
+            trigger=SensorTrigger(
+                sensor_type="motion",
+                threshold=0.5,
+                time_window=TimeWindow(start_time="20:00", end_time="06:00"),
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1459,13 +1460,7 @@ class TestTriggerTypeHandling:
         schedule = Schedule(
             schedule_id="sensor-schedule",
             name="Sensor Schedule",
-            event_patterns=[pattern],
-            trigger_type="sensor",
-            sensor_trigger=SensorTrigger(
-                sensor_type="motion",
-                threshold=0.5,
-                time_window=TimeWindow(start_time="20:00", end_time="06:00"),
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1484,18 +1479,22 @@ class TestTriggerTypeHandling:
         assert executions[0].start_time.minute == 0
 
     def test_overnight_window_handling(self):
-        """Interval trigger with overnight window should work correctly."""
+        """Interval trigger with overnight window should work correctly (Schema 3.0)."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             IntervalTrigger,
             Action,
             Schedule,
             TimeWindow,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Night Photo",
+            trigger=IntervalTrigger(
+                interval_minutes=60,  # 1 hour
+                time_window=TimeWindow(start_time="22:00", end_time="02:00"),
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1507,12 +1506,7 @@ class TestTriggerTypeHandling:
         schedule = Schedule(
             schedule_id="night-schedule",
             name="Night Schedule",
-            event_patterns=[pattern],
-            trigger_type="interval",
-            interval_trigger=IntervalTrigger(
-                interval_minutes=60,  # 1 hour
-                time_window=TimeWindow(start_time="22:00", end_time="02:00"),
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1669,20 +1663,24 @@ class TestResourceTypeEdgeCases:
 # ============================================================================
 
 class TestSolarTriggerGeneration:
-    """Tests for solar trigger execution generation."""
+    """Tests for solar trigger execution generation (Schema 3.0)."""
 
     def test_solar_trigger_with_valid_location(self):
         """Solar trigger should generate execution at solar event time."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             Action,
             Schedule,
             SolarTrigger,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Sunset Photo",
+            trigger=SolarTrigger(
+                solar_event="sunset",
+                offset_minutes=30,
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1693,12 +1691,7 @@ class TestSolarTriggerGeneration:
         schedule = Schedule(
             schedule_id="solar-schedule",
             name="Solar Schedule",
-            event_patterns=[pattern],
-            trigger_type="solar",
-            solar_trigger=SolarTrigger(
-                solar_event="sunset",
-                offset_minutes=30,
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1720,15 +1713,20 @@ class TestSolarTriggerGeneration:
     def test_solar_trigger_with_days_of_week(self):
         """Solar trigger with day restrictions should skip other days."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             Action,
             Schedule,
             SolarTrigger,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Sunset Photo",
+            trigger=SolarTrigger(
+                solar_event="sunset",
+                offset_minutes=0,
+                days_of_week=[0, 1, 2, 3, 4],  # Weekdays only
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1740,13 +1738,7 @@ class TestSolarTriggerGeneration:
         schedule = Schedule(
             schedule_id="solar-schedule",
             name="Solar Schedule",
-            event_patterns=[pattern],
-            trigger_type="solar",
-            solar_trigger=SolarTrigger(
-                solar_event="sunset",
-                offset_minutes=0,
-                days_of_week=[0, 1, 2, 3, 4],  # Weekdays only
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1764,21 +1756,26 @@ class TestSolarTriggerGeneration:
 
 
 class TestMoonPhaseTriggerGeneration:
-    """Tests for moon phase trigger execution generation."""
+    """Tests for moon phase trigger execution generation (Schema 3.0)."""
 
     def test_moon_phase_trigger_with_time_window(self):
         """Moon phase trigger with time_window should use window start time."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             MoonPhaseTrigger,
             Action,
             Schedule,
             TimeWindow,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Full Moon Photo",
+            trigger=MoonPhaseTrigger(
+                phases=["full"],  # Use 'full' not 'full_moon'
+                offset_days=1,
+                time_window=TimeWindow(start_time="22:00", end_time="04:00"),
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1789,13 +1786,7 @@ class TestMoonPhaseTriggerGeneration:
         schedule = Schedule(
             schedule_id="moon-schedule",
             name="Moon Schedule",
-            event_patterns=[pattern],
-            trigger_type="moon_phase",
-            moon_phase_trigger=MoonPhaseTrigger(
-                phases=["full"],  # Use 'full' not 'full_moon'
-                offset_days=1,
-                time_window=TimeWindow(start_time="22:00", end_time="04:00"),
-            ),
+            routines=[routine],
             enabled=True,
         )
 
@@ -1816,15 +1807,19 @@ class TestMoonPhaseTriggerGeneration:
     def test_moon_phase_trigger_without_time_window(self):
         """Moon phase trigger without time_window should default to noon."""
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
+            Routine,
             MoonPhaseTrigger,
             Action,
             Schedule,
         )
 
-        pattern = EventPattern(
-            pattern_id="p1",
+        routine = Routine(
+            routine_id="r1",
             name="Full Moon Photo",
+            trigger=MoonPhaseTrigger(
+                phases=["full"],  # Use 'full' not 'full_moon'
+                offset_days=1,
+            ),
             actions=[Action(
                 action_type="camera",
                 action_name="takephoto",
@@ -1835,12 +1830,7 @@ class TestMoonPhaseTriggerGeneration:
         schedule = Schedule(
             schedule_id="moon-schedule",
             name="Moon Schedule",
-            event_patterns=[pattern],
-            trigger_type="moon_phase",
-            moon_phase_trigger=MoonPhaseTrigger(
-                phases=["full"],  # Use 'full' not 'full_moon'
-                offset_days=1,
-            ),
+            routines=[routine],
             enabled=True,
         )
 

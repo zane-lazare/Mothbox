@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Final
 
+from croniter import croniter
 from crontab import CronTab
 
 from webui.backend.lib.cron_security import (
@@ -27,6 +28,8 @@ from webui.backend.lib.schedule_schema import (
     FixedTimeTrigger,
     IntervalTrigger,
     MoonPhaseTrigger,
+    RecurringDaysTrigger,
+    Routine,
     Schedule,
     SensorTrigger,
     SolarTrigger,
@@ -898,7 +901,7 @@ def _convert_fixed_time_schedule(schedule: Schedule, days_ahead: int = 7) -> Cro
     trigger = schedule.fixed_time_trigger
     entries = []
 
-    for pattern in schedule.event_patterns:
+    for pattern in schedule.routines:
         pattern_entries = pattern_to_cron_entries(
             pattern,
             base_time=trigger.time,
@@ -927,7 +930,7 @@ def _convert_interval_schedule(schedule: Schedule) -> CronBridgeResult:
         parts = base_entry.expression.split()
         base_time = f"{int(parts[1]):02d}:{int(parts[0]):02d}"  # "HH:MM"
 
-        for pattern in schedule.event_patterns:
+        for pattern in schedule.routines:
             pattern_entries = pattern_to_cron_entries(
                 pattern,
                 base_time=base_time,
@@ -953,7 +956,7 @@ def _convert_solar_schedule(
     entries = []
 
     # Generate base entries from solar trigger
-    for pattern in schedule.event_patterns:
+    for pattern in schedule.routines:
         # For each action in pattern, generate solar-timed entries
         for action in pattern.actions:
             script_key = get_script_key_for_action(action.action_type, action.action_name)
@@ -1009,7 +1012,7 @@ def _convert_moon_phase_schedule(schedule: Schedule, days_ahead: int) -> CronBri
 
     # For each matching date, generate entries for all pattern actions
     for target_date in matching_dates:
-        for pattern in schedule.event_patterns:
+        for pattern in schedule.routines:
             for action in pattern.actions:
                 # Calculate execution time with action offset
                 exec_total_minutes = base_hour * 60 + base_minute + action.offset_minutes
@@ -1051,10 +1054,10 @@ def schedule_to_cron(
     timezone_name: str = "UTC",
     days_ahead: int = 7,
 ) -> CronBridgeResult:
-    """Convert Schedule to cron entries.
+    """Convert Schedule to cron entries (Schema 3.0).
 
-    Main entry point for the cron bridge. Routes to appropriate
-    trigger converter based on schedule.trigger_type.
+    Main entry point for the cron bridge. Iterates over each routine and
+    converts based on its embedded trigger type.
 
     Args:
         schedule: Schedule object to convert
@@ -1077,68 +1080,275 @@ def schedule_to_cron(
     if not schedule.enabled:
         return result
 
-    # Check for event patterns
-    if not schedule.event_patterns:
+    # Check for routines
+    if not schedule.routines:
         return result
 
-    # Route to appropriate trigger converter
-    if schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        result = _convert_fixed_time_schedule(schedule, days_ahead)
+    # Process each routine based on its trigger type
+    all_entries: list[CronEntry] = []
 
-    elif schedule.trigger_type == "interval" and schedule.interval_trigger:
-        result = _convert_interval_schedule(schedule)
-
-    elif schedule.trigger_type == "solar" and schedule.solar_trigger:
-        if latitude is None or longitude is None:
-            result.errors.append("Solar triggers require latitude and longitude")
-        else:
-            result = _convert_solar_schedule(
-                schedule, latitude, longitude, timezone_name, days_ahead
-            )
-
-    elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        # Ensure we look far enough ahead to capture at least one full moon cycle
-        moon_days_ahead = LUNAR_CYCLE_DAYS if days_ahead == 7 else days_ahead
-        result = _convert_moon_phase_schedule(schedule, moon_days_ahead)
-
-    elif schedule.trigger_type == "sensor" and schedule.sensor_trigger:
-        # Sensor triggers are stubbed
-        result.errors.append("Sensor triggers not yet implemented for cron scheduling")
-
-    elif schedule.trigger_type == "cron" and schedule.cron_trigger:
-        # Cron triggers: Use raw cron expression for all pattern actions
-        entries = []
-        for pattern in schedule.event_patterns:
-            for action in pattern.actions:
-                # Get validated command for this action
-                script_key = get_script_key_for_action(action.action_type, action.action_name)
-                command = (
-                    get_validated_command(script_key)
-                    if script_key
-                    else f"# Unknown: {action.action_type}/{action.action_name}"
-                )
-
-                # Use the raw cron expression (action offsets not supported in expert mode)
-                cron_entries = cron_trigger_to_cron(
-                    schedule.cron_trigger,
-                    command=command,
-                )
-                entries.extend(cron_entries)
-
-        result = CronBridgeResult(
-            entries=entries,
-            rtc_waketime=calculate_next_from_entries(entries) if entries else None,
+    for routine in schedule.routines:
+        routine_entries = _convert_routine_to_cron(
+            routine=routine,
             schedule_id=schedule.schedule_id,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_name=timezone_name,
+            days_ahead=days_ahead,
+            errors=result.errors,
         )
+        all_entries.extend(routine_entries)
 
-    else:
-        result.errors.append(f"Unsupported or invalid trigger type: {schedule.trigger_type}")
+    result.entries = all_entries
 
     # Calculate RTC waketime if we have entries
     if result.entries:
         result.rtc_waketime = calculate_next_from_entries(result.entries)
 
     return result
+
+
+def _convert_routine_to_cron(
+    routine: Routine,
+    schedule_id: str,
+    latitude: float | None,
+    longitude: float | None,
+    timezone_name: str,
+    days_ahead: int,
+    errors: list[str],
+) -> list[CronEntry]:
+    """Convert a single Routine to cron entries based on its trigger type.
+
+    For actions with offset_minutes > 0, we apply the offset to the trigger time
+    to generate correct cron entries.
+
+    Args:
+        routine: Routine with embedded trigger
+        schedule_id: Parent schedule ID for comments
+        latitude: Observer latitude (required for solar triggers)
+        longitude: Observer longitude (required for solar triggers)
+        timezone_name: Timezone for calculations
+        days_ahead: Number of days to pre-calculate
+        errors: Error list to append to
+
+    Returns:
+        List of CronEntry objects for this routine
+    """
+    entries: list[CronEntry] = []
+    trigger = routine.trigger
+
+    if trigger is None:
+        errors.append(f"Routine '{routine.name}' has no trigger")
+        return entries
+
+    # Generate entries for each action in the routine
+    for action in routine.actions:
+        script_key = get_script_key_for_action(action.action_type, action.action_name)
+        command = (
+            get_validated_command(script_key)
+            if script_key
+            else f"# Unknown: {action.action_type}/{action.action_name}"
+        )
+
+        if isinstance(trigger, FixedTimeTrigger):
+            # Apply action offset to create adjusted trigger
+            adjusted_trigger = _apply_offset_to_fixed_time(trigger, action.offset_minutes)
+            action_entries = fixed_time_trigger_to_cron(
+                adjusted_trigger,
+                command=command,
+            )
+            entries.extend(action_entries)
+
+        elif isinstance(trigger, IntervalTrigger):
+            # Interval triggers: generate entries, offsets applied per-entry
+            action_entries = _interval_trigger_with_offset(
+                trigger,
+                command=command,
+                offset_minutes=action.offset_minutes,
+            )
+            entries.extend(action_entries)
+
+        elif isinstance(trigger, SolarTrigger):
+            if latitude is None or longitude is None:
+                errors.append(
+                    f"Routine '{routine.name}' has solar trigger but no coordinates provided"
+                )
+            else:
+                action_entries = solar_trigger_to_cron(
+                    trigger,
+                    command=command,
+                    latitude=latitude,
+                    longitude=longitude,
+                    timezone_name=timezone_name,
+                    days_ahead=days_ahead,
+                )
+                # Apply offset to each entry's time
+                for entry in action_entries:
+                    if action.offset_minutes != 0:
+                        entry.expression = _apply_offset_to_cron_expression(
+                            entry.expression, action.offset_minutes
+                        )
+                entries.extend(action_entries)
+
+        elif isinstance(trigger, MoonPhaseTrigger):
+            # Moon phases occur ~every 7.4 days, so the default 7-day preview window
+            # may miss the next phase. Extend to full lunar cycle (30 days) to ensure
+            # at least one moon phase event is captured in the preview.
+            moon_days_ahead = LUNAR_CYCLE_DAYS if days_ahead == 7 else days_ahead
+            action_entries = moon_phase_trigger_to_cron(
+                trigger,
+                command=command,
+                days_ahead=moon_days_ahead,
+            )
+            # Apply offset to each entry's time
+            for entry in action_entries:
+                if action.offset_minutes != 0:
+                    entry.expression = _apply_offset_to_cron_expression(
+                        entry.expression, action.offset_minutes
+                    )
+            entries.extend(action_entries)
+
+        elif isinstance(trigger, SensorTrigger):
+            errors.append(f"Routine '{routine.name}': Sensor triggers not yet implemented for cron")
+
+        elif isinstance(trigger, CronTrigger):
+            # Cron triggers: Use raw cron expression
+            action_entries = cron_trigger_to_cron(trigger, command=command)
+            # Apply offset to each entry's time
+            for entry in action_entries:
+                if action.offset_minutes != 0:
+                    entry.expression = _apply_offset_to_cron_expression(
+                        entry.expression, action.offset_minutes
+                    )
+            entries.extend(action_entries)
+
+        elif isinstance(trigger, RecurringDaysTrigger):
+            # RecurringDaysTrigger: Generate entries using fixed_time pattern
+            action_entries = _recurring_days_trigger_to_cron(
+                trigger,
+                command=command,
+                offset_minutes=action.offset_minutes,
+            )
+            entries.extend(action_entries)
+
+        else:
+            errors.append(
+                f"Routine '{routine.name}': Unsupported trigger type {type(trigger).__name__}"
+            )
+
+    return entries
+
+
+def _apply_offset_to_fixed_time(trigger: FixedTimeTrigger, offset_minutes: int) -> FixedTimeTrigger:
+    """Create new FixedTimeTrigger with offset applied to time."""
+    if offset_minutes == 0:
+        return trigger
+
+    hour, minute = map(int, trigger.time.split(":"))
+    new_minute = minute + offset_minutes
+    new_hour = hour + new_minute // 60
+    new_minute = new_minute % 60
+    new_hour = new_hour % 24
+
+    return FixedTimeTrigger(
+        time=f"{new_hour:02d}:{new_minute:02d}",
+        days_of_week=trigger.days_of_week,
+    )
+
+
+def _interval_trigger_with_offset(
+    trigger: IntervalTrigger,
+    command: str,
+    offset_minutes: int,
+    comment_prefix: str = CRON_COMMENT_PREFIX,
+) -> list[CronEntry]:
+    """Generate cron entries for interval trigger with action offset."""
+    # Get base entries
+    base_entries = interval_trigger_to_cron(trigger, command, comment_prefix)
+
+    if offset_minutes == 0:
+        return base_entries
+
+    # Apply offset to each entry
+    for entry in base_entries:
+        entry.expression = _apply_offset_to_cron_expression(entry.expression, offset_minutes)
+
+    return base_entries
+
+
+def _apply_offset_to_cron_expression(expression: str, offset_minutes: int) -> str:
+    """Apply minute offset to a cron expression's time components."""
+    parts = expression.split()
+    if len(parts) < 5:
+        return expression
+
+    minute = int(parts[0])
+    hour = int(parts[1])
+
+    new_minute = minute + offset_minutes
+    new_hour = hour + new_minute // 60
+    new_minute = new_minute % 60
+    new_hour = new_hour % 24
+
+    parts[0] = str(new_minute)
+    parts[1] = str(new_hour)
+    return " ".join(parts)
+
+
+def _recurring_days_trigger_to_cron(
+    trigger: RecurringDaysTrigger,
+    command: str,
+    offset_minutes: int = 0,
+    comment_prefix: str = CRON_COMMENT_PREFIX,
+    days_ahead: int = 365,
+) -> list[CronEntry]:
+    """Convert RecurringDaysTrigger to cron entries.
+
+    RecurringDaysTrigger specifies "every N days" from a start date.
+    Since standard cron cannot express this pattern, we generate individual
+    date-specific cron entries for the specified period.
+
+    Args:
+        trigger: RecurringDaysTrigger with every_n_days, time, start_date
+        command: Command to execute
+        offset_minutes: Offset to apply to execution time
+        comment_prefix: Prefix for cron comment
+        days_ahead: Number of days to generate entries for (default 365)
+
+    Returns:
+        List of CronEntry objects, one for each execution date
+    """
+    if not trigger.time or trigger.every_n_days < 1:
+        return []
+
+    hour, minute = map(int, trigger.time.split(":"))
+
+    # Apply offset
+    new_minute = minute + offset_minutes
+    new_hour = hour + new_minute // 60
+    new_minute = new_minute % 60
+    new_hour = new_hour % 24
+
+    # Determine start date
+    start = date.fromisoformat(trigger.start_date) if trigger.start_date else date.today()
+    end = start + timedelta(days=days_ahead)
+
+    entries = []
+    current = start
+    while current <= end:
+        # Check if this date matches the N-day pattern
+        days_since_start = (current - start).days
+        if days_since_start % trigger.every_n_days == 0:
+            # Create date-specific cron entry: minute hour day month *
+            expression = f"{new_minute} {new_hour} {current.day} {current.month} *"
+            comment = (
+                f"{comment_prefix} Every {trigger.every_n_days} days "
+                f"({current.isoformat()}) at {new_hour:02d}:{new_minute:02d}"
+            )
+            entries.append(CronEntry(expression=expression, command=command, comment=comment))
+        current += timedelta(days=1)
+
+    return entries
 
 
 # =============================================================================
@@ -1154,10 +1364,11 @@ def get_next_events(
     longitude: float | None = None,
     timezone_name: str = "UTC",
 ) -> list[dict]:
-    """Preview next N scheduled events without modifying system.
+    """Preview next N scheduled events without modifying system (Schema 3.0).
 
-    Calculates upcoming event execution times based on the schedule's
-    trigger type and event patterns.
+    Iterates over each routine in the schedule, calculates upcoming event
+    execution times based on the routine's embedded trigger, and aggregates
+    all events.
 
     Args:
         schedule: Schedule object to preview
@@ -1172,8 +1383,8 @@ def get_next_events(
         - datetime: ISO 8601 string
         - action_type: str (gpio, camera, etc.)
         - action_name: str (attract_on, takephoto, etc.)
-        - pattern_name: str
-        - pattern_id: str
+        - routine_name: str
+        - routine_id: str
     """
     if not schedule.enabled:
         return []
@@ -1181,39 +1392,65 @@ def get_next_events(
     if from_time is None:
         from_time = datetime.now()
 
-    events = []
+    all_events = []
 
-    # Get date constraints
-    start_date = date.fromisoformat(schedule.start_date) if schedule.start_date else None
-    end_date = date.fromisoformat(schedule.end_date) if schedule.end_date else None
-
-    # Calculate trigger times based on type
-    if schedule.trigger_type == "fixed_time" and schedule.fixed_time_trigger:
-        events = _get_events_fixed_time(schedule, count * 2, from_time, start_date, end_date)
-    elif schedule.trigger_type == "interval" and schedule.interval_trigger:
-        events = _get_events_interval(schedule, count * 2, from_time, start_date, end_date)
-    elif schedule.trigger_type == "solar" and schedule.solar_trigger:
-        events = _get_events_solar(
-            schedule, count * 2, from_time, start_date, end_date, latitude, longitude, timezone_name
+    # Process each routine
+    for routine in schedule.routines:
+        routine_events = _get_events_for_routine(
+            routine=routine,
+            max_events=count * 2,  # Get extra to account for merging
+            from_time=from_time,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_name=timezone_name,
         )
-    elif schedule.trigger_type == "moon_phase" and schedule.moon_phase_trigger:
-        events = _get_events_moon_phase(schedule, count * 2, from_time, start_date, end_date)
+        all_events.extend(routine_events)
 
     # Sort chronologically and trim to count
-    events.sort(key=lambda e: e["datetime"])
-    return events[:count]
+    all_events.sort(key=lambda e: e["datetime"])
+    return all_events[:count]
 
 
-def _get_events_fixed_time(
-    schedule: Schedule,
+def _get_events_for_routine(
+    routine: Routine,
     max_events: int,
     from_time: datetime,
-    start_date: date | None,
-    end_date: date | None,
+    latitude: float | None,
+    longitude: float | None,
+    timezone_name: str,
+) -> list[dict]:
+    """Generate events for a single routine based on its trigger type."""
+    trigger = routine.trigger
+
+    if isinstance(trigger, FixedTimeTrigger):
+        return _get_events_fixed_time_routine(routine, max_events, from_time)
+    elif isinstance(trigger, IntervalTrigger):
+        return _get_events_interval_routine(routine, max_events, from_time)
+    elif isinstance(trigger, SolarTrigger):
+        return _get_events_solar_routine(
+            routine, max_events, from_time, latitude, longitude, timezone_name
+        )
+    elif isinstance(trigger, MoonPhaseTrigger):
+        return _get_events_moon_phase_routine(routine, max_events, from_time)
+    elif isinstance(trigger, CronTrigger):
+        return _get_events_cron_routine(routine, max_events, from_time)
+    elif isinstance(trigger, RecurringDaysTrigger):
+        return _get_events_recurring_days_routine(routine, max_events, from_time)
+    elif isinstance(trigger, SensorTrigger):
+        # Sensor triggers cannot generate preview events
+        return []
+
+    return []
+
+
+def _get_events_fixed_time_routine(
+    routine: Routine,
+    max_events: int,
+    from_time: datetime,
 ) -> list[dict]:
     """Generate events for fixed time trigger."""
     events = []
-    trigger = schedule.fixed_time_trigger
+    trigger = routine.trigger
     hour, minute = map(int, trigger.time.split(":"))
 
     current_date = from_time.date()
@@ -1221,14 +1458,6 @@ def _get_events_fixed_time(
     max_days = max_events * 7  # Check up to max_events weeks
 
     while len(events) < max_events and days_checked < max_days:
-        # Check date constraints
-        if start_date and current_date < start_date:
-            current_date += timedelta(days=1)
-            days_checked += 1
-            continue
-        if end_date and current_date > end_date:
-            break
-
         # Check day of week restriction
         if trigger.days_of_week is not None and current_date.weekday() not in trigger.days_of_week:
             current_date += timedelta(days=1)
@@ -1241,18 +1470,17 @@ def _get_events_fixed_time(
         )
 
         if trigger_time > from_time:
-            for pattern in schedule.event_patterns:
-                for action in pattern.actions:
-                    event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                    events.append(
-                        {
-                            "datetime": event_time.isoformat(),
-                            "action_type": action.action_type,
-                            "action_name": action.action_name,
-                            "pattern_name": pattern.name,
-                            "pattern_id": pattern.pattern_id,
-                        }
-                    )
+            for action in routine.actions:
+                event_time = trigger_time + timedelta(minutes=action.offset_minutes)
+                events.append(
+                    {
+                        "datetime": event_time.isoformat(),
+                        "action_type": action.action_type,
+                        "action_name": action.action_name,
+                        "routine_name": routine.name,
+                        "routine_id": routine.routine_id,
+                    }
+                )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1260,16 +1488,14 @@ def _get_events_fixed_time(
     return events
 
 
-def _get_events_interval(
-    schedule: Schedule,
+def _get_events_interval_routine(
+    routine: Routine,
     max_events: int,
     from_time: datetime,
-    start_date: date | None,
-    end_date: date | None,
 ) -> list[dict]:
     """Generate events for interval trigger."""
     events = []
-    trigger = schedule.interval_trigger
+    trigger = routine.trigger
 
     # Parse time window
     start_hour, start_min = map(int, trigger.time_window.start_time.split(":"))
@@ -1280,14 +1506,6 @@ def _get_events_interval(
     max_days = max_events * 2
 
     while len(events) < max_events and days_checked < max_days:
-        # Check date constraints
-        if start_date and current_date < start_date:
-            current_date += timedelta(days=1)
-            days_checked += 1
-            continue
-        if end_date and current_date > end_date:
-            break
-
         # Check day of week restriction
         if trigger.days_of_week is not None and current_date.weekday() not in trigger.days_of_week:
             current_date += timedelta(days=1)
@@ -1305,18 +1523,17 @@ def _get_events_interval(
             )
 
             if trigger_time > from_time:
-                for pattern in schedule.event_patterns:
-                    for action in pattern.actions:
-                        event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                        events.append(
-                            {
-                                "datetime": event_time.isoformat(),
-                                "action_type": action.action_type,
-                                "action_name": action.action_name,
-                                "pattern_name": pattern.name,
-                                "pattern_id": pattern.pattern_id,
-                            }
-                        )
+                for action in routine.actions:
+                    event_time = trigger_time + timedelta(minutes=action.offset_minutes)
+                    events.append(
+                        {
+                            "datetime": event_time.isoformat(),
+                            "action_type": action.action_type,
+                            "action_name": action.action_name,
+                            "routine_name": routine.name,
+                            "routine_id": routine.routine_id,
+                        }
+                    )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1324,12 +1541,10 @@ def _get_events_interval(
     return events
 
 
-def _get_events_solar(
-    schedule: Schedule,
+def _get_events_solar_routine(
+    routine: Routine,
     max_events: int,
     from_time: datetime,
-    start_date: date | None,
-    end_date: date | None,
     latitude: float | None,
     longitude: float | None,
     timezone_name: str,
@@ -1340,20 +1555,12 @@ def _get_events_solar(
     if latitude is None or longitude is None:
         return events  # Cannot calculate without coordinates
 
-    trigger = schedule.solar_trigger
+    trigger = routine.trigger
     current_date = from_time.date()
     days_checked = 0
     max_days = max_events * 2
 
     while len(events) < max_events and days_checked < max_days:
-        # Check date constraints
-        if start_date and current_date < start_date:
-            current_date += timedelta(days=1)
-            days_checked += 1
-            continue
-        if end_date and current_date > end_date:
-            break
-
         # Check day of week restriction
         if trigger.days_of_week is not None and current_date.weekday() not in trigger.days_of_week:
             current_date += timedelta(days=1)
@@ -1366,18 +1573,17 @@ def _get_events_solar(
         )
 
         if exec_time and exec_time > from_time:
-            for pattern in schedule.event_patterns:
-                for action in pattern.actions:
-                    event_time = exec_time + timedelta(minutes=action.offset_minutes)
-                    events.append(
-                        {
-                            "datetime": event_time.isoformat(),
-                            "action_type": action.action_type,
-                            "action_name": action.action_name,
-                            "pattern_name": pattern.name,
-                            "pattern_id": pattern.pattern_id,
-                        }
-                    )
+            for action in routine.actions:
+                event_time = exec_time + timedelta(minutes=action.offset_minutes)
+                events.append(
+                    {
+                        "datetime": event_time.isoformat(),
+                        "action_type": action.action_type,
+                        "action_name": action.action_name,
+                        "routine_name": routine.name,
+                        "routine_id": routine.routine_id,
+                    }
+                )
 
         current_date += timedelta(days=1)
         days_checked += 1
@@ -1385,16 +1591,14 @@ def _get_events_solar(
     return events
 
 
-def _get_events_moon_phase(
-    schedule: Schedule,
+def _get_events_moon_phase_routine(
+    routine: Routine,
     max_events: int,
     from_time: datetime,
-    start_date: date | None,
-    end_date: date | None,
 ) -> list[dict]:
     """Generate events for moon phase trigger."""
     events = []
-    trigger = schedule.moon_phase_trigger
+    trigger = routine.trigger
 
     # Get execution time from time window
     if trigger.time_window:
@@ -1407,14 +1611,6 @@ def _get_events_moon_phase(
     max_days = max_events * 30  # Check up to 30x max_events days
 
     while len(events) < max_events and days_checked < max_days:
-        # Check date constraints
-        if start_date and current_date < start_date:
-            current_date += timedelta(days=1)
-            days_checked += 1
-            continue
-        if end_date and current_date > end_date:
-            break
-
         # Check moon phase
         if is_moon_phase_active(trigger, current_date):
             trigger_time = datetime.combine(
@@ -1422,18 +1618,106 @@ def _get_events_moon_phase(
             )
 
             if trigger_time > from_time:
-                for pattern in schedule.event_patterns:
-                    for action in pattern.actions:
-                        event_time = trigger_time + timedelta(minutes=action.offset_minutes)
-                        events.append(
-                            {
-                                "datetime": event_time.isoformat(),
-                                "action_type": action.action_type,
-                                "action_name": action.action_name,
-                                "pattern_name": pattern.name,
-                                "pattern_id": pattern.pattern_id,
-                            }
-                        )
+                for action in routine.actions:
+                    event_time = trigger_time + timedelta(minutes=action.offset_minutes)
+                    events.append(
+                        {
+                            "datetime": event_time.isoformat(),
+                            "action_type": action.action_type,
+                            "action_name": action.action_name,
+                            "routine_name": routine.name,
+                            "routine_id": routine.routine_id,
+                        }
+                    )
+
+        current_date += timedelta(days=1)
+        days_checked += 1
+
+    return events
+
+
+def _get_events_cron_routine(
+    routine: Routine,
+    max_events: int,
+    from_time: datetime,
+) -> list[dict]:
+    """Generate events for cron trigger."""
+    events = []
+    trigger = routine.trigger
+
+    try:
+        cron_iter = croniter(trigger.cron_expression, from_time)
+        events_added = 0
+
+        while events_added < max_events:
+            next_time = cron_iter.get_next(datetime)
+            for action in routine.actions:
+                event_time = next_time + timedelta(minutes=action.offset_minutes)
+                events.append(
+                    {
+                        "datetime": event_time.isoformat(),
+                        "action_type": action.action_type,
+                        "action_name": action.action_name,
+                        "routine_name": routine.name,
+                        "routine_id": routine.routine_id,
+                    }
+                )
+            events_added += 1
+    except (ValueError, KeyError):
+        # Invalid cron expression
+        pass
+
+    return events
+
+
+def _get_events_recurring_days_routine(
+    routine: Routine,
+    max_events: int,
+    from_time: datetime,
+) -> list[dict]:
+    """Generate events for recurring days trigger.
+
+    RecurringDaysTrigger specifies "every N days" from a start date.
+    Events are generated for dates matching the N-day pattern.
+    """
+    events = []
+    trigger = routine.trigger
+
+    if not trigger.time or trigger.every_n_days < 1:
+        return events
+
+    hour, minute = map(int, trigger.time.split(":"))
+
+    # Determine start date for the pattern
+    if trigger.start_date:
+        pattern_start = date.fromisoformat(trigger.start_date)
+    else:
+        pattern_start = from_time.date()
+
+    current_date = from_time.date()
+    days_checked = 0
+    max_days = max_events * trigger.every_n_days * 2  # Check enough days
+
+    while len(events) < max_events and days_checked < max_days:
+        # Check if current day matches the N-day pattern from start
+        days_since_start = (current_date - pattern_start).days
+        if days_since_start >= 0 and days_since_start % trigger.every_n_days == 0:
+            trigger_time = datetime.combine(
+                current_date, datetime.min.time().replace(hour=hour, minute=minute)
+            )
+
+            if trigger_time > from_time:
+                for action in routine.actions:
+                    event_time = trigger_time + timedelta(minutes=action.offset_minutes)
+                    events.append(
+                        {
+                            "datetime": event_time.isoformat(),
+                            "action_type": action.action_type,
+                            "action_name": action.action_name,
+                            "routine_name": routine.name,
+                            "routine_id": routine.routine_id,
+                        }
+                    )
 
         current_date += timedelta(days=1)
         days_checked += 1

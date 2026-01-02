@@ -528,7 +528,7 @@ class TestTriggerTypeWorkflows:
         """Sensor trigger returns error since cron doesn't support event-based triggers."""
         from webui.backend.lib.schedule_schema import (
             Action,
-            EventPattern,
+            Routine,
             Schedule,
             SensorTrigger,
         )
@@ -541,15 +541,6 @@ class TestTriggerTypeWorkflows:
             description="Take photo on motion",
         )
 
-        pattern = EventPattern(
-            pattern_id=_test_uuid("sensor-pattern"),
-            name="Motion Capture",
-            description="Capture on motion detection",
-            actions=[action],
-            category="user",
-            tags=["test", "motion"],
-        )
-
         trigger = SensorTrigger(
             sensor_type="motion",
             threshold=0.0,
@@ -557,13 +548,19 @@ class TestTriggerTypeWorkflows:
             cooldown_minutes=5,
         )
 
+        routine = Routine(
+            routine_id=_test_uuid("sensor-routine"),
+            name="Motion Capture",
+            description="Capture on motion detection",
+            trigger=trigger,
+            actions=[action],
+        )
+
         schedule = Schedule(
             schedule_id=_test_uuid("sensor-test"),
             name="Motion Detection Test",
             description="Test sensor trigger handling",
-            event_patterns=[pattern],
-            trigger_type="sensor",
-            sensor_trigger=trigger,
+            routines=[routine],
             enabled=True,
             is_active=False,
         )

@@ -144,20 +144,20 @@ def client(app):
 
 @pytest.fixture
 def sample_schedule_data():
-    """Valid schedule data for API requests."""
+    """Valid schedule data for API requests (Schema 3.0)."""
     return {
         "name": "Test Schedule",
         "description": "Integration test schedule",
-        "trigger_type": "fixed_time",
-        "fixed_time_trigger": {
-            "time": "21:00",
-            "days_of_week": [0, 1, 2, 3, 4, 5, 6],
-        },
-        "event_patterns": [
+        "routines": [
             {
-                "pattern_id": _test_uuid("test-pattern"),
-                "name": "Test Pattern",
-                "description": "Test pattern for integration tests",
+                "routine_id": _test_uuid("test-routine"),
+                "name": "Test Routine",
+                "description": "Test routine for integration tests",
+                "trigger": {
+                    "trigger_type": "fixed_time",
+                    "time": "21:00",
+                    "days_of_week": [0, 1, 2, 3, 4, 5, 6],
+                },
                 "actions": [
                     {
                         "action_type": "camera",
@@ -166,8 +166,6 @@ def sample_schedule_data():
                         "description": "Take a photo",
                     }
                 ],
-                "category": "user",
-                "tags": ["test"],
             }
         ],
         "enabled": True,
@@ -261,9 +259,9 @@ class TestBuiltinScheduleProtection:
         import json
 
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
-            FixedTimeTrigger,
             Action,
+            FixedTimeTrigger,
+            Routine,
             Schedule,
         )
 
@@ -279,24 +277,21 @@ class TestBuiltinScheduleProtection:
             description="Test action",
         )
 
-        pattern = EventPattern(
-            pattern_id=_test_uuid("builtin-pattern"),
-            name="Built-in Pattern",
-            description="A built-in pattern",
-            actions=[action],
-            category="built-in",
-            tags=["builtin"],
-        )
-
         trigger = FixedTimeTrigger(time="21:00")
+
+        routine = Routine(
+            routine_id=_test_uuid("builtin-routine"),
+            name="Built-in Routine",
+            description="A built-in routine",
+            trigger=trigger,
+            actions=[action],
+        )
 
         schedule = Schedule(
             schedule_id=builtin_id,
             name="Built-in Test Schedule",
             description="A built-in schedule for testing",
-            event_patterns=[pattern],
-            trigger_type="fixed_time",
-            fixed_time_trigger=trigger,
+            routines=[routine],
             enabled=True,
             is_active=False,
         )
@@ -324,9 +319,9 @@ class TestBuiltinScheduleProtection:
         import json
 
         from webui.backend.lib.schedule_schema import (
-            EventPattern,
-            FixedTimeTrigger,
             Action,
+            FixedTimeTrigger,
+            Routine,
             Schedule,
         )
 
@@ -342,24 +337,21 @@ class TestBuiltinScheduleProtection:
             description="Test action",
         )
 
-        pattern = EventPattern(
-            pattern_id=_test_uuid("builtin-pattern-2"),
-            name="Built-in Pattern",
-            description="A built-in pattern",
-            actions=[action],
-            category="built-in",
-            tags=["builtin"],
-        )
-
         trigger = FixedTimeTrigger(time="21:00")
+
+        routine = Routine(
+            routine_id=_test_uuid("builtin-routine-2"),
+            name="Built-in Routine",
+            description="A built-in routine",
+            trigger=trigger,
+            actions=[action],
+        )
 
         schedule = Schedule(
             schedule_id=builtin_id,
             name="Built-in No Delete Test",
             description="A built-in schedule for delete testing",
-            event_patterns=[pattern],
-            trigger_type="fixed_time",
-            fixed_time_trigger=trigger,
+            routines=[routine],
             enabled=True,
             is_active=False,
         )

@@ -1,41 +1,61 @@
 """
 Schedule Schema for Mothbox Visual Scheduler.
 
-Defines the core data structures for the scheduler system using a two-tier model:
-- EventPattern: Reusable action sequences with relative timing (embedded in Schedule)
-- Schedule: Contains patterns + trigger configuration + date constraints
+Defines the core data structures for the scheduler system using a routine-based model:
+- Action: Single action with type, name, offset, and parameters
+- Routine: Action sequence with embedded trigger configuration
+- Schedule: Contains routines (each with its own trigger)
 
-Single-file storage: Each schedule is a self-contained JSON file with patterns embedded
+Single-file storage: Each schedule is a self-contained JSON file with routines embedded
 inline, making schedules portable and easy to export/import between Mothbox units.
 
-Schema Version: 2.0
+Schema Version: 3.0
 - Action: action_type, action_name, offset_minutes, parameters, description
-- EventPattern: pattern_id, name, actions list, duration_minutes (computed property)
+- Routine: routine_id, name, trigger, actions, pre_condition (optional)
 - TimeWindow: start_time, end_time, offsets (supports "sunset", "01:00")
-- IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger
-- Schedule: schedule_id, name, event_patterns (embedded), trigger config, date constraints
+- Trigger types: IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger,
+                 SensorTrigger, CronTrigger, RecurringDaysTrigger
+- Schedule: schedule_id, name, routines (embedded with triggers)
 
 Usage:
     from webui.backend.lib.schedule_schema import (
         Schedule,
-        EventPattern,
+        Routine,
         Action,
         TimeWindow,
         IntervalTrigger,
+        SolarTrigger,
         validate_schedule,
     )
 
-    # Create a schedule
-    action = Action(action_type="gpio", action_name="attract_on")
-    pattern = EventPattern(pattern_id="", name="UV Capture", actions=[action])
-    window = TimeWindow(start_time="21:00", end_time="05:00")
-    trigger = IntervalTrigger(interval_minutes=60, time_window=window)
+    # Create a schedule with multiple routines (each with own trigger)
     schedule = Schedule(
         schedule_id="",
-        name="Nightly Survey",
-        event_patterns=[pattern],
-        trigger_type="interval",
-        interval_trigger=trigger,
+        name="Overnight Moth Survey",
+        routines=[
+            Routine(
+                routine_id="",
+                trigger=SolarTrigger(solar_event="dusk"),
+                actions=[Action(action_type="gpio", action_name="attract_on")],
+            ),
+            Routine(
+                routine_id="",
+                trigger=IntervalTrigger(
+                    interval_minutes=15,
+                    time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+                ),
+                actions=[
+                    Action(action_type="gpio", action_name="flash_on"),
+                    Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+                    Action(action_type="gpio", action_name="flash_off", offset_minutes=2),
+                ],
+            ),
+            Routine(
+                routine_id="",
+                trigger=SolarTrigger(solar_event="dawn"),
+                actions=[Action(action_type="gpio", action_name="attract_off")],
+            ),
+        ],
     )
 
     # Validate
@@ -44,15 +64,15 @@ Usage:
         data = schedule.to_dict()  # Serialize to JSON
 
 Issue #208 - Scheduler Phase 1: Schedule Schema
+Issue #300 - Update Schedule Class for Routine-Based Model
 """
 
-import copy
 import logging
 import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Final, TypeVar
+from typing import Final
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +82,14 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Schema version
-SCHEDULE_SCHEMA_VERSION: Final[str] = "2.0"
-SUPPORTED_VERSIONS: Final[list[str]] = ["2.0"]
+SCHEDULE_SCHEMA_VERSION: Final[str] = "3.0"
+SUPPORTED_VERSIONS: Final[list[str]] = ["3.0"]
 
 # Validation limits
 MAX_PATTERN_NAME_LENGTH: Final[int] = 200
 MAX_DESCRIPTION_LENGTH: Final[int] = 2000
 MAX_ACTIONS_PER_PATTERN: Final[int] = 20
-MAX_PATTERNS_PER_SCHEDULE: Final[int] = 10
+MAX_ROUTINES_PER_SCHEDULE: Final[int] = 10
 MAX_OFFSET_MINUTES: Final[int] = 1440  # 24 hours
 MAX_INTERVAL_MINUTES: Final[int] = 10080  # 7 days
 MIN_INTERVAL_MINUTES: Final[int] = 1
@@ -896,24 +916,20 @@ class Routine:
 @dataclass
 class Schedule:
     """
-    Complete schedule with embedded event patterns (single-file storage).
+    Complete schedule with embedded routines (single-file storage).
 
-    Each schedule is fully self-contained with event patterns embedded inline,
+    Each schedule is fully self-contained with routines embedded inline,
     making it portable and easy to export/import between Mothbox units.
+
+    Schema 3.0: Routines contain their own trigger configuration, eliminating
+    schedule-level trigger fields. This allows mixed trigger types within a
+    single schedule (e.g., solar triggers for UV on/off + interval for photos).
 
     Attributes:
         schedule_id: Unique identifier (UUID string, auto-generated if empty)
         name: Human-readable name (required, max 200 chars)
         description: Detailed description (max 2000 chars)
-        event_patterns: Embedded EventPattern objects (not references)
-        trigger_type: Type of trigger ("interval", "solar", "moon_phase", etc.)
-        interval_trigger: Config for interval triggers
-        solar_trigger: Config for solar triggers
-        moon_phase_trigger: Config for moon phase triggers
-        fixed_time_trigger: Config for fixed time triggers
-        sensor_trigger: Config for sensor triggers
-        start_date: Start of schedule validity (ISO 8601 date YYYY-MM-DD)
-        end_date: End of schedule validity (ISO 8601 date YYYY-MM-DD)
+        routines: Embedded Routine objects (each with its own trigger)
         deployment_id: Linked deployment ID
         create_deployment: Create deployment on activation
         enabled: Whether schedule is enabled
@@ -925,34 +941,26 @@ class Schedule:
     Example:
         >>> schedule = Schedule(
         ...     schedule_id="",
-        ...     name="Nightly Moth Survey",
-        ...     event_patterns=[...],
-        ...     trigger_type="interval",
-        ...     interval_trigger=IntervalTrigger(
-        ...         interval_minutes=60,
-        ...         time_window=TimeWindow(start_time="21:00", end_time="05:00"),
-        ...     ),
+        ...     name="Overnight Moth Survey",
+        ...     routines=[
+        ...         Routine(
+        ...             routine_id="",
+        ...             trigger=SolarTrigger(solar_event="dusk"),
+        ...             actions=[Action(action_type="gpio", action_name="attract_on")],
+        ...         ),
+        ...         Routine(
+        ...             routine_id="",
+        ...             trigger=IntervalTrigger(interval_minutes=15),
+        ...             actions=[Action(action_type="camera", action_name="takephoto")],
+        ...         ),
+        ...     ],
         ... )
     """
 
     schedule_id: str
     name: str
     description: str = ""
-    event_patterns: list[EventPattern] = field(default_factory=list)
-    trigger_type: str = "interval"
-
-    # Trigger configs (one active based on trigger_type)
-    interval_trigger: IntervalTrigger | None = None
-    solar_trigger: SolarTrigger | None = None
-    moon_phase_trigger: MoonPhaseTrigger | None = None
-    fixed_time_trigger: FixedTimeTrigger | None = None
-    sensor_trigger: SensorTrigger | None = None
-    cron_trigger: CronTrigger | None = None
-    recurring_days_trigger: RecurringDaysTrigger | None = None
-
-    # Date constraints
-    start_date: str | None = None
-    end_date: str | None = None
+    routines: list[Routine] = field(default_factory=list)
 
     # Deployment linkage
     deployment_id: str | None = None
@@ -978,8 +986,8 @@ class Schedule:
 
     @property
     def total_duration_minutes(self) -> int:
-        """Total duration of all event patterns combined."""
-        return sum(pattern.duration_minutes for pattern in self.event_patterns)
+        """Total duration of all routines combined."""
+        return sum(routine.duration_minutes for routine in self.routines)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -988,25 +996,7 @@ class Schedule:
             "schedule_id": self.schedule_id,
             "name": self.name,
             "description": self.description,
-            "event_patterns": [p.to_dict() for p in self.event_patterns],
-            "trigger_type": self.trigger_type,
-            "interval_trigger": (
-                self.interval_trigger.to_dict() if self.interval_trigger else None
-            ),
-            "solar_trigger": (self.solar_trigger.to_dict() if self.solar_trigger else None),
-            "moon_phase_trigger": (
-                self.moon_phase_trigger.to_dict() if self.moon_phase_trigger else None
-            ),
-            "fixed_time_trigger": (
-                self.fixed_time_trigger.to_dict() if self.fixed_time_trigger else None
-            ),
-            "sensor_trigger": (self.sensor_trigger.to_dict() if self.sensor_trigger else None),
-            "cron_trigger": (self.cron_trigger.to_dict() if self.cron_trigger else None),
-            "recurring_days_trigger": (
-                self.recurring_days_trigger.to_dict() if self.recurring_days_trigger else None
-            ),
-            "start_date": self.start_date,
-            "end_date": self.end_date,
+            "routines": [r.to_dict() for r in self.routines],
             "deployment_id": self.deployment_id,
             "create_deployment": self.create_deployment,
             "enabled": self.enabled,
@@ -1016,268 +1006,47 @@ class Schedule:
             "modified_by": self.modified_by,
         }
 
-    @staticmethod
-    def _is_frontend_format(data: dict) -> bool:
-        """Detect if data uses frontend JSON format.
-
-        Frontend format has a nested 'trigger' object containing trigger_type and all config.
-        Backend format has trigger_type at top level with separate trigger objects.
-        """
-        return "trigger" in data and isinstance(data.get("trigger"), dict)
-
-    @staticmethod
-    def _parse_interval_trigger_frontend(data: dict) -> IntervalTrigger:
-        """Parse frontend interval trigger format.
-
-        Frontend sends:
-        - interval_minutes
-        - time_window_start, time_window_end (or nested time_window)
-        - days_of_week
-
-        Note: Value validation (type, range) is handled by IntervalTrigger's
-        __post_init__ and validate_interval_trigger(). This method only checks
-        for required field presence.
-        """
-        # Handle both flat and nested time_window formats.
-        # Priority: nested time_window object takes precedence over flat fields
-        # (time_window_start/end). If both are present, nested object wins.
-        if "time_window" in data and isinstance(data["time_window"], dict):
-            time_window = TimeWindow.from_dict(data["time_window"])
-        else:
-            time_window = TimeWindow(
-                start_time=data.get("time_window_start", "00:00"),
-                end_time=data.get("time_window_end", "23:59"),
-                start_offset_minutes=data.get("start_offset_minutes", 0),
-                end_offset_minutes=data.get("end_offset_minutes", 0),
-            )
-
-        if "interval_minutes" not in data:
-            raise ValueError("interval_minutes is required for interval trigger")
-
-        return IntervalTrigger(
-            interval_minutes=data["interval_minutes"],
-            time_window=time_window,
-            days_of_week=data.get("days_of_week"),
-        )
-
-    @staticmethod
-    def _parse_solar_trigger_frontend(data: dict) -> SolarTrigger:
-        """Parse frontend solar trigger format."""
-        if "solar_event" not in data:
-            raise ValueError("solar_event is required for solar trigger")
-
-        return SolarTrigger(
-            solar_event=data["solar_event"],
-            offset_minutes=data.get("offset_minutes", 0),
-            days_of_week=data.get("days_of_week"),
-        )
-
-    @staticmethod
-    def _parse_moon_phase_trigger_frontend(data: dict) -> MoonPhaseTrigger:
-        """Parse frontend moon phase trigger format.
-
-        Frontend sends:
-        - moon_phase: single string (wrap in list for backend)
-        - time_of_day: single time string (convert to time_window)
-        - offset_days
-        """
-        # Wrap single phase in list (only if non-empty string).
-        # Empty string "" is falsy, so falls back to phases key - this is intentional
-        # to handle cases where frontend sends moon_phase="" with phases=[...].
-        phase = data.get("moon_phase")
-        phases = [phase] if isinstance(phase, str) and phase else data.get("phases", [])
-
-        if not phases:
-            raise ValueError("moon_phase or phases is required for moon phase trigger")
-
-        # Convert time_of_day to time_window
-        time_window = None
-        if "time_of_day" in data:
-            time_of_day = data["time_of_day"]
-            time_window = TimeWindow(
-                start_time=time_of_day,
-                end_time=time_of_day,
-            )
-        elif "time_window" in data and data["time_window"]:
-            time_window = TimeWindow.from_dict(data["time_window"])
-
-        return MoonPhaseTrigger(
-            phases=phases,
-            offset_days=data.get("offset_days", 0),
-            time_window=time_window,
-        )
-
-    @staticmethod
-    def _parse_fixed_time_trigger_frontend(data: dict) -> FixedTimeTrigger:
-        """Parse frontend fixed time trigger format.
-
-        Frontend sends:
-        - time_of_day (maps to 'time') - required
-        - days_of_week
-        """
-        time_value = data.get("time_of_day") or data.get("time")
-        if not time_value:
-            raise ValueError("time_of_day is required for fixed_time trigger")
-
-        return FixedTimeTrigger(
-            time=time_value,
-            days_of_week=data.get("days_of_week"),
-        )
-
-    @staticmethod
-    def _parse_sensor_trigger_frontend(data: dict) -> SensorTrigger:
-        """Parse frontend sensor trigger format."""
-        if "sensor_type" not in data:
-            raise ValueError("sensor_type is required for sensor trigger")
-
-        time_window = None
-        if "time_window" in data and data["time_window"]:
-            time_window = TimeWindow.from_dict(data["time_window"])
-
-        return SensorTrigger(
-            sensor_type=data["sensor_type"],
-            threshold=data.get("threshold", 0.0),
-            comparison=data.get("comparison", "gt"),
-            cooldown_minutes=data.get("cooldown_minutes", 5),
-            time_window=time_window,
-        )
-
-    @staticmethod
-    def _parse_cron_trigger_frontend(data: dict) -> CronTrigger:
-        """Parse frontend cron trigger format."""
-        if "cron_expression" not in data:
-            raise ValueError("cron_expression is required for cron trigger")
-
-        return CronTrigger(
-            cron_expression=data["cron_expression"],
-        )
-
-    @staticmethod
-    def _parse_recurring_days_trigger_frontend(data: dict) -> RecurringDaysTrigger:
-        """Parse frontend recurring_days trigger format."""
-        return RecurringDaysTrigger(
-            every_n_days=data.get("every_n_days", 1),
-            time=data.get("time", "00:00"),
-            start_date=data.get("start_date"),
-        )
-
-    @staticmethod
-    def _parse_frontend_trigger(trigger_data: dict) -> dict:
-        """Convert frontend trigger format to backend trigger objects.
-
-        Args:
-            trigger_data: Frontend trigger object with trigger_type and config
-
-        Returns:
-            Dict with trigger_type and corresponding typed trigger object
-        """
-        trigger_type = trigger_data.get("trigger_type")
-
-        if not trigger_type:
-            raise ValueError("trigger_type is required")
-
-        valid_types = {
-            "interval",
-            "solar",
-            "moon_phase",
-            "fixed_time",
-            "sensor",
-            "cron",
-            "recurring_days",
-        }
-        if trigger_type not in valid_types:
-            raise ValueError(f"Unknown trigger_type: {trigger_type}")
-
-        result = {"trigger_type": trigger_type}
-
-        # Parse based on trigger type
-        if trigger_type == "interval":
-            result["interval_trigger"] = Schedule._parse_interval_trigger_frontend(trigger_data)
-        elif trigger_type == "solar":
-            result["solar_trigger"] = Schedule._parse_solar_trigger_frontend(trigger_data)
-        elif trigger_type == "moon_phase":
-            result["moon_phase_trigger"] = Schedule._parse_moon_phase_trigger_frontend(trigger_data)
-        elif trigger_type == "fixed_time":
-            result["fixed_time_trigger"] = Schedule._parse_fixed_time_trigger_frontend(trigger_data)
-        elif trigger_type == "sensor":
-            result["sensor_trigger"] = Schedule._parse_sensor_trigger_frontend(trigger_data)
-        elif trigger_type == "cron":
-            result["cron_trigger"] = Schedule._parse_cron_trigger_frontend(trigger_data)
-        elif trigger_type == "recurring_days":
-            result["recurring_days_trigger"] = Schedule._parse_recurring_days_trigger_frontend(
-                trigger_data
-            )
-
-        return result
-
-    @classmethod
-    def _convert_frontend_format(cls, data: dict) -> dict:
-        """Convert frontend JSON format to backend format.
-
-        Converts:
-        - trigger object → trigger_type + specific trigger objects
-        - date_range object → start_date/end_date at top level
-
-        Args:
-            data: Frontend format dict
-
-        Returns:
-            Backend format dict
-        """
-        # Deep copy to avoid mutating nested input structures
-        converted = copy.deepcopy(data)
-
-        # Extract and convert trigger
-        if "trigger" in converted:
-            trigger_data = converted.pop("trigger")
-            trigger_fields = cls._parse_frontend_trigger(trigger_data)
-            converted.update(trigger_fields)
-
-        # Unwrap date_range if present
-        if "date_range" in converted:
-            date_range = converted.pop("date_range")
-            if date_range and isinstance(date_range, dict):
-                converted["start_date"] = date_range.get("start_date")
-                converted["end_date"] = date_range.get("end_date")
-
-        return converted
-
     @classmethod
     def from_dict(cls, data: dict) -> "Schedule":
-        """Create from dictionary. Supports both frontend and backend formats."""
-        # Detect and convert frontend format
-        if cls._is_frontend_format(data):
-            data = cls._convert_frontend_format(data)
+        """Create from dictionary.
 
-        # Helper to handle both dict and object types for triggers
-        T = TypeVar("T")
+        Args:
+            data: Dictionary with schedule data in schema 3.0 format.
+                  Must contain 'routines' list with embedded triggers.
 
-        def _process_trigger(trigger_data: dict | T | None, trigger_class: type[T]) -> T | None:
-            if trigger_data is None:
-                return None
-            # If already an instance, return as-is (from frontend conversion)
-            if isinstance(trigger_data, trigger_class):
-                return trigger_data
-            # Otherwise parse from dict (backend format)
-            return trigger_class.from_dict(trigger_data)
+        Returns:
+            Schedule instance
+
+        Raises:
+            ValueError: If data uses old schema format (event_patterns or
+                       schedule-level triggers) or unsupported schema version
+        """
+        # Validate schema version if present
+        schema_version = data.get("schema_version")
+        if schema_version is not None and schema_version not in SUPPORTED_VERSIONS:
+            raise ValueError(
+                f"Unsupported schema version: {schema_version}. "
+                f"Supported versions: {SUPPORTED_VERSIONS}"
+            )
+
+        # Reject old schema format
+        if "event_patterns" in data:
+            raise ValueError(
+                "Old schema format detected: 'event_patterns' is no longer supported. "
+                "Use 'routines' with embedded triggers instead (schema 3.0)."
+            )
+
+        if "trigger_type" in data or "trigger" in data:
+            raise ValueError(
+                "Old schema format detected: Schedule-level triggers are no longer "
+                "supported. Each routine must have its own trigger (schema 3.0)."
+            )
 
         return cls(
             schedule_id=data.get("schedule_id", ""),
             name=data["name"],
             description=data.get("description", ""),
-            event_patterns=[EventPattern.from_dict(p) for p in data.get("event_patterns", [])],
-            trigger_type=data.get("trigger_type", "interval"),
-            interval_trigger=_process_trigger(data.get("interval_trigger"), IntervalTrigger),
-            solar_trigger=_process_trigger(data.get("solar_trigger"), SolarTrigger),
-            moon_phase_trigger=_process_trigger(data.get("moon_phase_trigger"), MoonPhaseTrigger),
-            fixed_time_trigger=_process_trigger(data.get("fixed_time_trigger"), FixedTimeTrigger),
-            sensor_trigger=_process_trigger(data.get("sensor_trigger"), SensorTrigger),
-            cron_trigger=_process_trigger(data.get("cron_trigger"), CronTrigger),
-            recurring_days_trigger=_process_trigger(
-                data.get("recurring_days_trigger"), RecurringDaysTrigger
-            ),
-            start_date=data.get("start_date"),
-            end_date=data.get("end_date"),
+            routines=[Routine.from_dict(r) for r in data.get("routines", [])],
             deployment_id=data.get("deployment_id"),
             create_deployment=data.get("create_deployment", False),
             enabled=data.get("enabled", True),
@@ -1515,7 +1284,8 @@ def validate_routine(routine) -> tuple[bool, str | None]:
     if isinstance(routine.trigger, SensorTrigger):
         return (
             False,
-            "Sensor triggers can only be used as pre_condition, not as primary trigger",
+            "Sensor triggers can only be used as pre_condition, not as primary trigger. "
+            f"Use one of: {', '.join(PRIMARY_TRIGGER_TYPES)}",
         )
 
     # Validate trigger
@@ -1842,9 +1612,43 @@ def validate_recurring_days_trigger(
     return True, None
 
 
+def validate_routine_ids_unique(schedule: Schedule) -> tuple[bool, str | None]:
+    """
+    Ensure all routine IDs within a schedule are unique.
+
+    Args:
+        schedule: Schedule to validate
+
+    Returns:
+        (True, None) if valid, (False, error_message) if duplicate IDs found
+    """
+    if not schedule.routines:
+        return True, None
+
+    routine_ids = [r.routine_id for r in schedule.routines]
+
+    # Check for empty string IDs (defensive - post_init should auto-generate)
+    if any(not rid for rid in routine_ids):
+        return False, "Routine IDs cannot be empty"
+
+    if len(routine_ids) != len(set(routine_ids)):
+        seen = set()
+        duplicates = set()
+        for rid in routine_ids:
+            if rid in seen:
+                duplicates.add(rid)
+            seen.add(rid)
+        return False, f"Duplicate routine IDs: {sorted(duplicates)}"
+
+    return True, None
+
+
 def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
     """
-    Validate a complete schedule with all embedded patterns.
+    Validate a complete schedule with all embedded routines.
+
+    Schema 3.0: Each routine has its own embedded trigger. Schedule-level
+    trigger configuration is no longer supported.
 
     Args:
         schedule: Schedule to validate
@@ -1873,68 +1677,26 @@ def validate_schedule(schedule: Schedule) -> tuple[bool, str | None]:
             f"Schedule description exceeds {MAX_DESCRIPTION_LENGTH} characters",
         )
 
-    # Validate event_patterns
-    if not schedule.event_patterns:
-        return False, "Schedule must have at least one event pattern"
+    # Validate routines
+    if not schedule.routines:
+        return False, "Schedule must have at least one routine"
 
-    if len(schedule.event_patterns) > MAX_PATTERNS_PER_SCHEDULE:
+    if len(schedule.routines) > MAX_ROUTINES_PER_SCHEDULE:
         return (
             False,
-            f"Schedule exceeds {MAX_PATTERNS_PER_SCHEDULE} event patterns",
+            f"Schedule exceeds {MAX_ROUTINES_PER_SCHEDULE} routines",
         )
 
-    # Validate each pattern
-    for pattern in schedule.event_patterns:
-        valid, error = validate_event_pattern(pattern)
+    # Validate routine ID uniqueness
+    valid, error = validate_routine_ids_unique(schedule)
+    if not valid:
+        return False, error
+
+    # Validate each routine (includes trigger validation)
+    for i, routine in enumerate(schedule.routines):
+        valid, error = validate_routine(routine)
         if not valid:
-            return False, f"Pattern '{pattern.name}': {error}"
-
-    # Validate trigger_type
-    if schedule.trigger_type not in TRIGGER_TYPES:
-        return (
-            False,
-            f"Invalid trigger type: '{schedule.trigger_type}'. "
-            f"Must be one of: {', '.join(TRIGGER_TYPES)}",
-        )
-
-    # Validate corresponding trigger config exists and is valid
-    trigger_validators = {
-        "interval": (schedule.interval_trigger, validate_interval_trigger),
-        "solar": (schedule.solar_trigger, validate_solar_trigger),
-        "moon_phase": (schedule.moon_phase_trigger, validate_moon_phase_trigger),
-        "fixed_time": (schedule.fixed_time_trigger, validate_fixed_time_trigger),
-        "sensor": (schedule.sensor_trigger, validate_sensor_trigger),
-        "cron": (schedule.cron_trigger, validate_cron_trigger),
-        "recurring_days": (schedule.recurring_days_trigger, validate_recurring_days_trigger),
-    }
-
-    trigger_config, validator = trigger_validators.get(schedule.trigger_type, (None, None))
-
-    if trigger_config is None:
-        return (
-            False,
-            f"Missing {schedule.trigger_type}_trigger configuration "
-            f"for trigger_type='{schedule.trigger_type}'",
-        )
-
-    valid, error = validator(trigger_config)
-    if not valid:
-        return False, f"{schedule.trigger_type.title()} trigger: {error}"
-
-    # Validate date constraints
-    valid, error = _validate_date_string(schedule.start_date)
-    if not valid:
-        return False, f"start_date: {error}"
-
-    valid, error = _validate_date_string(schedule.end_date)
-    if not valid:
-        return False, f"end_date: {error}"
-
-    # If both dates provided, validate start <= end
-    if schedule.start_date and schedule.end_date:
-        start = datetime.strptime(schedule.start_date, "%Y-%m-%d")
-        end = datetime.strptime(schedule.end_date, "%Y-%m-%d")
-        if start > end:
-            return False, "start_date must be before or equal to end_date"
+            routine_name = routine.name or routine.get_display_name()
+            return False, f"Routine {i + 1} ('{routine_name}'): {error}"
 
     return True, None

@@ -393,9 +393,10 @@ class TestPersistenceAcrossRestarts:
         assert restored is not None, "Schedule should exist"
         assert restored.name == "Data Persistence Test", "Name should persist"
         assert restored.is_active is True, "is_active should persist"
-        assert len(restored.event_patterns) == 1, "Patterns should persist"
-        assert restored.fixed_time_trigger is not None, "Trigger should persist"
-        assert restored.fixed_time_trigger.time == "22:30", "Trigger time should persist"
+        assert len(restored.routines) == 1, "Routines should persist"
+        from webui.backend.lib.schedule_schema import FixedTimeTrigger
+        assert isinstance(restored.routines[0].trigger, FixedTimeTrigger), "Trigger should persist"
+        assert restored.routines[0].trigger.time == "22:30", "Trigger time should persist"
 
 
 # ============================================================================

@@ -2863,10 +2863,10 @@ def sample_schedule_factory():
     Related: Issue #216 - Scheduler integration tests
     """
     from webui.backend.lib.schedule_schema import (
-        EventPattern,
         FixedTimeTrigger,
         IntervalTrigger,
         Action,
+        Routine,
         Schedule,
         SolarTrigger,
         TimeWindow,
@@ -2882,7 +2882,10 @@ def sample_schedule_factory():
         enabled=True,
         is_active=False,
     ):
-        """Create a valid schedule with specified parameters."""
+        """Create a valid schedule with specified parameters (Schema 3.0).
+
+        Creates a schedule with a single routine containing the specified trigger type.
+        """
         action = Action(
             action_type="camera",
             action_name="takephoto",
@@ -2890,60 +2893,38 @@ def sample_schedule_factory():
             description="Take photo",
         )
 
-        pattern = EventPattern(
-            pattern_id="",
-            name="Test Capture",
-            description="Test pattern",
-            actions=[action],
-            category="user",
-            tags=["test"],
-        )
-
         if trigger_type == "fixed_time":
             trigger = FixedTimeTrigger(time=f"{hour:02d}:{minute:02d}")
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="fixed_time",
-                fixed_time_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
         elif trigger_type == "interval":
             window = TimeWindow(start_time="21:00", end_time="23:00")
             trigger = IntervalTrigger(
                 interval_minutes=interval_minutes,
                 time_window=window,
             )
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="interval",
-                interval_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
         elif trigger_type == "solar":
             trigger = SolarTrigger(
                 solar_event="sunset",
                 offset_minutes=30,
             )
-            schedule = Schedule(
-                schedule_id=schedule_id,
-                name=name,
-                description="A test schedule",
-                event_patterns=[pattern],
-                trigger_type="solar",
-                solar_trigger=trigger,
-                enabled=enabled,
-                is_active=is_active,
-            )
         else:
             raise ValueError(f"Unknown trigger type: {trigger_type}")
+
+        routine = Routine(
+            routine_id="",
+            name="Test Capture",
+            description="Test routine",
+            trigger=trigger,
+            actions=[action],
+        )
+
+        schedule = Schedule(
+            schedule_id=schedule_id,
+            name=name,
+            description="A test schedule",
+            routines=[routine],
+            enabled=enabled,
+            is_active=is_active,
+        )
 
         return schedule
 
