@@ -1333,7 +1333,7 @@ class TestEdgeCases:
         assert len(result.entries) >= 2
 
     def test_schedule_with_action_offsets(self):
-        """Schedule correctly applies action offsets."""
+        """Schedule correctly applies action offsets with date-specific cron entries."""
         actions = [
             Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
             Action(action_type="camera", action_name="takephoto", offset_minutes=5),
@@ -1354,12 +1354,19 @@ class TestEdgeCases:
         )
 
         result = schedule_to_cron(schedule)
+        # With date-specific entries and 5 years default, we get 3 entries per day
         assert len(result.entries) >= 3
         expressions = [e.expression for e in result.entries]
-        # Should have entries at 21:00, 21:05, 21:15
-        assert "0 21 * * *" in expressions
-        assert "5 21 * * *" in expressions
-        assert "15 21 * * *" in expressions
+        # Date-specific cron entries: minute hour day month *
+        # Check that offsets are correctly applied (minute values: 0, 5, 15)
+        minutes_at_21 = [expr.split()[0] for expr in expressions if expr.split()[1] == "21"]
+        assert "0" in minutes_at_21  # attract_on at 21:00
+        assert "5" in minutes_at_21  # takephoto at 21:05
+        assert "15" in minutes_at_21  # attract_off at 21:15
+        # Verify entries are date-specific (day/month are numbers, not wildcards)
+        first_entry_parts = expressions[0].split()
+        assert first_entry_parts[2] != "*"  # day is specific
+        assert first_entry_parts[3] != "*"  # month is specific
 
     def test_rtc_waketime_calculated(self):
         """schedule_to_cron calculates rtc_waketime."""
@@ -1486,3 +1493,242 @@ class TestDaysAheadValidation:
         # days_ahead=365 should work
         result = moon_phase_trigger_to_cron(trigger, "test_command", days_ahead=365)
         assert isinstance(result, list)
+
+
+# =============================================================================
+# NEW TESTS FOR ISSUE #303: Per-Routine Trigger Functions
+# =============================================================================
+
+
+class TestDatetimeToCron:
+    """Tests for datetime_to_cron() helper function."""
+
+    def test_basic_conversion(self):
+        """Converts datetime to date-specific cron expression."""
+        from webui.backend.lib.cron_bridge import datetime_to_cron
+
+        dt = datetime(2025, 6, 15, 21, 30)
+        assert datetime_to_cron(dt) == "30 21 15 6 *"
+
+    def test_midnight(self):
+        """Midnight converts correctly."""
+        from webui.backend.lib.cron_bridge import datetime_to_cron
+
+        dt = datetime(2025, 1, 1, 0, 0)
+        assert datetime_to_cron(dt) == "0 0 1 1 *"
+
+    def test_single_digit_values(self):
+        """Single digit month/day/hour/minute handled correctly."""
+        from webui.backend.lib.cron_bridge import datetime_to_cron
+
+        dt = datetime(2025, 3, 5, 7, 9)
+        assert datetime_to_cron(dt) == "9 7 5 3 *"
+
+    def test_december_31st(self):
+        """End of year date converts correctly."""
+        from webui.backend.lib.cron_bridge import datetime_to_cron
+
+        dt = datetime(2025, 12, 31, 23, 59)
+        assert datetime_to_cron(dt) == "59 23 31 12 *"
+
+
+class TestCalculateExecutionTimes:
+    """Tests for calculate_execution_times() dispatcher function."""
+
+    def test_fixed_time_trigger(self):
+        """Fixed time trigger returns datetimes."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        assert len(times) > 0
+        # Should have approximately 365 entries for 1 year
+        assert 350 <= len(times) <= 366
+        # All should be at 21:00
+        assert all(t.hour == 21 and t.minute == 0 for t in times)
+
+    def test_fixed_time_with_days_of_week(self):
+        """Fixed time with day restriction returns fewer entries."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        # Only Monday (0) and Friday (4)
+        trigger = FixedTimeTrigger(time="09:00", days_of_week=[0, 4])
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        assert len(times) > 0
+        # Should have ~104 entries (2 days/week * 52 weeks)
+        assert 100 <= len(times) <= 110
+        # All should be on Monday or Friday
+        for t in times:
+            assert t.weekday() in [0, 4]
+
+    def test_interval_trigger(self):
+        """Interval trigger generates multiple entries per day."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = IntervalTrigger(
+            interval_minutes=60,
+            time_window=TimeWindow(start_time="09:00", end_time="12:00"),
+        )
+        # Use 1 day for easy counting
+        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+
+        # Should have 4 entries per day (09:00, 10:00, 11:00, 12:00) * ~365 days
+        assert len(times) > 100
+        # Hours should be between 9 and 12
+        assert all(9 <= t.hour <= 12 for t in times)
+
+    def test_solar_trigger_requires_coordinates(self):
+        """Solar trigger raises ValueError without coordinates."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+
+        with pytest.raises(ValueError, match="require latitude and longitude"):
+            calculate_execution_times(trigger)
+
+    def test_solar_trigger_with_coordinates(self):
+        """Solar trigger works with coordinates."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
+        times = calculate_execution_times(
+            trigger, latitude=45.0, longitude=-93.0, years_ahead=1, from_date=date(2025, 1, 1)
+        )
+
+        assert len(times) > 0
+        assert len(times) >= 300  # Most days should have a sunset
+
+    def test_sensor_trigger_raises(self):
+        """Sensor trigger raises ValueError."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        trigger = SensorTrigger(sensor_type="light", comparison="gt", threshold=500.0)
+
+        with pytest.raises(ValueError, match="cannot be scheduled via cron"):
+            calculate_execution_times(trigger)
+
+
+class TestRoutineToDatedCron:
+    """Tests for routine_to_dated_cron() function."""
+
+    def test_basic_routine(self):
+        """Basic routine generates dated cron entries."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        assert len(entries) > 0
+        # All entries should be date-specific
+        for entry in entries:
+            parts = entry.expression.split()
+            assert parts[2] != "*"  # day is specific
+            assert parts[3] != "*"  # month is specific
+            assert parts[4] == "*"  # weekday is wildcard
+
+    def test_routine_with_multiple_actions(self):
+        """Multiple actions generate multiple entries per execution."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+            ],
+        )
+
+        entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        # Should have 2 entries per day * 365 days
+        assert len(entries) >= 700
+
+    def test_routine_with_action_offset(self):
+        """Action offsets are applied correctly."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=30)],
+        )
+
+        entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        # All entries should be at 21:30, not 21:00
+        for entry in entries:
+            parts = entry.expression.split()
+            assert parts[0] == "30"  # 30 minutes
+            assert parts[1] == "21"  # 21 hours
+
+    def test_routine_entries_have_routine_id(self):
+        """Generated entries include routine_id."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="my-routine-id",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        # All entries should have the routine_id set
+        for entry in entries:
+            assert entry.routine_id == "my-routine-id"
+
+
+class TestBuildActionCommand:
+    """Tests for build_action_command() function."""
+
+    def test_basic_command(self):
+        """Builds basic command without pre_condition."""
+        from webui.backend.lib.cron_bridge import build_action_command
+
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
+        command = build_action_command(action)
+
+        assert "TakePhoto.py" in command
+        assert "python3" in command.lower() or "python" in command.lower()
+
+    def test_gpio_command(self):
+        """GPIO action generates correct command."""
+        from webui.backend.lib.cron_bridge import build_action_command
+
+        action = Action(action_type="gpio", action_name="attract_on", offset_minutes=0)
+        command = build_action_command(action)
+
+        assert "Attract_On.py" in command
+
+    def test_unknown_action(self):
+        """Unknown action generates comment."""
+        from webui.backend.lib.cron_bridge import build_action_command
+
+        action = Action(action_type="unknown", action_name="foo", offset_minutes=0)
+        command = build_action_command(action)
+
+        assert command.startswith("#")
+        assert "Unknown" in command
+
+    def test_with_pre_condition(self):
+        """Pre-condition wraps command with sensor check."""
+        from webui.backend.lib.cron_bridge import build_action_command
+
+        action = Action(action_type="camera", action_name="takephoto", offset_minutes=0)
+        pre_condition = SensorTrigger(sensor_type="light", comparison="gt", threshold=500.0)
+
+        command = build_action_command(action, pre_condition)
+
+        assert "check_and_run.py" in command
+        assert "--sensor light" in command
+        assert "--op gt" in command
+        assert "--threshold 500.0" in command
+        assert "TakePhoto.py" in command
