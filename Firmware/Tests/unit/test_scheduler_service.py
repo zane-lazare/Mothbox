@@ -995,6 +995,125 @@ class TestActivateSchedule:
 
 
 # ============================================================================
+# Test Activation Progress Callback (Issue #309)
+# ============================================================================
+
+
+class TestActivationProgressCallback:
+    """Tests for progress_callback parameter in activate_schedule() (Issue #309)."""
+
+    def test_progress_callback_called_with_phases(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Progress callback should be called with expected phases."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        sample_schedule.schedule_id = _test_uuid("progress-phases")
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Track progress calls
+        progress_calls = []
+
+        def track_progress(phase: str, progress: int) -> None:
+            progress_calls.append((phase, progress))
+
+        # Activate with progress callback
+        scheduler_service.activate_schedule(
+            _test_uuid("progress-phases"),
+            check_conflicts=True,
+            progress_callback=track_progress,
+        )
+
+        # Verify expected phases were called
+        phases = [p[0] for p in progress_calls]
+        assert "checking_conflicts" in phases
+        assert "generating_cron" in phases
+        assert "applying_cron" in phases
+        assert "updating_state" in phases
+        assert "complete" in phases
+
+        # Verify progress values are ascending
+        progress_values = [p[1] for p in progress_calls]
+        assert progress_values == sorted(progress_values)
+
+        # Verify final progress is 100
+        assert progress_calls[-1] == ("complete", 100)
+
+    def test_progress_callback_skips_conflict_check_when_disabled(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Progress should skip checking_conflicts phase when check_conflicts=False."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        sample_schedule.schedule_id = _test_uuid("progress-no-conflict")
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Track progress calls
+        progress_calls = []
+
+        def track_progress(phase: str, progress: int) -> None:
+            progress_calls.append((phase, progress))
+
+        # Activate without conflict check
+        scheduler_service.activate_schedule(
+            _test_uuid("progress-no-conflict"),
+            check_conflicts=False,
+            progress_callback=track_progress,
+        )
+
+        # Verify checking_conflicts was NOT called
+        phases = [p[0] for p in progress_calls]
+        assert "checking_conflicts" not in phases
+        # But other phases should still be called
+        assert "generating_cron" in phases
+        assert "complete" in phases
+
+    def test_activation_works_without_callback(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Activation should work when no progress callback is provided."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        sample_schedule.schedule_id = _test_uuid("progress-none")
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Activate without callback (should not raise)
+        scheduler_service.activate_schedule(_test_uuid("progress-none"))
+
+        assert scheduler_service._active_schedule_id == _test_uuid("progress-none")
+
+    def test_progress_callback_error_does_not_block_activation(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """A failing progress callback should not block activation."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        sample_schedule.schedule_id = _test_uuid("progress-error")
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Create a callback that raises an exception
+        def failing_callback(phase: str, progress: int) -> None:
+            raise RuntimeError("Callback failed intentionally")
+
+        # Activate with failing callback - should not raise
+        scheduler_service.activate_schedule(
+            _test_uuid("progress-error"),
+            progress_callback=failing_callback,
+        )
+
+        # Activation should still succeed
+        assert scheduler_service._active_schedule_id == _test_uuid("progress-error")
+
+
+# ============================================================================
 # Test Deactivate Schedule
 # ============================================================================
 
