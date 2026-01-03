@@ -1,8 +1,8 @@
 """
 Schedule conflict detection library.
 
-Provides conflict detection for Mothbox scheduler patterns, detecting:
-- Time overlaps between pattern executions
+Provides conflict detection for Mothbox scheduler routines, detecting:
+- Time overlaps between routine executions
 - Resource contention (camera, GPS single-instance resources)
 - GPIO state conflicts (on vs off for same GPIO resource)
 
@@ -145,14 +145,14 @@ class RoutineExecution:
 @dataclass
 class Conflict:
     """
-    Describes a detected conflict between pattern executions.
+    Describes a detected conflict between routine executions.
 
     Attributes:
         conflict_type: "time_overlap", "resource_contention", "gpio_state_conflict"
-        event1_id: First pattern execution ID
-        event1_name: First pattern name
-        event2_id: Second pattern execution ID
-        event2_name: Second pattern name
+        event1_id: First routine execution ID
+        event1_name: First routine name
+        event2_id: Second routine execution ID
+        event2_name: Second routine name
         start_time: Conflict start (overlap beginning)
         end_time: Conflict end (overlap ending)
         resource: Conflicting resource name (if resource contention)
@@ -254,7 +254,7 @@ class ConflictReport:
         schedule_name: Schedule name
         preview_start: Analysis start date
         preview_end: Analysis end date
-        total_executions: Number of pattern executions in preview period
+        total_executions: Number of routine executions in preview period
         conflicts: List of detected conflicts
         has_blocking_conflicts: True if any severity="error" conflicts
         analyzed_at: Timestamp of analysis
@@ -293,27 +293,27 @@ def check_time_overlap(
     exec2: RoutineExecution,
 ) -> tuple[bool, datetime | None, datetime | None]:
     """
-    Check if two pattern executions overlap in time.
+    Check if two routine executions overlap in time.
 
     Two intervals [a1, a2] and [b1, b2] overlap if a1 < b2 AND b1 < a2.
-    Adjacent patterns (a2 == b1) are NOT considered overlapping.
+    Adjacent routines (a2 == b1) are NOT considered overlapping.
 
     Args:
-        exec1: First pattern execution
-        exec2: Second pattern execution
+        exec1: First routine execution
+        exec2: Second routine execution
 
     Returns:
         Tuple of (overlaps: bool, overlap_start: datetime | None, overlap_end: datetime | None)
 
     Note:
-        Zero-duration patterns (start == end) return False because a point in
+        Zero-duration routines (start == end) return False because a point in
         time has no duration to overlap. However, check_resource_contention()
         uses different logic - instant actions CAN conflict with resources they
-        touch, even at boundaries. This is intentional: pattern overlap is about
-        scheduling (do patterns run simultaneously?), while resource contention
+        touch, even at boundaries. This is intentional: routine overlap is about
+        scheduling (do routines run simultaneously?), while resource contention
         is about hardware access (can two actions use the same resource?).
     """
-    # Handle zero-duration patterns (start == end)
+    # Handle zero-duration routines (start == end)
     # A point in time doesn't have duration, so can't truly overlap
     if exec1.start_time == exec1.end_time or exec2.start_time == exec2.end_time:
         return False, None, None
@@ -748,14 +748,14 @@ def _generate_conflict_message(
     if conflict_type == CONFLICT_RESOURCE_CONTENTION:
         return (
             f"{usage1.resource_type.title()} resource conflict: "
-            f"both patterns use {usage1.resource_name} at the same time"
+            f"both routines use {usage1.resource_name} at the same time"
         )
     elif conflict_type == CONFLICT_GPIO_STATE:
         return (
             f"GPIO state conflict: {usage1.resource_name} and "
             f"{usage2.resource_name} cannot be active simultaneously"
         )
-    return "Pattern execution conflict detected"
+    return "Routine execution conflict detected"
 
 
 def _generate_resolution(
@@ -767,14 +767,14 @@ def _generate_resolution(
     if conflict_type == CONFLICT_RESOURCE_CONTENTION:
         return (
             f"Adjust action timing so {usage1.resource_type} is not used "
-            f"simultaneously, or increase interval between pattern triggers"
+            f"simultaneously, or increase interval between routine triggers"
         )
     elif conflict_type == CONFLICT_GPIO_STATE:
         return (
             f"Ensure {usage1.resource_type} state changes don't overlap: "
             f"add delay between {usage1.resource_name} and {usage2.resource_name}"
         )
-    return "Adjust pattern timing or increase trigger interval"
+    return "Adjust routine timing or increase trigger interval"
 
 
 def detect_conflicts(

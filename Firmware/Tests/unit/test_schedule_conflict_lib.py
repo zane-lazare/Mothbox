@@ -144,8 +144,8 @@ def sample_conflict():
         start_time=datetime(2024, 6, 15, 21, 5, 0),
         end_time=datetime(2024, 6, 15, 21, 5, 30),
         resource="camera",
-        message="Camera resource conflict between patterns",
-        suggested_resolution="Increase interval between pattern triggers",
+        message="Camera resource conflict between routines",
+        suggested_resolution="Increase interval between routine triggers",
         severity="error",
     )
 
@@ -543,8 +543,8 @@ class TestTimeOverlapDetection:
         assert start == datetime(2024, 6, 15, 21, 10, 0)  # exec1 start
         assert end == datetime(2024, 6, 15, 21, 15, 0)    # exec2 end
 
-    def test_adjacent_patterns_no_overlap(self):
-        """Adjacent patterns (end == start) should NOT overlap."""
+    def test_adjacent_routines_no_overlap(self):
+        """Adjacent routines (end == start) should NOT overlap."""
         exec1 = RoutineExecution(
             routine_id="p1",
             routine_name="P1",
@@ -612,8 +612,8 @@ class TestTimeOverlapDetection:
         assert start == datetime(2024, 6, 15, 21, 15, 0)
         assert end == datetime(2024, 6, 15, 21, 45, 0)
 
-    def test_zero_duration_pattern(self):
-        """Zero-duration patterns (start == end) should still be detected."""
+    def test_zero_duration_routine(self):
+        """Zero-duration routines (start == end) should still be detected."""
         instant = RoutineExecution(
             routine_id="instant",
             routine_name="Instant",
@@ -954,7 +954,7 @@ class TestResourceContention:
 
 
 # ============================================================================
-# Test Pattern Execution Generation
+# Test Routine Execution Generation
 # ============================================================================
 
 class TestRoutineExecutionGeneration:
@@ -1006,8 +1006,8 @@ class TestRoutineExecutionGeneration:
         assert "camera" in resource_types   # takephoto
         # attract_off is also 'attract' type
 
-    def test_execution_duration_matches_pattern(self, sample_schedule):
-        """Execution end_time should reflect pattern duration."""
+    def test_execution_duration_matches_routine(self, sample_schedule):
+        """Execution end_time should reflect routine duration."""
         start_date = date(2024, 6, 15)
         end_date = date(2024, 6, 15)
 
@@ -1023,7 +1023,7 @@ class TestRoutineExecutionGeneration:
         first_exec = executions[0]
         duration = (first_exec.end_time - first_exec.start_time).total_seconds() / 60
 
-        # Pattern has actions at 0, 5, and 15 minutes, so duration is 15 minutes
+        # Routine has actions at 0, 5, and 15 minutes, so duration is 15 minutes
         assert duration == 15
 
     def test_empty_execution_list_outside_window(self, sample_schedule):
@@ -1094,8 +1094,8 @@ class TestRoutineExecutionGeneration:
 class TestDetectConflicts:
     """Tests for detect_conflicts() main function."""
 
-    def test_no_conflicts_single_pattern(self, sample_schedule):
-        """Single pattern with adequate interval should have no conflicts."""
+    def test_no_conflicts_single_routine(self, sample_schedule):
+        """Single routine with adequate interval should have no conflicts."""
         report = detect_conflicts(
             sample_schedule,
             preview_days=1,
@@ -1109,7 +1109,7 @@ class TestDetectConflicts:
         assert len(report.conflicts) == 0
 
     def test_time_overlap_conflict_detected(self, conflicting_schedule):
-        """Schedule with overlapping patterns should detect time overlap."""
+        """Schedule with overlapping routines should detect time overlap."""
         report = detect_conflicts(
             conflicting_schedule,
             preview_days=1,
@@ -1118,7 +1118,7 @@ class TestDetectConflicts:
             timezone_name="UTC",
         )
 
-        # With 15-min interval and 20-min pattern duration, patterns will overlap
+        # With 15-min interval and 20-min routine duration, routines will overlap
         time_overlaps = [c for c in report.conflicts if c.conflict_type == "time_overlap"]
         assert len(time_overlaps) > 0
 
@@ -1132,7 +1132,7 @@ class TestDetectConflicts:
             timezone_name="UTC",
         )
 
-        # Both patterns use camera at offset 10, should conflict
+        # Both routines use camera at offset 10, should conflict
         resource_conflicts = [c for c in report.conflicts if c.conflict_type == "resource_contention"]
         assert len(resource_conflicts) > 0
 
