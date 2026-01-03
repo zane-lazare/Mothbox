@@ -29,6 +29,7 @@ def _test_uuid(name: str) -> str:
     """Generate deterministic test UUID from name."""
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"test.integration.workflow.{name}"))
 
+
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
 
@@ -125,10 +126,16 @@ class TestCronJobManagement:
         # Verify cron entry content
         entry = entries[0]
 
-        # 1. Verify cron expression is correct for 21:00
-        assert entry.expression == "0 21 * * *", (
-            f"Expected cron expression '0 21 * * *', got '{entry.expression}'"
-        )
+        # 1. Verify cron expression uses date-specific format (minute hour day month *)
+        # Note: schedule_to_cron now generates date-specific entries, not generic "* * *"
+        parts = entry.expression.split()
+        assert len(parts) == 5, f"Expected 5 cron fields, got {len(parts)}: {entry.expression}"
+        assert parts[0] == "0", f"Expected minute=0, got {parts[0]}"
+        assert parts[1] == "21", f"Expected hour=21, got {parts[1]}"
+        # Day and month are date-specific, just verify they're valid numbers
+        assert parts[2].isdigit() and 1 <= int(parts[2]) <= 31, f"Invalid day: {parts[2]}"
+        assert parts[3].isdigit() and 1 <= int(parts[3]) <= 12, f"Invalid month: {parts[3]}"
+        assert parts[4] == "*", f"Expected weekday=*, got {parts[4]}"
 
         # 2. Verify command references TakePhoto script
         assert "takephoto" in entry.command.lower(), (
@@ -507,12 +514,13 @@ class TestTriggerTypeWorkflows:
         )
 
         # Convert to cron with location
+        # Note: schedule_to_cron uses years_ahead, not days_ahead
         result = schedule_to_cron(
             schedule,
             latitude=37.7749,  # San Francisco
             longitude=-122.4194,
             timezone_name="America/Los_Angeles",
-            days_ahead=7,
+            years_ahead=1,  # Generate 1 year of entries
         )
 
         # Should have entries for multiple days
@@ -574,6 +582,5 @@ class TestTriggerTypeWorkflows:
         # Should have an error explaining why
         assert len(result.errors) > 0, "Should have error explaining sensor limitation"
         assert any(
-            "sensor" in error.lower() and "not" in error.lower()
-            for error in result.errors
+            "sensor" in error.lower() and "not" in error.lower() for error in result.errors
         ), f"Error should mention sensor triggers not implemented: {result.errors}"

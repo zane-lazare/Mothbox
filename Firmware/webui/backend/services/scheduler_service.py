@@ -97,14 +97,16 @@ ACTIVATION_PROGRESS_COMPLETE = 100
 ACTIVATION_PROGRESS_FAILED = 0
 
 # Valid phases for validation
-_ACTIVATION_PHASES = frozenset({
-    ACTIVATION_PHASE_CHECKING_CONFLICTS,
-    ACTIVATION_PHASE_GENERATING_CRON,
-    ACTIVATION_PHASE_APPLYING_CRON,
-    ACTIVATION_PHASE_UPDATING_STATE,
-    ACTIVATION_PHASE_COMPLETE,
-    ACTIVATION_PHASE_FAILED,
-})
+_ACTIVATION_PHASES = frozenset(
+    {
+        ACTIVATION_PHASE_CHECKING_CONFLICTS,
+        ACTIVATION_PHASE_GENERATING_CRON,
+        ACTIVATION_PHASE_APPLYING_CRON,
+        ACTIVATION_PHASE_UPDATING_STATE,
+        ACTIVATION_PHASE_COMPLETE,
+        ACTIVATION_PHASE_FAILED,
+    }
+)
 
 
 # ============================================================================
@@ -615,7 +617,9 @@ class SchedulerService:
         # Check for conflicts before activation (Issue #213)
         # Uses cached conflict report to avoid redundant computation
         if check_conflicts:
-            _emit_progress(ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS)
+            _emit_progress(
+                ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS
+            )
             try:
                 from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
 

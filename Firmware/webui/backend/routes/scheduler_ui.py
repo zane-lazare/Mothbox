@@ -5,25 +5,22 @@ Provides REST endpoints for the visual scheduler UI, including:
 - Schedule CRUD operations (Issue #218)
 - Schedule activation/deactivation
 - Schedule preview generation (Issue #214)
-- Event pattern management (Issue #217)
 - Conflict validation
+- Cron expression validation (Issue #233)
 
 Issue #214 - Scheduler Phase 3: Schedule Preview
-Issue #217 - Event Pattern API
 Issue #218 - Schedule Pattern API
+Issue #233 - Cron Validation
+Issue #310 - API terminology update (Schema 3.0)
 """
 
-import json
 import logging
-import threading
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
 
 from flask import Blueprint, Response, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
 
-from webui.backend.constants import MAX_BUILTIN_SCHEDULE_FILES
 from webui.backend.lib.cron_bridge import (
     CronEntry,
     calculate_next_waketime,
@@ -38,12 +35,10 @@ from webui.backend.lib.schedule_preview import (
     validate_timezone,
 )
 from webui.backend.lib.schedule_schema import (
-    Routine,
     Schedule,
     ScheduleActivationError,
     ScheduleConflictError,
     ScheduleValidationError,
-    validate_routine,
 )
 from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.services.scheduler_service import SchedulerService
@@ -70,11 +65,6 @@ scheduler_ui_bp = Blueprint("scheduler_ui", __name__)
 
 # Service instance (lazy initialization)
 _scheduler_service = None
-
-# Built-in patterns cache (populated on first request)
-_builtin_patterns_cache: list[dict] | None = None
-_builtin_patterns_cache_warnings: list[str] = []
-_builtin_patterns_cache_lock = threading.Lock()
 
 
 def get_scheduler_service() -> SchedulerService:
@@ -109,6 +99,28 @@ def require_json(f):
         return f(*args, json_data=data, **kwargs)
 
     return decorated
+
+
+def _schedule_to_summary(schedule: Schedule) -> dict:
+    """
+    Convert Schedule to summary dict for list endpoints.
+
+    Returns a lightweight summary suitable for list views, excluding
+    full routine definitions. Used by list_schedules() and
+    list_builtin_schedules() to avoid code duplication.
+
+    Note: trigger_type removed in Schema 3.0 (moved to routine level).
+    """
+    return {
+        "schedule_id": schedule.schedule_id,
+        "name": schedule.name,
+        "description": schedule.description,
+        "enabled": schedule.enabled,
+        "is_active": schedule.is_active,
+        "routine_count": len(schedule.routines),
+        "created_at": schedule.created_at,
+        "modified_at": schedule.modified_at,
+    }
 
 
 # ============================================================================
@@ -280,19 +292,7 @@ def list_schedules() -> tuple[Response, int]:
             schedules = [s for s in schedules if s.is_active]
 
         # Return summaries (not full schedule objects)
-        summaries = [
-            {
-                "schedule_id": s.schedule_id,
-                "name": s.name,
-                "description": s.description,
-                "trigger_type": s.trigger_type,
-                "enabled": s.enabled,
-                "is_active": s.is_active,
-                "created_at": s.created_at,
-                "modified_at": s.modified_at,
-            }
-            for s in schedules
-        ]
+        summaries = [_schedule_to_summary(s) for s in schedules]
 
         return jsonify(
             {
@@ -411,19 +411,7 @@ def list_builtin_schedules() -> tuple[Response, int]:
         builtin = [s for s in schedules if is_builtin_schedule(s.schedule_id)]
 
         # Return summaries
-        summaries = [
-            {
-                "schedule_id": s.schedule_id,
-                "name": s.name,
-                "description": s.description,
-                "trigger_type": s.trigger_type,
-                "enabled": s.enabled,
-                "is_active": s.is_active,
-                "created_at": s.created_at,
-                "modified_at": s.modified_at,
-            }
-            for s in builtin
-        ]
+        summaries = [_schedule_to_summary(s) for s in builtin]
 
         return jsonify(
             {
@@ -987,282 +975,6 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
-            }
-        ), 500
-
-
-# ============================================================================
-# Event Pattern Endpoints (Issue #217)
-# ============================================================================
-
-
-def list_builtin_patterns() -> tuple[list[dict], list[str]]:
-    """
-    Extract unique event patterns from built-in schedules.
-
-    Each pattern includes:
-    - pattern_id: Unique identifier
-    - name: Pattern name
-    - description: Pattern description
-    - actions: List of Action dicts
-    - category: Always "built-in"
-    - tags: Pattern tags
-    - source_schedule: Name of schedule containing this pattern
-    - duration_minutes: Computed from max action offset
-
-    Returns:
-        Tuple of (patterns, warnings) where:
-        - patterns: List of pattern dictionaries with source_schedule and duration_minutes
-        - warnings: List of warning messages for any files that failed to load
-
-    Note:
-        Results are cached at module level for performance using thread-safe
-        double-check locking. The cache is populated on first request and
-        persists for the lifetime of the process. Built-in patterns are static
-        files that don't change at runtime.
-
-        If built-in schedule files are modified, a service restart is required
-        to refresh the cache.
-    """
-    global _builtin_patterns_cache, _builtin_patterns_cache_warnings
-
-    # Fast path: cache already populated (no lock needed)
-    if _builtin_patterns_cache is not None:
-        return _builtin_patterns_cache, _builtin_patterns_cache_warnings
-
-    # Slow path: acquire lock and populate cache
-    with _builtin_patterns_cache_lock:
-        # Double-check after acquiring lock
-        if _builtin_patterns_cache is not None:
-            return _builtin_patterns_cache, _builtin_patterns_cache_warnings
-
-        patterns = []
-        warnings: list[str] = []
-        seen_ids: set[str] = set()
-
-        # Path to built-in schedules directory
-        builtin_dir = Path(__file__).parent.parent / "presets_builtin" / "schedules"
-
-        if not builtin_dir.exists():
-            warning_msg = f"Built-in schedules directory not found: {builtin_dir}"
-            logger.warning(warning_msg)
-            warnings.append(warning_msg)
-            _builtin_patterns_cache = patterns
-            _builtin_patterns_cache_warnings = warnings
-            return patterns, warnings
-
-        schedule_files = sorted(builtin_dir.glob("*.json"))
-
-        # Safety limit on number of files to process
-        if len(schedule_files) > MAX_BUILTIN_SCHEDULE_FILES:
-            warning_msg = (
-                f"Found {len(schedule_files)} schedule files in {builtin_dir}, "
-                f"processing only first {MAX_BUILTIN_SCHEDULE_FILES}"
-            )
-            logger.warning(warning_msg)
-            warnings.append(warning_msg)
-            schedule_files = schedule_files[:MAX_BUILTIN_SCHEDULE_FILES]
-
-        for schedule_file in schedule_files:
-            try:
-                schedule_data = json.loads(schedule_file.read_text())
-                schedule_name = schedule_data.get("name", schedule_file.stem)
-
-                for pattern in schedule_data.get("routines", []):
-                    pattern_id = pattern.get("routine_id")
-
-                    # Deduplicate routines with routine_id
-                    # Routines without routine_id are always included (cannot be deduplicated reliably)
-                    if pattern_id:
-                        if pattern_id in seen_ids:
-                            logger.debug(f"Skipping duplicate pattern_id: {pattern_id}")
-                            continue
-                        seen_ids.add(pattern_id)
-
-                    # Create a copy with additional fields
-                    pattern_copy = dict(pattern)
-                    pattern_copy["source_schedule"] = schedule_name
-
-                    # Compute duration_minutes from max action offset
-                    actions = pattern.get("actions", [])
-                    if actions:
-                        pattern_copy["duration_minutes"] = max(
-                            a.get("offset_minutes", 0) for a in actions
-                        )
-                    else:
-                        pattern_copy["duration_minutes"] = 0
-
-                    patterns.append(pattern_copy)
-
-            except json.JSONDecodeError as e:
-                warning_msg = f"Failed to parse schedule file {schedule_file.name}: {e}"
-                logger.error(warning_msg)
-                warnings.append(warning_msg)
-            except Exception as e:
-                warning_msg = f"Error processing schedule file {schedule_file.name}: {e}"
-                logger.error(warning_msg)
-                warnings.append(warning_msg)
-
-        # Log warning if no routines found (possible misconfiguration)
-        if not patterns and builtin_dir.exists():
-            warning_msg = (
-                f"No routines found in {builtin_dir}. Check schedule files for valid routines."
-            )
-            logger.warning(warning_msg)
-            warnings.append(warning_msg)
-
-        # Cache the result for subsequent calls
-        _builtin_patterns_cache = patterns
-        _builtin_patterns_cache_warnings = warnings
-        return patterns, warnings
-
-
-@scheduler_ui_bp.route("/patterns/builtin", methods=["GET"])
-def list_builtin_patterns_endpoint() -> tuple[Response, int]:
-    """
-    List all built-in event patterns.
-
-    GET /api/scheduler/ui/patterns/builtin
-
-    Returns:
-        200 OK: Object with patterns list and any warnings
-
-    Response Schema:
-    {
-        "patterns": [
-            {
-                "pattern_id": "string",
-                "name": "string",
-                "description": "string",
-                "actions": [...],
-                "category": "built-in",
-                "tags": [...],
-                "source_schedule": "string",
-                "duration_minutes": number
-            }
-        ],
-        "warnings": ["string"]  // Empty if no issues loading files
-    }
-    """
-    try:
-        patterns, warnings = list_builtin_patterns()
-        return jsonify({"patterns": patterns, "warnings": warnings}), 200
-
-    except Exception as e:
-        logger.error(f"Error listing built-in patterns: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "message": "Failed to list built-in patterns",
-            }
-        ), 500
-
-
-@scheduler_ui_bp.route("/patterns/validate", methods=["POST"])
-@limiter.limit("30 per minute")
-def validate_pattern_endpoint() -> tuple[Response, int]:
-    """
-    Validate a routine structure.
-
-    POST /api/scheduler/ui/patterns/validate
-
-    Request Body:
-    {
-        "name": "Routine Name",      // optional, max 200 chars (auto-generated if omitted)
-        "description": "...",        // optional, max 2000 chars
-        "trigger": {                 // required, trigger configuration
-            "trigger_type": "interval|solar|fixed_time|...",
-            ...
-        },
-        "actions": [                 // required, 1-20 actions
-            {
-                "action_type": "gpio|camera|gps_sync|service",
-                "action_name": "attract_on|takephoto|...",
-                "offset_minutes": 0, // 0-1440
-                "parameters": {},
-                "description": ""
-            }
-        ],
-        "pre_condition": {...}       // optional, sensor trigger as gate
-    }
-
-    Returns:
-        200 OK: {"valid": true, "routine": {...}}
-        400 Bad Request: {"valid": false, "error": "..."}
-    """
-    try:
-        # Handle missing or invalid JSON body
-        try:
-            data = request.get_json()
-        except BadRequest:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Request body must be valid JSON",
-                }
-            ), 400
-
-        if data is None:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Request body must be valid JSON",
-                }
-            ), 400
-
-        if not isinstance(data, dict):
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Request body must be a JSON object",
-                }
-            ), 400
-
-        # Convert dict to Routine for validation
-        try:
-            routine = Routine.from_dict(data)
-        except KeyError as e:
-            logger.warning(f"Missing required field in routine: {e}")
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Missing required field in routine",
-                }
-            ), 400
-        except Exception as e:
-            # Log the detailed error server-side, but return a generic message to the client
-            logger.error(f"Invalid routine structure: {e}", exc_info=True)
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Invalid routine structure",
-                }
-            ), 400
-
-        # Validate using routine validation function
-        valid, error = validate_routine(routine)
-
-        if valid:
-            return jsonify(
-                {
-                    "valid": True,
-                    "routine": routine.to_dict(),
-                }
-            ), 200
-        else:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": error,
-                }
-            ), 400
-
-    except Exception as e:
-        logger.error(f"Error validating routine: {e}", exc_info=True)
-        return jsonify(
-            {
-                "valid": False,
-                "error": "Internal server error during validation",
             }
         ), 500
 
