@@ -8,10 +8,12 @@ on sensor readings.
 Test structure:
 - TestParseArgs (6 tests): Argument parsing
 - TestCheckAndRun (10 tests): Core condition checking and execution
+- TestEdgeCases (3 tests): Edge cases (zero, large values, special chars)
+- TestMain (2 tests): Main entry point
 - TestLogging (3 tests): Logging behavior
 - TestIntegration (3 tests): Integration with cron_bridge
 
-Total: 22 tests (covering all acceptance criteria)
+Total: 27 tests (covering all acceptance criteria)
 """
 
 import logging
@@ -387,6 +389,86 @@ class TestCheckAndRun:
 
 
 # =============================================================================
+# TEST EDGE CASES
+# =============================================================================
+
+
+class TestEdgeCases:
+    """Tests for edge cases and boundary conditions."""
+
+    def test_zero_threshold(self, mock_sensor_reading, mock_check_precondition, mock_subprocess):
+        """Test that zero threshold works correctly."""
+        from datetime import datetime
+
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light", value=0.0, timestamp=datetime.now(), unit="lux"
+        )
+        mock_check_precondition.return_value = True
+        mock_subprocess.return_value.returncode = 0
+
+        result = check_and_run(
+            sensor_type="light",
+            comparison="eq",
+            threshold=0.0,
+            command=["echo", "dark"],
+        )
+
+        assert result == EXIT_SUCCESS
+        mock_check_precondition.assert_called_once_with("light", 0.0, "eq")
+
+    def test_large_threshold(self, mock_sensor_reading, mock_check_precondition, mock_subprocess):
+        """Test that very large threshold values are handled."""
+        from datetime import datetime
+
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light", value=100000.0, timestamp=datetime.now(), unit="lux"
+        )
+        mock_check_precondition.return_value = True
+        mock_subprocess.return_value.returncode = 0
+
+        result = check_and_run(
+            sensor_type="light",
+            comparison="lt",
+            threshold=1000000.0,
+            command=["echo", "bright"],
+        )
+
+        assert result == EXIT_SUCCESS
+        mock_check_precondition.assert_called_once_with("light", 1000000.0, "lt")
+
+    def test_command_with_special_characters(
+        self, mock_sensor_reading, mock_check_precondition, mock_subprocess
+    ):
+        """Test that commands with special characters are passed correctly."""
+        from datetime import datetime
+
+        from webui.backend.lib.sensor_reader import SensorReading
+
+        mock_sensor_reading.return_value = SensorReading(
+            sensor_type="light", value=50.0, timestamp=datetime.now(), unit="lux"
+        )
+        mock_check_precondition.return_value = True
+        mock_subprocess.return_value.returncode = 0
+
+        # Command with spaces and quotes in arguments
+        command = ["echo", "test with spaces", "and 'quotes'", 'double "quotes"']
+
+        result = check_and_run(
+            sensor_type="light",
+            comparison="lt",
+            threshold=100.0,
+            command=command,
+        )
+
+        assert result == EXIT_SUCCESS
+        mock_subprocess.assert_called_once_with(command, check=False)
+
+
+# =============================================================================
 # TEST MAIN FUNCTION
 # =============================================================================
 
@@ -477,6 +559,9 @@ class TestIntegration:
             --op {pre_condition.comparison}
             --threshold {pre_condition.threshold}
             -- {base_command}
+
+        Note: parse_args() returns command with leading "--" (argparse.REMAINDER
+        captures it). The main() function strips it before passing to check_and_run().
         """
         # This is the exact format from cron_bridge.py build_action_command()
         args = parse_args(
@@ -496,6 +581,7 @@ class TestIntegration:
         assert args.sensor == "light"
         assert args.op == "gt"
         assert args.threshold == 500.0
+        # parse_args returns command with "--" prefix (stripped by main())
         assert args.command == ["--", "/usr/bin/python3", "/opt/mothbox/5.x/TakePhoto.py"]
 
     def test_exit_codes_documented(self):

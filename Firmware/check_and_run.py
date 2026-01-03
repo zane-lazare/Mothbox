@@ -81,6 +81,10 @@ OP_SYMBOLS = {
 def setup_logging(verbose: bool = False) -> logging.Logger:
     """Configure logging for check_and_run.
 
+    Note: Uses force=True to reconfigure root logger. This script is designed
+    for standalone CLI use (subprocess execution from cron). Do not import
+    this module into other processes where logging is already configured.
+
     Args:
         verbose: If True, sets log level to DEBUG. Otherwise INFO.
 
@@ -89,7 +93,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     """
     level = logging.DEBUG if verbose else logging.INFO
 
-    # Force reconfiguration even if already configured
+    # Force reconfiguration even if already configured (standalone CLI use)
     logging.basicConfig(
         level=level,
         format=LOG_FORMAT,
@@ -205,6 +209,10 @@ def check_and_run(
         return EXIT_SUCCESS
 
     # Execute command
+    # Security: command is pre-validated by cron_bridge.build_action_command()
+    # which only allows whitelisted scripts from cron_security.py.
+    # User input cannot reach this code path - commands originate from
+    # schedule activation, not external input.
     try:
         result = subprocess.run(command, check=False)  # noqa: S603
         return result.returncode
