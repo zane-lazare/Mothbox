@@ -100,7 +100,7 @@ def sample_schedule():
     schedule.schedule_id = "test-schedule"
     schedule.name = "Test Schedule"
     schedule.description = "A test schedule"
-    schedule.trigger_type = "interval"
+    schedule.routines = [MagicMock()]  # One routine for routine_count
     schedule.enabled = True
     schedule.is_active = False
     schedule.created_at = "2025-06-15T00:00:00Z"
@@ -108,7 +108,7 @@ def sample_schedule():
     schedule.to_dict.return_value = {
         "schedule_id": "test-schedule",
         "name": "Test Schedule",
-        "trigger_type": "interval",
+        "routines": [{"name": "Test Routine"}],
     }
     return schedule
 
@@ -326,7 +326,7 @@ class TestListSchedulesEndpoint:
         schedule.schedule_id = "test-schedule"
         schedule.name = "Test Schedule"
         schedule.description = "A test schedule"
-        schedule.trigger_type = "interval"
+        schedule.routines = [MagicMock(), MagicMock()]  # Two routines
         schedule.enabled = True
         schedule.is_active = False
         schedule.created_at = "2025-06-15T00:00:00Z"
@@ -340,6 +340,7 @@ class TestListSchedulesEndpoint:
         assert data["total"] == 1
         assert len(data["schedules"]) == 1
         assert data["schedules"][0]["schedule_id"] == "test-schedule"
+        assert data["schedules"][0]["routine_count"] == 2
 
     def test_list_schedules_include_builtin(self, client, mock_scheduler_service):
         """Test include_builtin parameter."""
@@ -357,7 +358,7 @@ class TestListSchedulesEndpoint:
         active_schedule.schedule_id = "active"
         active_schedule.name = "Active"
         active_schedule.description = ""
-        active_schedule.trigger_type = "interval"
+        active_schedule.routines = [MagicMock()]
         active_schedule.enabled = True
         active_schedule.is_active = True
         active_schedule.created_at = "2025-06-15T00:00:00Z"
@@ -367,7 +368,7 @@ class TestListSchedulesEndpoint:
         inactive_schedule.schedule_id = "inactive"
         inactive_schedule.name = "Inactive"
         inactive_schedule.description = ""
-        inactive_schedule.trigger_type = "interval"
+        inactive_schedule.routines = [MagicMock()]
         inactive_schedule.enabled = True
         inactive_schedule.is_active = False
         inactive_schedule.created_at = "2025-06-15T00:00:00Z"
@@ -454,7 +455,7 @@ class TestGetActiveScheduleEndpoint:
         sample_schedule.to_dict.return_value = {
             "schedule_id": "test-schedule",
             "name": "Test Schedule",
-            "trigger_type": "interval",
+            "routines": [{"name": "Test Routine"}],
             "enabled": True,
             "is_active": True,
         }
@@ -464,7 +465,7 @@ class TestGetActiveScheduleEndpoint:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "trigger_type" in data["schedule"]
+        assert "routines" in data["schedule"]
         assert "enabled" in data["schedule"]
 
     def test_get_active_schedule_error(self, client, mock_scheduler_service):
@@ -503,7 +504,7 @@ class TestListBuiltinSchedulesEndpoint:
         builtin_schedule.schedule_id = "builtin-nightly"
         builtin_schedule.name = "Nightly Survey"
         builtin_schedule.description = "A built-in schedule"
-        builtin_schedule.trigger_type = "interval"
+        builtin_schedule.routines = [MagicMock(), MagicMock()]  # Two routines
         builtin_schedule.enabled = True
         builtin_schedule.is_active = False
         builtin_schedule.created_at = "2025-06-15T00:00:00Z"
@@ -520,6 +521,7 @@ class TestListBuiltinSchedulesEndpoint:
         data = response.get_json()
         assert data["total"] == 1
         assert data["schedules"][0]["name"] == "Nightly Survey"
+        assert data["schedules"][0]["routine_count"] == 2
 
     def test_list_builtin_schedules_excludes_user(self, client, mock_scheduler_service):
         """Test that user schedules are excluded."""
@@ -527,7 +529,7 @@ class TestListBuiltinSchedulesEndpoint:
         user_schedule.schedule_id = "user-schedule"
         user_schedule.name = "My Schedule"
         user_schedule.description = ""
-        user_schedule.trigger_type = "fixed_time"
+        user_schedule.routines = [MagicMock()]
         user_schedule.enabled = True
         user_schedule.is_active = False
         user_schedule.created_at = "2025-06-15T00:00:00Z"
@@ -619,7 +621,7 @@ class TestCreateScheduleEndpoint:
         """Test with missing required field."""
         response = client.post(
             '/api/scheduler/ui/schedules',
-            json={"trigger_type": "fixed_time"},
+            json={"routines": []},  # Missing name
             content_type='application/json'
         )
 
@@ -628,8 +630,9 @@ class TestCreateScheduleEndpoint:
         assert "error" in data
 
     def test_create_schedule_invalid_trigger(self, client, valid_schedule_payload):
-        """Test with invalid trigger type."""
-        valid_schedule_payload["trigger_type"] = "invalid_trigger"
+        """Test with invalid trigger type in routine."""
+        # Schema 3.0: trigger_type is now inside routines[].trigger
+        valid_schedule_payload["routines"][0]["trigger"]["trigger_type"] = "invalid_trigger"
 
         response = client.post(
             '/api/scheduler/ui/schedules',
