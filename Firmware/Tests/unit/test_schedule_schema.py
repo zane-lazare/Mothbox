@@ -2431,6 +2431,14 @@ class TestMakeRoutineFactory:
         assert routine.trigger.every_n_days == 7
         assert routine.trigger.time == "06:00"
 
+    def test_recurring_days_with_start_date(self, make_routine):
+        """make_routine handles custom start_date for recurring_days."""
+        routine = make_routine(
+            "recurring_days", every_n_days=7, time="06:00", start_date="2026-01-15"
+        )
+        assert isinstance(routine.trigger, RecurringDaysTrigger)
+        assert routine.trigger.start_date == "2026-01-15"
+
     def test_sensor_routine(self, make_routine):
         """make_routine creates sensor trigger routine."""
         routine = make_routine(
@@ -2494,6 +2502,11 @@ class TestMakeRoutineFactory:
         """make_routine raises ValueError for moon_phase without phases."""
         with pytest.raises(ValueError, match="phases"):
             make_routine("moon_phase")
+
+    def test_recurring_days_without_every_n_days_raises_error(self, make_routine):
+        """make_routine raises ValueError for recurring_days without every_n_days."""
+        with pytest.raises(ValueError, match="every_n_days"):
+            make_routine("recurring_days")
 
     def test_default_values_applied(self, make_routine):
         """make_routine applies sensible defaults for each trigger type."""

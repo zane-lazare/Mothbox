@@ -10,12 +10,17 @@ Usage:
     - camera_streamer fixture handles proper resource cleanup
 """
 
-import pytest
-import sys
 import gc
-import time
 import os
+import sys
+import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from webui.backend.lib.schedule_schema import Routine
 
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'webui' / 'backend'))
@@ -3166,7 +3171,11 @@ def sensor_trigger():
     """SensorTrigger fixture for testing (used as pre_condition).
 
     Creates a SensorTrigger that triggers when light is below 100 lux.
-    Note: SensorTriggers are only valid as pre_conditions, not primary triggers.
+
+    Note: SensorTriggers can only be used as pre_conditions, not primary triggers.
+    The schema validator (validate_routine) enforces this by checking against
+    PRIMARY_TRIGGER_TYPES and rejecting SensorTrigger as a primary trigger.
+    See: webui/backend/lib/schedule_schema.py:1141-1148
     """
     from webui.backend.lib.schedule_schema import SensorTrigger
 
@@ -3327,7 +3336,7 @@ def _make_routine_impl(
     name: str | None = None,
     pre_condition: dict | None = None,
     **trigger_kwargs,
-):
+) -> "Routine":
     """Factory function to create routines with any trigger type.
 
     This factory allows creating routines dynamically for testing different
@@ -3414,12 +3423,17 @@ def _make_routine_impl(
         if "time" not in trigger_kwargs:
             trigger_kwargs["time"] = "21:00"
     elif trigger_type == "recurring_days":
+        if "every_n_days" not in trigger_kwargs:
+            raise ValueError("recurring_days trigger requires 'every_n_days' argument")
         if "time" not in trigger_kwargs:
             trigger_kwargs["time"] = "21:00"
     elif trigger_type == "cron":
         if "cron_expression" not in trigger_kwargs:
             trigger_kwargs["cron_expression"] = "0 21 * * *"
     elif trigger_type == "sensor":
+        # Default to "motion" which doesn't require threshold/comparison.
+        # Other sensor types (temperature, light, humidity) require
+        # threshold and comparison parameters to be passed explicitly.
         if "sensor_type" not in trigger_kwargs:
             trigger_kwargs["sensor_type"] = "motion"
 
