@@ -101,6 +101,28 @@ def require_json(f):
     return decorated
 
 
+def _schedule_to_summary(schedule: Schedule) -> dict:
+    """
+    Convert Schedule to summary dict for list endpoints.
+
+    Returns a lightweight summary suitable for list views, excluding
+    full routine definitions. Used by list_schedules() and
+    list_builtin_schedules() to avoid code duplication.
+
+    Note: trigger_type removed in Schema 3.0 (moved to routine level).
+    """
+    return {
+        "schedule_id": schedule.schedule_id,
+        "name": schedule.name,
+        "description": schedule.description,
+        "enabled": schedule.enabled,
+        "is_active": schedule.is_active,
+        "routine_count": len(schedule.routines),
+        "created_at": schedule.created_at,
+        "modified_at": schedule.modified_at,
+    }
+
+
 # ============================================================================
 # Preview Endpoints
 # ============================================================================
@@ -270,20 +292,7 @@ def list_schedules() -> tuple[Response, int]:
             schedules = [s for s in schedules if s.is_active]
 
         # Return summaries (not full schedule objects)
-        # Note: trigger_type removed in Schema 3.0 (moved to routine level)
-        summaries = [
-            {
-                "schedule_id": s.schedule_id,
-                "name": s.name,
-                "description": s.description,
-                "enabled": s.enabled,
-                "is_active": s.is_active,
-                "routine_count": len(s.routines),
-                "created_at": s.created_at,
-                "modified_at": s.modified_at,
-            }
-            for s in schedules
-        ]
+        summaries = [_schedule_to_summary(s) for s in schedules]
 
         return jsonify(
             {
@@ -402,20 +411,7 @@ def list_builtin_schedules() -> tuple[Response, int]:
         builtin = [s for s in schedules if is_builtin_schedule(s.schedule_id)]
 
         # Return summaries
-        # Note: trigger_type removed in Schema 3.0 (moved to routine level)
-        summaries = [
-            {
-                "schedule_id": s.schedule_id,
-                "name": s.name,
-                "description": s.description,
-                "enabled": s.enabled,
-                "is_active": s.is_active,
-                "routine_count": len(s.routines),
-                "created_at": s.created_at,
-                "modified_at": s.modified_at,
-            }
-            for s in builtin
-        ]
+        summaries = [_schedule_to_summary(s) for s in builtin]
 
         return jsonify(
             {
