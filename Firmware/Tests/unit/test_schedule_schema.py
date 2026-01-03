@@ -85,7 +85,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def sample_pattern_action():
+def sample_action():
     """Create a sample Action for testing."""
     return Action(
         action_type="gpio",
@@ -97,7 +97,7 @@ def sample_pattern_action():
 
 
 @pytest.fixture
-def sample_pattern_action_camera():
+def sample_action_camera():
     """Create a camera Action for testing."""
     return Action(
         action_type="camera",
@@ -302,16 +302,16 @@ class TestAction:
         assert action.parameters == {}
         assert action.description == ""
 
-    def test_instantiation_full(self, sample_pattern_action):
+    def test_instantiation_full(self, sample_action):
         """Action can be created with all args."""
-        assert sample_pattern_action.action_type == "gpio"
-        assert sample_pattern_action.action_name == "attract_on"
-        assert sample_pattern_action.offset_minutes == 0
-        assert sample_pattern_action.description == "Turn on attract lights"
+        assert sample_action.action_type == "gpio"
+        assert sample_action.action_name == "attract_on"
+        assert sample_action.offset_minutes == 0
+        assert sample_action.description == "Turn on attract lights"
 
-    def test_to_dict(self, sample_pattern_action):
+    def test_to_dict(self, sample_action):
         """Action.to_dict() returns correct dict."""
-        data = sample_pattern_action.to_dict()
+        data = sample_action.to_dict()
         assert data["action_type"] == "gpio"
         assert data["action_name"] == "attract_on"
         assert data["offset_minutes"] == 0
@@ -334,15 +334,15 @@ class TestAction:
         assert action.parameters == {"hdr": True}
         assert action.description == "Take HDR photo"
 
-    def test_round_trip_serialization(self, sample_pattern_action):
+    def test_round_trip_serialization(self, sample_action):
         """Action survives JSON round-trip."""
-        data = sample_pattern_action.to_dict()
+        data = sample_action.to_dict()
         json_str = json.dumps(data)
         loaded = json.loads(json_str)
         restored = Action.from_dict(loaded)
-        assert restored.action_type == sample_pattern_action.action_type
-        assert restored.action_name == sample_pattern_action.action_name
-        assert restored.offset_minutes == sample_pattern_action.offset_minutes
+        assert restored.action_type == sample_action.action_type
+        assert restored.action_name == sample_action.action_name
+        assert restored.offset_minutes == sample_action.offset_minutes
 
 
 # =============================================================================
@@ -1253,15 +1253,15 @@ class TestSchedule:
 class TestValidateAction:
     """Test validate_action function."""
 
-    def test_valid_gpio_action(self, sample_pattern_action):
+    def test_valid_gpio_action(self, sample_action):
         """Valid GPIO action passes validation."""
-        valid, error = validate_action(sample_pattern_action)
+        valid, error = validate_action(sample_action)
         assert valid is True
         assert error is None
 
-    def test_valid_camera_action(self, sample_pattern_action_camera):
+    def test_valid_camera_action(self, sample_action_camera):
         """Valid camera action passes validation."""
-        valid, error = validate_action(sample_pattern_action_camera)
+        valid, error = validate_action(sample_action_camera)
         assert valid is True
         assert error is None
 
