@@ -587,6 +587,160 @@ class TestRoutineGetDisplayName:
         display_name = routine.get_display_name()
         assert "Empty" in display_name or "Sunset" in display_name
 
+    # =========================================================================
+    # Edge Case Tests (Issue #314)
+    # =========================================================================
+
+    def test_auto_name_solar_negative_offset(self):
+        """Negative offset shows minus sign without extra sign prefix."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="sunset", offset_minutes=-30),
+            actions=[Action(action_type="gpio", action_name="attract_on")],
+        )
+        display_name = routine.get_display_name()
+        assert display_name == "Attract On at Sunset -30min"
+
+    def test_auto_name_moon_phase_multiple(self):
+        """Multiple phases show all phases comma-separated."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=MoonPhaseTrigger(phases=["full", "new", "first_quarter"]),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "Photo" in display_name
+        assert "Full" in display_name
+        assert "New" in display_name
+        assert "First Quarter" in display_name
+
+    def test_auto_name_recurring_days_daily(self):
+        """Every 1 day shows 'daily' not 'every 1 days'."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=RecurringDaysTrigger(every_n_days=1, time="09:00"),
+            actions=[Action(action_type="service", action_name="backup")],
+        )
+        display_name = routine.get_display_name()
+        assert display_name == "Backup daily at 09:00"
+
+    def test_auto_name_with_precondition(self, sample_routine_with_precondition):
+        """Pre-conditions don't affect display name (primary trigger used)."""
+        # sample_routine_with_precondition has:
+        # - trigger: IntervalTrigger(15min)
+        # - pre_condition: SensorTrigger(light < 100)
+        # - name: "Photo if Dark" (explicit)
+        # Display name should be the explicit name
+        display_name = sample_routine_with_precondition.get_display_name()
+        assert display_name == "Photo if Dark"
+
+    def test_auto_name_with_precondition_no_explicit_name(self):
+        """Auto-name uses primary trigger, not pre-condition."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=15,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+            pre_condition=SensorTrigger(
+                sensor_type="light",
+                threshold=100,
+                comparison="lt",
+            ),
+        )
+        display_name = routine.get_display_name()
+        # Should describe interval trigger, not sensor pre-condition
+        assert "15min" in display_name
+        assert "Photo" in display_name
+        # Should NOT include sensor description
+        assert "light" not in display_name.lower()
+
+    def test_auto_name_unknown_action_uses_title_case(self):
+        """Unknown actions fall back to title() transformation."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SolarTrigger(solar_event="dusk"),
+            actions=[Action(action_type="custom", action_name="custom_action")],
+        )
+        display_name = routine.get_display_name()
+        # action_name "custom_action" should become "Custom_Action" via .title()
+        assert "Custom_Action" in display_name
+        assert "Dusk" in display_name
+
+    def test_auto_name_three_unique_actions_count_format(self):
+        """Three different actions show 'N Actions' format."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=15,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+                Action(action_type="gpio", action_name="flash_off", offset_minutes=2),
+            ],
+        )
+        display_name = routine.get_display_name()
+        assert "3 Actions" in display_name
+        assert "15min" in display_name
+
+    def test_auto_name_interval_multi_hour(self):
+        """Interval >= 60 min shows hours."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=120,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "Photo" in display_name
+        assert "2h" in display_name
+
+    def test_auto_name_sensor_trigger_description(self):
+        """Sensor trigger (as primary) shows sensor condition description."""
+        # Note: SensorTrigger cannot be used as primary trigger per validation,
+        # but _describe_trigger() still handles it for completeness
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=SensorTrigger(
+                sensor_type="temperature",
+                threshold=25,
+                comparison="gt",
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto")],
+        )
+        display_name = routine.get_display_name()
+        assert "when temperature gt 25" in display_name
+
+    def test_auto_name_flash_plus_photo_pattern(self):
+        """Flash + takephoto pattern (without flash_off) shows 'Flash + Photo'."""
+        routine = Routine(
+            routine_id="",
+            name=None,
+            trigger=IntervalTrigger(
+                interval_minutes=30,
+                time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+            ),
+            actions=[
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+            ],
+        )
+        display_name = routine.get_display_name()
+        assert display_name == "Flash + Photo every 30min"
+
 
 class TestRoutineSerialization:
     """Test Routine serialization."""
@@ -2441,9 +2595,7 @@ class TestMakeRoutineFactory:
 
     def test_sensor_routine(self, make_routine):
         """make_routine creates sensor trigger routine."""
-        routine = make_routine(
-            "sensor", sensor_type="temperature", threshold=25, comparison="gte"
-        )
+        routine = make_routine("sensor", sensor_type="temperature", threshold=25, comparison="gte")
         assert isinstance(routine.trigger, SensorTrigger)
         assert routine.trigger.sensor_type == "temperature"
         assert routine.trigger.threshold == 25
