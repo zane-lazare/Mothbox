@@ -534,7 +534,7 @@ def calculate_execution_times(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,
     from_date: date | None = None,
 ) -> list[datetime]:
     """Calculate all execution times for a trigger over a given period.
@@ -629,7 +629,7 @@ def routine_to_dated_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -1325,7 +1325,7 @@ def schedule_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,
 ) -> CronBridgeResult:
     """Convert Schedule to date-specific cron entries.
 
@@ -1341,7 +1341,7 @@ def schedule_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate (default 5)
+        years_ahead: Number of years to pre-calculate (default 1)
 
     Returns:
         CronBridgeResult with entries, rtc_waketime, and any errors
