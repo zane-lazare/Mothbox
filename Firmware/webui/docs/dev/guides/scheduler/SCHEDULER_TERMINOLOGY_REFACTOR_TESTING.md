@@ -274,7 +274,6 @@ from webui.backend.lib.schedule_schema import (
 def solar_trigger():
     """SolarTrigger fixture."""
     return SolarTrigger(
-        trigger_type="solar",
         solar_event="dusk",
         offset_minutes=0,
     )
@@ -284,7 +283,6 @@ def solar_trigger():
 def interval_trigger():
     """IntervalTrigger with time window fixture."""
     return IntervalTrigger(
-        trigger_type="interval",
         interval_minutes=15,
         time_window=TimeWindow(start_time="22:00", end_time="06:00"),
     )
@@ -294,7 +292,6 @@ def interval_trigger():
 def fixed_time_trigger():
     """FixedTimeTrigger fixture."""
     return FixedTimeTrigger(
-        trigger_type="fixed_time",
         time="09:00",
     )
 
@@ -303,7 +300,6 @@ def fixed_time_trigger():
 def moon_phase_trigger():
     """MoonPhaseTrigger fixture."""
     return MoonPhaseTrigger(
-        trigger_type="moon_phase",
         phases=["full", "new"],
         time_window=TimeWindow(start_time="22:00", end_time="04:00"),
     )
@@ -313,7 +309,6 @@ def moon_phase_trigger():
 def recurring_days_trigger():
     """RecurringDaysTrigger fixture."""
     return RecurringDaysTrigger(
-        trigger_type="recurring_days",
         every_n_days=3,
         time="21:00",
         start_date=None,  # Starts from today
@@ -324,9 +319,8 @@ def recurring_days_trigger():
 def sensor_trigger():
     """SensorTrigger fixture (used as pre_condition)."""
     return SensorTrigger(
-        trigger_type="sensor",
         sensor_type="light",
-        condition="below",
+        comparison="lt",
         threshold=100,
     )
 
@@ -335,7 +329,6 @@ def sensor_trigger():
 def cron_trigger():
     """CronTrigger fixture (expert mode)."""
     return CronTrigger(
-        trigger_type="cron",
         cron_expression="0 */2 * * *",  # Every 2 hours
     )
 
@@ -448,7 +441,7 @@ def make_routine(
     }
 
     trigger_cls = trigger_classes[trigger_type]
-    trigger = trigger_cls(trigger_type=trigger_type, **trigger_kwargs)
+    trigger = trigger_cls(**trigger_kwargs)
 
     if actions is None:
         actions = [{"action_type": "gpio", "action_name": "attract_on"}]
@@ -471,7 +464,7 @@ def test_all_trigger_types_serialize(
     for routine in [routine_solar, routine_interval, routine_fixed_time, routine_recurring_days]:
         d = routine.to_dict()
         restored = Routine.from_dict(d)
-        assert restored.trigger.trigger_type == routine.trigger.trigger_type
+        assert restored.routine_id == routine.routine_id
 
 
 def test_factory_creates_valid_routines():

@@ -10,12 +10,17 @@ Usage:
     - camera_streamer fixture handles proper resource cleanup
 """
 
-import pytest
-import sys
 import gc
-import time
 import os
+import sys
+import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from webui.backend.lib.schedule_schema import Routine
 
 # Setup path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'webui' / 'backend'))
@@ -3091,3 +3096,382 @@ def mock_sensor_hardware(monkeypatch):
         "smbus": mock_smbus_instance,
         "hw_config": hw_config,
     }
+
+
+# =============================================================================
+# TRIGGER FIXTURES (Issue #313)
+# =============================================================================
+
+
+@pytest.fixture
+def solar_trigger():
+    """SolarTrigger fixture for testing.
+
+    Creates a SolarTrigger that fires at dusk with no offset.
+    """
+    from webui.backend.lib.schedule_schema import SolarTrigger
+
+    return SolarTrigger(solar_event="dusk", offset_minutes=0)
+
+
+@pytest.fixture
+def interval_trigger():
+    """IntervalTrigger with time window fixture.
+
+    Creates an IntervalTrigger that fires every 15 minutes
+    within a 22:00-06:00 time window.
+    """
+    from webui.backend.lib.schedule_schema import IntervalTrigger, TimeWindow
+
+    return IntervalTrigger(
+        interval_minutes=15,
+        time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+    )
+
+
+@pytest.fixture
+def fixed_time_trigger():
+    """FixedTimeTrigger fixture for testing.
+
+    Creates a FixedTimeTrigger that fires at 09:00 daily.
+    """
+    from webui.backend.lib.schedule_schema import FixedTimeTrigger
+
+    return FixedTimeTrigger(time="09:00")
+
+
+@pytest.fixture
+def moon_phase_trigger():
+    """MoonPhaseTrigger fixture for testing.
+
+    Creates a MoonPhaseTrigger that fires on full and new moon nights
+    within a 22:00-04:00 time window.
+    """
+    from webui.backend.lib.schedule_schema import MoonPhaseTrigger, TimeWindow
+
+    return MoonPhaseTrigger(
+        phases=["full", "new"],
+        time_window=TimeWindow(start_time="22:00", end_time="04:00"),
+    )
+
+
+@pytest.fixture
+def recurring_days_trigger():
+    """RecurringDaysTrigger fixture for testing.
+
+    Creates a RecurringDaysTrigger that fires every 3 days at 21:00.
+    """
+    from webui.backend.lib.schedule_schema import RecurringDaysTrigger
+
+    return RecurringDaysTrigger(every_n_days=3, time="21:00")
+
+
+@pytest.fixture
+def sensor_trigger():
+    """SensorTrigger fixture for testing (used as pre_condition).
+
+    Creates a SensorTrigger that triggers when light is below 100 lux.
+
+    Note: SensorTriggers can only be used as pre_conditions, not primary triggers.
+    The schema validator (validate_routine) enforces this by checking against
+    PRIMARY_TRIGGER_TYPES and rejecting SensorTrigger as a primary trigger.
+    See: webui/backend/lib/schedule_schema.py:1141-1148
+    """
+    from webui.backend.lib.schedule_schema import SensorTrigger
+
+    return SensorTrigger(
+        sensor_type="light",
+        threshold=100,
+        comparison="lt",
+    )
+
+
+@pytest.fixture
+def cron_trigger():
+    """CronTrigger fixture for testing (expert mode).
+
+    Creates a CronTrigger that fires every 2 hours.
+    """
+    from webui.backend.lib.schedule_schema import CronTrigger
+
+    return CronTrigger(cron_expression="0 */2 * * *")
+
+
+# =============================================================================
+# ROUTINE FIXTURES (Issue #313)
+# =============================================================================
+
+
+@pytest.fixture
+def routine_solar(solar_trigger):
+    """Routine with SolarTrigger fixture.
+
+    Creates a routine that turns on attract lights at dusk.
+    Auto-generated name: "Attract On at Dusk"
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-solar",
+        name=None,  # Auto-generated: "Attract On at Dusk"
+        trigger=solar_trigger,
+        actions=[Action(action_type="gpio", action_name="attract_on")],
+    )
+
+
+@pytest.fixture
+def routine_interval(interval_trigger):
+    """Routine with IntervalTrigger fixture.
+
+    Creates a routine that captures photos with flash every 15 minutes.
+    Auto-generated name contains "Flash" and "Photo" and "15min"
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-interval",
+        name=None,  # Auto-generated: "Flash + Photo every 15min"
+        trigger=interval_trigger,
+        actions=[
+            Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+            Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+            Action(action_type="gpio", action_name="flash_off", offset_minutes=2),
+        ],
+    )
+
+
+@pytest.fixture
+def routine_fixed_time(fixed_time_trigger):
+    """Routine with FixedTimeTrigger fixture.
+
+    Creates a routine that runs backup service at 09:00.
+    Auto-generated name: "Backup at 09:00"
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-fixed",
+        name=None,  # Auto-generated: "Backup at 09:00"
+        trigger=fixed_time_trigger,
+        actions=[Action(action_type="service", action_name="backup")],
+    )
+
+
+@pytest.fixture
+def routine_moon_phase(moon_phase_trigger):
+    """Routine with MoonPhaseTrigger fixture.
+
+    Creates a routine that takes photos on full/new moon nights.
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-moon",
+        name=None,
+        trigger=moon_phase_trigger,
+        actions=[Action(action_type="camera", action_name="takephoto")],
+    )
+
+
+@pytest.fixture
+def routine_recurring_days(recurring_days_trigger):
+    """Routine with RecurringDaysTrigger fixture.
+
+    Creates a routine that syncs GPS every 3 days at 21:00.
+    Auto-generated name: "GPS Sync every 3 days"
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-recurring",
+        name=None,  # Auto-generated: "GPS Sync every 3 days"
+        trigger=recurring_days_trigger,
+        actions=[Action(action_type="gps_sync", action_name="gps_sync")],
+    )
+
+
+@pytest.fixture
+def routine_cron(cron_trigger):
+    """Routine with CronTrigger fixture.
+
+    Creates a routine that turns on attract lights every 2 hours (expert mode).
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-cron",
+        name=None,
+        trigger=cron_trigger,
+        actions=[Action(action_type="gpio", action_name="attract_on")],
+    )
+
+
+@pytest.fixture
+def routine_with_precondition(interval_trigger, sensor_trigger):
+    """Routine with pre_condition (sensor check before executing).
+
+    Creates a routine that takes photos every 15 minutes, but only if
+    light sensor reads below 100 lux (it's dark enough).
+    """
+    from webui.backend.lib.schedule_schema import Action, Routine
+
+    return Routine(
+        routine_id="test-precondition",
+        name="Photo if Dark",
+        trigger=interval_trigger,
+        actions=[Action(action_type="camera", action_name="takephoto")],
+        pre_condition=sensor_trigger,  # Only run if light < 100
+    )
+
+
+# =============================================================================
+# ROUTINE FACTORY FUNCTION (Issue #313)
+# =============================================================================
+
+
+def _make_routine_impl(
+    trigger_type: str,
+    actions: list[dict] | None = None,
+    routine_id: str | None = None,
+    name: str | None = None,
+    pre_condition: dict | None = None,
+    **trigger_kwargs,
+) -> "Routine":
+    """Factory function to create routines with any trigger type.
+
+    This factory allows creating routines dynamically for testing different
+    trigger types without needing separate fixtures for each combination.
+
+    Args:
+        trigger_type: One of "solar", "interval", "fixed_time", "moon_phase",
+                     "recurring_days", "sensor", "cron"
+        actions: List of action dicts, each with at least "action_type" and
+                "action_name". Defaults to [{"action_type": "gpio", "action_name": "attract_on"}]
+        routine_id: Optional routine ID. Defaults to "test-{trigger_type}"
+        name: Optional routine name. Defaults to None (auto-generated)
+        pre_condition: Optional dict for SensorTrigger pre_condition
+        **trigger_kwargs: Keyword arguments passed to trigger constructor
+
+    Returns:
+        Routine: A valid Routine instance
+
+    Raises:
+        ValueError: If trigger_type is unknown or required kwargs missing
+
+    Examples:
+        >>> routine = make_routine("solar", solar_event="dusk")
+        >>> routine.trigger.solar_event
+        'dusk'
+
+        >>> routine = make_routine(
+        ...     "interval",
+        ...     interval_minutes=30,
+        ...     actions=[{"action_type": "camera", "action_name": "takephoto"}]
+        ... )
+        >>> routine.trigger.interval_minutes
+        30
+
+    Related: Issue #313 - Add Trigger Fixtures for All 7 Types
+    """
+    from webui.backend.lib.schedule_schema import (
+        Action,
+        CronTrigger,
+        FixedTimeTrigger,
+        IntervalTrigger,
+        MoonPhaseTrigger,
+        RecurringDaysTrigger,
+        Routine,
+        SensorTrigger,
+        SolarTrigger,
+        TimeWindow,
+    )
+
+    # Mapping from trigger_type string to trigger class
+    trigger_classes = {
+        "solar": SolarTrigger,
+        "interval": IntervalTrigger,
+        "fixed_time": FixedTimeTrigger,
+        "moon_phase": MoonPhaseTrigger,
+        "recurring_days": RecurringDaysTrigger,
+        "sensor": SensorTrigger,
+        "cron": CronTrigger,
+    }
+
+    if trigger_type not in trigger_classes:
+        raise ValueError(
+            f"Unknown trigger_type: {trigger_type}. "
+            f"Valid types: {list(trigger_classes.keys())}"
+        )
+
+    trigger_cls = trigger_classes[trigger_type]
+
+    # Apply default required kwargs for certain trigger types
+    if trigger_type == "interval":
+        if "time_window" not in trigger_kwargs:
+            trigger_kwargs["time_window"] = TimeWindow(
+                start_time="22:00", end_time="06:00"
+            )
+        if "interval_minutes" not in trigger_kwargs:
+            trigger_kwargs["interval_minutes"] = 15
+    elif trigger_type == "moon_phase":
+        if "phases" not in trigger_kwargs:
+            raise ValueError("moon_phase trigger requires 'phases' argument")
+    elif trigger_type == "solar":
+        if "solar_event" not in trigger_kwargs:
+            trigger_kwargs["solar_event"] = "dusk"
+    elif trigger_type == "fixed_time":
+        if "time" not in trigger_kwargs:
+            trigger_kwargs["time"] = "21:00"
+    elif trigger_type == "recurring_days":
+        if "every_n_days" not in trigger_kwargs:
+            raise ValueError("recurring_days trigger requires 'every_n_days' argument")
+        if "time" not in trigger_kwargs:
+            trigger_kwargs["time"] = "21:00"
+    elif trigger_type == "cron":
+        if "cron_expression" not in trigger_kwargs:
+            trigger_kwargs["cron_expression"] = "0 21 * * *"
+    elif trigger_type == "sensor":
+        # Default to "motion" which doesn't require threshold/comparison.
+        # Other sensor types (temperature, light, humidity) require
+        # threshold and comparison parameters to be passed explicitly.
+        if "sensor_type" not in trigger_kwargs:
+            trigger_kwargs["sensor_type"] = "motion"
+
+    # Create trigger
+    trigger = trigger_cls(**trigger_kwargs)
+
+    # Create actions
+    if actions is None:
+        actions = [{"action_type": "gpio", "action_name": "attract_on"}]
+    action_objects = [Action(**a) for a in actions]
+
+    # Create pre_condition if provided
+    pre_cond = None
+    if pre_condition:
+        pre_cond = SensorTrigger(**pre_condition)
+
+    # Create routine
+    return Routine(
+        routine_id=routine_id or f"test-{trigger_type}",
+        name=name,
+        trigger=trigger,
+        actions=action_objects,
+        pre_condition=pre_cond,
+    )
+
+
+@pytest.fixture
+def make_routine():
+    """Fixture that returns the make_routine factory function.
+
+    This fixture provides access to the make_routine() factory function
+    for creating routines with any trigger type dynamically in tests.
+
+    Usage:
+        def test_something(make_routine):
+            routine = make_routine("solar", solar_event="sunset")
+            assert routine.trigger.solar_event == "sunset"
+
+    Related: Issue #313 - Add Trigger Fixtures for All 7 Types
+    """
+    return _make_routine_impl
