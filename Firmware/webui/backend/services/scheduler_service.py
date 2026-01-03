@@ -36,6 +36,7 @@ import json
 import logging
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from copy import deepcopy
 from threading import RLock
 from typing import Any
@@ -73,6 +74,37 @@ from webui.backend.lib.schedule_storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Activation Progress Constants (Issue #309)
+# ============================================================================
+
+# Phase names for activation workflow
+ACTIVATION_PHASE_CHECKING_CONFLICTS = "checking_conflicts"
+ACTIVATION_PHASE_GENERATING_CRON = "generating_cron"
+ACTIVATION_PHASE_APPLYING_CRON = "applying_cron"
+ACTIVATION_PHASE_UPDATING_STATE = "updating_state"
+ACTIVATION_PHASE_COMPLETE = "complete"
+ACTIVATION_PHASE_FAILED = "failed"
+
+# Progress percentages for each phase
+ACTIVATION_PROGRESS_CHECKING_CONFLICTS = 10
+ACTIVATION_PROGRESS_GENERATING_CRON = 30
+ACTIVATION_PROGRESS_APPLYING_CRON = 60
+ACTIVATION_PROGRESS_UPDATING_STATE = 90
+ACTIVATION_PROGRESS_COMPLETE = 100
+ACTIVATION_PROGRESS_FAILED = 0
+
+# Valid phases for validation
+_ACTIVATION_PHASES = frozenset({
+    ACTIVATION_PHASE_CHECKING_CONFLICTS,
+    ACTIVATION_PHASE_GENERATING_CRON,
+    ACTIVATION_PHASE_APPLYING_CRON,
+    ACTIVATION_PHASE_UPDATING_STATE,
+    ACTIVATION_PHASE_COMPLETE,
+    ACTIVATION_PHASE_FAILED,
+})
 
 
 # ============================================================================
@@ -523,7 +555,7 @@ class SchedulerService:
         latitude: float = 0.0,
         longitude: float = 0.0,
         timezone_name: str = "UTC",
-        progress_callback: Any | None = None,
+        progress_callback: Callable[[str, int], None] | None = None,
     ) -> None:
         """
         Activate a schedule (deactivates any currently active first).
@@ -558,7 +590,12 @@ class SchedulerService:
             """Emit progress if callback provided."""
             if progress_callback:
                 try:
+                    # Validate inputs in debug builds
+                    assert 0 <= progress <= 100, f"Invalid progress value: {progress}"
+                    assert phase in _ACTIVATION_PHASES, f"Invalid phase: {phase}"
                     progress_callback(phase, progress)
+                except AssertionError as e:
+                    logger.error(f"Progress emission validation failed: {e}")
                 except Exception as e:
                     logger.warning(f"Progress callback failed: {e}")
 
@@ -578,7 +615,7 @@ class SchedulerService:
         # Check for conflicts before activation (Issue #213)
         # Uses cached conflict report to avoid redundant computation
         if check_conflicts:
-            _emit_progress("checking_conflicts", 10)
+            _emit_progress(ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS)
             try:
                 from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
 
@@ -595,6 +632,7 @@ class SchedulerService:
                     error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
                         messages
                     )
+                    _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
                     raise ScheduleConflictError(f"Conflict detected: {error}")
             except ImportError:
                 # Conflict detection module not available - skip check
@@ -604,6 +642,7 @@ class SchedulerService:
                 raise
             except Exception as e:
                 logger.exception(f"Error during conflict check: {e}")
+                _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
                 raise ScheduleActivationError(f"Conflict check failed: {e}") from e
 
         # Deactivate any currently active schedule
@@ -628,7 +667,7 @@ class SchedulerService:
         # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
         # We apply cron before updating is_active to avoid inconsistent state
         # if cron application fails. This eliminates the need for rollback.
-        _emit_progress("generating_cron", 30)
+        _emit_progress(ACTIVATION_PHASE_GENERATING_CRON, ACTIVATION_PROGRESS_GENERATING_CRON)
         try:
             result = schedule_to_cron(
                 schedule,
@@ -639,7 +678,7 @@ class SchedulerService:
             if result.errors:
                 raise ScheduleActivationError(f"Cron conversion failed: {'; '.join(result.errors)}")
 
-            _emit_progress("applying_cron", 60)
+            _emit_progress(ACTIVATION_PHASE_APPLYING_CRON, ACTIVATION_PROGRESS_APPLYING_CRON)
             apply_to_system(
                 entries=result.entries,
                 schedule_id=schedule_id,
@@ -650,14 +689,16 @@ class SchedulerService:
             )
         except ScheduleActivationError:
             # Re-raise our own errors
+            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise
         except Exception as e:
             logger.error(f"Failed to apply cron entries: {e}")
+            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
         # Update is_active flag in storage AFTER cron succeeds
         # For built-in schedules, we only update the in-memory state
-        _emit_progress("updating_state", 90)
+        _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
         try:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": True})
@@ -668,13 +709,14 @@ class SchedulerService:
             logger.exception(f"Failed to update schedule, rolling back cron: {e}")
             with contextlib.suppress(Exception):
                 remove_from_system(clear_rtc=True)
+            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
 
         # Set active schedule ID last
         with self._cache_lock:
             self._active_schedule_id = schedule_id
 
-        _emit_progress("complete", 100)
+        _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id}")
 
     def deactivate_schedule(self) -> bool:

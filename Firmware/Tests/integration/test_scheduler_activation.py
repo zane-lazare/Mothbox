@@ -541,3 +541,119 @@ class TestErrorHandling:
         # Verify second schedule is NOT active
         fetched2 = service.get_schedule(_test_uuid("preserve-test-2"))
         assert fetched2.is_active is False, "Failed schedule should not be active"
+
+
+# ============================================================================
+# Test WebSocket Progress Events (Issue #309)
+# ============================================================================
+
+
+class TestProgressCallbackEvents:
+    """Integration tests for progress callback during activation (Issue #309)."""
+
+    def test_activation_emits_progress_events(
+        self,
+        temp_schedules_env,
+        sample_schedule_factory,
+        scheduler_service,
+    ):
+        """Progress callback receives events with correct structure during activation."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        schedule = sample_schedule_factory(
+            schedule_id=_test_uuid("progress-events-test"),
+            name="Progress Events Test",
+        )
+        create_schedule(schedule)
+
+        # Track progress calls (simulates WebSocket emit)
+        received_events = []
+
+        def mock_emit_progress(phase: str, progress: int) -> None:
+            received_events.append({
+                "phase": phase,
+                "progress": progress,
+            })
+
+        # Activate with callback
+        scheduler_service.activate_schedule(
+            _test_uuid("progress-events-test"),
+            check_conflicts=True,
+            progress_callback=mock_emit_progress,
+        )
+
+        # Verify 5 events received
+        assert len(received_events) == 5, f"Expected 5 events, got {len(received_events)}"
+
+        # Verify structure matches WebSocket event format
+        for event in received_events:
+            assert "phase" in event, "Event should have 'phase' key"
+            assert "progress" in event, "Event should have 'progress' key"
+            assert isinstance(event["phase"], str), "Phase should be string"
+            assert isinstance(event["progress"], int), "Progress should be integer"
+            assert 0 <= event["progress"] <= 100, "Progress should be 0-100"
+
+        # Verify phases in order
+        phases = [e["phase"] for e in received_events]
+        expected_phases = [
+            "checking_conflicts",
+            "generating_cron",
+            "applying_cron",
+            "updating_state",
+            "complete",
+        ]
+        assert phases == expected_phases, f"Expected phases {expected_phases}, got {phases}"
+
+        # Verify progress values are ascending
+        progress_values = [e["progress"] for e in received_events]
+        assert progress_values == sorted(progress_values), "Progress should be ascending"
+        assert progress_values[-1] == 100, "Final progress should be 100"
+
+    def test_activation_emits_failed_event_on_error(
+        self,
+        temp_schedules_env,
+        sample_schedule_factory,
+        scheduler_service,
+        mock_cron_system,
+        monkeypatch,
+    ):
+        """Progress callback receives 'failed' event when activation fails."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create enabled schedule
+        schedule = sample_schedule_factory(
+            schedule_id=_test_uuid("progress-fail-test"),
+            name="Progress Fail Test",
+        )
+        create_schedule(schedule)
+
+        # Make apply_to_system fail
+        mock_cron_system["apply"].side_effect = RuntimeError("Simulated cron failure")
+
+        # Track progress calls
+        received_events = []
+
+        def mock_emit_progress(phase: str, progress: int) -> None:
+            received_events.append({
+                "phase": phase,
+                "progress": progress,
+            })
+
+        # Attempt activation - should fail
+        with pytest.raises(ScheduleActivationError):
+            scheduler_service.activate_schedule(
+                _test_uuid("progress-fail-test"),
+                check_conflicts=False,
+                progress_callback=mock_emit_progress,
+            )
+
+        # Verify 'failed' event was emitted
+        phases = [e["phase"] for e in received_events]
+        assert "failed" in phases, "Should emit 'failed' phase on error"
+
+        # Verify failed event has progress 0
+        failed_events = [e for e in received_events if e["phase"] == "failed"]
+        assert len(failed_events) == 1, "Should have exactly one 'failed' event"
+        assert failed_events[0]["progress"] == 0, "'failed' event should have progress 0"
