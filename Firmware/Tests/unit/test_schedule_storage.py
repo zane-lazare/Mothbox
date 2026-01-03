@@ -743,10 +743,10 @@ class TestEdgeCases:
         valid_data["schedule_id"] = _test_uuid("valid-schedule")
         (temp_schedules_dir / "valid-schedule.json").write_text(json.dumps(valid_data))
 
-        # Create invalid schedule (empty event_patterns after initial parse)
+        # Create invalid schedule (empty routines)
         invalid_data = json.loads(sample_schedule_json)
         invalid_data["schedule_id"] = _test_uuid("invalid-schedule")
-        invalid_data["event_patterns"] = []  # Invalid: no patterns
+        invalid_data["routines"] = []  # Invalid: no routines
         (temp_schedules_dir / "invalid-schedule.json").write_text(json.dumps(invalid_data))
 
         # Only valid schedule should be returned
