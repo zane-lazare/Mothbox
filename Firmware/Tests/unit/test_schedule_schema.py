@@ -2234,6 +2234,189 @@ class TestScheduleWithMixedTriggerTypes:
         assert valid is True
         assert error is None
 
+    def test_overnight_moth_survey_pattern(self):
+        """
+        Test the primary use case: UV at dusk, photos every 15min, UV off at dawn.
+
+        This is the canonical mixed-trigger schedule representing a complete
+        overnight moth survey with three routines using two different trigger types:
+        1. SolarTrigger(dusk) -> attract_on
+        2. IntervalTrigger(15min) -> flash_on, takephoto, flash_off
+        3. SolarTrigger(dawn) -> attract_off
+
+        Issue #315 - Mixed Trigger Schedule Tests
+        """
+        schedule = Schedule(
+            schedule_id="",
+            name="Overnight Moth Survey",
+            routines=[
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    name=None,
+                    trigger=SolarTrigger(solar_event="dusk"),
+                    actions=[Action(action_type="gpio", action_name="attract_on")],
+                ),
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    name=None,
+                    trigger=IntervalTrigger(
+                        interval_minutes=15,
+                        time_window=TimeWindow(start_time="22:00", end_time="06:00"),
+                    ),
+                    actions=[
+                        Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+                        Action(action_type="camera", action_name="takephoto", offset_minutes=1),
+                        Action(action_type="gpio", action_name="flash_off", offset_minutes=2),
+                    ],
+                ),
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    name=None,
+                    trigger=SolarTrigger(solar_event="dawn"),
+                    actions=[Action(action_type="gpio", action_name="attract_off")],
+                ),
+            ],
+        )
+
+        # Validate schedule
+        valid, error = validate_schedule(schedule)
+        assert valid is True, f"Validation failed: {error}"
+        assert error is None
+
+        # Verify structure
+        assert len(schedule.routines) == 3
+
+        # Verify trigger types
+        assert isinstance(schedule.routines[0].trigger, SolarTrigger)
+        assert schedule.routines[0].trigger.solar_event == "dusk"
+
+        assert isinstance(schedule.routines[1].trigger, IntervalTrigger)
+        assert schedule.routines[1].trigger.interval_minutes == 15
+
+        assert isinstance(schedule.routines[2].trigger, SolarTrigger)
+        assert schedule.routines[2].trigger.solar_event == "dawn"
+
+        # Verify actions
+        assert schedule.routines[0].actions[0].action_name == "attract_on"
+        assert len(schedule.routines[1].actions) == 3
+        assert schedule.routines[2].actions[0].action_name == "attract_off"
+
+    def test_schedule_serialization_roundtrip(self):
+        """
+        Schedule with mixed triggers survives to_dict/from_dict.
+
+        Tests that a schedule with multiple trigger types (solar + interval)
+        properly serializes and deserializes, preserving all trigger types
+        and configuration.
+
+        Issue #315 - Mixed Trigger Schedule Tests
+        """
+        # Create schedule with two different trigger types
+        schedule = Schedule(
+            schedule_id="",
+            name="Test Mixed Triggers",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    name=None,
+                    trigger=SolarTrigger(solar_event="dusk", offset_minutes=30),
+                    actions=[Action(action_type="gpio", action_name="attract_on")],
+                ),
+                Routine(
+                    routine_id="r2",
+                    name=None,
+                    trigger=IntervalTrigger(
+                        interval_minutes=15,
+                        time_window=TimeWindow(start_time="21:00", end_time="05:00"),
+                    ),
+                    actions=[Action(action_type="camera", action_name="takephoto")],
+                ),
+            ],
+        )
+
+        # Serialize to dict
+        data = schedule.to_dict()
+
+        # Verify serialized structure
+        assert "routines" in data
+        assert len(data["routines"]) == 2
+        assert data["routines"][0]["trigger"]["trigger_type"] == "solar"
+        assert data["routines"][1]["trigger"]["trigger_type"] == "interval"
+
+        # Deserialize back
+        restored = Schedule.from_dict(data)
+
+        # Verify restored structure
+        assert len(restored.routines) == 2
+        assert TRIGGER_TYPE_MAP[type(restored.routines[0].trigger)] == "solar"
+        assert TRIGGER_TYPE_MAP[type(restored.routines[1].trigger)] == "interval"
+
+        # Verify trigger details preserved
+        assert isinstance(restored.routines[0].trigger, SolarTrigger)
+        assert restored.routines[0].trigger.solar_event == "dusk"
+        assert restored.routines[0].trigger.offset_minutes == 30
+
+        assert isinstance(restored.routines[1].trigger, IntervalTrigger)
+        assert restored.routines[1].trigger.interval_minutes == 15
+        assert restored.routines[1].trigger.time_window.start_time == "21:00"
+
+    def test_validation_with_mixed_triggers(self):
+        """
+        Mixed trigger schedules validate correctly with all validation rules.
+
+        Tests that all validation rules apply correctly to schedules with
+        different trigger types per routine.
+
+        Issue #315 - Mixed Trigger Schedule Tests
+        """
+        # Valid schedule with mixed triggers
+        valid_schedule = Schedule(
+            schedule_id="",
+            name="Valid Mixed Schedule",
+            routines=[
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    trigger=SolarTrigger(solar_event="sunset"),
+                    actions=[Action(action_type="gpio", action_name="flash_on")],
+                ),
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    trigger=FixedTimeTrigger(time="12:00"),
+                    actions=[Action(action_type="camera", action_name="takephoto")],
+                ),
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    trigger=RecurringDaysTrigger(every_n_days=3, time="09:00"),
+                    actions=[Action(action_type="gps_sync", action_name="sync")],
+                ),
+            ],
+        )
+
+        valid, error = validate_schedule(valid_schedule)
+        assert valid is True, f"Validation unexpectedly failed: {error}"
+
+        # Invalid: one routine has invalid trigger (sensor as primary)
+        invalid_schedule = Schedule(
+            schedule_id="",
+            name="Invalid Mixed Schedule",
+            routines=[
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    trigger=SolarTrigger(solar_event="dusk"),
+                    actions=[Action(action_type="gpio", action_name="attract_on")],
+                ),
+                Routine(
+                    routine_id="",  # Auto-generate UUID
+                    trigger=SensorTrigger(sensor_type="motion"),  # Invalid as primary
+                    actions=[Action(action_type="camera", action_name="takephoto")],
+                ),
+            ],
+        )
+
+        valid, error = validate_schedule(invalid_schedule)
+        assert valid is False
+        assert "Sensor triggers can only be used as pre_condition" in error
+
 
 # =============================================================================
 # TRIGGER AND ROUTINE FIXTURE TESTS (Issue #313)
