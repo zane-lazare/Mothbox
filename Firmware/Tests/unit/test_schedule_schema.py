@@ -2233,3 +2233,282 @@ class TestScheduleWithMixedTriggerTypes:
         valid, error = validate_schedule(schedule)
         assert valid is True
         assert error is None
+
+
+# =============================================================================
+# TRIGGER AND ROUTINE FIXTURE TESTS (Issue #313)
+# =============================================================================
+
+
+class TestTriggerFixtures:
+    """Test the 7 trigger fixtures produce valid instances."""
+
+    def test_solar_trigger_fixture(self, solar_trigger):
+        """solar_trigger fixture creates valid SolarTrigger."""
+        assert isinstance(solar_trigger, SolarTrigger)
+        assert solar_trigger.solar_event == "dusk"
+        assert solar_trigger.offset_minutes == 0
+
+    def test_interval_trigger_fixture(self, interval_trigger):
+        """interval_trigger fixture creates valid IntervalTrigger."""
+        assert isinstance(interval_trigger, IntervalTrigger)
+        assert interval_trigger.interval_minutes == 15
+        assert interval_trigger.time_window.start_time == "22:00"
+        assert interval_trigger.time_window.end_time == "06:00"
+
+    def test_fixed_time_trigger_fixture(self, fixed_time_trigger):
+        """fixed_time_trigger fixture creates valid FixedTimeTrigger."""
+        assert isinstance(fixed_time_trigger, FixedTimeTrigger)
+        assert fixed_time_trigger.time == "09:00"
+
+    def test_moon_phase_trigger_fixture(self, moon_phase_trigger):
+        """moon_phase_trigger fixture creates valid MoonPhaseTrigger."""
+        assert isinstance(moon_phase_trigger, MoonPhaseTrigger)
+        assert moon_phase_trigger.phases == ["full", "new"]
+        assert moon_phase_trigger.time_window is not None
+        assert moon_phase_trigger.time_window.start_time == "22:00"
+
+    def test_recurring_days_trigger_fixture(self, recurring_days_trigger):
+        """recurring_days_trigger fixture creates valid RecurringDaysTrigger."""
+        assert isinstance(recurring_days_trigger, RecurringDaysTrigger)
+        assert recurring_days_trigger.every_n_days == 3
+        assert recurring_days_trigger.time == "21:00"
+
+    def test_sensor_trigger_fixture(self, sensor_trigger):
+        """sensor_trigger fixture creates valid SensorTrigger."""
+        assert isinstance(sensor_trigger, SensorTrigger)
+        assert sensor_trigger.sensor_type == "light"
+        assert sensor_trigger.threshold == 100
+        assert sensor_trigger.comparison == "lt"
+
+    def test_cron_trigger_fixture(self, cron_trigger):
+        """cron_trigger fixture creates valid CronTrigger."""
+        assert isinstance(cron_trigger, CronTrigger)
+        assert cron_trigger.cron_expression == "0 */2 * * *"
+
+    def test_all_triggers_serialize(
+        self,
+        solar_trigger,
+        interval_trigger,
+        fixed_time_trigger,
+        moon_phase_trigger,
+        recurring_days_trigger,
+        sensor_trigger,
+        cron_trigger,
+    ):
+        """All trigger fixtures can serialize to dict."""
+        triggers = [
+            solar_trigger,
+            interval_trigger,
+            fixed_time_trigger,
+            moon_phase_trigger,
+            recurring_days_trigger,
+            sensor_trigger,
+            cron_trigger,
+        ]
+        for trigger in triggers:
+            d = trigger.to_dict()
+            assert isinstance(d, dict)
+
+
+class TestRoutineFixtures:
+    """Test the 7 routine fixtures produce valid instances."""
+
+    def test_routine_solar_fixture(self, routine_solar):
+        """routine_solar fixture creates valid Routine."""
+        assert isinstance(routine_solar, Routine)
+        assert routine_solar.routine_id == "test-solar"
+        assert isinstance(routine_solar.trigger, SolarTrigger)
+        assert len(routine_solar.actions) == 1
+        assert routine_solar.actions[0].action_name == "attract_on"
+
+    def test_routine_interval_fixture(self, routine_interval):
+        """routine_interval fixture creates valid Routine."""
+        assert isinstance(routine_interval, Routine)
+        assert routine_interval.routine_id == "test-interval"
+        assert isinstance(routine_interval.trigger, IntervalTrigger)
+        assert len(routine_interval.actions) == 3
+        # flash_on -> takephoto -> flash_off
+        assert routine_interval.actions[0].action_name == "flash_on"
+        assert routine_interval.actions[1].action_name == "takephoto"
+        assert routine_interval.actions[2].action_name == "flash_off"
+
+    def test_routine_fixed_time_fixture(self, routine_fixed_time):
+        """routine_fixed_time fixture creates valid Routine."""
+        assert isinstance(routine_fixed_time, Routine)
+        assert routine_fixed_time.routine_id == "test-fixed"
+        assert isinstance(routine_fixed_time.trigger, FixedTimeTrigger)
+        assert routine_fixed_time.actions[0].action_name == "backup"
+
+    def test_routine_moon_phase_fixture(self, routine_moon_phase):
+        """routine_moon_phase fixture creates valid Routine."""
+        assert isinstance(routine_moon_phase, Routine)
+        assert routine_moon_phase.routine_id == "test-moon"
+        assert isinstance(routine_moon_phase.trigger, MoonPhaseTrigger)
+        assert routine_moon_phase.actions[0].action_name == "takephoto"
+
+    def test_routine_recurring_days_fixture(self, routine_recurring_days):
+        """routine_recurring_days fixture creates valid Routine."""
+        assert isinstance(routine_recurring_days, Routine)
+        assert routine_recurring_days.routine_id == "test-recurring"
+        assert isinstance(routine_recurring_days.trigger, RecurringDaysTrigger)
+        assert routine_recurring_days.actions[0].action_name == "gps_sync"
+
+    def test_routine_cron_fixture(self, routine_cron):
+        """routine_cron fixture creates valid Routine."""
+        assert isinstance(routine_cron, Routine)
+        assert routine_cron.routine_id == "test-cron"
+        assert isinstance(routine_cron.trigger, CronTrigger)
+
+    def test_routine_with_precondition_fixture(self, routine_with_precondition):
+        """routine_with_precondition fixture creates valid Routine with pre_condition."""
+        assert isinstance(routine_with_precondition, Routine)
+        assert routine_with_precondition.name == "Photo if Dark"
+        assert routine_with_precondition.pre_condition is not None
+        assert isinstance(routine_with_precondition.pre_condition, SensorTrigger)
+        assert routine_with_precondition.pre_condition.sensor_type == "light"
+
+    def test_all_routines_serialize(
+        self,
+        routine_solar,
+        routine_interval,
+        routine_fixed_time,
+        routine_moon_phase,
+        routine_recurring_days,
+        routine_cron,
+        routine_with_precondition,
+    ):
+        """All routine fixtures can serialize and deserialize."""
+        routines = [
+            routine_solar,
+            routine_interval,
+            routine_fixed_time,
+            routine_moon_phase,
+            routine_recurring_days,
+            routine_cron,
+            routine_with_precondition,
+        ]
+        for routine in routines:
+            d = routine.to_dict()
+            restored = Routine.from_dict(d)
+            assert restored.routine_id == routine.routine_id
+
+
+class TestMakeRoutineFactory:
+    """Test the make_routine() factory function."""
+
+    def test_solar_routine(self, make_routine):
+        """make_routine creates solar trigger routine."""
+        routine = make_routine("solar", solar_event="dusk")
+        assert isinstance(routine.trigger, SolarTrigger)
+        assert routine.trigger.solar_event == "dusk"
+        assert routine.routine_id == "test-solar"
+
+    def test_interval_routine(self, make_routine):
+        """make_routine creates interval trigger routine with defaults."""
+        routine = make_routine("interval", interval_minutes=30)
+        assert isinstance(routine.trigger, IntervalTrigger)
+        assert routine.trigger.interval_minutes == 30
+        # Default time_window should be set
+        assert routine.trigger.time_window is not None
+
+    def test_fixed_time_routine(self, make_routine):
+        """make_routine creates fixed_time trigger routine."""
+        routine = make_routine("fixed_time", time="08:00")
+        assert isinstance(routine.trigger, FixedTimeTrigger)
+        assert routine.trigger.time == "08:00"
+
+    def test_moon_phase_routine(self, make_routine):
+        """make_routine creates moon_phase trigger routine."""
+        routine = make_routine("moon_phase", phases=["full", "waxing_gibbous"])
+        assert isinstance(routine.trigger, MoonPhaseTrigger)
+        assert routine.trigger.phases == ["full", "waxing_gibbous"]
+
+    def test_recurring_days_routine(self, make_routine):
+        """make_routine creates recurring_days trigger routine."""
+        routine = make_routine("recurring_days", every_n_days=7, time="06:00")
+        assert isinstance(routine.trigger, RecurringDaysTrigger)
+        assert routine.trigger.every_n_days == 7
+        assert routine.trigger.time == "06:00"
+
+    def test_sensor_routine(self, make_routine):
+        """make_routine creates sensor trigger routine."""
+        routine = make_routine(
+            "sensor", sensor_type="temperature", threshold=25, comparison="gte"
+        )
+        assert isinstance(routine.trigger, SensorTrigger)
+        assert routine.trigger.sensor_type == "temperature"
+        assert routine.trigger.threshold == 25
+
+    def test_cron_routine(self, make_routine):
+        """make_routine creates cron trigger routine."""
+        routine = make_routine("cron", cron_expression="30 4 * * *")
+        assert isinstance(routine.trigger, CronTrigger)
+        assert routine.trigger.cron_expression == "30 4 * * *"
+
+    def test_custom_actions(self, make_routine):
+        """make_routine accepts custom actions list."""
+        routine = make_routine(
+            "solar",
+            solar_event="sunset",
+            actions=[
+                {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 0},
+                {
+                    "action_type": "camera",
+                    "action_name": "takephoto",
+                    "offset_minutes": 1,
+                },
+            ],
+        )
+        assert len(routine.actions) == 2
+        assert routine.actions[0].action_name == "flash_on"
+        assert routine.actions[1].action_name == "takephoto"
+
+    def test_custom_routine_id(self, make_routine):
+        """make_routine accepts custom routine_id."""
+        routine = make_routine("solar", solar_event="dusk", routine_id="my-custom-id")
+        assert routine.routine_id == "my-custom-id"
+
+    def test_custom_name(self, make_routine):
+        """make_routine accepts custom name."""
+        routine = make_routine("solar", solar_event="dusk", name="My Custom Routine")
+        assert routine.name == "My Custom Routine"
+
+    def test_with_pre_condition(self, make_routine):
+        """make_routine accepts pre_condition dict."""
+        routine = make_routine(
+            "interval",
+            interval_minutes=15,
+            pre_condition={"sensor_type": "light", "threshold": 50, "comparison": "lt"},
+        )
+        assert routine.pre_condition is not None
+        assert routine.pre_condition.sensor_type == "light"
+        assert routine.pre_condition.threshold == 50
+
+    def test_unknown_trigger_type_raises_error(self, make_routine):
+        """make_routine raises ValueError for unknown trigger_type."""
+        with pytest.raises(ValueError, match="Unknown trigger_type"):
+            make_routine("unknown_trigger")
+
+    def test_moon_phase_without_phases_raises_error(self, make_routine):
+        """make_routine raises ValueError for moon_phase without phases."""
+        with pytest.raises(ValueError, match="phases"):
+            make_routine("moon_phase")
+
+    def test_default_values_applied(self, make_routine):
+        """make_routine applies sensible defaults for each trigger type."""
+        # Solar defaults to "dusk"
+        routine = make_routine("solar")
+        assert routine.trigger.solar_event == "dusk"
+
+        # fixed_time defaults to "21:00"
+        routine = make_routine("fixed_time")
+        assert routine.trigger.time == "21:00"
+
+        # cron defaults to "0 21 * * *"
+        routine = make_routine("cron")
+        assert routine.trigger.cron_expression == "0 21 * * *"
+
+        # sensor defaults to "motion"
+        routine = make_routine("sensor")
+        assert routine.trigger.sensor_type == "motion"
