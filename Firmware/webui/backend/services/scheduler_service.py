@@ -523,6 +523,7 @@ class SchedulerService:
         latitude: float = 0.0,
         longitude: float = 0.0,
         timezone_name: str = "UTC",
+        progress_callback: Any | None = None,
     ) -> None:
         """
         Activate a schedule (deactivates any currently active first).
@@ -538,6 +539,11 @@ class SchedulerService:
             latitude: Location latitude for solar calculations (default 0.0)
             longitude: Location longitude for solar calculations (default 0.0)
             timezone_name: Timezone for time resolution (default "UTC")
+            progress_callback: Optional callback(phase: str, progress: int) for
+                              progress updates during activation. Phases are:
+                              "checking_conflicts" (10%), "generating_cron" (30%),
+                              "applying_cron" (60%), "updating_state" (90%),
+                              "complete" (100%)
 
         Returns:
             None on success
@@ -547,6 +553,15 @@ class SchedulerService:
                 disabled, cron conversion failed, etc.)
             ScheduleConflictError: If schedule has blocking conflicts
         """
+
+        def _emit_progress(phase: str, progress: int) -> None:
+            """Emit progress if callback provided."""
+            if progress_callback:
+                try:
+                    progress_callback(phase, progress)
+                except Exception as e:
+                    logger.warning(f"Progress callback failed: {e}")
+
         # Get the schedule
         schedule = self.get_schedule(schedule_id)
         if not schedule:
@@ -563,6 +578,7 @@ class SchedulerService:
         # Check for conflicts before activation (Issue #213)
         # Uses cached conflict report to avoid redundant computation
         if check_conflicts:
+            _emit_progress("checking_conflicts", 10)
             try:
                 from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
 
@@ -612,6 +628,7 @@ class SchedulerService:
         # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
         # We apply cron before updating is_active to avoid inconsistent state
         # if cron application fails. This eliminates the need for rollback.
+        _emit_progress("generating_cron", 30)
         try:
             result = schedule_to_cron(
                 schedule,
@@ -622,6 +639,7 @@ class SchedulerService:
             if result.errors:
                 raise ScheduleActivationError(f"Cron conversion failed: {'; '.join(result.errors)}")
 
+            _emit_progress("applying_cron", 60)
             apply_to_system(
                 entries=result.entries,
                 schedule_id=schedule_id,
@@ -639,6 +657,7 @@ class SchedulerService:
 
         # Update is_active flag in storage AFTER cron succeeds
         # For built-in schedules, we only update the in-memory state
+        _emit_progress("updating_state", 90)
         try:
             if not is_builtin_schedule(schedule_id):
                 self.update_schedule(schedule_id, {"is_active": True})
@@ -655,6 +674,7 @@ class SchedulerService:
         with self._cache_lock:
             self._active_schedule_id = schedule_id
 
+        _emit_progress("complete", 100)
         logger.info(f"Activated schedule: {schedule_id}")
 
     def deactivate_schedule(self) -> bool:

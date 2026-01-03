@@ -20,7 +20,7 @@ from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from webui.backend.constants import MAX_BUILTIN_SCHEDULE_FILES
@@ -752,6 +752,21 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
 
         service = get_scheduler_service()
 
+        # Get socketio for progress events (may be None in tests)
+        socketio = current_app.extensions.get("socketio")
+
+        def emit_progress(phase: str, progress: int) -> None:
+            """Emit activation progress event via WebSocket."""
+            if socketio:
+                socketio.emit(
+                    "schedule:activation_progress",
+                    {
+                        "schedule_id": schedule_id,
+                        "phase": phase,
+                        "progress": progress,
+                    },
+                )
+
         # Activate via service (handles existence check internally)
         try:
             service.activate_schedule(
@@ -760,6 +775,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 latitude=latitude,
                 longitude=longitude,
                 timezone_name=timezone_name,
+                progress_callback=emit_progress,
             )
         except ScheduleConflictError as e:
             # Log conflict details, return generic message
