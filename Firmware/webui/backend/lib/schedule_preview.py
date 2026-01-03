@@ -20,9 +20,9 @@ from typing import Final
 from webui.backend.lib.moon_phase import get_moon_phases_for_range
 from webui.backend.lib.schedule_conflict import (
     Conflict,
-    PatternExecution,
+    RoutineExecution,
     detect_conflicts,
-    generate_pattern_executions,
+    generate_routine_executions,
 )
 from webui.backend.lib.schedule_schema import (
     FixedTimeTrigger,
@@ -116,25 +116,25 @@ class ActionExecution:
 @dataclass
 class PreviewExecution:
     """
-    A single pattern execution with expanded actions.
+    A single routine execution with expanded actions.
 
-    Wraps PatternExecution from schedule_conflict.py, adding:
+    Wraps RoutineExecution from schedule_conflict.py, adding:
     - Expanded action list with absolute times
     - Trigger description for display
 
     Attributes:
-        start_time: When pattern execution begins
-        end_time: When pattern execution completes
-        pattern_id: Source pattern identifier
-        pattern_name: Human-readable pattern name
+        start_time: When routine execution begins
+        end_time: When routine execution completes
+        routine_id: Source routine identifier
+        routine_name: Human-readable routine name
         trigger_info: Trigger description (e.g., "interval:60m", "sunset+30")
         actions: Expanded actions with absolute times
     """
 
     start_time: datetime
     end_time: datetime
-    pattern_id: str
-    pattern_name: str
+    routine_id: str
+    routine_name: str
     trigger_info: str
     actions: list[ActionExecution] = field(default_factory=list)
 
@@ -143,8 +143,8 @@ class PreviewExecution:
         return {
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
-            "pattern_id": self.pattern_id,
-            "pattern_name": self.pattern_name,
+            "routine_id": self.routine_id,
+            "routine_name": self.routine_name,
             "trigger_info": self.trigger_info,
             "actions": [a.to_dict() for a in self.actions],
         }
@@ -155,8 +155,8 @@ class PreviewExecution:
         return cls(
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
-            pattern_id=data["pattern_id"],
-            pattern_name=data["pattern_name"],
+            routine_id=data["routine_id"],
+            routine_name=data["routine_name"],
             trigger_info=data["trigger_info"],
             actions=[ActionExecution.from_dict(a) for a in data.get("actions", [])],
         )
@@ -168,7 +168,7 @@ class PreviewResult:
     Complete preview result for a schedule.
 
     Contains:
-    - All pattern executions with expanded actions
+    - All routine executions with expanded actions
     - Conflicts detected over preview period
     - Moon phases for calendar display
     - Summary statistics
@@ -179,11 +179,11 @@ class PreviewResult:
         schedule_name: Human-readable schedule name
         preview_start: Preview period start (midnight UTC)
         preview_end: Preview period end (midnight UTC)
-        executions: List of pattern executions
+        executions: List of routine executions
         conflicts: List of detected conflicts
         moon_phases: Moon phase by date {ISO date string: phase dict}
         total_actions: Total count of individual actions
-        total_executions: Total count of pattern executions
+        total_executions: Total count of routine executions
         warnings: List of warning messages (e.g., default location used)
         generated_at: Timestamp when preview was generated
     """
@@ -360,15 +360,15 @@ def _expand_actions(
 
 
 def _convert_execution(
-    execution: PatternExecution,
+    execution: RoutineExecution,
     trigger_info: str,
     routine_cache: dict[str, Routine],
 ) -> PreviewExecution:
     """
-    Convert PatternExecution to PreviewExecution with expanded actions (Schema 3.0).
+    Convert RoutineExecution to PreviewExecution with expanded actions (Schema 3.0).
 
     Args:
-        execution: PatternExecution from schedule_conflict.py
+        execution: RoutineExecution from schedule_conflict.py
         trigger_info: Trigger description string
         routine_cache: Dict mapping routine_id to Routine for O(1) lookup
 
@@ -376,7 +376,7 @@ def _convert_execution(
         PreviewExecution with expanded actions
     """
     # Look up routine from cache - O(1) instead of O(n) linear search
-    routine = routine_cache.get(execution.pattern_id)
+    routine = routine_cache.get(execution.routine_id)
 
     actions = []
     if routine:
@@ -385,8 +385,8 @@ def _convert_execution(
     return PreviewExecution(
         start_time=execution.start_time,
         end_time=execution.end_time,
-        pattern_id=execution.pattern_id,
-        pattern_name=execution.pattern_name,
+        routine_id=execution.routine_id,
+        routine_name=execution.routine_name,
         trigger_info=trigger_info,
         actions=actions,
     )
@@ -481,8 +481,8 @@ def generate_preview(
         logger.info(warning_msg)
         warnings.append(warning_msg)
 
-    # Generate pattern executions using schedule_conflict.py
-    raw_executions = generate_pattern_executions(
+    # Generate routine executions using schedule_conflict.py
+    raw_executions = generate_routine_executions(
         schedule=schedule,
         start_date=start_date,
         end_date=end_date,
