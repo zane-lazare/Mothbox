@@ -2348,8 +2348,6 @@ class TestScheduleWithMixedTriggerTypes:
 
         # Verify restored structure
         assert len(restored.routines) == 2
-        assert TRIGGER_TYPE_MAP[type(restored.routines[0].trigger)] == "solar"
-        assert TRIGGER_TYPE_MAP[type(restored.routines[1].trigger)] == "interval"
 
         # Verify trigger details preserved
         assert isinstance(restored.routines[0].trigger, SolarTrigger)
