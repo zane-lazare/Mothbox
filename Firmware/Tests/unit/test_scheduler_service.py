@@ -1535,6 +1535,7 @@ class TestThreadSafety:
     def test_concurrent_activation(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """Multiple threads activating different schedules - service should track one active ID."""
         import threading
+        from unittest.mock import MagicMock, patch
 
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1547,37 +1548,47 @@ class TestThreadSafety:
             schedules.append(schedule)
 
         results = []
-        errors = []
+        results_lock = threading.Lock()
 
         def activate(schedule_id):
             try:
                 scheduler_service.activate_schedule(schedule_id)
-                return (schedule_id, True, None)
+                with results_lock:
+                    results.append((schedule_id, True, None))
             except Exception as e:
-                return (schedule_id, False, str(e))
+                with results_lock:
+                    results.append((schedule_id, False, str(e)))
 
-        threads = []
-        for schedule in schedules:
-            t = threading.Thread(target=lambda s=schedule: results.append(activate(s.schedule_id)))
-            threads.append(t)
+        # Mock expensive I/O operations - we're testing thread safety, not cron I/O
+        mock_cron_result = MagicMock()
+        mock_cron_result.errors = []
+        mock_cron_result.entries = []
 
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with patch('webui.backend.services.scheduler_service.apply_to_system'), \
+             patch('webui.backend.services.scheduler_service.remove_from_system'), \
+             patch('webui.backend.services.scheduler_service.schedule_to_cron', return_value=mock_cron_result):
+            threads = []
+            for schedule in schedules:
+                t = threading.Thread(target=lambda s=schedule: activate(s.schedule_id))
+                threads.append(t)
+
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=30)
+
+            # Check for deadlock
+            alive = [t for t in threads if t.is_alive()]
+            assert not alive, f"{len(alive)} threads still running after timeout - possible deadlock"
 
         # Verify no exceptions occurred
-        for schedule_id, success, error in results:
-            if not success and error:
-                errors.append(f"{schedule_id}: {error}")
+        errors = [(sid, err) for sid, success, err in results if not success and err]
+        assert len(errors) == 0, f"Activation errors: {errors}"
 
         # Thread-safe property: service should have exactly one active schedule ID
         active = scheduler_service.get_active_schedule()
         assert active is not None, "One schedule should be active"
         assert scheduler_service._active_schedule_id is not None, "Active schedule ID should be set"
-
-        # Verify all activations completed without exceptions
-        assert len(errors) == 0, f"Activation errors occurred: {errors}"
 
     def test_concurrent_cache_invalidation(self, scheduler_service, sample_schedule, temp_schedules_dir):
         """Invalidation during concurrent reads should not cause errors."""
@@ -1823,6 +1834,7 @@ class TestConcurrentModifications:
         active schedules during concurrent activation attempts.
         """
         import threading
+        from unittest.mock import MagicMock, patch
 
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1840,7 +1852,7 @@ class TestConcurrentModifications:
         results = []
         results_lock = threading.Lock()
 
-        def activate_schedule(schedule_id: str):
+        def activate_schedule_thread(schedule_id: str):
             try:
                 service.activate_schedule(schedule_id)
                 with results_lock:
@@ -1849,16 +1861,28 @@ class TestConcurrentModifications:
                 with results_lock:
                     results.append((schedule_id, False, str(e)))
 
-        # Launch 10 threads to activate different schedules concurrently
-        threads = []
-        for schedule_id in schedule_ids:
-            t = threading.Thread(target=activate_schedule, args=(schedule_id,))
-            threads.append(t)
+        # Mock expensive I/O operations - we're testing thread safety, not cron I/O
+        mock_cron_result = MagicMock()
+        mock_cron_result.errors = []
+        mock_cron_result.entries = []
 
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with patch('webui.backend.services.scheduler_service.apply_to_system'), \
+             patch('webui.backend.services.scheduler_service.remove_from_system'), \
+             patch('webui.backend.services.scheduler_service.schedule_to_cron', return_value=mock_cron_result):
+            # Launch 10 threads to activate different schedules concurrently
+            threads = []
+            for schedule_id in schedule_ids:
+                t = threading.Thread(target=activate_schedule_thread, args=(schedule_id,))
+                threads.append(t)
+
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=30)
+
+            # Check for deadlock
+            alive = [t for t in threads if t.is_alive()]
+            assert not alive, f"{len(alive)} threads still running after timeout - possible deadlock"
 
         # Verify: Exactly one schedule should be active
         active = service.get_active_schedule()
