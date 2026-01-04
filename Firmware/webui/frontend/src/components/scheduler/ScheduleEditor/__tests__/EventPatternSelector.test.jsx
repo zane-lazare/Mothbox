@@ -32,27 +32,27 @@ vi.mock('../../PatternLibrary', () => ({
   ),
 }));
 
-// Mock PatternEditor
-vi.mock('../../PatternEditor', () => ({
-  PatternEditor: ({ pattern, onSave, onCancel }) => (
-    <div data-testid="pattern-editor">
-      <span data-testid="editor-pattern-name">{pattern?.name || 'new'}</span>
+// Mock RoutineEditor
+vi.mock('../../RoutineEditor', () => ({
+  RoutineEditor: ({ routine, onSave, onCancel }) => (
+    <div data-testid="routine-editor">
+      <span data-testid="editor-routine-name">{routine?.name || 'new'}</span>
       <button
-        data-testid="save-pattern-btn"
+        data-testid="save-routine-btn"
         onClick={() =>
           onSave({
-            pattern_id: 'custom-1',
-            name: 'Custom Pattern',
-            description: 'My custom pattern',
+            routine_id: 'custom-1',
+            name: 'Custom Routine',
+            description: 'My custom routine',
             actions: [{ action_type: 'take_photo', offset_minutes: 0 }],
             category: 'user',
             tags: ['custom'],
           })
         }
       >
-        Save Pattern
+        Save Routine
       </button>
-      <button data-testid="cancel-pattern-btn" onClick={onCancel}>
+      <button data-testid="cancel-routine-btn" onClick={onCancel}>
         Cancel
       </button>
     </div>
@@ -179,10 +179,10 @@ describe('EventPatternSelector', () => {
       fireEvent.click(customTab);
 
       expect(customTab).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByTestId('pattern-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('routine-editor')).toBeInTheDocument();
     });
 
-    it('shows PatternEditor in custom mode', () => {
+    it('shows RoutineEditor in custom mode', () => {
       const value = {
         source: 'custom',
         pattern: {
@@ -196,10 +196,10 @@ describe('EventPatternSelector', () => {
         <EventPatternSelector value={value} onChange={mockOnChange} />
       );
 
-      expect(screen.getByTestId('pattern-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('routine-editor')).toBeInTheDocument();
     });
 
-    it('passes existing pattern to PatternEditor in custom mode', () => {
+    it('passes existing pattern to RoutineEditor in custom mode', () => {
       const value = {
         source: 'custom',
         pattern: {
@@ -213,32 +213,32 @@ describe('EventPatternSelector', () => {
         <EventPatternSelector value={value} onChange={mockOnChange} />
       );
 
-      expect(screen.getByTestId('editor-pattern-name')).toHaveTextContent(
+      expect(screen.getByTestId('editor-routine-name')).toHaveTextContent(
         'My Custom Pattern'
       );
     });
 
-    it('calls onChange when custom pattern is saved', () => {
+    it('calls onChange when custom routine is saved', () => {
       renderWithClient(<EventPatternSelector onChange={mockOnChange} />);
 
       // Switch to custom mode
       const customTab = screen.getByRole('tab', { name: /custom/i });
       fireEvent.click(customTab);
 
-      // Save pattern
-      const saveButton = screen.getByTestId('save-pattern-btn');
+      // Save routine
+      const saveButton = screen.getByTestId('save-routine-btn');
       fireEvent.click(saveButton);
 
       expect(mockOnChange).toHaveBeenCalledWith({
         source: 'custom',
         pattern: expect.objectContaining({
-          pattern_id: 'custom-1',
-          name: 'Custom Pattern',
+          routine_id: 'custom-1',
+          name: 'Custom Routine',
         }),
       });
     });
 
-    it('cancels custom pattern editing and returns to library mode', () => {
+    it('cancels custom routine editing and returns to library mode', () => {
       renderWithClient(<EventPatternSelector onChange={mockOnChange} />);
 
       // Switch to custom mode
@@ -246,7 +246,7 @@ describe('EventPatternSelector', () => {
       fireEvent.click(customTab);
 
       // Cancel
-      const cancelButton = screen.getByTestId('cancel-pattern-btn');
+      const cancelButton = screen.getByTestId('cancel-routine-btn');
       fireEvent.click(cancelButton);
 
       // Should be back to library mode

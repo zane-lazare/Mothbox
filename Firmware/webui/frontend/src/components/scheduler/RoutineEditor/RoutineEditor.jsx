@@ -3,19 +3,19 @@ import PropTypes from 'prop-types'
 import ActionList from './ActionList'
 import OffsetTimeline from './OffsetTimeline'
 import { useValidatePattern, usePatternDuration } from '@/hooks/useEventPatterns'
-import { PATTERN_LIMITS } from './constants'
+import { ROUTINE_LIMITS } from './constants'
 import { generateUUID } from '../../../utils/uuid'
 
 /**
- * Main container component for editing event patterns.
+ * Main container component for editing routines.
  * Combines form inputs, action management, and timeline preview.
  *
  * @param {Object} props
- * @param {Object} [props.pattern] - Pattern to edit (undefined for create mode)
- * @param {Function} props.onSave - Called when pattern is saved
+ * @param {Object} [props.routine] - Routine to edit (undefined for create mode)
+ * @param {Function} props.onSave - Called when routine is saved
  * @param {Function} props.onCancel - Called when editing is cancelled
  */
-const PatternEditor = ({ pattern, onSave, onCancel }) => {
+const RoutineEditor = ({ routine, onSave, onCancel }) => {
   // Form state
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -32,17 +32,17 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
   const { data: duration = 0 } = usePatternDuration({ actions })
 
   // Determine mode
-  const isEditMode = Boolean(pattern?.pattern_id)
+  const isEditMode = Boolean(routine?.routine_id)
 
-  // Initialize form from pattern prop
+  // Initialize form from routine prop
   useEffect(() => {
-    if (pattern) {
-      setName(pattern.name || '')
-      setDescription(pattern.description || '')
-      setActions(pattern.actions || [])
-      setTags(pattern.tags || [])
+    if (routine) {
+      setName(routine.name || '')
+      setDescription(routine.description || '')
+      setActions(routine.actions || [])
+      setTags(routine.tags || [])
     }
-  }, [pattern])
+  }, [routine])
 
   // Clear name error when user types
   useEffect(() => {
@@ -54,7 +54,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
   // Handle name change with max length
   const handleNameChange = (e) => {
     const value = e.target.value
-    if (value.length <= PATTERN_LIMITS.NAME_MAX_LENGTH) {
+    if (value.length <= ROUTINE_LIMITS.NAME_MAX_LENGTH) {
       setName(value)
     }
   }
@@ -62,7 +62,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
   // Handle description change with max length
   const handleDescriptionChange = (e) => {
     const value = e.target.value
-    if (value.length <= PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH) {
+    if (value.length <= ROUTINE_LIMITS.DESCRIPTION_MAX_LENGTH) {
       setDescription(value)
     }
   }
@@ -103,27 +103,27 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
 
     // Validate name
     if (!name.trim()) {
-      setNameError('Pattern name is required')
+      setNameError('Routine name is required')
       return
     }
 
-    // Build pattern object
-    const patternData = {
-      pattern_id: pattern?.pattern_id || generateUUID(),
+    // Build routine object
+    const routineData = {
+      routine_id: routine?.routine_id || generateUUID(),
       name: name.trim(),
       description: description.trim(),
       actions,
       tags,
-      category: pattern?.category
+      category: routine?.category
     }
 
     try {
       // Validate with backend
-      const validationResult = await validatePattern(patternData)
+      const validationResult = await validatePattern(routineData)
 
       if (validationResult.valid) {
-        // Call onSave with validated pattern
-        onSave(patternData)
+        // Call onSave with validated routine
+        onSave(routineData)
       } else {
         // Show validation errors
         const errorMessage = validationResult.errors?.join(', ') || 'Validation failed'
@@ -139,7 +139,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          {isEditMode ? 'Edit Pattern' : 'Create Pattern'}
+          {isEditMode ? 'Edit Routine' : 'Create Routine'}
         </h2>
       </div>
 
@@ -148,45 +148,45 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
         {/* Name */}
         <div>
           <label
-            htmlFor="pattern-name"
+            htmlFor="routine-name"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
-            Pattern Name *
+            Routine Name *
           </label>
           <input
-            id="pattern-name"
+            id="routine-name"
             type="text"
             value={name}
             onChange={handleNameChange}
-            maxLength={PATTERN_LIMITS.NAME_MAX_LENGTH}
+            maxLength={ROUTINE_LIMITS.NAME_MAX_LENGTH}
             disabled={isValidating}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
                        bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                        disabled:opacity-50 disabled:cursor-not-allowed"
-            placeholder="Enter pattern name"
+            placeholder="Enter routine name"
           />
           {nameError && (
             <p className="mt-1 text-sm text-red-500">{nameError}</p>
           )}
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {name.length}/{PATTERN_LIMITS.NAME_MAX_LENGTH} characters
+            {name.length}/{ROUTINE_LIMITS.NAME_MAX_LENGTH} characters
           </p>
         </div>
 
         {/* Description */}
         <div>
           <label
-            htmlFor="pattern-description"
+            htmlFor="routine-description"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             Description
           </label>
           <textarea
-            id="pattern-description"
+            id="routine-description"
             value={description}
             onChange={handleDescriptionChange}
-            maxLength={PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH}
+            maxLength={ROUTINE_LIMITS.DESCRIPTION_MAX_LENGTH}
             rows={3}
             disabled={isValidating}
             className="w-full rounded-md border border-gray-300 dark:border-gray-600
@@ -196,14 +196,14 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             placeholder="Optional description"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {description.length}/{PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH} characters
+            {description.length}/{ROUTINE_LIMITS.DESCRIPTION_MAX_LENGTH} characters
           </p>
         </div>
 
         {/* Tags */}
         <div>
           <label
-            htmlFor="pattern-tags"
+            htmlFor="routine-tags"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             Tags
@@ -243,7 +243,7 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
             ))}
           </div>
           <input
-            id="pattern-tags"
+            id="routine-tags"
             type="text"
             value={tagInput}
             onChange={handleTagInputChange}
@@ -310,16 +310,16 @@ const PatternEditor = ({ pattern, onSave, onCancel }) => {
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700
                      disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isValidating ? 'Saving...' : 'Save Pattern'}
+          {isValidating ? 'Saving...' : 'Save Routine'}
         </button>
       </div>
     </div>
   )
 }
 
-PatternEditor.propTypes = {
-  pattern: PropTypes.shape({
-    pattern_id: PropTypes.string,
+RoutineEditor.propTypes = {
+  routine: PropTypes.shape({
+    routine_id: PropTypes.string,
     name: PropTypes.string.isRequired,
     description: PropTypes.string,
     actions: PropTypes.arrayOf(PropTypes.object),
@@ -330,4 +330,4 @@ PatternEditor.propTypes = {
   onCancel: PropTypes.func.isRequired
 }
 
-export default PatternEditor
+export default RoutineEditor

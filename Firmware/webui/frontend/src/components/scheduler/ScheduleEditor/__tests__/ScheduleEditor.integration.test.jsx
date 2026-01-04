@@ -38,23 +38,23 @@ vi.mock('../../PatternLibrary', () => ({
   ),
 }));
 
-vi.mock('../../PatternEditor', () => ({
-  PatternEditor: ({ onSave, onCancel }) => (
-    <div data-testid="pattern-editor">
+vi.mock('../../RoutineEditor', () => ({
+  RoutineEditor: ({ onSave, onCancel }) => (
+    <div data-testid="routine-editor">
       <button
-        data-testid="save-custom-pattern"
+        data-testid="save-custom-routine"
         onClick={() =>
           onSave({
-            pattern_id: 'custom-pattern-1',
-            name: 'Custom Pattern',
-            description: 'Custom pattern',
+            routine_id: 'custom-routine-1',
+            name: 'Custom Routine',
+            description: 'Custom routine',
             actions: [{ action_id: '1', type: 'attract_on', parameters: {} }],
           })
         }
       >
         Save Custom
       </button>
-      <button data-testid="cancel-custom-pattern" onClick={onCancel}>
+      <button data-testid="cancel-custom-routine" onClick={onCancel}>
         Cancel
       </button>
     </div>
@@ -247,7 +247,7 @@ describe('ScheduleEditor Integration', () => {
       fireEvent.click(customTab);
 
       await waitFor(() => {
-        expect(screen.getByTestId('pattern-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('routine-editor')).toBeInTheDocument();
       });
     });
   });
