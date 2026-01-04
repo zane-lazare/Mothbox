@@ -590,3 +590,94 @@ class TestSchemaVersion:
             assert version == "2.0", (
                 f"{schedule_id}: expected schema_version '2.0', got '{version}'"
             )
+
+
+# =============================================================================
+# TEST: DAYTIME-POLLINATOR.JSON (Schema 3.0, Issue #318)
+# =============================================================================
+
+
+class TestDaytimePollinatorSchedule:
+    """Tests for daytime-pollinator.json schedule (Issue #318)."""
+
+    @pytest.fixture
+    def daytime_pollinator_schedule(self, builtin_schedules_dir: Path) -> dict:
+        """Load daytime-pollinator.json schedule."""
+        path = builtin_schedules_dir / "daytime-pollinator.json"
+        if not path.exists():
+            pytest.skip("daytime-pollinator.json not found")
+        with open(path) as f:
+            return json.load(f)
+
+    def test_schedule_exists(self, builtin_schedules_dir: Path) -> None:
+        """daytime-pollinator.json must exist."""
+        path = builtin_schedules_dir / "daytime-pollinator.json"
+        assert path.exists(), "daytime-pollinator.json not found"
+
+    def test_schedule_is_valid_json(self, daytime_pollinator_schedule: dict) -> None:
+        """Schedule must be valid JSON with required fields."""
+        assert "schedule_id" in daytime_pollinator_schedule
+        assert "name" in daytime_pollinator_schedule
+        assert "routines" in daytime_pollinator_schedule
+
+    def test_schedule_id_is_valid_uuid(
+        self, daytime_pollinator_schedule: dict
+    ) -> None:
+        """Schedule ID must be a valid UUID."""
+        schedule_id = daytime_pollinator_schedule["schedule_id"]
+        try:
+            uuid.UUID(schedule_id)
+        except ValueError:
+            pytest.fail(f"schedule_id '{schedule_id}' is not a valid UUID")
+
+    def test_uses_schema_v3(self, daytime_pollinator_schedule: dict) -> None:
+        """Must use schema version 3.0."""
+        version = daytime_pollinator_schedule.get("version")
+        assert version == "3.0", f"Expected version '3.0', got '{version}'"
+
+    def test_is_builtin(self, daytime_pollinator_schedule: dict) -> None:
+        """Must be marked as builtin."""
+        assert daytime_pollinator_schedule.get("is_builtin") is True
+
+    def test_has_single_routine(self, daytime_pollinator_schedule: dict) -> None:
+        """Must have exactly one routine."""
+        routines = daytime_pollinator_schedule["routines"]
+        assert len(routines) == 1, f"Expected 1 routine, got {len(routines)}"
+
+    def test_routine_uses_interval_trigger(
+        self, daytime_pollinator_schedule: dict
+    ) -> None:
+        """Routine must use interval trigger type."""
+        routine = daytime_pollinator_schedule["routines"][0]
+        trigger = routine["trigger"]
+        assert trigger["trigger_type"] == "interval"
+
+    def test_interval_is_10_minutes(self, daytime_pollinator_schedule: dict) -> None:
+        """Interval must be exactly 10 minutes."""
+        routine = daytime_pollinator_schedule["routines"][0]
+        trigger = routine["trigger"]
+        assert trigger["interval_minutes"] == 10
+
+    def test_time_window_is_sunrise_to_sunset(
+        self, daytime_pollinator_schedule: dict
+    ) -> None:
+        """Time window must be solar-based (sunrise to sunset)."""
+        routine = daytime_pollinator_schedule["routines"][0]
+        time_window = routine["trigger"]["time_window"]
+        assert time_window["start_time"] == "sunrise"
+        assert time_window["end_time"] == "sunset"
+
+    def test_has_takephoto_action(self, daytime_pollinator_schedule: dict) -> None:
+        """Must have a takephoto action."""
+        routine = daytime_pollinator_schedule["routines"][0]
+        actions = routine["actions"]
+        action_names = [a["action_name"] for a in actions]
+        assert "takephoto" in action_names
+
+    def test_passes_schema_validation(
+        self, daytime_pollinator_schedule: dict
+    ) -> None:
+        """Schedule must pass validate_schedule()."""
+        schedule = Schedule.from_dict(daytime_pollinator_schedule)
+        valid, error = validate_schedule(schedule)
+        assert valid, f"Validation failed: {error}"
