@@ -14,7 +14,7 @@
  * - useScheduleFromTemplate: Create from built-in template
  * - Re-exports from useSchedules.js
  *
- * Reference: useSchedules.test.jsx, useEventPatterns.test.jsx for testing patterns
+ * Reference: useSchedules.test.jsx, useRoutines.test.jsx for testing patterns
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

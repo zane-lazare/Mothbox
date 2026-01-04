@@ -1,8 +1,8 @@
 /**
- * Tests for useEventPatterns hooks (Issue #222)
+ * Tests for useRoutines hooks (Issue #222, #322)
  *
  * Comprehensive test suite following TDD approach - tests written BEFORE implementation.
- * Tests React Query hooks for Event Pattern operations.
+ * Tests React Query hooks for Routine operations.
  *
  * Reference: useSchedules.test.jsx for testing patterns
  */
@@ -12,10 +12,10 @@ import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
-  useBuiltinPatterns,
-  useValidatePattern,
-  usePatternDuration,
-} from '../useEventPatterns';
+  useBuiltinRoutines,
+  useValidateRoutine,
+  useRoutineDuration,
+} from '../useRoutines';
 import * as schedulerApi from '../../utils/schedulerApi';
 import { QUERY_KEYS } from '../../utils/queryKeys';
 
@@ -37,10 +37,10 @@ const createWrapper = () => {
 };
 
 // =============================================================================
-// useBuiltinPatterns Tests
+// useBuiltinRoutines Tests
 // =============================================================================
 
-describe('useBuiltinPatterns', () => {
+describe('useBuiltinRoutines', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -49,8 +49,8 @@ describe('useBuiltinPatterns', () => {
     vi.restoreAllMocks();
   });
 
-  it('fetches built-in patterns successfully', async () => {
-    const mockBuiltinPatterns = {
+  it('fetches built-in routines successfully', async () => {
+    const mockBuiltinRoutines = {
       patterns: [
         {
           pattern_id: 'uv-capture-cycle',
@@ -80,9 +80,9 @@ describe('useBuiltinPatterns', () => {
       total: 2
     };
 
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({ data: mockBuiltinPatterns });
+    schedulerApi.listBuiltinPatterns.mockResolvedValue({ data: mockBuiltinRoutines });
 
-    const { result } = renderHook(() => useBuiltinPatterns(), {
+    const { result } = renderHook(() => useBuiltinRoutines(), {
       wrapper: createWrapper()
     });
 
@@ -92,16 +92,16 @@ describe('useBuiltinPatterns', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(result.current.data).toEqual(mockBuiltinPatterns);
+    expect(result.current.data).toEqual(mockBuiltinRoutines);
     expect(schedulerApi.listBuiltinPatterns).toHaveBeenCalledTimes(1);
   });
 
-  it('handles empty patterns list', async () => {
+  it('handles empty routines list', async () => {
     schedulerApi.listBuiltinPatterns.mockResolvedValue({
       data: { patterns: [], total: 0 }
     });
 
-    const { result } = renderHook(() => useBuiltinPatterns(), {
+    const { result } = renderHook(() => useBuiltinRoutines(), {
       wrapper: createWrapper()
     });
 
@@ -114,10 +114,10 @@ describe('useBuiltinPatterns', () => {
   });
 
   it('handles fetch error', async () => {
-    const mockError = new Error('Failed to fetch built-in patterns');
+    const mockError = new Error('Failed to fetch built-in routines');
     schedulerApi.listBuiltinPatterns.mockRejectedValue(mockError);
 
-    const { result } = renderHook(() => useBuiltinPatterns(), {
+    const { result } = renderHook(() => useBuiltinRoutines(), {
       wrapper: createWrapper()
     });
 
@@ -146,7 +146,7 @@ describe('useBuiltinPatterns', () => {
       </QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useBuiltinPatterns(), { wrapper });
+    const { result } = renderHook(() => useBuiltinRoutines(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -167,7 +167,7 @@ describe('useBuiltinPatterns', () => {
 
     // Test that queryOptions are passed through
     const { result } = renderHook(
-      () => useBuiltinPatterns({ staleTime: 1000 }),
+      () => useBuiltinRoutines({ staleTime: 1000 }),
       { wrapper: createWrapper() }
     );
 
@@ -180,10 +180,10 @@ describe('useBuiltinPatterns', () => {
 });
 
 // =============================================================================
-// useValidatePattern Tests
+// useValidateRoutine Tests
 // =============================================================================
 
-describe('useValidatePattern', () => {
+describe('useValidateRoutine', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -192,7 +192,7 @@ describe('useValidatePattern', () => {
     vi.restoreAllMocks();
   });
 
-  it('validates pattern successfully', async () => {
+  it('validates routine successfully', async () => {
     const mockResponse = {
       valid: true,
       pattern: {
@@ -209,7 +209,7 @@ describe('useValidatePattern', () => {
 
     schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
 
-    const { result } = renderHook(() => useValidatePattern(), {
+    const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
     });
 
@@ -235,7 +235,7 @@ describe('useValidatePattern', () => {
     });
   });
 
-  it('returns validation errors for invalid pattern', async () => {
+  it('returns validation errors for invalid routine', async () => {
     const mockResponse = {
       valid: false,
       error: 'Pattern name is required'
@@ -243,7 +243,7 @@ describe('useValidatePattern', () => {
 
     schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
 
-    const { result } = renderHook(() => useValidatePattern(), {
+    const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
     });
 
@@ -264,7 +264,7 @@ describe('useValidatePattern', () => {
     const mockError = new Error('Pattern validation failed');
     schedulerApi.validatePattern.mockRejectedValue(mockError);
 
-    const { result } = renderHook(() => useValidatePattern(), {
+    const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
     });
 
@@ -285,7 +285,7 @@ describe('useValidatePattern', () => {
 
     schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
 
-    const { result } = renderHook(() => useValidatePattern(), {
+    const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
     });
 
@@ -300,37 +300,37 @@ describe('useValidatePattern', () => {
 });
 
 // =============================================================================
-// usePatternDuration Tests
+// useRoutineDuration Tests
 // =============================================================================
 
-describe('usePatternDuration', () => {
-  it('returns 0 for null pattern', () => {
-    const { result } = renderHook(() => usePatternDuration(null), {
+describe('useRoutineDuration', () => {
+  it('returns 0 for null routine', () => {
+    const { result } = renderHook(() => useRoutineDuration(null), {
       wrapper: createWrapper()
     });
 
     expect(result.current).toBe(0);
   });
 
-  it('returns 0 for undefined pattern', () => {
-    const { result } = renderHook(() => usePatternDuration(undefined), {
+  it('returns 0 for undefined routine', () => {
+    const { result } = renderHook(() => useRoutineDuration(undefined), {
       wrapper: createWrapper()
     });
 
     expect(result.current).toBe(0);
   });
 
-  it('returns 0 for pattern with no actions property', () => {
-    const { result } = renderHook(() => usePatternDuration({ name: 'test' }), {
+  it('returns 0 for routine with no actions property', () => {
+    const { result } = renderHook(() => useRoutineDuration({ name: 'test' }), {
       wrapper: createWrapper()
     });
 
     expect(result.current).toBe(0);
   });
 
-  it('returns 0 for pattern with empty actions array', () => {
+  it('returns 0 for routine with empty actions array', () => {
     const { result } = renderHook(
-      () => usePatternDuration({ name: 'test', actions: [] }),
+      () => useRoutineDuration({ name: 'test', actions: [] }),
       { wrapper: createWrapper() }
     );
 
@@ -338,14 +338,14 @@ describe('usePatternDuration', () => {
   });
 
   it('calculates duration from single action', () => {
-    const pattern = {
+    const routine = {
       name: 'Single Action',
       actions: [
         { action_type: 'camera', action_name: 'takephoto', offset_minutes: 10 }
       ]
     };
 
-    const { result } = renderHook(() => usePatternDuration(pattern), {
+    const { result } = renderHook(() => useRoutineDuration(routine), {
       wrapper: createWrapper()
     });
 
@@ -353,7 +353,7 @@ describe('usePatternDuration', () => {
   });
 
   it('calculates max offset from multiple actions', () => {
-    const pattern = {
+    const routine = {
       name: 'UV Capture Cycle',
       actions: [
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
@@ -362,7 +362,7 @@ describe('usePatternDuration', () => {
       ]
     };
 
-    const { result } = renderHook(() => usePatternDuration(pattern), {
+    const { result } = renderHook(() => useRoutineDuration(routine), {
       wrapper: createWrapper()
     });
 
@@ -370,7 +370,7 @@ describe('usePatternDuration', () => {
   });
 
   it('handles undefined offset_minutes (defaults to 0)', () => {
-    const pattern = {
+    const routine = {
       name: 'Missing Offset',
       actions: [
         { action_type: 'camera', action_name: 'takephoto' },
@@ -378,15 +378,15 @@ describe('usePatternDuration', () => {
       ]
     };
 
-    const { result } = renderHook(() => usePatternDuration(pattern), {
+    const { result } = renderHook(() => useRoutineDuration(routine), {
       wrapper: createWrapper()
     });
 
     expect(result.current).toBe(5);
   });
 
-  it('memoizes result correctly - same pattern returns same value', () => {
-    const pattern = {
+  it('memoizes result correctly - same routine returns same value', () => {
+    const routine = {
       name: 'Test Pattern',
       actions: [
         { action_type: 'camera', action_name: 'takephoto', offset_minutes: 10 }
@@ -394,21 +394,21 @@ describe('usePatternDuration', () => {
     };
 
     const { result, rerender } = renderHook(
-      ({ pattern }) => usePatternDuration(pattern),
-      { wrapper: createWrapper(), initialProps: { pattern } }
+      ({ routine }) => useRoutineDuration(routine),
+      { wrapper: createWrapper(), initialProps: { routine } }
     );
 
     const firstResult = result.current;
 
-    // Rerender with same pattern object
-    rerender({ pattern });
+    // Rerender with same routine object
+    rerender({ routine });
 
     expect(result.current).toBe(firstResult);
     expect(result.current).toBe(10);
   });
 
   it('handles decimal offset_minutes values', () => {
-    const pattern = {
+    const routine = {
       name: 'Decimal Offsets',
       actions: [
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 5.5 },
@@ -417,7 +417,7 @@ describe('usePatternDuration', () => {
       ]
     };
 
-    const { result } = renderHook(() => usePatternDuration(pattern), {
+    const { result } = renderHook(() => useRoutineDuration(routine), {
       wrapper: createWrapper()
     });
 

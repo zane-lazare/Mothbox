@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import PropTypes from 'prop-types'
-import { useBuiltinPatterns } from '../../../hooks/useEventPatterns'
+import { useBuiltinRoutines } from '../../../hooks/useRoutines'
 import PatternCard from './PatternCard'
 import PatternFilters from './PatternFilters'
 import PatternDetailsDrawer from './PatternDetailsDrawer'
@@ -19,7 +19,7 @@ function PatternList({
   className = ''
 }) {
   // Fetch patterns from API
-  const { data, isLoading, isError, error, refetch } = useBuiltinPatterns()
+  const { data, isLoading, isError, error, refetch } = useBuiltinRoutines()
 
   // Filter state
   const [category, setCategory] = useState('all')

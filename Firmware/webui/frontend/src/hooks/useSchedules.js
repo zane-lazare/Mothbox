@@ -14,10 +14,10 @@
  * - useDeactivateSchedule: Deactivate schedule
  * - useValidateSchedule: Validate schedule configuration
  *
- * Event Pattern hooks are in useEventPatterns.js (Issue #222):
- * - useBuiltinPatterns: List built-in patterns
- * - useValidatePattern: Validate event pattern
- * - usePatternDuration: Calculate pattern duration
+ * Routine hooks are in useRoutines.js (Issue #222, #322):
+ * - useBuiltinRoutines: List built-in routines
+ * - useValidateRoutine: Validate routine
+ * - useRoutineDuration: Calculate routine duration
  *
  * Naming Convention:
  * - Query hooks: use<Resource> (e.g., useSchedules, useSchedule)
@@ -516,7 +516,7 @@ export default useSchedules
 // =============================================================================
 // Re-exports for backward compatibility (Issue #222)
 // =============================================================================
-// Pattern hooks have been moved to useEventPatterns.js
-// usePatternDuration is a new utility hook added in #222
+// Routine hooks have been moved to useRoutines.js (renamed from useEventPatterns.js in #322)
+// useRoutineDuration is a utility hook for calculating routine duration
 // These re-exports maintain backward compatibility for existing imports
-export { useBuiltinPatterns, useValidatePattern, usePatternDuration } from './useEventPatterns'
+export { useBuiltinRoutines, useValidateRoutine, useRoutineDuration } from './useRoutines'

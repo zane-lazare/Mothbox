@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import ActionList from './ActionList'
 import OffsetTimeline from './OffsetTimeline'
-import { useValidatePattern, usePatternDuration } from '@/hooks/useEventPatterns'
+import { useValidateRoutine, useRoutineDuration } from '@/hooks/useRoutines'
 import { ROUTINE_LIMITS } from './constants'
 import { generateUUID } from '../../../utils/uuid'
 
@@ -28,8 +28,8 @@ const RoutineEditor = ({ routine, onSave, onCancel }) => {
   const [validationError, setValidationError] = useState('')
 
   // Hooks
-  const { mutateAsync: validatePattern, isPending: isValidating } = useValidatePattern()
-  const { data: duration = 0 } = usePatternDuration({ actions })
+  const { mutateAsync: validateRoutine, isPending: isValidating } = useValidateRoutine()
+  const duration = useRoutineDuration({ actions })
 
   // Determine mode
   const isEditMode = Boolean(routine?.routine_id)
@@ -119,7 +119,7 @@ const RoutineEditor = ({ routine, onSave, onCancel }) => {
 
     try {
       // Validate with backend
-      const validationResult = await validatePattern(routineData)
+      const validationResult = await validateRoutine(routineData)
 
       if (validationResult.valid) {
         // Call onSave with validated routine

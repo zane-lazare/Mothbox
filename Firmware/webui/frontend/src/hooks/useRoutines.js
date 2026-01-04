@@ -1,15 +1,15 @@
 /**
- * React Query hooks for Event Pattern operations (Issue #222)
+ * React Query hooks for Routine operations (Issue #222, #322)
  *
- * Provides hooks for managing event patterns:
- * - useBuiltinPatterns: List built-in event patterns
- * - useValidatePattern: Validate event pattern configuration
- * - usePatternDuration: Calculate pattern duration from actions
+ * Provides hooks for managing routines:
+ * - useBuiltinRoutines: List built-in routines
+ * - useValidateRoutine: Validate routine configuration
+ * - useRoutineDuration: Calculate routine duration from actions
  *
  * Naming Convention:
- * - Query hooks: use<Resource> (e.g., useBuiltinPatterns)
- * - Mutation hooks: use<Action><Resource> (e.g., useValidatePattern)
- * - Utility hooks: use<Utility> (e.g., usePatternDuration)
+ * - Query hooks: use<Resource> (e.g., useBuiltinRoutines)
+ * - Mutation hooks: use<Action><Resource> (e.g., useValidateRoutine)
+ * - Utility hooks: use<Utility> (e.g., useRoutineDuration)
  *
  * Query Options:
  * All query hooks accept an optional queryOptions parameter to customize React Query behavior
@@ -29,10 +29,10 @@ import {
 // =============================================================================
 
 /**
- * Query cache configuration for event pattern data.
+ * Query cache configuration for routine data.
  *
  * STALE_TIME (5 min): How long data is considered "fresh" before refetching.
- * Built-in patterns are static (loaded from disk), so 5 minutes is appropriate.
+ * Built-in routines are static (loaded from disk), so 5 minutes is appropriate.
  */
 const QUERY_CONFIG = {
   STALE_TIME: 5 * 60 * 1000, // 5 minutes
@@ -49,7 +49,7 @@ const QUERY_CONFIG = {
  */
 function handleMutationError(error, operation) {
   if (import.meta.env.DEV) {
-    console.error(`[EventPattern ${operation}]:`, error.message || error)
+    console.error(`[Routine ${operation}]:`, error.message || error)
   }
 }
 
@@ -58,11 +58,11 @@ function handleMutationError(error, operation) {
 // =============================================================================
 
 /**
- * List built-in event patterns
+ * List built-in routines
  *
- * Fetches pre-defined event patterns extracted from built-in schedules.
- * Built-in patterns are read-only templates that can be used when creating
- * new schedules or understanding common pattern structures.
+ * Fetches pre-defined routines extracted from built-in schedules.
+ * Built-in routines are read-only templates that can be used when creating
+ * new schedules or understanding common routine structures.
  *
  * @param {Object} [queryOptions] - React Query options (refetchInterval, onSuccess, etc.)
  * @returns {Object} React Query result
@@ -72,13 +72,13 @@ function handleMutationError(error, operation) {
  * @returns {Object} error - Error object if query failed
  *
  * @example
- * const { data, isLoading } = useBuiltinPatterns()
+ * const { data, isLoading } = useBuiltinRoutines()
  * if (data) {
- *   console.log(`${data.total} built-in patterns`)
+ *   console.log(`${data.total} built-in routines`)
  *   data.patterns.forEach(p => console.log(p.name))
  * }
  */
-export function useBuiltinPatterns(queryOptions = {}) {
+export function useBuiltinRoutines(queryOptions = {}) {
   return useQuery({
     queryKey: QUERY_KEYS.BUILTIN_PATTERNS,
     queryFn: async () => {
@@ -95,10 +95,10 @@ export function useBuiltinPatterns(queryOptions = {}) {
 // =============================================================================
 
 /**
- * Validate event pattern mutation
+ * Validate routine mutation
  *
- * Validates a pattern structure without saving it. Useful for providing
- * real-time validation feedback in pattern builder UIs.
+ * Validates a routine structure without saving it. Useful for providing
+ * real-time validation feedback in routine builder UIs.
  *
  * @returns {Object} React Query mutation result
  * @returns {Function} mutate - Mutation function (fire and forget)
@@ -109,7 +109,7 @@ export function useBuiltinPatterns(queryOptions = {}) {
  * @returns {Object} data - Response data on success { valid, pattern?, error? }
  *
  * @example
- * const { mutate, isPending, data } = useValidatePattern()
+ * const { mutate, isPending, data } = useValidateRoutine()
  *
  * const handleValidate = () => {
  *   mutate({
@@ -123,7 +123,7 @@ export function useBuiltinPatterns(queryOptions = {}) {
  *   }, {
  *     onSuccess: (response) => {
  *       if (response.data.valid) {
- *         console.log('Pattern is valid!')
+ *         console.log('Routine is valid!')
  *       } else {
  *         console.error('Validation error:', response.data.error)
  *       }
@@ -131,10 +131,10 @@ export function useBuiltinPatterns(queryOptions = {}) {
  *   })
  * }
  */
-export function useValidatePattern() {
+export function useValidateRoutine() {
   return useMutation({
     mutationFn: (data) => validatePattern(data),
-    onError: (error) => handleMutationError(error, 'validatePattern'),
+    onError: (error) => handleMutationError(error, 'validateRoutine'),
   })
 }
 
@@ -143,30 +143,30 @@ export function useValidatePattern() {
 // =============================================================================
 
 /**
- * Calculate the total duration of a pattern based on action offsets
+ * Calculate the total duration of a routine based on action offsets
  *
- * Returns the maximum offset_minutes value from all actions in the pattern.
- * This represents how long the pattern takes to complete from start to finish.
+ * Returns the maximum offset_minutes value from all actions in the routine.
+ * This represents how long the routine takes to complete from start to finish.
  *
  * Useful for:
- * - Displaying pattern duration in UI
- * - Checking if patterns fit within time windows
+ * - Displaying routine duration in UI
+ * - Checking if routines fit within time windows
  * - Scheduling calculations
  *
- * **Performance Note:** This hook uses useMemo with the pattern object as a
- * dependency. If the parent component creates a new pattern object on each
+ * **Performance Note:** This hook uses useMemo with the routine object as a
+ * dependency. If the parent component creates a new routine object on each
  * render (even with the same data), useMemo will recalculate because the
  * object reference changes. To prevent unnecessary recalculations, callers
- * should memoize the pattern object.
+ * should memoize the routine object.
  *
- * @param {Object|null} pattern - Event pattern object (should be memoized)
- * @param {Array} [pattern.actions] - Array of action objects with offset_minutes
+ * @param {Object|null} routine - Routine object (should be memoized)
+ * @param {Array} [routine.actions] - Array of action objects with offset_minutes
  * @returns {number} Maximum offset in minutes, or 0 if no actions.
  *   Decimal values are supported and preserved (e.g., 5.5 for 5m 30s).
  *
  * @example
- * // Good: Pattern is memoized, duration only recalculates when data changes
- * const pattern = useMemo(() => ({
+ * // Good: Routine is memoized, duration only recalculates when data changes
+ * const routine = useMemo(() => ({
  *   name: 'UV Capture Cycle',
  *   actions: [
  *     { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
@@ -174,18 +174,18 @@ export function useValidatePattern() {
  *     { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 15 }
  *   ]
  * }), [])
- * const duration = usePatternDuration(pattern) // "15"
+ * const duration = useRoutineDuration(routine) // "15"
  *
  * @example
- * // Also good: Pattern comes from React Query (already stable reference)
- * const { data } = useBuiltinPatterns()
- * const duration = usePatternDuration(data?.patterns?.[0])
+ * // Also good: Routine comes from React Query (already stable reference)
+ * const { data } = useBuiltinRoutines()
+ * const duration = useRoutineDuration(data?.patterns?.[0])
  */
-export function usePatternDuration(pattern) {
+export function useRoutineDuration(routine) {
   return useMemo(() => {
-    if (!pattern?.actions?.length) return 0
-    return Math.max(...pattern.actions.map(a => a.offset_minutes ?? 0))
-  }, [pattern])
+    if (!routine?.actions?.length) return 0
+    return Math.max(...routine.actions.map(a => a.offset_minutes ?? 0))
+  }, [routine])
 }
 
-export default useBuiltinPatterns
+export default useBuiltinRoutines

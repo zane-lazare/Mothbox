@@ -4,7 +4,7 @@
  * Comprehensive test suite following TDD approach - tests written BEFORE implementation.
  * Tests React Query hooks for Scheduler UI API integration.
  *
- * Event pattern hook tests are in useEventPatterns.test.jsx (Issue #222).
+ * Routine hook tests are in useRoutines.test.jsx (Issue #222, #322).
  *
  * Reference: useDeployments.test.jsx for testing patterns
  */
@@ -583,7 +583,7 @@ describe('useBuiltinSchedules', () => {
   });
 });
 
-// Note: useBuiltinPatterns tests are in useEventPatterns.test.jsx (Issue #222)
+// Note: useBuiltinRoutines tests are in useRoutines.test.jsx (Issue #222, #322)
 
 describe('useCreateSchedule', () => {
   beforeEach(() => {
@@ -1142,4 +1142,4 @@ describe('useValidateSchedule', () => {
   });
 });
 
-// Note: useValidatePattern tests are in useEventPatterns.test.jsx (Issue #222)
+// Note: useValidateRoutine tests are in useRoutines.test.jsx (Issue #222, #322)
