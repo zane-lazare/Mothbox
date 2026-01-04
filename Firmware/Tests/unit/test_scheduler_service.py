@@ -2648,7 +2648,7 @@ class TestBuiltinScheduleLoading:
         import time as time_module
 
         # First call to populate cache
-        first = scheduler_service.get_builtin_schedules()
+        scheduler_service.get_builtin_schedules()
 
         # Simulate time passing beyond TTL
         original_time = time_module.time
@@ -2693,19 +2693,35 @@ class TestBuiltinScheduleLoading:
             # Should be same schedule object from cache
             assert result1 is result2
 
-    def test_is_builtin_schedule_true_for_builtin(self, scheduler_service):
-        """is_builtin_schedule should return True for built-in schedule filenames.
-
-        Note: is_builtin_schedule checks by filename (e.g. 'daytime-pollinator'),
-        not by internal schedule_id (which is a UUID in the JSON).
-        """
-        # The function checks by filename, not internal schedule_id
+    def test_is_builtin_schedule_true_for_builtin_filename(self, scheduler_service):
+        """is_builtin_schedule should return True for built-in schedule filenames."""
         # Known built-in filenames from #317/#318:
         result = scheduler_service.is_builtin_schedule("daytime-pollinator")
         assert result is True
 
         result2 = scheduler_service.is_builtin_schedule("overnight-moth-survey")
         assert result2 is True
+
+    def test_is_builtin_schedule_true_for_builtin_uuid(self, scheduler_service):
+        """is_builtin_schedule should return True for built-in schedule UUIDs.
+
+        This ensures consistent API behavior between is_builtin_schedule() and
+        get_builtin_schedule(), both of which should accept internal UUIDs.
+        """
+        # Get actual built-in schedules to retrieve their internal UUIDs
+        builtin_schedules = scheduler_service.get_builtin_schedules()
+        if not builtin_schedules:
+            pytest.skip("No built-in schedules available")
+
+        # Test with internal UUID of first built-in schedule
+        internal_uuid = builtin_schedules[0].schedule_id
+        result = scheduler_service.is_builtin_schedule(internal_uuid)
+        assert result is True
+
+        # Verify the UUID is different from the filename
+        # (the whole point of this fix)
+        assert internal_uuid != "daytime-pollinator"
+        assert internal_uuid != "overnight-moth-survey"
 
     def test_is_builtin_schedule_false_for_user_schedule(
         self, scheduler_service, temp_schedules_dir, sample_schedule

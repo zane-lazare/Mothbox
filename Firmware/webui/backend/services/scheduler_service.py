@@ -305,13 +305,22 @@ class SchedulerService:
         """
         Check if a schedule ID is a built-in schedule.
 
+        Handles both filename-based lookup (e.g., 'daytime-pollinator') and
+        internal UUID lookup (e.g., '278ecfb3-1b84-4c27-aca2-34cb9fefb173'),
+        matching the behavior of get_builtin_schedule().
+
         Args:
-            schedule_id: Schedule identifier
+            schedule_id: Schedule identifier (filename or internal UUID)
 
         Returns:
             True if schedule exists in built-in directory, False otherwise
         """
-        return is_builtin_schedule(schedule_id)
+        # First check by filename (storage layer behavior)
+        if is_builtin_schedule(schedule_id):
+            return True
+
+        # Also check by internal schedule_id (UUID) for consistent API
+        return any(schedule.schedule_id == schedule_id for schedule in self.get_builtin_schedules())
 
     def invalidate_builtin_cache(self) -> None:
         """Invalidate the built-in schedules cache."""
