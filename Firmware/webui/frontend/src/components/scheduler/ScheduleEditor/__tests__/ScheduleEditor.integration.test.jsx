@@ -247,7 +247,7 @@ describe('ScheduleEditor Integration', () => {
       fireEvent.click(customTab);
 
       await waitFor(() => {
-        expect(screen.getByTestId('pattern-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('routine-editor')).toBeInTheDocument();
       });
     });
   });
