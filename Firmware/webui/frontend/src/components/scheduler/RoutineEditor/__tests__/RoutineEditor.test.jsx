@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import PatternEditor from '../PatternEditor'
-import { PATTERN_LIMITS } from '../constants'
+import RoutineEditor from '../RoutineEditor'
+import { ROUTINE_LIMITS } from '../constants'
 
 // Mock the hooks
 vi.mock('@/hooks/useEventPatterns', () => ({
@@ -57,7 +57,7 @@ const createWrapper = () => {
   )
 }
 
-describe('PatternEditor', () => {
+describe('RoutineEditor', () => {
   const mockOnSave = vi.fn()
   const mockOnCancel = vi.fn()
 
@@ -66,32 +66,32 @@ describe('PatternEditor', () => {
   })
 
   describe('Create Mode', () => {
-    it('renders with empty form when pattern prop is undefined', () => {
+    it('renders with empty form when routine prop is undefined', () => {
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      expect(screen.getByText('Create Pattern')).toBeInTheDocument()
-      expect(screen.getByLabelText(/pattern name/i)).toHaveValue('')
+      expect(screen.getByText('Create Routine')).toBeInTheDocument()
+      expect(screen.getByLabelText(/routine name/i)).toHaveValue('')
       expect(screen.getByLabelText(/description/i)).toHaveValue('')
       expect(screen.getByTestId('action-count')).toHaveTextContent('0')
     })
 
     it('shows save and cancel buttons', () => {
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      expect(screen.getByRole('button', { name: /save pattern/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /save routine/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
     })
   })
 
   describe('Edit Mode', () => {
-    const existingPattern = {
-      pattern_id: 'pattern-123',
+    const existingRoutine = {
+      routine_id: 'routine-123',
       name: 'Night Photography',
       description: 'Automated night photography sequence',
       actions: [
@@ -102,26 +102,26 @@ describe('PatternEditor', () => {
       category: 'photography'
     }
 
-    it('renders with form populated from pattern prop', () => {
+    it('renders with form populated from routine prop', () => {
       render(
-        <PatternEditor
-          pattern={existingPattern}
+        <RoutineEditor
+          routine={existingRoutine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
         { wrapper: createWrapper() }
       )
 
-      expect(screen.getByText('Edit Pattern')).toBeInTheDocument()
-      expect(screen.getByLabelText(/pattern name/i)).toHaveValue('Night Photography')
+      expect(screen.getByText('Edit Routine')).toBeInTheDocument()
+      expect(screen.getByLabelText(/routine name/i)).toHaveValue('Night Photography')
       expect(screen.getByLabelText(/description/i)).toHaveValue('Automated night photography sequence')
       expect(screen.getByTestId('action-count')).toHaveTextContent('2')
     })
 
     it('displays existing tags as chips', () => {
       render(
-        <PatternEditor
-          pattern={existingPattern}
+        <RoutineEditor
+          routine={existingRoutine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
@@ -137,20 +137,20 @@ describe('PatternEditor', () => {
     it('updates name field on user input', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      await user.type(nameInput, 'My Pattern')
+      const nameInput = screen.getByLabelText(/routine name/i)
+      await user.type(nameInput, 'My Routine')
 
-      expect(nameInput).toHaveValue('My Pattern')
+      expect(nameInput).toHaveValue('My Routine')
     })
 
     it('updates description field on user input', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -163,31 +163,31 @@ describe('PatternEditor', () => {
     it('enforces max chars on name field', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      const longName = 'a'.repeat(PATTERN_LIMITS.NAME_MAX_LENGTH + 50)
+      const nameInput = screen.getByLabelText(/routine name/i)
+      const longName = 'a'.repeat(ROUTINE_LIMITS.NAME_MAX_LENGTH + 50)
 
       await user.type(nameInput, longName)
 
-      expect(nameInput.value.length).toBeLessThanOrEqual(PATTERN_LIMITS.NAME_MAX_LENGTH)
+      expect(nameInput.value.length).toBeLessThanOrEqual(ROUTINE_LIMITS.NAME_MAX_LENGTH)
     })
 
     it('enforces max chars on description field', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
       const descInput = screen.getByLabelText(/description/i)
-      const longDesc = 'a'.repeat(PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH + 500)
+      const longDesc = 'a'.repeat(ROUTINE_LIMITS.DESCRIPTION_MAX_LENGTH + 500)
 
       await user.type(descInput, longDesc)
 
-      expect(descInput.value.length).toBeLessThanOrEqual(PATTERN_LIMITS.DESCRIPTION_MAX_LENGTH)
+      expect(descInput.value.length).toBeLessThanOrEqual(ROUTINE_LIMITS.DESCRIPTION_MAX_LENGTH)
     })
   })
 
@@ -195,34 +195,34 @@ describe('PatternEditor', () => {
     it('shows error when name is empty on save', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
-      expect(screen.getByText(/pattern name is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/routine name is required/i)).toBeInTheDocument()
       expect(mockOnSave).not.toHaveBeenCalled()
     })
 
     it('clears error when name is entered', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
       // Trigger error
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
-      expect(screen.getByText(/pattern name is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/routine name is required/i)).toBeInTheDocument()
 
       // Enter name
-      const nameInput = screen.getByLabelText(/pattern name/i)
+      const nameInput = screen.getByLabelText(/routine name/i)
       await user.type(nameInput, 'Valid Name')
 
-      expect(screen.queryByText(/pattern name is required/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/routine name is required/i)).not.toBeInTheDocument()
     })
   })
 
@@ -230,7 +230,7 @@ describe('PatternEditor', () => {
     it('adds new tag when user types and presses Enter', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -244,7 +244,7 @@ describe('PatternEditor', () => {
     it('prevents duplicate tags', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -258,15 +258,15 @@ describe('PatternEditor', () => {
 
     it('removes tag when remove button clicked', async () => {
       const user = userEvent.setup()
-      const pattern = {
+      const routine = {
         name: 'Test',
         actions: [],
         tags: ['removeme']
       }
 
       render(
-        <PatternEditor
-          pattern={pattern}
+        <RoutineEditor
+          routine={routine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
@@ -284,7 +284,7 @@ describe('PatternEditor', () => {
     it('trims whitespace from tags', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -299,7 +299,7 @@ describe('PatternEditor', () => {
     it('updates actions when ActionList changes', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -312,7 +312,7 @@ describe('PatternEditor', () => {
     })
 
     it('passes actions to ActionList component', () => {
-      const pattern = {
+      const routine = {
         name: 'Test',
         actions: [
           { action_id: 'a1', action_type: 'capture_photo', offset_minutes: 0 }
@@ -320,8 +320,8 @@ describe('PatternEditor', () => {
       }
 
       render(
-        <PatternEditor
-          pattern={pattern}
+        <RoutineEditor
+          routine={routine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
@@ -334,7 +334,7 @@ describe('PatternEditor', () => {
 
   describe('OffsetTimeline Integration', () => {
     it('passes current actions to OffsetTimeline', () => {
-      const pattern = {
+      const routine = {
         name: 'Test',
         actions: [
           { action_id: 'a1', action_type: 'capture_photo', offset_minutes: 0 },
@@ -343,8 +343,8 @@ describe('PatternEditor', () => {
       }
 
       render(
-        <PatternEditor
-          pattern={pattern}
+        <RoutineEditor
+          routine={routine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
@@ -357,7 +357,7 @@ describe('PatternEditor', () => {
     it('updates timeline when actions change', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -373,7 +373,7 @@ describe('PatternEditor', () => {
   describe('Duration Display', () => {
     it('displays duration from usePatternDuration hook', () => {
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -392,14 +392,14 @@ describe('PatternEditor', () => {
 
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      await user.type(nameInput, 'Test Pattern')
+      const nameInput = screen.getByLabelText(/routine name/i)
+      await user.type(nameInput, 'Test Routine')
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
       await waitFor(() => {
@@ -407,7 +407,7 @@ describe('PatternEditor', () => {
       })
     })
 
-    it('calls onSave with pattern data on successful validation', async () => {
+    it('calls onSave with routine data on successful validation', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
       vi.mocked(await import('@/hooks/useEventPatterns')).useValidatePattern = () => ({
         mutateAsync: mockMutateAsync,
@@ -417,23 +417,23 @@ describe('PatternEditor', () => {
 
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      await user.type(nameInput, 'Test Pattern')
+      const nameInput = screen.getByLabelText(/routine name/i)
+      await user.type(nameInput, 'Test Routine')
 
       const descInput = screen.getByLabelText(/description/i)
       await user.type(descInput, 'Test description')
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
-            name: 'Test Pattern',
+            name: 'Test Routine',
             description: 'Test description',
             actions: [],
             tags: []
@@ -442,7 +442,7 @@ describe('PatternEditor', () => {
       })
     })
 
-    it('generates pattern_id for new patterns', async () => {
+    it('generates routine_id for new routines', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
       vi.mocked(await import('@/hooks/useEventPatterns')).useValidatePattern = () => ({
         mutateAsync: mockMutateAsync,
@@ -456,20 +456,20 @@ describe('PatternEditor', () => {
 
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      await user.type(nameInput, 'Test Pattern')
+      const nameInput = screen.getByLabelText(/routine name/i)
+      await user.type(nameInput, 'Test Routine')
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
-            pattern_id: mockUUID
+            routine_id: mockUUID
           })
         )
       })
@@ -477,7 +477,7 @@ describe('PatternEditor', () => {
       randomUUIDSpy.mockRestore()
     })
 
-    it('preserves pattern_id for existing patterns', async () => {
+    it('preserves routine_id for existing routines', async () => {
       const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
       vi.mocked(await import('@/hooks/useEventPatterns')).useValidatePattern = () => ({
         mutateAsync: mockMutateAsync,
@@ -485,29 +485,29 @@ describe('PatternEditor', () => {
         error: null
       })
 
-      const existingPattern = {
-        pattern_id: 'existing-123',
+      const existingRoutine = {
+        routine_id: 'existing-123',
         name: 'Existing',
         actions: []
       }
 
       const user = userEvent.setup()
       render(
-        <PatternEditor
-          pattern={existingPattern}
+        <RoutineEditor
+          routine={existingRoutine}
           onSave={mockOnSave}
           onCancel={mockOnCancel}
         />,
         { wrapper: createWrapper() }
       )
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
-            pattern_id: 'existing-123'
+            routine_id: 'existing-123'
           })
         )
       })
@@ -526,14 +526,14 @@ describe('PatternEditor', () => {
 
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
-      const nameInput = screen.getByLabelText(/pattern name/i)
-      await user.type(nameInput, 'Test Pattern')
+      const nameInput = screen.getByLabelText(/routine name/i)
+      await user.type(nameInput, 'Test Routine')
 
-      const saveButton = screen.getByRole('button', { name: /save pattern/i })
+      const saveButton = screen.getByRole('button', { name: /save routine/i })
       await user.click(saveButton)
 
       await waitFor(() => {
@@ -551,7 +551,7 @@ describe('PatternEditor', () => {
       })
 
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -564,7 +564,7 @@ describe('PatternEditor', () => {
     it('calls onCancel when cancel button clicked', async () => {
       const user = userEvent.setup()
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -578,19 +578,19 @@ describe('PatternEditor', () => {
   describe('Dark Mode Styling', () => {
     it('applies dark mode classes to container', () => {
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
       // Check for dark mode classes on inputs
-      const nameInput = screen.getByLabelText(/pattern name/i)
+      const nameInput = screen.getByLabelText(/routine name/i)
       expect(nameInput.className).toContain('dark:bg-gray-800')
       expect(nameInput.className).toContain('dark:text-white')
     })
 
     it('applies dark mode classes to buttons', () => {
       render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 
@@ -601,7 +601,7 @@ describe('PatternEditor', () => {
 
     it('applies dark mode classes to labels', () => {
       const { container } = render(
-        <PatternEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
+        <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
       )
 

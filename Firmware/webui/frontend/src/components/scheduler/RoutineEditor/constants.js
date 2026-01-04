@@ -1,8 +1,8 @@
 /**
- * Constants for PatternEditor components
+ * Constants for RoutineEditor components
  */
 
-export const PATTERN_LIMITS = {
+export const ROUTINE_LIMITS = {
   NAME_MAX_LENGTH: 200,
   DESCRIPTION_MAX_LENGTH: 2000,
 }

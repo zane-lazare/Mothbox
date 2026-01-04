@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { PatternList } from '../PatternLibrary';
-import { PatternEditor } from '../PatternEditor';
+import { RoutineEditor } from '../RoutineEditor';
 import { PatternSelectionPropType } from './propTypes';
 
 /**
@@ -206,8 +206,8 @@ const EventPatternSelector = ({
             onPatternSelect={handleLibrarySelect}
           />
         ) : (
-          <PatternEditor
-            pattern={pattern}
+          <RoutineEditor
+            routine={pattern}
             onSave={handleCustomSave}
             onCancel={handleCustomCancel}
           />

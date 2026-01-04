@@ -1,10 +1,10 @@
-# PatternEditor Components
+# RoutineEditor Components
 
-Components for creating and editing scheduler patterns in the Mothbox Pattern Editor.
+Components for creating and editing scheduler routines in the Mothbox Routine Editor.
 
 ## ActionForm
 
-Modal form component for creating or editing individual actions in a pattern.
+Modal form component for creating or editing individual actions in a routine.
 
 ### Features
 
@@ -27,7 +27,7 @@ Modal form component for creating or editing individual actions in a pattern.
     description?: string,           // Optional, max 500 chars
     parameters?: Record<string, string>  // Optional key-value pairs
   },
-  onSave: (action: PatternAction) => void,  // Called with validated action data
+  onSave: (action: Action) => void,  // Called with validated action data
   onCancel: () => void,             // Called when user cancels
   isOpen: boolean                   // Controls modal visibility
 }
@@ -47,7 +47,7 @@ const ACTION_NAMES = {
 ### Usage Example
 
 ```jsx
-import ActionForm from './PatternEditor/ActionForm';
+import ActionForm from './RoutineEditor/ActionForm';
 
 function MyComponent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
