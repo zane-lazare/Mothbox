@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Final
 
+import pytz
 from croniter import croniter
 from crontab import CronTab
 
@@ -534,7 +535,7 @@ def calculate_execution_times(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
     from_date: date | None = None,
 ) -> list[datetime]:
     """Calculate all execution times for a trigger over a given period.
@@ -629,7 +630,7 @@ def routine_to_dated_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -1325,7 +1326,7 @@ def schedule_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 5,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
 ) -> CronBridgeResult:
     """Convert Schedule to date-specific cron entries.
 
@@ -1341,7 +1342,7 @@ def schedule_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate (default 5)
+        years_ahead: Number of years to pre-calculate (default 1)
 
     Returns:
         CronBridgeResult with entries, rtc_waketime, and any errors
@@ -1420,8 +1421,12 @@ def preview_schedule(
     if not schedule.enabled:
         return []
 
+    tz = pytz.timezone(timezone_name)
     if from_time is None:
-        from_time = datetime.now()
+        from_time = datetime.now(tz)
+    elif from_time.tzinfo is None:
+        # Localize naive datetime to specified timezone
+        from_time = tz.localize(from_time)
 
     all_events = []
 
@@ -1454,19 +1459,19 @@ def _get_events_for_routine(
     trigger = routine.trigger
 
     if isinstance(trigger, FixedTimeTrigger):
-        return _get_events_fixed_time_routine(routine, max_events, from_time)
+        return _get_events_fixed_time_routine(routine, max_events, from_time, timezone_name)
     elif isinstance(trigger, IntervalTrigger):
-        return _get_events_interval_routine(routine, max_events, from_time)
+        return _get_events_interval_routine(routine, max_events, from_time, timezone_name)
     elif isinstance(trigger, SolarTrigger):
         return _get_events_solar_routine(
             routine, max_events, from_time, latitude, longitude, timezone_name
         )
     elif isinstance(trigger, MoonPhaseTrigger):
-        return _get_events_moon_phase_routine(routine, max_events, from_time)
+        return _get_events_moon_phase_routine(routine, max_events, from_time, timezone_name)
     elif isinstance(trigger, CronTrigger):
-        return _get_events_cron_routine(routine, max_events, from_time)
+        return _get_events_cron_routine(routine, max_events, from_time, timezone_name)
     elif isinstance(trigger, RecurringDaysTrigger):
-        return _get_events_recurring_days_routine(routine, max_events, from_time)
+        return _get_events_recurring_days_routine(routine, max_events, from_time, timezone_name)
     elif isinstance(trigger, SensorTrigger):
         # Sensor triggers cannot generate preview events
         return []
@@ -1478,11 +1483,13 @@ def _get_events_fixed_time_routine(
     routine: Routine,
     max_events: int,
     from_time: datetime,
+    timezone_name: str = "UTC",
 ) -> list[dict]:
     """Generate events for fixed time trigger."""
     events = []
     trigger = routine.trigger
     hour, minute = map(int, trigger.time.split(":"))
+    tz = pytz.timezone(timezone_name)
 
     current_date = from_time.date()
     days_checked = 0
@@ -1495,10 +1502,11 @@ def _get_events_fixed_time_routine(
             days_checked += 1
             continue
 
-        # Generate events for this day
-        trigger_time = datetime.combine(
+        # Generate events for this day (timezone-aware)
+        naive_trigger_time = datetime.combine(
             current_date, datetime.min.time().replace(hour=hour, minute=minute)
         )
+        trigger_time = tz.localize(naive_trigger_time)
 
         if trigger_time > from_time:
             for action in routine.actions:
@@ -1523,10 +1531,12 @@ def _get_events_interval_routine(
     routine: Routine,
     max_events: int,
     from_time: datetime,
+    timezone_name: str = "UTC",
 ) -> list[dict]:
     """Generate events for interval trigger."""
     events = []
     trigger = routine.trigger
+    tz = pytz.timezone(timezone_name)
 
     # Parse time window
     start_hour, start_min = map(int, trigger.time_window.start_time.split(":"))
@@ -1549,9 +1559,10 @@ def _get_events_interval_routine(
         )
 
         for exec_hour, exec_min in exec_times:
-            trigger_time = datetime.combine(
+            naive_trigger_time = datetime.combine(
                 current_date, datetime.min.time().replace(hour=exec_hour, minute=exec_min)
             )
+            trigger_time = tz.localize(naive_trigger_time)
 
             if trigger_time > from_time:
                 for action in routine.actions:
@@ -1626,10 +1637,12 @@ def _get_events_moon_phase_routine(
     routine: Routine,
     max_events: int,
     from_time: datetime,
+    timezone_name: str = "UTC",
 ) -> list[dict]:
     """Generate events for moon phase trigger."""
     events = []
     trigger = routine.trigger
+    tz = pytz.timezone(timezone_name)
 
     # Get execution time from time window
     if trigger.time_window:
@@ -1644,9 +1657,10 @@ def _get_events_moon_phase_routine(
     while len(events) < max_events and days_checked < max_days:
         # Check moon phase
         if is_moon_phase_active(trigger, current_date):
-            trigger_time = datetime.combine(
+            naive_trigger_time = datetime.combine(
                 current_date, datetime.min.time().replace(hour=hour, minute=minute)
             )
+            trigger_time = tz.localize(naive_trigger_time)
 
             if trigger_time > from_time:
                 for action in routine.actions:
@@ -1671,11 +1685,19 @@ def _get_events_cron_routine(
     routine: Routine,
     max_events: int,
     from_time: datetime,
+    timezone_name: str = "UTC",  # noqa: ARG001 - kept for API consistency
 ) -> list[dict]:
-    """Generate events for cron trigger."""
+    """Generate events for cron trigger.
+
+    Note: timezone_name is accepted for API consistency with other _get_events_*
+    functions, but croniter inherits timezone awareness directly from the from_time
+    parameter. If from_time is timezone-aware, generated events will preserve that
+    timezone.
+    """
     events = []
     trigger = routine.trigger
 
+    # croniter inherits timezone awareness from from_time
     try:
         cron_iter = croniter(trigger.cron_expression, from_time)
         events_added = 0
@@ -1705,6 +1727,7 @@ def _get_events_recurring_days_routine(
     routine: Routine,
     max_events: int,
     from_time: datetime,
+    timezone_name: str = "UTC",
 ) -> list[dict]:
     """Generate events for recurring days trigger.
 
@@ -1713,6 +1736,7 @@ def _get_events_recurring_days_routine(
     """
     events = []
     trigger = routine.trigger
+    tz = pytz.timezone(timezone_name)
 
     if not trigger.time or trigger.every_n_days < 1:
         return events
@@ -1733,9 +1757,10 @@ def _get_events_recurring_days_routine(
         # Check if current day matches the N-day pattern from start
         days_since_start = (current_date - pattern_start).days
         if days_since_start >= 0 and days_since_start % trigger.every_n_days == 0:
-            trigger_time = datetime.combine(
+            naive_trigger_time = datetime.combine(
                 current_date, datetime.min.time().replace(hour=hour, minute=minute)
             )
+            trigger_time = tz.localize(naive_trigger_time)
 
             if trigger_time > from_time:
                 for action in routine.actions:
