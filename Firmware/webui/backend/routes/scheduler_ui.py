@@ -17,6 +17,7 @@ Issue #310 - API terminology update (Schema 3.0)
 import logging
 from datetime import datetime
 from functools import wraps
+from uuid import uuid4
 
 from flask import Blueprint, Response, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
@@ -35,6 +36,8 @@ from webui.backend.lib.schedule_preview import (
     validate_timezone,
 )
 from webui.backend.lib.schedule_schema import (
+    MAX_PATTERN_NAME_LENGTH,
+    Routine,
     Schedule,
     ScheduleActivationError,
     ScheduleConflictError,
@@ -646,6 +649,145 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error deleting schedule: {e}", exc_info=True)
+        return jsonify(
+            {
+                "error": "Internal server error",
+            }
+        ), 500
+
+
+@scheduler_ui_bp.route("/schedules/<schedule_id>/clone", methods=["POST"])
+@limiter.limit("30 per minute")
+def clone_schedule(schedule_id: str) -> tuple[Response, int]:
+    """
+    Clone a schedule to a new user-owned schedule.
+
+    POST /api/scheduler/ui/schedules/{id}/clone
+
+    Works for both built-in and user schedules. Creates a deep copy with:
+    - New schedule_id (UUID)
+    - New routine_id for each routine (UUID)
+    - Name with " (Copy)" suffix or custom name from request body
+    - is_active = False
+    - Fresh timestamps
+
+    Request Body (optional):
+        {
+            "name": "Custom name for the copy"
+        }
+
+    Returns:
+        201 Created: {
+            "message": "Schedule cloned",
+            "schedule_id": "new-uuid",
+            "schedule": {...}
+        }
+        400 Bad Request: Invalid name
+        404 Not Found: Schedule not found
+        500 Internal Server Error: Clone failed
+
+    Issue #320 - Built-in Schedule Immutability Enforcement
+    """
+    try:
+        service = get_scheduler_service()
+
+        # Get original schedule
+        original = service.get_schedule(schedule_id)
+        if original is None:
+            return jsonify(
+                {
+                    "error": "Schedule not found",
+                }
+            ), 404
+
+        # Parse optional request body for custom name
+        data = request.get_json(silent=True) or {}
+        custom_name = data.get("name")
+
+        # Validate custom name if provided
+        if custom_name is not None:
+            if not isinstance(custom_name, str):
+                return jsonify(
+                    {
+                        "error": "Name must be a string",
+                    }
+                ), 400
+            if not custom_name.strip():
+                return jsonify(
+                    {
+                        "error": "Name cannot be empty",
+                    }
+                ), 400
+            if len(custom_name) > MAX_PATTERN_NAME_LENGTH:
+                return jsonify(
+                    {
+                        "error": f"Name exceeds {MAX_PATTERN_NAME_LENGTH} characters",
+                    }
+                ), 400
+            new_name = custom_name.strip()
+        else:
+            new_name = f"{original.name} (Copy)"
+            # Truncate if default name exceeds max length
+            if len(new_name) > MAX_PATTERN_NAME_LENGTH:
+                suffix = " (Copy)"
+                max_original_len = MAX_PATTERN_NAME_LENGTH - len(suffix)
+                new_name = f"{original.name[:max_original_len]}{suffix}"
+
+        # Deep copy routines with new IDs
+        cloned_routines = []
+        for routine in original.routines:
+            routine_dict = routine.to_dict()
+            # Remove computed fields that get regenerated
+            routine_dict.pop("display_name", None)
+            routine_dict.pop("duration_minutes", None)
+            # Set empty routine_id to trigger UUID generation in __post_init__
+            routine_dict["routine_id"] = ""
+            cloned_routines.append(Routine.from_dict(routine_dict))
+
+        # Create new schedule with fresh IDs and timestamps
+        now = datetime.now().isoformat()
+        new_schedule = Schedule(
+            schedule_id=str(uuid4()),
+            name=new_name,
+            description=original.description,
+            routines=cloned_routines,
+            deployment_id=None,  # Clear deployment link
+            create_deployment=original.create_deployment,
+            enabled=original.enabled,
+            is_active=False,  # Clone is never active
+            created_at=now,
+            modified_at=now,
+            modified_by=None,
+        )
+
+        # Create via service
+        try:
+            success = service.create_schedule(new_schedule)
+        except ScheduleValidationError as e:
+            logger.warning(f"Cloned schedule validation failed: {e}")
+            return jsonify(
+                {
+                    "error": "Validation failed",
+                }
+            ), 400
+
+        if not success:
+            return jsonify(
+                {
+                    "error": "Failed to create cloned schedule",
+                }
+            ), 500
+
+        return jsonify(
+            {
+                "message": "Schedule cloned",
+                "schedule_id": new_schedule.schedule_id,
+                "schedule": new_schedule.to_dict(),
+            }
+        ), 201
+
+    except Exception as e:
+        logger.error(f"Error cloning schedule: {e}", exc_info=True)
         return jsonify(
             {
                 "error": "Internal server error",
