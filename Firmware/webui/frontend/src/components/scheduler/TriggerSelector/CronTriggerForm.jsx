@@ -77,6 +77,17 @@ function CronTriggerForm({ trigger, onChange, disabled = false }) {
         <div className="text-xs text-gray-600" data-testid="cron-description">
           {describeCron(cronExpression)}
         </div>
+
+        {/* Help Link */}
+        <a
+          href="https://crontab.guru/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-400 hover:text-blue-300"
+          data-testid="cron-help-link"
+        >
+          Cron syntax reference ↗
+        </a>
       </div>
     </div>
   )

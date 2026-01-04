@@ -74,10 +74,6 @@ function MoonPhaseTriggerForm({ trigger, onChange, disabled = false }) {
           })}
         </div>
 
-        {/* Preview */}
-        <div className="text-xs text-gray-600" data-testid="moon-phase-preview">
-          Next full moon: Jan 6
-        </div>
       </div>
     </div>
   )

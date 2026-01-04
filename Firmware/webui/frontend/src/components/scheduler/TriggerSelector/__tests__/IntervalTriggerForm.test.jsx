@@ -83,10 +83,10 @@ describe('IntervalTriggerForm', () => {
 
       await user.selectOptions(screen.getByTestId('interval-unit'), 'hours')
 
-      // 15 minutes * 60 = 900 minutes (15 hours)
+      // 15 minutes rounds up to 1 hour = 60 minutes
       expect(mockOnChange).toHaveBeenLastCalledWith({
         ...defaultTrigger,
-        interval_minutes: 900,
+        interval_minutes: 60,
       })
     })
   })

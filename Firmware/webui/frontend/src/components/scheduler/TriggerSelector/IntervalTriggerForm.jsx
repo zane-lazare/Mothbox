@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import PropTypes from 'prop-types'
 import { INTERVAL_UNITS } from './constants'
 
@@ -13,13 +12,10 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
   const intervalMinutes = trigger?.interval_minutes || 15
   const timeWindow = trigger?.time_window || null
 
-  // Determine display unit and value
-  const [displayUnit, setDisplayUnit] = useState(() => {
-    if (intervalMinutes >= 60 && intervalMinutes % 60 === 0) {
-      return 'hours'
-    }
-    return 'minutes'
-  })
+  // Derive display unit from interval_minutes (syncs with parent updates)
+  const displayUnit = (intervalMinutes >= 60 && intervalMinutes % 60 === 0)
+    ? 'hours'
+    : 'minutes'
 
   const displayValue = displayUnit === 'hours'
     ? intervalMinutes / 60
@@ -29,7 +25,7 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
    * Handle value change
    */
   const handleValueChange = (e) => {
-    const value = parseInt(e.target.value, 10) || 0
+    const value = Math.max(1, parseInt(e.target.value, 10) || 1)
     const multiplier = INTERVAL_UNITS.find(u => u.value === displayUnit)?.multiplier || 1
     const newIntervalMinutes = value * multiplier
     onChange({
@@ -39,18 +35,27 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
   }
 
   /**
-   * Handle unit change
+   * Handle unit change - just updates the display, keeps interval_minutes unchanged
+   * The displayUnit is derived from intervalMinutes, so changing units will
+   * adjust when the value is next modified
    */
   const handleUnitChange = (e) => {
     const newUnit = e.target.value
-    setDisplayUnit(newUnit)
-    // Recalculate interval_minutes based on current display value and new unit
-    const currentDisplayValue = displayValue
-    const multiplier = INTERVAL_UNITS.find(u => u.value === newUnit)?.multiplier || 1
-    onChange({
-      ...trigger,
-      interval_minutes: currentDisplayValue * multiplier,
-    })
+    // When switching to hours, round up to nearest hour (minimum 1 hour = 60 min)
+    // When switching to minutes, keep same interval
+    if (newUnit === 'hours') {
+      const hours = Math.max(1, Math.ceil(intervalMinutes / 60))
+      onChange({
+        ...trigger,
+        interval_minutes: hours * 60,
+      })
+    } else {
+      // Switching to minutes - keep same interval but ensure minimum of 1
+      onChange({
+        ...trigger,
+        interval_minutes: Math.max(1, intervalMinutes),
+      })
+    }
   }
 
   /**

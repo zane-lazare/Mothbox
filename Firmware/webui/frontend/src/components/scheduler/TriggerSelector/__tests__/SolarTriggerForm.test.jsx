@@ -37,11 +37,6 @@ describe('SolarTriggerForm', () => {
       })
     })
 
-    it('shows preview text', () => {
-      render(<SolarTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
-
-      expect(screen.getByTestId('solar-preview')).toBeInTheDocument()
-    })
   })
 
   describe('Event Changes', () => {
@@ -136,12 +131,6 @@ describe('SolarTriggerForm', () => {
       render(<SolarTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
 
       expect(screen.getByTestId('solar-offset')).toBeInTheDocument()
-    })
-
-    it('has solar-preview on preview text', () => {
-      render(<SolarTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
-
-      expect(screen.getByTestId('solar-preview')).toBeInTheDocument()
     })
   })
 })

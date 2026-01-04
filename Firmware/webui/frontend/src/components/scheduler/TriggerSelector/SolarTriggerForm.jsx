@@ -74,10 +74,6 @@ function SolarTriggerForm({ trigger, onChange, disabled = false }) {
           <span className="text-gray-500">minutes</span>
         </div>
 
-        {/* Preview */}
-        <div className="text-xs text-gray-600" data-testid="solar-preview">
-          Today: ~17:23
-        </div>
       </div>
     </div>
   )

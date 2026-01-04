@@ -43,11 +43,6 @@ describe('MoonPhaseTriggerForm', () => {
       expect(screen.getByText('🌗')).toBeInTheDocument()
     })
 
-    it('shows preview text', () => {
-      render(<MoonPhaseTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
-
-      expect(screen.getByTestId('moon-phase-preview')).toBeInTheDocument()
-    })
   })
 
   describe('Phase Selection', () => {

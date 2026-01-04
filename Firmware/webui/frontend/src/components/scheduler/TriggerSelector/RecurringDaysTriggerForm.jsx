@@ -56,18 +56,21 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false }) {
         <div className="flex gap-1" data-testid="recurring-days-grid">
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = selectedDays.includes(day.value)
+            const isLastSelected = isSelected && selectedDays.length === 1
             return (
               <button
                 key={day.value}
                 type="button"
                 onClick={() => handleDayToggle(day.value)}
                 disabled={disabled}
+                title={isLastSelected ? 'At least one day required' : undefined}
                 className={`
                   w-8 h-8 text-xs border rounded
                   ${isSelected
                     ? 'border-gray-700 bg-gray-800 text-white'
                     : 'border-gray-800 text-gray-500 hover:border-gray-600'
                   }
+                  ${isLastSelected ? 'cursor-not-allowed' : ''}
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}
                 aria-pressed={isSelected}
