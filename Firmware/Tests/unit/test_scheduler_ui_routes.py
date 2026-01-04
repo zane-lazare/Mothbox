@@ -982,6 +982,32 @@ class TestCloneScheduleEndpoint:
         # New schedule_id should differ from original
         assert data["schedule_id"] != "original-id"
 
+    def test_clone_schedule_generates_new_routine_ids(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that clone generates new routine IDs."""
+        routine_mock = MagicMock()
+        routine_mock.to_dict.return_value = {
+            "routine_id": "original-routine-id",
+            "name": "Test Routine",
+            "trigger": {"trigger_type": "fixed_time", "time": "21:00", "days_of_week": [0]},
+            "actions": [],
+            "pre_condition": None,
+            "description": "",
+        }
+        clone_schedule_mock.routines = [routine_mock]
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/test-schedule/clone")
+
+        assert response.status_code == 201
+        # Verify create_schedule was called with new routine IDs
+        call_args = mock_scheduler_service.create_schedule.call_args
+        new_schedule = call_args[0][0]
+        assert len(new_schedule.routines) == 1
+        assert new_schedule.routines[0].routine_id != "original-routine-id"
+
     def test_clone_schedule_is_not_active(
         self, client, mock_scheduler_service, clone_schedule_mock
     ):

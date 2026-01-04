@@ -718,13 +718,13 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
                         "error": "Name cannot be empty",
                     }
                 ), 400
-            if len(custom_name) > MAX_PATTERN_NAME_LENGTH:
+            new_name = custom_name.strip()
+            if len(new_name) > MAX_PATTERN_NAME_LENGTH:
                 return jsonify(
                     {
                         "error": f"Name exceeds {MAX_PATTERN_NAME_LENGTH} characters",
                     }
                 ), 400
-            new_name = custom_name.strip()
         else:
             new_name = f"{original.name} (Copy)"
             # Truncate if default name exceeds max length
@@ -757,7 +757,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
             is_active=False,  # Clone is never active
             created_at=now,
             modified_at=now,
-            modified_by=None,
+            modified_by=None,  # Reset - clone has no modifier yet
         )
 
         # Create via service
