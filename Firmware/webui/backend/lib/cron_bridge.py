@@ -535,7 +535,7 @@ def calculate_execution_times(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
     from_date: date | None = None,
 ) -> list[datetime]:
     """Calculate all execution times for a trigger over a given period.
@@ -630,7 +630,7 @@ def routine_to_dated_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -1326,7 +1326,7 @@ def schedule_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,
+    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
 ) -> CronBridgeResult:
     """Convert Schedule to date-specific cron entries.
 

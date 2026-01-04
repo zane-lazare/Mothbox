@@ -1,6 +1,6 @@
 """Unit tests for cron_bridge module - Subtask 1: Data structures."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -1939,12 +1939,7 @@ class TestPreviewScheduleExtended:
     """Extended preview_schedule tests for uncovered trigger types."""
 
     def test_preview_solar_trigger_with_coordinates(self):
-        """Preview solar trigger with valid coordinates.
-
-        Note: This test may return empty if there's a timezone-aware/naive
-        datetime comparison issue in the implementation. We test the function
-        doesn't crash and returns a valid list.
-        """
+        """Preview solar trigger with valid coordinates."""
         schedule = Schedule(
             schedule_id="",
             name="Solar Test",
@@ -1959,24 +1954,19 @@ class TestPreviewScheduleExtended:
         )
 
         # Preview with coordinates (Panama City approximate)
-        # Use try/except to handle potential timezone comparison issues
-        try:
-            events = preview_schedule(
-                schedule,
-                count=5,
-                latitude=9.0,
-                longitude=-79.5,
-                timezone_name="America/Panama",
-            )
-            # Should return events list
-            assert isinstance(events, list)
-            if len(events) > 0:
-                assert "datetime" in events[0]
-                assert "action_name" in events[0]
-        except TypeError:
-            # Known issue: timezone-aware/naive datetime comparison
-            # This exercises the code path even if comparison fails
-            pytest.skip("Timezone comparison issue in solar trigger preview")
+        events = preview_schedule(
+            schedule,
+            count=5,
+            latitude=9.0,
+            longitude=-79.5,
+            timezone_name="America/Panama",
+        )
+
+        # Should return events list with solar events
+        assert isinstance(events, list)
+        assert len(events) > 0  # Solar events should be found
+        assert "datetime" in events[0]
+        assert "action_name" in events[0]
 
     def test_preview_solar_trigger_without_coordinates(self):
         """Preview solar trigger without coordinates returns empty."""
@@ -2001,6 +1991,8 @@ class TestPreviewScheduleExtended:
 
     def test_preview_moon_phase_trigger(self):
         """Preview moon phase trigger generates events."""
+        from webui.backend.lib.moon_phase import next_moon_phase
+
         schedule = Schedule(
             schedule_id="",
             name="Moon Test",
@@ -2017,15 +2009,17 @@ class TestPreviewScheduleExtended:
             ],
         )
 
-        events = preview_schedule(schedule, count=10)
+        # Find next full moon dynamically for deterministic results
+        next_full = next_moon_phase("full", date.today())
+        # Start preview 3 days before the full moon to ensure we find it
+        from_time = datetime(next_full.year, next_full.month, next_full.day, 0, 0, 0) - timedelta(days=3)
+        events = preview_schedule(schedule, count=10, from_time=from_time)
 
-        # Should return events (moon phases occur regularly)
+        # Should return events (we're starting near a known full moon)
         assert isinstance(events, list)
-        # Full and new moon occur roughly every 14 days, so within 60 days we should find some
-        # Note: may be empty if no moon phase matches in the preview window
-        if len(events) > 0:
-            assert "datetime" in events[0]
-            assert events[0]["action_name"] == "takephoto"
+        assert len(events) > 0  # Should find moon phase events
+        assert "datetime" in events[0]
+        assert events[0]["action_name"] == "takephoto"
 
     def test_preview_moon_phase_trigger_no_time_window(self):
         """Preview moon phase trigger without time window uses midnight."""
@@ -2109,6 +2103,9 @@ class TestPreviewScheduleExtended:
 
     def test_preview_recurring_days_with_start_date(self):
         """Preview recurring days trigger with custom start date."""
+        # Use a future start date that won't become stale
+        future_start = (date.today() + timedelta(days=7)).isoformat()
+
         schedule = Schedule(
             schedule_id="",
             name="Recurring Test",
@@ -2117,7 +2114,7 @@ class TestPreviewScheduleExtended:
                 Routine(
                     routine_id="",
                     trigger=RecurringDaysTrigger(
-                        every_n_days=7, time="06:00", start_date="2026-01-01"
+                        every_n_days=7, time="06:00", start_date=future_start
                     ),
                     actions=[Action(action_type="gps_sync", action_name="sync")],
                 )
@@ -2127,9 +2124,8 @@ class TestPreviewScheduleExtended:
         events = preview_schedule(schedule, count=3)
 
         assert isinstance(events, list)
-        # Weekly from Jan 1, should have events
-        if len(events) > 0:
-            assert events[0]["action_name"] == "sync"
+        assert len(events) > 0  # Should have weekly events
+        assert events[0]["action_name"] == "sync"
 
     def test_preview_recurring_days_invalid_interval(self):
         """Preview recurring days with invalid interval returns empty."""
