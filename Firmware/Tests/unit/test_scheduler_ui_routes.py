@@ -880,6 +880,184 @@ class TestDeleteScheduleEndpoint:
 
 
 # ============================================================================
+# Clone Schedule Endpoint Tests (Issue #320)
+# ============================================================================
+
+
+class TestCloneScheduleEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules/{id}/clone."""
+
+    @pytest.fixture
+    def clone_schedule_mock(self):
+        """Create a mock schedule with all properties needed for cloning."""
+        schedule = MagicMock()
+        schedule.schedule_id = "original-schedule-id"
+        schedule.name = "Original Schedule"
+        schedule.description = "Original description"
+        schedule.enabled = True
+        schedule.is_active = False
+        schedule.create_deployment = False
+        schedule.deployment_id = None
+        schedule.routines = []
+        return schedule
+
+    def test_clone_schedule_success(self, client, mock_scheduler_service, clone_schedule_mock):
+        """Test successful schedule cloning with default name."""
+        # Add a routine with proper to_dict
+        routine_mock = MagicMock()
+        routine_mock.to_dict.return_value = {
+            "routine_id": "original-routine",
+            "name": "Test Routine",
+            "trigger": {"trigger_type": "fixed_time", "time": "21:00", "days_of_week": [0]},
+            "actions": [],
+            "pre_condition": None,
+            "description": "",
+        }
+        clone_schedule_mock.routines = [routine_mock]
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/test-schedule/clone")
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["message"] == "Schedule cloned"
+        assert "schedule_id" in data
+        assert "schedule" in data
+        assert data["schedule"]["name"] == "Original Schedule (Copy)"
+        mock_scheduler_service.create_schedule.assert_called_once()
+
+    def test_clone_schedule_with_custom_name(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test cloning with custom name."""
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post(
+            "/api/scheduler/ui/schedules/test-schedule/clone",
+            json={"name": "My Custom Clone"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["schedule"]["name"] == "My Custom Clone"
+
+    def test_clone_schedule_not_found(self, client, mock_scheduler_service):
+        """Test cloning non-existent schedule."""
+        mock_scheduler_service.get_schedule.return_value = None
+
+        response = client.post("/api/scheduler/ui/schedules/nonexistent/clone")
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["error"].lower()
+
+    def test_clone_builtin_schedule_success(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test cloning a built-in schedule creates user-owned copy."""
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/builtin-nightly/clone")
+
+        assert response.status_code == 201
+        # Verify create_schedule was called (creates new user schedule)
+        mock_scheduler_service.create_schedule.assert_called_once()
+
+    def test_clone_schedule_generates_new_ids(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that clone generates new schedule ID."""
+        clone_schedule_mock.schedule_id = "original-id"
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/original-id/clone")
+
+        assert response.status_code == 201
+        data = response.get_json()
+        # New schedule_id should differ from original
+        assert data["schedule_id"] != "original-id"
+
+    def test_clone_schedule_is_not_active(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that cloned schedule is not active."""
+        clone_schedule_mock.is_active = True  # Original is active
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/test-schedule/clone")
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["schedule"]["is_active"] is False
+
+    def test_clone_schedule_long_name_truncated(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that cloning with long original name truncates to fit suffix."""
+        clone_schedule_mock.name = "A" * 195  # 195 chars + " (Copy)" = 202 > 200
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = True
+
+        response = client.post("/api/scheduler/ui/schedules/test-schedule/clone")
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert len(data["schedule"]["name"]) <= 200
+        assert data["schedule"]["name"].endswith(" (Copy)")
+
+    def test_clone_schedule_empty_name_rejected(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that empty custom name is rejected."""
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+
+        response = client.post(
+            "/api/scheduler/ui/schedules/test-schedule/clone",
+            json={"name": "   "},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "empty" in data["error"].lower()
+
+    def test_clone_schedule_name_too_long_rejected(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test that overly long name is rejected."""
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+
+        response = client.post(
+            "/api/scheduler/ui/schedules/test-schedule/clone",
+            json={"name": "A" * 201},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "200" in data["error"] or "characters" in data["error"].lower()
+
+    def test_clone_schedule_service_error(
+        self, client, mock_scheduler_service, clone_schedule_mock
+    ):
+        """Test when service fails to create clone."""
+        mock_scheduler_service.get_schedule.return_value = clone_schedule_mock
+        mock_scheduler_service.create_schedule.return_value = False
+
+        response = client.post("/api/scheduler/ui/schedules/test-schedule/clone")
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
+
+
+# ============================================================================
 # Activate Schedule Endpoint Tests (Issue #218)
 # ============================================================================
 
