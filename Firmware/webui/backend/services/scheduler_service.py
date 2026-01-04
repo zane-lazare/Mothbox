@@ -182,6 +182,12 @@ class SchedulerService:
         self._conflict_cache_hits = 0
         self._conflict_cache_misses = 0
 
+        # Built-in schedules cache (separate from regular cache, longer TTL)
+        # Built-in schedules rarely change (only on firmware update)
+        self._builtin_cache: list[Schedule] | None = None
+        self._builtin_cache_timestamp: float = 0.0
+        self._builtin_cache_ttl = 3600  # 1 hour
+
     # ========================================================================
     # CRUD Read Operations
     # ========================================================================
@@ -245,6 +251,78 @@ class SchedulerService:
                 self._set_cache(schedule.schedule_id, schedule, overwrite=False)
 
         return schedules
+
+    # ========================================================================
+    # Built-in Schedule Operations (Issue #319)
+    # ========================================================================
+
+    def get_builtin_schedules(self) -> list[Schedule]:
+        """
+        Get all built-in schedules with caching.
+
+        Built-in schedules are cached with a 1-hour TTL since they
+        only change when firmware is updated.
+
+        Returns:
+            List of built-in Schedule objects
+        """
+        from webui.backend.lib.schedule_storage import (
+            get_builtin_schedules as storage_get_builtin,
+        )
+
+        with self._cache_lock:
+            # Check if cached and still valid
+            if (
+                self._builtin_cache is not None
+                and time.time() - self._builtin_cache_timestamp < self._builtin_cache_ttl
+            ):
+                return self._builtin_cache
+
+            # Cache miss - load from storage
+            schedules = storage_get_builtin()
+            self._builtin_cache = schedules
+            self._builtin_cache_timestamp = time.time()
+
+            logger.debug(f"Loaded {len(schedules)} built-in schedules")
+            return schedules
+
+    def get_builtin_schedule(self, schedule_id: str) -> Schedule | None:
+        """
+        Get a specific built-in schedule by ID.
+
+        Args:
+            schedule_id: Schedule identifier
+
+        Returns:
+            Schedule if found, None otherwise
+        """
+        for schedule in self.get_builtin_schedules():
+            if schedule.schedule_id == schedule_id:
+                return schedule
+        return None
+
+    def is_builtin_schedule(self, schedule_id: str) -> bool:
+        """
+        Check if a schedule ID is a built-in schedule.
+
+        Args:
+            schedule_id: Schedule identifier
+
+        Returns:
+            True if schedule exists in built-in directory, False otherwise
+        """
+        return is_builtin_schedule(schedule_id)
+
+    def invalidate_builtin_cache(self) -> None:
+        """Invalidate the built-in schedules cache."""
+        with self._cache_lock:
+            self._builtin_cache = None
+            self._builtin_cache_timestamp = 0.0
+            logger.debug("Invalidated built-in schedules cache")
+
+    # ========================================================================
+    # Internal Cache Management
+    # ========================================================================
 
     def _set_cache(self, schedule_id: str, schedule: Schedule, overwrite: bool = True) -> None:
         """
@@ -779,6 +857,9 @@ class SchedulerService:
                 logger.debug(f"Invalidated entire cache ({count} entries)")
                 # Also clear entire conflict cache
                 self._invalidate_conflict_cache()
+                # Also clear built-in schedules cache
+                self._builtin_cache = None
+                self._builtin_cache_timestamp = 0.0
             else:
                 # Clear specific schedule entry
                 if schedule_id in self._cache:
