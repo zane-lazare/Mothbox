@@ -11,11 +11,11 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { PatternList, PatternCard, PatternDetailsDrawer, PatternFilters } from '../index'
-import { useBuiltinPatterns } from '../../../../hooks/useEventPatterns'
+import { useBuiltinRoutines } from '../../../../hooks/useRoutines'
 
 // Mock the hook
-vi.mock('../../../../hooks/useEventPatterns', () => ({
-  useBuiltinPatterns: vi.fn(),
+vi.mock('../../../../hooks/useRoutines', () => ({
+  useBuiltinRoutines: vi.fn(),
 }))
 
 // Test data
@@ -79,7 +79,7 @@ function createWrapper() {
 describe('Pattern Library Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useBuiltinPatterns.mockReturnValue({
+    useBuiltinRoutines.mockReturnValue({
       data: { patterns: mockPatterns, total: 3, warnings: [] },
       isLoading: false,
       isError: false,
@@ -270,7 +270,7 @@ describe('Pattern Library Integration', () => {
   describe('Error Recovery', () => {
     it('shows error state and allows retry', async () => {
       const refetchMock = vi.fn()
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         data: null,
         isLoading: false,
         isError: true,
@@ -296,7 +296,7 @@ describe('Pattern Library Integration', () => {
 
   describe('Loading State', () => {
     it('shows loading skeleton while fetching', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         data: null,
         isLoading: true,
         isError: false,
@@ -313,7 +313,7 @@ describe('Pattern Library Integration', () => {
 
   describe('Empty State', () => {
     it('shows empty message when no patterns exist', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         data: { patterns: [], total: 0, warnings: [] },
         isLoading: false,
         isError: false,

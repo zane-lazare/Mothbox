@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PatternList from '../PatternList'
-import { useBuiltinPatterns } from '../../../../hooks/useEventPatterns'
+import { useBuiltinRoutines } from '../../../../hooks/useRoutines'
 
 // Mock the hook
-vi.mock('../../../../hooks/useEventPatterns', () => ({
-  useBuiltinPatterns: vi.fn()
+vi.mock('../../../../hooks/useRoutines', () => ({
+  useBuiltinRoutines: vi.fn()
 }))
 
 // Mock child components
@@ -125,12 +125,12 @@ describe('PatternList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    useBuiltinPatterns.mockReturnValue(mockHookReturn)
+    useBuiltinRoutines.mockReturnValue(mockHookReturn)
   })
 
   describe('Data Fetching Tests', () => {
     it('shows loading skeleton while isLoading=true', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         isLoading: true,
         data: null
@@ -151,7 +151,7 @@ describe('PatternList', () => {
     })
 
     it('shows error message when isError=true', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         isLoading: false,
         isError: true,
@@ -165,7 +165,7 @@ describe('PatternList', () => {
     })
 
     it('shows retry button on error', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         isLoading: false,
         isError: true,
@@ -182,7 +182,7 @@ describe('PatternList', () => {
       const user = userEvent.setup()
       const mockRefetch = vi.fn()
 
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         isLoading: false,
         isError: true,
@@ -200,7 +200,7 @@ describe('PatternList', () => {
     })
 
     it('shows empty state when patterns array is empty', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         data: {
           patterns: [],
@@ -215,7 +215,7 @@ describe('PatternList', () => {
     })
 
     it('shows warning banner if data.warnings has items', () => {
-      useBuiltinPatterns.mockReturnValue({
+      useBuiltinRoutines.mockReturnValue({
         ...mockHookReturn,
         data: {
           ...mockHookReturn.data,
@@ -527,10 +527,10 @@ describe('PatternList', () => {
   })
 
   describe('Integration Tests', () => {
-    it('uses useBuiltinPatterns() hook correctly', () => {
+    it('uses useBuiltinRoutines() hook correctly', () => {
       render(<PatternList onPatternSelect={vi.fn()} />)
 
-      expect(useBuiltinPatterns).toHaveBeenCalled()
+      expect(useBuiltinRoutines).toHaveBeenCalled()
     })
 
     it('state persists across filter changes (drawer stays open)', async () => {
