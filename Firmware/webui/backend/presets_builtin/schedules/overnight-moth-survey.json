@@ -1,0 +1,47 @@
+{
+  "schedule_id": "5f5e3b23-ef64-4913-baa2-3e4f2bae0086",
+  "name": "Overnight Moth Survey",
+  "description": "Classic moth trapping: UV lights at dusk, photos every 15 minutes, lights off at dawn",
+  "version": "3.0",
+  "is_builtin": true,
+  "routines": [
+    {
+      "routine_id": "7b935a8f-80f0-47fc-9ce9-19fd45bf2448",
+      "name": null,
+      "trigger": {
+        "trigger_type": "solar",
+        "solar_event": "dusk",
+        "offset_minutes": 0
+      },
+      "actions": [
+        {"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0}
+      ]
+    },
+    {
+      "routine_id": "2cd9aa2c-df70-4d2e-966a-76e417b8aaf1",
+      "name": null,
+      "trigger": {
+        "trigger_type": "interval",
+        "interval_minutes": 15,
+        "time_window": {"start_time": "sunset", "end_time": "sunrise"}
+      },
+      "actions": [
+        {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 0},
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 1},
+        {"action_type": "gpio", "action_name": "flash_off", "offset_minutes": 2}
+      ]
+    },
+    {
+      "routine_id": "c5651e73-5e60-42c5-8a16-916e275e1d89",
+      "name": null,
+      "trigger": {
+        "trigger_type": "solar",
+        "solar_event": "dawn",
+        "offset_minutes": 0
+      },
+      "actions": [
+        {"action_type": "gpio", "action_name": "attract_off", "offset_minutes": 0}
+      ]
+    }
+  ]
+}
