@@ -1687,7 +1687,13 @@ def _get_events_cron_routine(
     from_time: datetime,
     timezone_name: str = "UTC",  # noqa: ARG001 - kept for API consistency
 ) -> list[dict]:
-    """Generate events for cron trigger."""
+    """Generate events for cron trigger.
+
+    Note: timezone_name is accepted for API consistency with other _get_events_*
+    functions, but croniter inherits timezone awareness directly from the from_time
+    parameter. If from_time is timezone-aware, generated events will preserve that
+    timezone.
+    """
     events = []
     trigger = routine.trigger
 

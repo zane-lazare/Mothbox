@@ -1523,7 +1523,8 @@ class TestCalculateExecutionTimes:
         times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
 
         assert len(times) > 0
-        # Should have approximately 365 entries for 1 year
+        # Should have approximately 365 entries for 1 year (not ~1825 from old 5-year default).
+        # This validates the years_ahead=1 limit produces expected count.
         assert 350 <= len(times) <= 366
         # All should be at 21:00
         assert all(t.hour == 21 and t.minute == 0 for t in times)
@@ -2009,9 +2010,11 @@ class TestPreviewScheduleExtended:
             ],
         )
 
-        # Find next full moon dynamically for deterministic results
+        # Find next full moon dynamically for deterministic results.
+        # The 3-day buffer before the full moon ensures the preview search window
+        # includes the target phase, since moon phase detection checks each day
+        # and we need the search to start before the phase occurs.
         next_full = next_moon_phase("full", date.today())
-        # Start preview 3 days before the full moon to ensure we find it
         from_time = datetime(next_full.year, next_full.month, next_full.day, 0, 0, 0) - timedelta(days=3)
         events = preview_schedule(schedule, count=10, from_time=from_time)
 
@@ -2163,15 +2166,14 @@ class TestPreviewScheduleExtended:
             ],
         )
 
-        try:
-            events = preview_schedule(
-                schedule,
-                count=5,
-                latitude=9.0,
-                longitude=-79.5,
-                timezone_name="America/Panama",
-            )
-            assert isinstance(events, list)
-        except TypeError:
-            # Known issue: timezone-aware/naive datetime comparison
-            pytest.skip("Timezone comparison issue in solar trigger preview")
+        # Timezone-aware datetime comparison bug was fixed in PR #316
+        events = preview_schedule(
+            schedule,
+            count=5,
+            latitude=9.0,
+            longitude=-79.5,
+            timezone_name="America/Panama",
+        )
+        assert isinstance(events, list)
+        # Should return events for weekdays only
+        assert len(events) > 0
