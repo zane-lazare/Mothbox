@@ -20,8 +20,8 @@ import { useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
-  listBuiltinPatterns,
-  validatePattern,
+  listBuiltinRoutines,
+  validateRoutine,
 } from '../utils/schedulerApi'
 
 // =============================================================================
@@ -80,9 +80,9 @@ function handleMutationError(error, operation) {
  */
 export function useBuiltinRoutines(queryOptions = {}) {
   return useQuery({
-    queryKey: QUERY_KEYS.BUILTIN_PATTERNS,
+    queryKey: QUERY_KEYS.BUILTIN_ROUTINES,
     queryFn: async () => {
-      const response = await listBuiltinPatterns()
+      const response = await listBuiltinRoutines()
       return response.data
     },
     staleTime: QUERY_CONFIG.STALE_TIME,
@@ -133,7 +133,7 @@ export function useBuiltinRoutines(queryOptions = {}) {
  */
 export function useValidateRoutine() {
   return useMutation({
-    mutationFn: (data) => validatePattern(data),
+    mutationFn: (data) => validateRoutine(data),
     onError: (error) => handleMutationError(error, 'validateRoutine'),
   })
 }

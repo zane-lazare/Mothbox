@@ -80,7 +80,7 @@ describe('useBuiltinRoutines', () => {
       total: 2
     };
 
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({ data: mockBuiltinRoutines });
+    schedulerApi.listBuiltinRoutines.mockResolvedValue({ data: mockBuiltinRoutines });
 
     const { result } = renderHook(() => useBuiltinRoutines(), {
       wrapper: createWrapper()
@@ -93,11 +93,11 @@ describe('useBuiltinRoutines', () => {
     });
 
     expect(result.current.data).toEqual(mockBuiltinRoutines);
-    expect(schedulerApi.listBuiltinPatterns).toHaveBeenCalledTimes(1);
+    expect(schedulerApi.listBuiltinRoutines).toHaveBeenCalledTimes(1);
   });
 
   it('handles empty routines list', async () => {
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({
+    schedulerApi.listBuiltinRoutines.mockResolvedValue({
       data: { patterns: [], total: 0 }
     });
 
@@ -115,7 +115,7 @@ describe('useBuiltinRoutines', () => {
 
   it('handles fetch error', async () => {
     const mockError = new Error('Failed to fetch built-in routines');
-    schedulerApi.listBuiltinPatterns.mockRejectedValue(mockError);
+    schedulerApi.listBuiltinRoutines.mockRejectedValue(mockError);
 
     const { result } = renderHook(() => useBuiltinRoutines(), {
       wrapper: createWrapper()
@@ -136,7 +136,7 @@ describe('useBuiltinRoutines', () => {
       }
     });
 
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({
+    schedulerApi.listBuiltinRoutines.mockResolvedValue({
       data: { patterns: [], total: 0 }
     });
 
@@ -154,14 +154,14 @@ describe('useBuiltinRoutines', () => {
 
     // Verify the correct query key is used in the cache
     const cachedQueries = queryClient.getQueryCache().findAll({
-      queryKey: QUERY_KEYS.BUILTIN_PATTERNS
+      queryKey: QUERY_KEYS.BUILTIN_ROUTINES
     });
     expect(cachedQueries).toHaveLength(1);
-    expect(cachedQueries[0].queryKey).toEqual(QUERY_KEYS.BUILTIN_PATTERNS);
+    expect(cachedQueries[0].queryKey).toEqual(QUERY_KEYS.BUILTIN_ROUTINES);
   });
 
   it('accepts custom queryOptions', async () => {
-    schedulerApi.listBuiltinPatterns.mockResolvedValue({
+    schedulerApi.listBuiltinRoutines.mockResolvedValue({
       data: { patterns: [], total: 0 }
     });
 
@@ -175,7 +175,7 @@ describe('useBuiltinRoutines', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(schedulerApi.listBuiltinPatterns).toHaveBeenCalledTimes(1);
+    expect(schedulerApi.listBuiltinRoutines).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -207,7 +207,7 @@ describe('useValidateRoutine', () => {
       }
     };
 
-    schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
+    schedulerApi.validateRoutine.mockResolvedValue({ data: mockResponse });
 
     const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
@@ -226,7 +226,7 @@ describe('useValidateRoutine', () => {
     });
 
     expect(result.current.data.data).toEqual(mockResponse);
-    expect(schedulerApi.validatePattern).toHaveBeenCalledWith({
+    expect(schedulerApi.validateRoutine).toHaveBeenCalledWith({
       name: 'Test Pattern',
       description: 'A test pattern',
       actions: [
@@ -241,7 +241,7 @@ describe('useValidateRoutine', () => {
       error: 'Pattern name is required'
     };
 
-    schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
+    schedulerApi.validateRoutine.mockResolvedValue({ data: mockResponse });
 
     const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
@@ -262,7 +262,7 @@ describe('useValidateRoutine', () => {
 
   it('handles API error', async () => {
     const mockError = new Error('Pattern validation failed');
-    schedulerApi.validatePattern.mockRejectedValue(mockError);
+    schedulerApi.validateRoutine.mockRejectedValue(mockError);
 
     const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()
@@ -283,7 +283,7 @@ describe('useValidateRoutine', () => {
       error: 'Missing required field: name'
     };
 
-    schedulerApi.validatePattern.mockResolvedValue({ data: mockResponse });
+    schedulerApi.validateRoutine.mockResolvedValue({ data: mockResponse });
 
     const { result } = renderHook(() => useValidateRoutine(), {
       wrapper: createWrapper()

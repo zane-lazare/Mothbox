@@ -304,7 +304,7 @@ export const listBuiltinSchedules = () =>
  *   warnings: []
  * }
  */
-export const listBuiltinPatterns = () =>
+export const listBuiltinRoutines = () =>
   api.get(`${SCHEDULER_API_PREFIX}/patterns/builtin`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -322,5 +322,5 @@ export const listBuiltinPatterns = () =>
  *   warnings: []
  * }
  */
-export const validatePattern = (data) =>
+export const validateRoutine = (data) =>
   api.post(`${SCHEDULER_API_PREFIX}/patterns/validate`, data, { timeout: API_TIMEOUT_MS })
