@@ -25,7 +25,8 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
    * Handle value change
    */
   const handleValueChange = (e) => {
-    const value = Math.max(1, parseInt(e.target.value, 10) || 1)
+    const parsed = parseInt(e.target.value, 10)
+    const value = isNaN(parsed) ? 1 : Math.max(1, parsed)
     const multiplier = INTERVAL_UNITS.find(u => u.value === displayUnit)?.multiplier || 1
     const newIntervalMinutes = value * multiplier
     onChange({

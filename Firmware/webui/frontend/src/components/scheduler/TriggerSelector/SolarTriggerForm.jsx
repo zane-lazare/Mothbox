@@ -63,6 +63,8 @@ function SolarTriggerForm({ trigger, onChange, disabled = false }) {
           <span className="text-gray-500">Offset</span>
           <input
             type="number"
+            min="-120"
+            max="120"
             value={offsetMinutes}
             onChange={handleOffsetChange}
             disabled={disabled}

@@ -53,7 +53,7 @@ function FixedTimeTriggerForm({ trigger, onChange, disabled = false }) {
 
       <div className="space-y-3" data-testid="fixed-time-list">
         {times.map((time, index) => (
-          <div key={index} className="flex items-center gap-2">
+          <div key={`time-${index}-${time}`} className="flex items-center gap-2">
             <input
               type="time"
               value={time}

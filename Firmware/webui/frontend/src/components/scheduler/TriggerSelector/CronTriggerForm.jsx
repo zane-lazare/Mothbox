@@ -8,7 +8,7 @@ import PropTypes from 'prop-types'
  * @component
  */
 function CronTriggerForm({ trigger, onChange, disabled = false }) {
-  const cronExpression = trigger?.cron_expression || '*/15 18-6 * * *'
+  const cronExpression = trigger?.cron_expression || '*/15 * * * *'
 
   /**
    * Handle cron expression change

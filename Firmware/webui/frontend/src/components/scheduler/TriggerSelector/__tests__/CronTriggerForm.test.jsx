@@ -7,7 +7,7 @@ describe('CronTriggerForm', () => {
   const mockOnChange = vi.fn()
   const defaultTrigger = {
     trigger_type: 'cron',
-    cron_expression: '*/15 18-6 * * *',
+    cron_expression: '*/15 * * * *',
   }
 
   beforeEach(() => {
@@ -19,7 +19,7 @@ describe('CronTriggerForm', () => {
       render(<CronTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
 
       expect(screen.getByTestId('cron-trigger-form')).toBeInTheDocument()
-      expect(screen.getByTestId('cron-expression')).toHaveValue('*/15 18-6 * * *')
+      expect(screen.getByTestId('cron-expression')).toHaveValue('*/15 * * * *')
     })
 
     it('shows advanced badge', () => {
