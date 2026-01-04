@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { TRIGGER_TYPE_OPTIONS, createDefaultTrigger } from './constants'
+import { TRIGGER_TYPE_OPTIONS, createDefaultTrigger, validateTrigger } from './constants'
 import IntervalTriggerForm from './IntervalTriggerForm'
 import FixedTimeTriggerForm from './FixedTimeTriggerForm'
 import SolarTriggerForm from './SolarTriggerForm'
@@ -24,6 +24,9 @@ import CronTriggerForm from './CronTriggerForm'
 function TriggerSelector({ trigger, onChange, disabled = false, error }) {
   const triggerType = trigger?.trigger_type || 'interval'
 
+  // Validate the current trigger configuration
+  const validationError = validateTrigger(trigger)
+
   /**
    * Handle trigger type change
    * Creates a new default trigger for the selected type
@@ -41,6 +44,7 @@ function TriggerSelector({ trigger, onChange, disabled = false, error }) {
       trigger,
       onChange,
       disabled,
+      error: validationError,
     }
 
     switch (triggerType) {
@@ -126,8 +130,16 @@ TriggerSelector.propTypes = {
       start_time: PropTypes.string,
       end_time: PropTypes.string,
     }),
-    // Fixed time fields
-    times: PropTypes.arrayOf(PropTypes.string),
+    // Fixed time fields - supports both string[] and { id, value }[]
+    times: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.string),
+      PropTypes.arrayOf(
+        PropTypes.shape({
+          id: PropTypes.string,
+          value: PropTypes.string,
+        })
+      ),
+    ]),
     // Solar fields
     solar_event: PropTypes.string,
     offset_minutes: PropTypes.number,

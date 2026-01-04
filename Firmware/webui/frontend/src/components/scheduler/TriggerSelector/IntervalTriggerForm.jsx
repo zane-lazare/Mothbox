@@ -1,6 +1,10 @@
 import PropTypes from 'prop-types'
 import { INTERVAL_UNITS } from './constants'
 
+// Maximum interval values
+const MAX_MINUTES = 1440 // 24 hours
+const MAX_HOURS = 24
+
 /**
  * IntervalTriggerForm Component
  *
@@ -8,7 +12,7 @@ import { INTERVAL_UNITS } from './constants'
  *
  * @component
  */
-function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
+function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null }) {
   const intervalMinutes = trigger?.interval_minutes || 15
   const timeWindow = trigger?.time_window || null
 
@@ -21,12 +25,19 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
     ? intervalMinutes / 60
     : intervalMinutes
 
+  // Check if time window spans overnight (start > end)
+  const isOvernightWindow = timeWindow &&
+    timeWindow.start_time &&
+    timeWindow.end_time &&
+    timeWindow.start_time > timeWindow.end_time
+
   /**
-   * Handle value change
+   * Handle value change with min/max validation
    */
   const handleValueChange = (e) => {
     const parsed = parseInt(e.target.value, 10)
-    const value = isNaN(parsed) ? 1 : Math.max(1, parsed)
+    const maxValue = displayUnit === 'hours' ? MAX_HOURS : MAX_MINUTES
+    const value = isNaN(parsed) ? 1 : Math.max(1, Math.min(parsed, maxValue))
     const multiplier = INTERVAL_UNITS.find(u => u.value === displayUnit)?.multiplier || 1
     const newIntervalMinutes = value * multiplier
     onChange({
@@ -36,25 +47,23 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
   }
 
   /**
-   * Handle unit change - just updates the display, keeps interval_minutes unchanged
-   * The displayUnit is derived from intervalMinutes, so changing units will
-   * adjust when the value is next modified
+   * Handle unit change - converts value to new unit
    */
   const handleUnitChange = (e) => {
     const newUnit = e.target.value
     // When switching to hours, round up to nearest hour (minimum 1 hour = 60 min)
     // When switching to minutes, keep same interval
     if (newUnit === 'hours') {
-      const hours = Math.max(1, Math.ceil(intervalMinutes / 60))
+      const hours = Math.max(1, Math.min(Math.ceil(intervalMinutes / 60), MAX_HOURS))
       onChange({
         ...trigger,
         interval_minutes: hours * 60,
       })
     } else {
-      // Switching to minutes - keep same interval but ensure minimum of 1
+      // Switching to minutes - keep same interval but ensure within bounds
       onChange({
         ...trigger,
-        interval_minutes: Math.max(1, intervalMinutes),
+        interval_minutes: Math.max(1, Math.min(intervalMinutes, MAX_MINUTES)),
       })
     }
   }
@@ -119,12 +128,14 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
           <input
             type="number"
             min="1"
+            max={displayUnit === 'hours' ? MAX_HOURS : MAX_MINUTES}
             value={displayValue}
             onChange={handleValueChange}
             disabled={disabled}
-            className="w-16 bg-transparent border border-gray-800 rounded px-2 py-1 text-white text-center
-                       focus:border-gray-600 focus:outline-none
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`w-16 bg-transparent border rounded px-2 py-1 text-white text-center
+                       focus:outline-none
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
             data-testid="interval-value"
           />
           <select
@@ -143,6 +154,13 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
             ))}
           </select>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="text-xs text-red-400" data-testid="interval-error">
+            {error}
+          </div>
+        )}
 
         {/* Time Window Toggle */}
         <div className="flex items-center gap-3 text-sm">
@@ -163,28 +181,36 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false }) {
 
         {/* Time Window Inputs */}
         {timeWindow && (
-          <div className="flex items-center gap-3 text-sm pl-6">
-            <input
-              type="time"
-              value={timeWindow.start_time || '18:00'}
-              onChange={handleStartTimeChange}
-              disabled={disabled}
-              className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                         focus:border-gray-600 focus:outline-none
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              data-testid="time-window-start"
-            />
-            <span className="text-gray-600">to</span>
-            <input
-              type="time"
-              value={timeWindow.end_time || '06:00'}
-              onChange={handleEndTimeChange}
-              disabled={disabled}
-              className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                         focus:border-gray-600 focus:outline-none
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              data-testid="time-window-end"
-            />
+          <div className="space-y-2 pl-6">
+            <div className="flex items-center gap-3 text-sm">
+              <input
+                type="time"
+                value={timeWindow.start_time || '18:00'}
+                onChange={handleStartTimeChange}
+                disabled={disabled}
+                className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
+                           focus:border-gray-600 focus:outline-none
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="time-window-start"
+              />
+              <span className="text-gray-600">to</span>
+              <input
+                type="time"
+                value={timeWindow.end_time || '06:00'}
+                onChange={handleEndTimeChange}
+                disabled={disabled}
+                className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
+                           focus:border-gray-600 focus:outline-none
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="time-window-end"
+              />
+            </div>
+            {/* Overnight window indicator */}
+            {isOvernightWindow && (
+              <div className="text-xs text-gray-500" data-testid="overnight-indicator">
+                Overnight window active (spans midnight)
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -203,6 +229,7 @@ IntervalTriggerForm.propTypes = {
   }),
   onChange: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
+  error: PropTypes.string,
 }
 
 export default IntervalTriggerForm

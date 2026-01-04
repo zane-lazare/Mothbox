@@ -66,6 +66,100 @@ export const INTERVAL_UNITS = [
 ]
 
 /**
+ * Validate a cron expression using cronstrue
+ * Returns true if valid, false otherwise
+ * @param {string} expression - The cron expression to validate
+ * @returns {boolean}
+ */
+function isValidCronExpression(expression) {
+  if (!expression) return false
+  // Simple validation: cron should have 5 space-separated fields
+  const fields = expression.trim().split(/\s+/)
+  if (fields.length !== 5) return false
+  // Check each field has valid characters
+  const validPattern = /^[\d,\-*/]+$/
+  return fields.every(f => validPattern.test(f))
+}
+
+/**
+ * Validate a trigger configuration and return field-level error
+ * @param {Object} trigger - The trigger configuration
+ * @returns {string|null} - Error message or null if valid
+ */
+export function validateTrigger(trigger) {
+  if (!trigger) return null
+
+  const type = trigger.trigger_type
+
+  switch (type) {
+    case 'cron': {
+      const expression = trigger.cron_expression
+      if (!expression) return 'Cron expression is required'
+      if (!isValidCronExpression(expression)) {
+        return 'Invalid cron expression'
+      }
+      return null
+    }
+
+    case 'fixed_time': {
+      const times = trigger.times
+      if (!times || times.length === 0) {
+        return 'At least one time is required'
+      }
+      // Handle both old format (string[]) and new format ({ id, value }[])
+      const hasValidTime = times.some(t =>
+        typeof t === 'string' ? t : t?.value
+      )
+      if (!hasValidTime) return 'At least one valid time is required'
+      return null
+    }
+
+    case 'moon_phase': {
+      const phases = trigger.phases
+      if (!phases || phases.length === 0) {
+        return 'At least one moon phase is required'
+      }
+      return null
+    }
+
+    case 'recurring_days': {
+      const days = trigger.days
+      if (!days || days.length === 0) {
+        return 'At least one day is required'
+      }
+      return null
+    }
+
+    case 'interval': {
+      const intervalMinutes = trigger.interval_minutes
+      if (intervalMinutes === undefined || intervalMinutes === null) {
+        return 'Interval is required'
+      }
+      if (intervalMinutes < 1) {
+        return 'Interval must be at least 1 minute'
+      }
+      if (intervalMinutes > 1440) {
+        return 'Interval cannot exceed 24 hours (1440 minutes)'
+      }
+      return null
+    }
+
+    case 'solar': {
+      const offset = trigger.offset_minutes
+      if (offset !== undefined && offset !== null) {
+        if (offset < -120 || offset > 120) {
+          return 'Offset must be between -120 and 120 minutes'
+        }
+      }
+      return null
+    }
+
+    default:
+      return null
+  }
+}
+
+/**
  * Create default trigger configuration for a given type
  *
  * @param {string} type - The trigger type
@@ -104,7 +198,7 @@ export function createDefaultTrigger(type) {
     case 'cron':
       return {
         trigger_type: 'cron',
-        cron_expression: '*/15 18-6 * * *',
+        cron_expression: '0 20 * * *',
       }
     default:
       return {

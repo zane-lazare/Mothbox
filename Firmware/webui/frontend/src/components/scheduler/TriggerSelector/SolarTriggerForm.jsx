@@ -8,7 +8,7 @@ import { SOLAR_EVENTS } from './constants'
  *
  * @component
  */
-function SolarTriggerForm({ trigger, onChange, disabled = false }) {
+function SolarTriggerForm({ trigger, onChange, disabled = false, error = null }) {
   const solarEvent = trigger?.solar_event || 'sunset'
   const offsetMinutes = trigger?.offset_minutes ?? 0
 
@@ -68,14 +68,26 @@ function SolarTriggerForm({ trigger, onChange, disabled = false }) {
             value={offsetMinutes}
             onChange={handleOffsetChange}
             disabled={disabled}
-            className="w-16 bg-transparent border border-gray-800 rounded px-2 py-1 text-white text-center
-                       focus:border-gray-600 focus:outline-none
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`w-16 bg-transparent border rounded px-2 py-1 text-white text-center
+                       focus:outline-none
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
             data-testid="solar-offset"
           />
           <span className="text-gray-500">minutes</span>
         </div>
 
+        {/* Offset explanation */}
+        <div className="text-xs text-gray-600">
+          Negative = before event, positive = after event
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="text-xs text-red-400" data-testid="solar-error">
+            {error}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -89,6 +101,7 @@ SolarTriggerForm.propTypes = {
   }),
   onChange: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
+  error: PropTypes.string,
 }
 
 export default SolarTriggerForm

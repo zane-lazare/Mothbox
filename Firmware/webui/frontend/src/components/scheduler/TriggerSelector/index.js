@@ -23,4 +23,5 @@ export {
   DAYS_OF_WEEK,
   INTERVAL_UNITS,
   createDefaultTrigger,
+  validateTrigger,
 } from './constants'

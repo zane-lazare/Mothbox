@@ -8,9 +8,10 @@ import { DAYS_OF_WEEK } from './constants'
  *
  * @component
  */
-function RecurringDaysTriggerForm({ trigger, onChange, disabled = false }) {
+function RecurringDaysTriggerForm({ trigger, onChange, disabled = false, error = null }) {
   const selectedDays = trigger?.days || [0, 5, 6]
   const time = trigger?.time || '20:00'
+  const hasError = error || selectedDays.length === 0
 
   /**
    * Handle day toggle
@@ -53,7 +54,10 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false }) {
 
       <div className="space-y-4">
         {/* Day Selection Grid */}
-        <div className="flex gap-1" data-testid="recurring-days-grid">
+        <div
+          className={`flex gap-1 ${hasError ? 'ring-1 ring-red-500 rounded p-1' : ''}`}
+          data-testid="recurring-days-grid"
+        >
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = selectedDays.includes(day.value)
             const isLastSelected = isSelected && selectedDays.length === 1
@@ -83,6 +87,13 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false }) {
           })}
         </div>
 
+        {/* Error message */}
+        {error && (
+          <div className="text-xs text-red-400" data-testid="recurring-days-error">
+            {error}
+          </div>
+        )}
+
         {/* Time Input */}
         <div className="flex items-center gap-3 text-sm">
           <span className="text-gray-500">At</span>
@@ -110,6 +121,7 @@ RecurringDaysTriggerForm.propTypes = {
   }),
   onChange: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
+  error: PropTypes.string,
 }
 
 export default RecurringDaysTriggerForm

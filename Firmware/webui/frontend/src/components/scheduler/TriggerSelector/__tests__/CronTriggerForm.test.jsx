@@ -60,6 +60,7 @@ describe('CronTriggerForm', () => {
   })
 
   describe('Description Parsing', () => {
+    // Tests updated to match cronstrue library output format
     it('describes interval pattern', () => {
       render(
         <CronTriggerForm
@@ -79,7 +80,9 @@ describe('CronTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('cron-description')).toHaveTextContent(/every 15 minutes.*18.*6/i)
+      // cronstrue outputs "Every 15 minutes, between 06:00 PM and 06:59 AM"
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/every 15 minutes/i)
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/06:00 PM/i)
     })
 
     it('describes daily pattern', () => {
@@ -90,10 +93,11 @@ describe('CronTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('cron-description')).toHaveTextContent(/daily.*9pm/i)
+      // cronstrue outputs "At 09:00 PM"
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/09:00 PM/i)
     })
 
-    it('shows custom schedule for complex patterns', () => {
+    it('describes complex patterns with human-readable text', () => {
       render(
         <CronTriggerForm
           trigger={{ ...defaultTrigger, cron_expression: '30 4 1,15 * *' }}
@@ -101,7 +105,20 @@ describe('CronTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('cron-description')).toHaveTextContent(/custom schedule/i)
+      // cronstrue outputs "At 04:30 AM, on day 1 and 15 of the month"
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/04:30 AM/i)
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/day 1 and 15/i)
+    })
+
+    it('shows invalid message for bad expressions', () => {
+      render(
+        <CronTriggerForm
+          trigger={{ ...defaultTrigger, cron_expression: 'invalid cron' }}
+          onChange={mockOnChange}
+        />
+      )
+
+      expect(screen.getByTestId('cron-description')).toHaveTextContent(/invalid/i)
     })
   })
 

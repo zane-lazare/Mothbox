@@ -85,10 +85,15 @@ describe('FixedTimeTriggerForm', () => {
 
       await user.click(screen.getByTestId('fixed-time-add'))
 
-      expect(mockOnChange).toHaveBeenCalledWith({
-        ...defaultTrigger,
-        times: ['08:00', '12:00'],
-      })
+      // With ID-based keys, times are now { id, value } objects
+      expect(mockOnChange).toHaveBeenCalled()
+      const call = mockOnChange.mock.calls[0][0]
+      expect(call.trigger_type).toBe('fixed_time')
+      expect(call.times).toHaveLength(2)
+      expect(call.times[0]).toHaveProperty('id')
+      expect(call.times[0]).toHaveProperty('value', '08:00')
+      expect(call.times[1]).toHaveProperty('id')
+      expect(call.times[1]).toHaveProperty('value', '12:00')
     })
   })
 
@@ -104,10 +109,13 @@ describe('FixedTimeTriggerForm', () => {
 
       await user.click(screen.getByTestId('fixed-time-remove-1'))
 
-      expect(mockOnChange).toHaveBeenCalledWith({
-        ...defaultTrigger,
-        times: ['08:00', '18:00'],
-      })
+      // With ID-based keys, times are now { id, value } objects
+      expect(mockOnChange).toHaveBeenCalled()
+      const call = mockOnChange.mock.calls[0][0]
+      expect(call.trigger_type).toBe('fixed_time')
+      expect(call.times).toHaveLength(2)
+      expect(call.times[0]).toHaveProperty('value', '08:00')
+      expect(call.times[1]).toHaveProperty('value', '18:00')
     })
 
     it('prevents removing last time', () => {
