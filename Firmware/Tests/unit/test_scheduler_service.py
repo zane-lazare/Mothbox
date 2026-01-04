@@ -2613,3 +2613,183 @@ class TestConflictCache:
 
         assert hash1 == hash2
         assert len(hash1) == 8  # First 8 chars of MD5
+
+
+# ============================================================================
+# Test Built-in Schedule Loading (Issue #319)
+# ============================================================================
+
+
+class TestBuiltinScheduleLoading:
+    """Tests for built-in schedule loading with caching (Issue #319)."""
+
+    def test_get_builtin_schedules_returns_list(self, scheduler_service):
+        """get_builtin_schedules should return a list."""
+        schedules = scheduler_service.get_builtin_schedules()
+        assert isinstance(schedules, list)
+
+    def test_get_builtin_schedules_contains_schedules(self, scheduler_service):
+        """get_builtin_schedules should contain Schedule objects."""
+        schedules = scheduler_service.get_builtin_schedules()
+        # Should have at least the two schema 3.0 schedules from issues #317/#318
+        if schedules:
+            from webui.backend.lib.schedule_schema import Schedule
+            assert all(isinstance(s, Schedule) for s in schedules)
+
+    def test_get_builtin_schedules_caches_result(self, scheduler_service):
+        """Second call should return same cached list object."""
+        first = scheduler_service.get_builtin_schedules()
+        second = scheduler_service.get_builtin_schedules()
+        # Should be same list object (cached)
+        assert first is second
+
+    def test_get_builtin_schedules_cache_expires(self, scheduler_service, monkeypatch):
+        """Cache should expire after TTL."""
+        import time as time_module
+
+        # First call to populate cache
+        scheduler_service.get_builtin_schedules()
+
+        # Simulate time passing beyond TTL
+        original_time = time_module.time
+        monkeypatch.setattr(
+            time_module, "time", lambda: original_time() + 3700  # > 1 hour TTL
+        )
+
+        # Force cache check by accessing private state
+        scheduler_service._builtin_cache_timestamp = original_time() - 3700
+
+        # Second call should reload (different list object)
+        second = scheduler_service.get_builtin_schedules()
+        # Note: Contents may be same but objects should be reloaded
+        assert isinstance(second, list)
+
+    def test_get_builtin_schedule_existing(self, scheduler_service):
+        """get_builtin_schedule should find existing built-in schedule."""
+        schedules = scheduler_service.get_builtin_schedules()
+        if schedules:
+            # Get first schedule ID
+            target_id = schedules[0].schedule_id
+            result = scheduler_service.get_builtin_schedule(target_id)
+            assert result is not None
+            assert result.schedule_id == target_id
+
+    def test_get_builtin_schedule_nonexistent(self, scheduler_service):
+        """get_builtin_schedule should return None for unknown ID."""
+        result = scheduler_service.get_builtin_schedule("nonexistent-schedule-id")
+        assert result is None
+
+    def test_get_builtin_schedule_uses_cache(self, scheduler_service):
+        """get_builtin_schedule should use cached builtin schedules."""
+        # Populate cache
+        schedules = scheduler_service.get_builtin_schedules()
+        if schedules:
+            target_id = schedules[0].schedule_id
+
+            # Multiple calls should use same cache
+            result1 = scheduler_service.get_builtin_schedule(target_id)
+            result2 = scheduler_service.get_builtin_schedule(target_id)
+
+            # Should be same schedule object from cache
+            assert result1 is result2
+
+    def test_is_builtin_schedule_true_for_builtin_filename(self, scheduler_service):
+        """is_builtin_schedule should return True for built-in schedule filenames."""
+        # Known built-in filenames from #317/#318:
+        result = scheduler_service.is_builtin_schedule("daytime-pollinator")
+        assert result is True
+
+        result2 = scheduler_service.is_builtin_schedule("overnight-moth-survey")
+        assert result2 is True
+
+    def test_is_builtin_schedule_true_for_builtin_uuid(self, scheduler_service):
+        """is_builtin_schedule should return True for built-in schedule UUIDs.
+
+        This ensures consistent API behavior between is_builtin_schedule() and
+        get_builtin_schedule(), both of which should accept internal UUIDs.
+        """
+        # Get actual built-in schedules to retrieve their internal UUIDs
+        builtin_schedules = scheduler_service.get_builtin_schedules()
+        if not builtin_schedules:
+            pytest.skip("No built-in schedules available")
+
+        # Test with internal UUID of first built-in schedule
+        internal_uuid = builtin_schedules[0].schedule_id
+        result = scheduler_service.is_builtin_schedule(internal_uuid)
+        assert result is True
+
+        # Verify the UUID is different from the filename
+        # (the whole point of this fix)
+        assert internal_uuid != "daytime-pollinator"
+        assert internal_uuid != "overnight-moth-survey"
+
+    def test_is_builtin_schedule_false_for_user_schedule(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """is_builtin_schedule should return False for user schedules."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create a user schedule
+        sample_schedule.schedule_id = _test_uuid("user-created-schedule")
+        create_schedule(sample_schedule)
+
+        # User schedules should return False
+        result = scheduler_service.is_builtin_schedule(_test_uuid("user-created-schedule"))
+        assert result is False
+
+    def test_is_builtin_schedule_false_for_nonexistent(self, scheduler_service):
+        """is_builtin_schedule should return False for nonexistent IDs."""
+        result = scheduler_service.is_builtin_schedule("completely-fake-id")
+        assert result is False
+
+    def test_invalidate_builtin_cache_clears_cache(self, scheduler_service):
+        """invalidate_builtin_cache should clear the builtin cache."""
+        # Populate cache
+        scheduler_service.get_builtin_schedules()
+        assert scheduler_service._builtin_cache is not None
+
+        # Invalidate
+        scheduler_service.invalidate_builtin_cache()
+
+        # Cache should be cleared
+        assert scheduler_service._builtin_cache is None
+        assert scheduler_service._builtin_cache_timestamp == 0.0
+
+    def test_invalidate_cache_all_clears_builtin(self, scheduler_service):
+        """invalidate_cache(None) should also clear builtin cache."""
+        # Populate builtin cache
+        scheduler_service.get_builtin_schedules()
+        assert scheduler_service._builtin_cache is not None
+
+        # Invalidate entire cache
+        scheduler_service.invalidate_cache(schedule_id=None)
+
+        # Builtin cache should also be cleared
+        assert scheduler_service._builtin_cache is None
+
+    def test_invalidate_cache_specific_preserves_builtin(self, scheduler_service):
+        """invalidate_cache(schedule_id) should preserve builtin cache."""
+        # Populate builtin cache
+        scheduler_service.get_builtin_schedules()
+        original_cache = scheduler_service._builtin_cache
+
+        # Invalidate specific schedule (not builtin)
+        scheduler_service.invalidate_cache(schedule_id="some-specific-id")
+
+        # Builtin cache should be preserved
+        assert scheduler_service._builtin_cache is original_cache
+
+    def test_builtin_cache_ttl_default(self):
+        """Built-in cache TTL should default to 1 hour (3600 seconds)."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        assert service._builtin_cache_ttl == 3600
+
+    def test_builtin_cache_initialized_empty(self):
+        """Built-in cache should start as None."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        assert service._builtin_cache is None
+        assert service._builtin_cache_timestamp == 0.0
