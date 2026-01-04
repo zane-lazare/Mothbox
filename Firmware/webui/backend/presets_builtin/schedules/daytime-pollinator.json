@@ -8,13 +8,14 @@
     {
       "routine_id": "418e2790-8580-497f-a05a-acf23dd648f2",
       "name": null,
+      "description": "Interval-based photo capture during daylight hours for pollinator documentation",
       "trigger": {
         "trigger_type": "interval",
         "interval_minutes": 10,
         "time_window": {"start_time": "sunrise", "end_time": "sunset"}
       },
       "actions": [
-        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0}
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 0, "description": "Capture pollinator activity photo"}
       ]
     }
   ]
