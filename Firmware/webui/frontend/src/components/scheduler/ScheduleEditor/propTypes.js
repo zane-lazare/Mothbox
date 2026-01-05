@@ -200,29 +200,6 @@ export const PatternSelectionPropType = PropTypes.shape({
 });
 
 /**
- * PropTypes shape for a complete schedule.
- * Used by ScheduleEditor for the main schedule prop.
- *
- * @example
- * {
- *   schedule_id: 'sched-123',
- *   name: 'Summer Moth Survey',
- *   description: 'Nightly moth capture from June to August',
- *   trigger: { trigger_type: 'solar', ... },
- *   event_patterns: [{ pattern_id: '1', name: 'UV Cycle', ... }],
- *   date_range: { start_date: '2024-06-01', end_date: '2024-08-31' }
- * }
- */
-export const SchedulePropType = PropTypes.shape({
-  schedule_id: PropTypes.string,
-  name: PropTypes.string,
-  description: PropTypes.string,
-  trigger: TriggerPropType,
-  event_patterns: PropTypes.arrayOf(PatternPropType),
-  date_range: DateRangePropType,
-});
-
-/**
  * PropTypes shape for an action within a routine.
  * Note: This differs from ActionPropType which is for pattern actions.
  *
@@ -261,4 +238,39 @@ export const RoutinePropType = PropTypes.shape({
   name: PropTypes.string,
   trigger: TriggerPropType,
   actions: PropTypes.arrayOf(RoutineActionPropType),
+});
+
+/**
+ * PropTypes shape for a complete schedule (Schema 3.0).
+ * Schedules use a routine-based model where each routine has its own trigger.
+ * Used by ScheduleEditor and ScheduleCard for the main schedule prop.
+ *
+ * @example
+ * {
+ *   schedule_id: 'sched-123',
+ *   name: 'Overnight Moth Survey',
+ *   description: 'UV lights at dusk, photos every 15 minutes',
+ *   routines: [
+ *     {
+ *       routine_id: 'routine-1',
+ *       trigger: { trigger_type: 'solar', solar_event: 'dusk' },
+ *       actions: [{ action_type: 'gpio', action_name: 'attract_on' }]
+ *     }
+ *   ],
+ *   is_active: false,
+ *   created_at: '2024-01-01T00:00:00',
+ *   updated_at: '2024-01-01T00:00:00'
+ * }
+ */
+export const SchedulePropType = PropTypes.shape({
+  schedule_id: PropTypes.string,
+  name: PropTypes.string,
+  description: PropTypes.string,
+  routines: PropTypes.arrayOf(RoutinePropType),
+  is_active: PropTypes.bool,
+  is_builtin: PropTypes.bool,
+  enabled: PropTypes.bool,
+  created_at: PropTypes.string,
+  updated_at: PropTypes.string,
+  modified_at: PropTypes.string,
 });

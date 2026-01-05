@@ -119,6 +119,19 @@ function formatTriggerSummary(trigger) {
 }
 
 /**
+ * Format schedule summary from routines (Schema 3.0)
+ * Shows first routine's trigger with count indicator for multi-routine schedules
+ * @param {Array} routines - Array of routine objects
+ * @returns {string} Summary text (e.g., "At dusk (+2 more)")
+ */
+function formatScheduleSummary(routines) {
+  if (!routines?.length) return ''
+  const firstTriggerSummary = formatTriggerSummary(routines[0]?.trigger)
+  if (routines.length === 1) return firstTriggerSummary
+  return `${firstTriggerSummary} (+${routines.length - 1} more)`
+}
+
+/**
  * ScheduleCard component
  *
  * @param {Object} props - Component props
@@ -158,17 +171,20 @@ function ScheduleCard({
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
 
-  // Memoize trigger summary to avoid recalculating on every render
+  // Schema 3.0: Get first routine's trigger type for icon
+  const firstTriggerType = schedule.routines?.[0]?.trigger?.trigger_type
+
+  // Memoize schedule summary to avoid recalculating on every render
   const triggerSummary = useMemo(
-    () => formatTriggerSummary(schedule.trigger),
-    [schedule.trigger]
+    () => formatScheduleSummary(schedule.routines),
+    [schedule.routines]
   )
 
   // Memoize icon to avoid recreating on every render
   const triggerIcon = useMemo(() => {
-    const Icon = TRIGGER_ICON_MAP[schedule.trigger?.trigger_type] || ClockIcon
+    const Icon = TRIGGER_ICON_MAP[firstTriggerType] || ClockIcon
     return <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
-  }, [schedule.trigger?.trigger_type])
+  }, [firstTriggerType])
 
   const handleEdit = () => {
     onEdit(schedule)

@@ -24,17 +24,32 @@ describe('ScheduleCard', () => {
   })
 
   // ==========================================================================
+  // Helper to create Schema 3.0 schedule fixtures
+  // ==========================================================================
+
+  const createSchedule = (overrides = {}) => ({
+    schedule_id: 'sched-1',
+    name: 'Test Schedule',
+    routines: [
+      {
+        routine_id: 'routine-1',
+        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+        actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+      },
+    ],
+    ...overrides,
+  })
+
+  // ==========================================================================
   // Rendering Tests
   // ==========================================================================
 
   describe('Rendering', () => {
     it('renders schedule name', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Summer Moth Survey',
         description: 'Nightly captures',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -49,12 +64,10 @@ describe('ScheduleCard', () => {
     })
 
     it('renders schedule description', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Summer Moth Survey',
         description: 'Nightly captures',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -69,11 +82,7 @@ describe('ScheduleCard', () => {
     })
 
     it('handles missing description gracefully', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Summer Moth Survey',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule({ name: 'Summer Moth Survey' })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -88,11 +97,7 @@ describe('ScheduleCard', () => {
     })
 
     it('shows ActiveScheduleBadge when isActive is true', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Summer Moth Survey',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule({ name: 'Summer Moth Survey' })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -107,11 +112,7 @@ describe('ScheduleCard', () => {
     })
 
     it('does not show ActiveScheduleBadge when isActive is false', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Summer Moth Survey',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule({ name: 'Summer Moth Survey' })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -127,20 +128,25 @@ describe('ScheduleCard', () => {
   })
 
   // ==========================================================================
-  // Trigger Summaries
+  // Trigger Summaries (Schema 3.0 - uses routines)
   // ==========================================================================
 
   describe('Trigger Summaries', () => {
     it('renders interval trigger summary', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Interval Schedule',
-        trigger: {
-          trigger_type: 'interval',
-          interval_minutes: 60,
-          time_window: { start_time: '21:00', end_time: '05:00' },
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'interval',
+              interval_minutes: 60,
+              time_window: { start_time: '21:00', end_time: '05:00' },
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -155,15 +161,20 @@ describe('ScheduleCard', () => {
     })
 
     it('renders solar trigger summary', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Solar Schedule',
-        trigger: {
-          trigger_type: 'solar',
-          solar_event: 'sunset',
-          offset_minutes: 30,
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'solar',
+              solar_event: 'sunset',
+              offset_minutes: 30,
+            },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -178,15 +189,20 @@ describe('ScheduleCard', () => {
     })
 
     it('renders solar trigger summary with negative offset', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Solar Schedule',
-        trigger: {
-          trigger_type: 'solar',
-          solar_event: 'sunrise',
-          offset_minutes: -15,
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'solar',
+              solar_event: 'sunrise',
+              offset_minutes: -15,
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -201,15 +217,20 @@ describe('ScheduleCard', () => {
     })
 
     it('renders solar trigger summary with zero offset', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Solar Schedule',
-        trigger: {
-          trigger_type: 'solar',
-          solar_event: 'sunset',
-          offset_minutes: 0,
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'solar',
+              solar_event: 'sunset',
+              offset_minutes: 0,
+            },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -224,15 +245,20 @@ describe('ScheduleCard', () => {
     })
 
     it('renders moon phase trigger summary', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Moon Phase Schedule',
-        trigger: {
-          trigger_type: 'moon_phase',
-          moon_phase: 'full',
-          time_of_day: '20:00',
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'moon_phase',
+              moon_phase: 'full',
+              time_of_day: '20:00',
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -247,14 +273,19 @@ describe('ScheduleCard', () => {
     })
 
     it('renders fixed time trigger summary', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Fixed Time Schedule',
-        trigger: {
-          trigger_type: 'fixed_time',
-          time_of_day: '21:00',
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'fixed_time',
+              time_of_day: '21:00',
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -269,16 +300,21 @@ describe('ScheduleCard', () => {
     })
 
     it('renders sensor trigger summary', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
+      const schedule = createSchedule({
         name: 'Sensor Schedule',
-        trigger: {
-          trigger_type: 'sensor',
-          sensor_type: 'light',
-          comparison: 'lt',
-          threshold: 100,
-        },
-      }
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: {
+              trigger_type: 'sensor',
+              sensor_type: 'light',
+              comparison: 'lt',
+              threshold: 100,
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
       render(
         <ScheduleCard
           schedule={schedule}
@@ -291,6 +327,63 @@ describe('ScheduleCard', () => {
       )
       expect(screen.getByText('When light < 100')).toBeInTheDocument()
     })
+
+    it('renders multi-routine summary with count indicator', () => {
+      const schedule = createSchedule({
+        name: 'Overnight Moth Survey',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'solar', solar_event: 'dusk', offset_minutes: 0 },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+          {
+            routine_id: 'r2',
+            trigger: {
+              trigger_type: 'interval',
+              interval_minutes: 15,
+              time_window: { start_time: 'sunset', end_time: 'sunrise' },
+            },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+          {
+            routine_id: 'r3',
+            trigger: { trigger_type: 'solar', solar_event: 'dawn', offset_minutes: 0 },
+            actions: [{ action_type: 'gpio', action_name: 'attract_off' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      expect(screen.getByText('At dusk (+2 more)')).toBeInTheDocument()
+    })
+
+    it('handles schedule with no routines gracefully', () => {
+      const schedule = createSchedule({
+        name: 'Empty Schedule',
+        routines: [],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      // Should render without crashing, empty summary
+      expect(screen.getByText('Empty Schedule')).toBeInTheDocument()
+    })
   })
 
   // ==========================================================================
@@ -298,13 +391,8 @@ describe('ScheduleCard', () => {
   // ==========================================================================
 
   describe('Action Buttons', () => {
-    const schedule = {
-      schedule_id: 'sched-1',
-      name: 'Test Schedule',
-      trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-    }
-
     it('renders Edit button', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -319,6 +407,7 @@ describe('ScheduleCard', () => {
     })
 
     it('calls onEdit when Edit button is clicked', async () => {
+      const schedule = createSchedule()
       const user = userEvent.setup()
       render(
         <ScheduleCard
@@ -337,6 +426,7 @@ describe('ScheduleCard', () => {
     })
 
     it('renders Activate button when schedule is not active', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -352,6 +442,7 @@ describe('ScheduleCard', () => {
     })
 
     it('renders Deactivate button when schedule is active', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -367,6 +458,7 @@ describe('ScheduleCard', () => {
     })
 
     it('calls onActivate when Activate button is clicked', async () => {
+      const schedule = createSchedule()
       const user = userEvent.setup()
       render(
         <ScheduleCard
@@ -385,6 +477,7 @@ describe('ScheduleCard', () => {
     })
 
     it('calls onDeactivate when Deactivate button is clicked', async () => {
+      const schedule = createSchedule()
       const user = userEvent.setup()
       render(
         <ScheduleCard
@@ -403,6 +496,7 @@ describe('ScheduleCard', () => {
     })
 
     it('renders Delete button', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -417,6 +511,7 @@ describe('ScheduleCard', () => {
     })
 
     it('calls onDelete when Delete button is clicked', async () => {
+      const schedule = createSchedule()
       const user = userEvent.setup()
       render(
         <ScheduleCard
@@ -440,13 +535,8 @@ describe('ScheduleCard', () => {
   // ==========================================================================
 
   describe('Loading States', () => {
-    const schedule = {
-      schedule_id: 'sched-1',
-      name: 'Test Schedule',
-      trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-    }
-
     it('disables and shows "Editing..." on Edit button when isEditing is true', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -464,6 +554,7 @@ describe('ScheduleCard', () => {
     })
 
     it('disables and shows "Activating..." on Activate button when isActivating is true', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -481,6 +572,7 @@ describe('ScheduleCard', () => {
     })
 
     it('disables and shows "Deactivating..." on Deactivate button when isDeactivating is true', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -498,6 +590,7 @@ describe('ScheduleCard', () => {
     })
 
     it('disables and shows "Deleting..." on Delete button when isDeleting is true', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -515,6 +608,7 @@ describe('ScheduleCard', () => {
     })
 
     it('disables all buttons when multiple loading states are true', () => {
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -540,11 +634,7 @@ describe('ScheduleCard', () => {
 
   describe('Accessibility', () => {
     it('has role="article"', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Test Schedule',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
@@ -559,11 +649,7 @@ describe('ScheduleCard', () => {
     })
 
     it('has aria-labelledby pointing to schedule name', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Test Schedule',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule()
       const { container } = render(
         <ScheduleCard
           schedule={schedule}
@@ -589,11 +675,7 @@ describe('ScheduleCard', () => {
 
   describe('Dark Mode', () => {
     it('has dark mode classes applied', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Test Schedule',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-      }
+      const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
