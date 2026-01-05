@@ -15,6 +15,7 @@ import PropTypes from 'prop-types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import RoutineCard from './RoutineCard'
 import NewRoutineCard from './NewRoutineCard'
+import { RoutinePropType } from './propTypes'
 
 /**
  * RoutineList component
@@ -140,14 +141,7 @@ function RoutineList({
 
 RoutineList.propTypes = {
   /** Array of routine objects */
-  routines: PropTypes.arrayOf(
-    PropTypes.shape({
-      routine_id: PropTypes.string.isRequired,
-      name: PropTypes.string,
-      trigger: PropTypes.object,
-      actions: PropTypes.arrayOf(PropTypes.object),
-    })
-  ),
+  routines: PropTypes.arrayOf(RoutinePropType),
   /** Callback when a routine is updated */
   onRoutineUpdate: PropTypes.func.isRequired,
   /** Callback when a routine is deleted */

@@ -201,3 +201,25 @@ export const SchedulePropType = PropTypes.shape({
   event_patterns: PropTypes.arrayOf(PatternPropType),
   date_range: DateRangePropType,
 });
+
+/**
+ * PropTypes shape for a routine configuration.
+ * Routines combine a trigger with a sequence of actions.
+ *
+ * @example
+ * {
+ *   routine_id: 'routine-123',
+ *   name: 'Nightly Photo Capture',
+ *   trigger: { trigger_type: 'solar', solar_event: 'sunset' },
+ *   actions: [
+ *     { id: '1', action_type: 'gpio', action_name: 'attract_on' },
+ *     { id: '2', action_type: 'camera', action_name: 'takephoto' }
+ *   ]
+ * }
+ */
+export const RoutinePropType = PropTypes.shape({
+  routine_id: PropTypes.string,
+  name: PropTypes.string,
+  trigger: TriggerPropType,
+  actions: PropTypes.arrayOf(ActionPropType),
+});

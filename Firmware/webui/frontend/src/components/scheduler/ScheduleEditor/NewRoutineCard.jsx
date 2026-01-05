@@ -11,6 +11,7 @@
 
 import { useState, useCallback, memo } from 'react'
 import PropTypes from 'prop-types'
+import toast from 'react-hot-toast'
 import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
 import { createDefaultTrigger } from '../TriggerSelector/constants'
@@ -56,6 +57,7 @@ function NewRoutineCard({ onComplete, onCancel, disabled = false }) {
   const handleSave = useCallback(() => {
     // Validate trigger has required type
     if (!trigger?.trigger_type) {
+      toast.error('Please select a trigger type')
       return
     }
 

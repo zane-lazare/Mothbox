@@ -15,6 +15,7 @@ import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
 import TriggerLabel from './TriggerLabel'
 import { generateRoutineName, getPrimaryActionColor } from '@/utils/routineUtils'
+import { RoutinePropType } from './propTypes'
 
 /**
  * RoutineCard component
@@ -198,12 +199,7 @@ function RoutineCard({
 
 RoutineCard.propTypes = {
   /** Routine object with trigger and actions */
-  routine: PropTypes.shape({
-    routine_id: PropTypes.string,
-    name: PropTypes.string,
-    trigger: PropTypes.object,
-    actions: PropTypes.arrayOf(PropTypes.object),
-  }).isRequired,
+  routine: RoutinePropType.isRequired,
   /** Index in parent list for data-testid */
   index: PropTypes.number.isRequired,
   /** Callback when routine is updated */
