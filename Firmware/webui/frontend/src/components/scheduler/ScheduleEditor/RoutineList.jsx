@@ -51,25 +51,6 @@ function RoutineList({
   onCancelAddRoutine,
   disabled = false,
 }) {
-  /**
-   * Handle routine update
-   */
-  const handleUpdate = useCallback(
-    (routine) => {
-      onRoutineUpdate(routine)
-    },
-    [onRoutineUpdate]
-  )
-
-  /**
-   * Handle routine delete
-   */
-  const handleDelete = useCallback(
-    (routineId) => {
-      onRoutineDelete(routineId)
-    },
-    [onRoutineDelete]
-  )
 
   /**
    * Handle new routine completion
@@ -123,8 +104,8 @@ function RoutineList({
           key={routine.routine_id}
           routine={routine}
           index={index}
-          onUpdate={handleUpdate}
-          onDelete={handleDelete}
+          onUpdate={onRoutineUpdate}
+          onDelete={onRoutineDelete}
           disabled={disabled}
         />
       ))}

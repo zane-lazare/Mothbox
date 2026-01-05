@@ -163,7 +163,7 @@ function RoutineCard({
       {/* Body - Collapsible content */}
       <div
         className={`overflow-hidden transition-all duration-200 ease-out ${
-          expanded ? 'max-h-[800px]' : 'max-h-0'
+          expanded ? 'max-h-screen' : 'max-h-0'
         }`}
       >
         <div className="px-4 pb-4 pt-2 border-t border-gray-800 dark:border-gray-700 space-y-4">

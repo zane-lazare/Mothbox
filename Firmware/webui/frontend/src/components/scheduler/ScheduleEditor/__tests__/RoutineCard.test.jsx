@@ -142,9 +142,9 @@ describe('RoutineCard', () => {
       // Check that aria-expanded is true
       const header = screen.getByRole('button', { expanded: true })
       expect(header).toBeInTheDocument()
-      // Check that the body has max-h-[800px] class (expanded)
+      // Check that the body has max-h-screen class (expanded)
       const body = screen.getByTestId('mock-trigger-selector').closest('.overflow-hidden')
-      expect(body).toHaveClass('max-h-[800px]')
+      expect(body).toHaveClass('max-h-screen')
     })
 
     it('expands on header click', async () => {
@@ -156,7 +156,7 @@ describe('RoutineCard', () => {
 
       await waitFor(() => {
         const body = screen.getByTestId('mock-trigger-selector').closest('.overflow-hidden')
-        expect(body).toHaveClass('max-h-[800px]')
+        expect(body).toHaveClass('max-h-screen')
       })
     })
 
@@ -183,7 +183,7 @@ describe('RoutineCard', () => {
 
       await waitFor(() => {
         const body = screen.getByTestId('mock-trigger-selector').closest('.overflow-hidden')
-        expect(body).toHaveClass('max-h-[800px]')
+        expect(body).toHaveClass('max-h-screen')
       })
     })
 
@@ -197,7 +197,7 @@ describe('RoutineCard', () => {
 
       await waitFor(() => {
         const body = screen.getByTestId('mock-trigger-selector').closest('.overflow-hidden')
-        expect(body).toHaveClass('max-h-[800px]')
+        expect(body).toHaveClass('max-h-screen')
       })
     })
 
