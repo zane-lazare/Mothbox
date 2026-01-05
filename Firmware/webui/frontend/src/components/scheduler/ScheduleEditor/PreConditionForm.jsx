@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { SENSOR_TYPES } from './constants'
+import { SENSOR_TYPES, validateNumericInput } from './constants'
+import { NUMERIC_ERRORS } from './errorMessages'
 
 /**
  * PreConditionForm - Optional sensor condition toggle with configuration
@@ -17,6 +18,7 @@ import { SENSOR_TYPES } from './constants'
  */
 function PreConditionForm({ preCondition, onChange, routineIndex, disabled = false }) {
   const [enabled, setEnabled] = useState(!!preCondition)
+  const [thresholdError, setThresholdError] = useState(null)
 
   // Sync internal state with prop changes
   useEffect(() => {
@@ -29,6 +31,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
   const handleToggle = (e) => {
     const isEnabled = e.target.checked
     setEnabled(isEnabled)
+    setThresholdError(null)
     if (!isEnabled) {
       onChange(null)
     } else {
@@ -47,6 +50,20 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
    */
   const handleFieldChange = (field, value) => {
     onChange({ ...preCondition, [field]: value })
+  }
+
+  /**
+   * Handle threshold change with validation
+   * Uses validateNumericInput for consistent validation across scheduler forms
+   */
+  const handleThresholdChange = (newThreshold) => {
+    const validated = validateNumericInput(newThreshold, 0)
+    if (validated === null) {
+      setThresholdError(NUMERIC_ERRORS.INVALID_THRESHOLD)
+      return
+    }
+    setThresholdError(null)
+    onChange({ ...preCondition, threshold: validated })
   }
 
   return (
@@ -74,13 +91,14 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
       {enabled && preCondition && (
         <div className="pl-6 space-y-3">
           <div className="flex items-center gap-3 text-sm flex-wrap">
-            {/* Sensor type */}
+            {/* Sensor type - filtered to light/temperature per issue #325 */}
             <select
               value={preCondition.sensor_type || 'light'}
               onChange={(e) => handleFieldChange('sensor_type', e.target.value)}
               disabled={disabled}
-              className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                         focus:border-gray-600 focus:outline-none
+              className="rounded-md border border-gray-300 dark:border-gray-600
+                         bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="pre-condition-sensor"
             >
@@ -91,13 +109,18 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               ))}
             </select>
 
-            {/* Operator */}
+            {/*
+             * Comparison operator - only lt/gt/eq per issue #325 spec.
+             * SENSOR_COMPARISONS in constants.js also has gte/lte, but
+             * pre-conditions only need basic comparisons.
+             */}
             <select
               value={preCondition.comparison || 'lt'}
               onChange={(e) => handleFieldChange('comparison', e.target.value)}
               disabled={disabled}
-              className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                         focus:border-gray-600 focus:outline-none
+              className="rounded-md border border-gray-300 dark:border-gray-600
+                         bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="pre-condition-op"
             >
@@ -109,15 +132,23 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
             {/* Threshold */}
             <input
               type="number"
+              min={0}
               value={preCondition.threshold ?? 100}
-              onChange={(e) => handleFieldChange('threshold', parseFloat(e.target.value) || 0)}
+              onChange={(e) => handleThresholdChange(e.target.value)}
               disabled={disabled}
-              className="w-20 bg-transparent border border-gray-800 rounded px-2 py-1 text-white text-center
-                         focus:border-gray-600 focus:outline-none
+              className="w-20 rounded-md border border-gray-300 dark:border-gray-600
+                         bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white text-center
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="pre-condition-threshold"
             />
           </div>
+          {/* Threshold validation error */}
+          {thresholdError && (
+            <p className="text-sm text-red-600 dark:text-red-400" data-testid="pre-condition-error">
+              {thresholdError}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -127,7 +158,6 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
 PreConditionForm.propTypes = {
   /** Pre-condition config or null if disabled */
   preCondition: PropTypes.shape({
-    trigger_type: PropTypes.string,
     sensor_type: PropTypes.string,
     comparison: PropTypes.string,
     threshold: PropTypes.number,

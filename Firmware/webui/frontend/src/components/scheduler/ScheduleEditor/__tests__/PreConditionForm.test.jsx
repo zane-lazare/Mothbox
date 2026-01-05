@@ -159,7 +159,7 @@ describe('PreConditionForm', () => {
       })
     })
 
-    it('handles empty threshold input gracefully', () => {
+    it('shows validation error for empty threshold input', () => {
       render(
         <PreConditionForm
           preCondition={defaultPreCondition}
@@ -171,10 +171,49 @@ describe('PreConditionForm', () => {
       const thresholdInput = screen.getByTestId('pre-condition-threshold')
       fireEvent.change(thresholdInput, { target: { value: '' } })
 
-      expect(mockOnChange).toHaveBeenCalledWith({
-        ...defaultPreCondition,
-        threshold: 0,
-      })
+      // Should show error and NOT call onChange
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-error')).toHaveTextContent(
+        'Threshold must be a positive number'
+      )
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows validation error for negative threshold', () => {
+      render(
+        <PreConditionForm
+          preCondition={defaultPreCondition}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '-10' } })
+
+      // Should show error and NOT call onChange
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('clears validation error when valid value entered', () => {
+      render(
+        <PreConditionForm
+          preCondition={defaultPreCondition}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+
+      // First enter invalid value
+      fireEvent.change(thresholdInput, { target: { value: '' } })
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+
+      // Then enter valid value
+      fireEvent.change(thresholdInput, { target: { value: '50' } })
+      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
     })
   })
 
@@ -268,9 +307,32 @@ describe('PreConditionForm', () => {
   })
 
   describe('Operator options', () => {
-    it('shows all three operator options with correct labels', () => {
+    it('shows only lt/gt/eq operators per issue #325 spec (not gte/lte)', () => {
       const preCondition = {
         trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+      }
+
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const opSelect = screen.getByTestId('pre-condition-op')
+      const options = opSelect.querySelectorAll('option')
+      const optionValues = Array.from(options).map((o) => o.value)
+
+      expect(optionValues).toContain('lt')
+      expect(optionValues).toContain('gt')
+      expect(optionValues).toContain('eq')
+      expect(optionValues).not.toContain('gte')
+      expect(optionValues).not.toContain('lte')
+      expect(optionValues).toHaveLength(3)
+    })
+
+    it('shows correct human-readable labels', () => {
+      const preCondition = {
         sensor_type: 'light',
         comparison: 'lt',
         threshold: 100,
@@ -307,6 +369,68 @@ describe('PreConditionForm', () => {
 
       expect(label).toHaveAttribute('for', 'pre-condition-toggle-0')
       expect(toggle).toHaveAttribute('id', 'pre-condition-toggle-0')
+    })
+  })
+
+  describe('useEffect sync behavior', () => {
+    it('syncs internal enabled state when preCondition prop changes externally', () => {
+      const { rerender } = render(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      // Initially unchecked
+      expect(screen.getByTestId('pre-condition-toggle-0')).not.toBeChecked()
+
+      // Parent provides preCondition - toggle should sync to checked
+      rerender(
+        <PreConditionForm
+          preCondition={{ sensor_type: 'light', comparison: 'lt', threshold: 50 }}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      expect(screen.getByTestId('pre-condition-toggle-0')).toBeChecked()
+
+      // Parent removes preCondition - toggle should sync to unchecked
+      rerender(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-toggle-0')).not.toBeChecked()
+    })
+  })
+
+  describe('Multiple instances', () => {
+    it('multiple instances with different routineIndex do not conflict', () => {
+      const preCondition1 = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      const preCondition2 = { sensor_type: 'temperature', comparison: 'gt', threshold: 25 }
+      const onChange1 = vi.fn()
+      const onChange2 = vi.fn()
+
+      render(
+        <>
+          <PreConditionForm
+            preCondition={preCondition1}
+            onChange={onChange1}
+            routineIndex={0}
+          />
+          <PreConditionForm
+            preCondition={preCondition2}
+            onChange={onChange2}
+            routineIndex={1}
+          />
+        </>
+      )
+
+      // Both toggles should be present with unique IDs
+      expect(screen.getByTestId('pre-condition-toggle-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-toggle-1')).toBeInTheDocument()
+
+      // Changing one should not affect the other
+      const toggle0 = screen.getByTestId('pre-condition-toggle-0')
+      fireEvent.click(toggle0)
+
+      expect(onChange1).toHaveBeenCalledWith(null)
+      expect(onChange2).not.toHaveBeenCalled()
     })
   })
 })
