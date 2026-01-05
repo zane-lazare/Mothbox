@@ -53,6 +53,12 @@ export { default as SensorTriggerForm } from './SensorTriggerForm';
 export { default as TimeWindowInput } from './TimeWindowInput';
 export { default as DaysOfWeekSelector } from './DaysOfWeekSelector';
 
+// Routine components (Issue #324)
+export { default as TriggerLabel } from './TriggerLabel';
+export { default as RoutineCard } from './RoutineCard';
+export { default as RoutineList } from './RoutineList';
+export { default as NewRoutineCard } from './NewRoutineCard';
+
 // Constants and types
 export {
   SCHEDULE_LIMITS,
