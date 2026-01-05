@@ -8,6 +8,12 @@
  * - Getting action type display information
  *
  * @module components/scheduler/DayTimeline/dayTimelineUtils
+ *
+ * @note TIMEZONE HANDLING: All times in this module are treated as UTC to avoid
+ * timezone inconsistencies. The backend API returns times in ISO 8601 format
+ * (e.g., "2025-12-17T18:30:00Z") and this module extracts hours/minutes directly
+ * from the string format to avoid browser timezone conversion. Ensure your
+ * backend returns UTC times for consistent display across timezones.
  */
 
 import {
@@ -15,6 +21,23 @@ import {
   DEFAULT_ACTION_COLORS,
   isHdrAction,
 } from './dayTimelineConstants'
+
+/**
+ * Regex for validating ISO 8601 datetime format.
+ * Matches: YYYY-MM-DDTHH:MM:SS with optional milliseconds and Z suffix.
+ */
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/
+
+/**
+ * Logs a warning in development mode for invalid time strings.
+ * @param {string} isoString - The invalid ISO string
+ * @param {string} context - Function name for context
+ */
+function warnInvalidTime(isoString, context) {
+  if (import.meta.env.DEV) {
+    console.warn(`[${context}] Invalid ISO time string:`, isoString)
+  }
+}
 
 /**
  * Extracts the hour (0-23) from an ISO datetime string.
@@ -36,10 +59,17 @@ export function getHourFromIsoTime(isoString) {
     return parseInt(timeMatch[1], 10)
   }
 
+  // Validate format before attempting Date parsing
+  if (!ISO_DATE_REGEX.test(isoString)) {
+    warnInvalidTime(isoString, 'getHourFromIsoTime')
+    return null
+  }
+
   // Fallback to Date parsing for non-standard formats
   // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
+    warnInvalidTime(isoString, 'getHourFromIsoTime')
     return null
   }
 
@@ -64,10 +94,17 @@ export function getMinuteFromIsoTime(isoString) {
     return parseInt(timeMatch[2], 10)
   }
 
+  // Validate format before attempting Date parsing
+  if (!ISO_DATE_REGEX.test(isoString)) {
+    warnInvalidTime(isoString, 'getMinuteFromIsoTime')
+    return null
+  }
+
   // Fallback to Date parsing for non-standard formats
   // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
+    warnInvalidTime(isoString, 'getMinuteFromIsoTime')
     return null
   }
 
@@ -106,10 +143,17 @@ export function formatTimeShort(isoString) {
     return `${hours}:${minutes}`
   }
 
+  // Validate format before attempting Date parsing
+  if (!ISO_DATE_REGEX.test(isoString)) {
+    warnInvalidTime(isoString, 'formatTimeShort')
+    return ''
+  }
+
   // Fallback to Date parsing for non-standard formats
   // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
+    warnInvalidTime(isoString, 'formatTimeShort')
     return ''
   }
 
@@ -263,13 +307,19 @@ export function getConflictForExecution(execution, conflicts) {
 /**
  * Generates a unique key for an execution chip.
  *
+ * Uses execution.id if available, otherwise falls back to pattern_id + time + index.
+ * The index parameter prevents key collisions when multiple executions share
+ * the same pattern_id and start_time.
+ *
  * @param {Object} execution - Execution object
+ * @param {number} [index=0] - Array index for uniqueness fallback
  * @returns {string} Unique key for React rendering
  */
-export function getExecutionKey(execution) {
+export function getExecutionKey(execution, index = 0) {
   const patternId = execution.pattern_id || 'unknown'
   const time = execution.start_time || ''
-  return `${patternId}-${time}`
+  const uniqueId = execution.id || index
+  return `${patternId}-${time}-${uniqueId}`
 }
 
 /**

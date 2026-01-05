@@ -33,6 +33,22 @@ describe('dayTimelineUtils', () => {
       expect(getHourFromIsoTime(123)).toBeNull()
     })
 
+    describe('ISO format validation', () => {
+      it('rejects malformed date formats without T separator', () => {
+        expect(getHourFromIsoTime('2025-12-17 18:30:00')).toBeNull()
+        expect(getHourFromIsoTime('18:30:00')).toBeNull()
+      })
+
+      it('accepts valid ISO format with milliseconds', () => {
+        expect(getHourFromIsoTime('2025-12-17T18:30:00.123Z')).toBe(18)
+      })
+
+      it('handles ISO strings with various valid suffixes', () => {
+        expect(getHourFromIsoTime('2025-12-17T18:30:00Z')).toBe(18)
+        expect(getHourFromIsoTime('2025-12-17T18:30:00')).toBe(18)
+      })
+    })
+
     describe('timezone handling', () => {
       it('handles UTC timestamps with Z suffix', () => {
         expect(getHourFromIsoTime('2025-12-17T23:00:00Z')).toBe(23)
@@ -64,6 +80,17 @@ describe('dayTimelineUtils', () => {
       expect(getMinuteFromIsoTime(null)).toBeNull()
       expect(getMinuteFromIsoTime('')).toBeNull()
       expect(getMinuteFromIsoTime('invalid')).toBeNull()
+    })
+
+    describe('ISO format validation', () => {
+      it('rejects malformed date formats without T separator', () => {
+        expect(getMinuteFromIsoTime('2025-12-17 18:30:00')).toBeNull()
+        expect(getMinuteFromIsoTime('18:30:00')).toBeNull()
+      })
+
+      it('accepts valid ISO format with milliseconds', () => {
+        expect(getMinuteFromIsoTime('2025-12-17T18:30:00.123Z')).toBe(30)
+      })
     })
 
     describe('timezone handling', () => {
@@ -106,6 +133,17 @@ describe('dayTimelineUtils', () => {
       expect(formatTimeShort(null)).toBe('')
       expect(formatTimeShort('')).toBe('')
       expect(formatTimeShort('invalid')).toBe('')
+    })
+
+    describe('ISO format validation', () => {
+      it('rejects malformed date formats without T separator', () => {
+        expect(formatTimeShort('2025-12-17 18:30:00')).toBe('')
+        expect(formatTimeShort('18:30:00')).toBe('')
+      })
+
+      it('formats valid ISO with milliseconds', () => {
+        expect(formatTimeShort('2025-12-17T18:30:00.123Z')).toBe('18:30')
+      })
     })
   })
 
@@ -305,16 +343,45 @@ describe('dayTimelineUtils', () => {
   })
 
   describe('getExecutionKey', () => {
-    it('generates unique key from pattern_id and time', () => {
+    it('generates unique key from pattern_id, time, and id', () => {
+      const execution = {
+        id: 'exec-123',
+        pattern_id: 'routine-1',
+        start_time: '2025-12-17T18:30:00Z',
+      }
+      expect(getExecutionKey(execution)).toBe(
+        'routine-1-2025-12-17T18:30:00Z-exec-123'
+      )
+    })
+
+    it('uses index as fallback when id is missing', () => {
       const execution = {
         pattern_id: 'routine-1',
         start_time: '2025-12-17T18:30:00Z',
       }
-      expect(getExecutionKey(execution)).toBe('routine-1-2025-12-17T18:30:00Z')
+      expect(getExecutionKey(execution, 5)).toBe(
+        'routine-1-2025-12-17T18:30:00Z-5'
+      )
+    })
+
+    it('uses 0 as default index', () => {
+      const execution = {
+        pattern_id: 'routine-1',
+        start_time: '2025-12-17T18:30:00Z',
+      }
+      expect(getExecutionKey(execution)).toBe(
+        'routine-1-2025-12-17T18:30:00Z-0'
+      )
     })
 
     it('handles missing fields', () => {
-      expect(getExecutionKey({})).toBe('unknown-')
+      expect(getExecutionKey({})).toBe('unknown--0')
+    })
+
+    it('prevents key collision for same pattern_id and time', () => {
+      const exec1 = { pattern_id: 'r1', start_time: '2025-12-17T18:00:00Z' }
+      const exec2 = { pattern_id: 'r1', start_time: '2025-12-17T18:00:00Z' }
+      expect(getExecutionKey(exec1, 0)).not.toBe(getExecutionKey(exec2, 1))
     })
   })
 

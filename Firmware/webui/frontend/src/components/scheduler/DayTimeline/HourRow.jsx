@@ -63,14 +63,14 @@ function HourRow({
 
       {hasExecutions ? (
         <div className="flex gap-2 flex-wrap items-center">
-          {executions.map((execution) => {
+          {executions.map((execution, index) => {
             // Check if this specific execution has a conflict
             const execConflict = executionConflicts[execution.pattern_id]
             const conflictSeverity = execConflict?.severity || null
 
             return (
               <ExecutionChip
-                key={getExecutionKey(execution)}
+                key={getExecutionKey(execution, index)}
                 execution={execution}
                 onClick={
                   onExecutionClick ? () => onExecutionClick(execution) : undefined

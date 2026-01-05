@@ -16,32 +16,22 @@ export const ACTION_TYPE_COLORS = {
   camera: {
     bg: 'bg-blue-500/20',
     text: 'text-blue-400',
-    darkBg: 'dark:bg-blue-500/20',
-    darkText: 'dark:text-blue-400',
   },
   gpio: {
     bg: 'bg-orange-500/20',
     text: 'text-orange-400',
-    darkBg: 'dark:bg-orange-500/20',
-    darkText: 'dark:text-orange-400',
   },
   hdr: {
     bg: 'bg-purple-500/20',
     text: 'text-purple-400',
-    darkBg: 'dark:bg-purple-500/20',
-    darkText: 'dark:text-purple-400',
   },
   gps_sync: {
     bg: 'bg-green-500/20',
     text: 'text-green-400',
-    darkBg: 'dark:bg-green-500/20',
-    darkText: 'dark:text-green-400',
   },
   service: {
     bg: 'bg-gray-500/20',
     text: 'text-gray-400',
-    darkBg: 'dark:bg-gray-500/20',
-    darkText: 'dark:text-gray-400',
   },
 }
 
@@ -51,8 +41,6 @@ export const ACTION_TYPE_COLORS = {
 export const DEFAULT_ACTION_COLORS = {
   bg: 'bg-blue-500/20',
   text: 'text-blue-400',
-  darkBg: 'dark:bg-blue-500/20',
-  darkText: 'dark:text-blue-400',
 }
 
 /**
