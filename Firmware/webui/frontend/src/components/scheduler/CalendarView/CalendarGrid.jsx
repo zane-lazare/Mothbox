@@ -3,6 +3,7 @@
  *
  * Renders calendar grid with date cells for month/week/day views.
  * Manages execution grouping and moon phase data distribution.
+ * Day view uses DayTimeline component for hourly display with conflict highlighting (Issue #326).
  *
  * @module components/scheduler/CalendarView/CalendarGrid
  */
@@ -10,13 +11,12 @@
 import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import CalendarCell from './CalendarCell'
+import DayTimeline from '../DayTimeline'
 import {
   getMonthGridDates,
   getWeekDates,
   groupExecutionsByDate,
   isToday,
-  formatTime,
-  getPatternColor,
   getDateKey,
 } from './calendarUtils'
 
@@ -29,6 +29,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
  * @param {string} props.viewMode - 'month', 'week', or 'day' (required)
  * @param {Date} props.currentDate - The current date being displayed (required)
  * @param {Array} props.executions - Raw executions array from API
+ * @param {Array} [props.conflicts] - Conflict objects from preview API (for day view)
  * @param {Object} props.moonPhases - Moon phases by date { 'YYYY-MM-DD': { phase, phase_name, illumination } }
  * @param {Function} props.onCellClick - Cell click handler (receives date)
  * @param {Function} props.onExecutionClick - Execution click handler (receives execution)
@@ -48,6 +49,7 @@ function CalendarGrid({
   viewMode,
   currentDate,
   executions = [],
+  conflicts = [],
   moonPhases = {},
   onCellClick,
   onExecutionClick,
@@ -163,90 +165,18 @@ function CalendarGrid({
     )
   }
 
-  // Day View: Single day with all executions listed
+  // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
     const dayExecutions = executionsByDate[currentDateKey] || []
 
-    // Format full date for header
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ]
-    const dayNames = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-    ]
-
-    const fullDate = `${dayNames[currentDate.getDay()]}, ${
-      monthNames[currentDate.getMonth()]
-    } ${currentDate.getDate()}, ${currentDate.getFullYear()}`
-
     return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        {/* Day header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {fullDate}
-          </div>
-        </div>
-
-        {/* Day content - show all executions for the day */}
-        <div className="p-4 max-h-96 overflow-y-auto">
-          {dayExecutions.length > 0 ? (
-            <div className="space-y-2">
-              {dayExecutions.map((exec) => (
-                <div
-                  key={exec.start_time}
-                  className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-150"
-                  onClick={() => onExecutionClick(exec)}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${exec.pattern_name} at ${formatTime(exec.start_time)}`}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onExecutionClick(exec)
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${getPatternColor(exec.pattern_id)}`}
-                    />
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {exec.pattern_name}
-                    </span>
-                    <span className="text-gray-500 dark:text-gray-400 ml-auto">
-                      {formatTime(exec.start_time)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Empty state */
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-              No executions scheduled
-            </p>
-          )}
-        </div>
-      </div>
+      <DayTimeline
+        date={currentDateKey}
+        executions={dayExecutions}
+        conflicts={conflicts}
+        onExecutionClick={onExecutionClick}
+      />
     )
   }
 
@@ -262,6 +192,16 @@ CalendarGrid.propTypes = {
       pattern_id: PropTypes.string.isRequired,
       pattern_name: PropTypes.string.isRequired,
       start_time: PropTypes.string.isRequired,
+    })
+  ),
+  /** Conflict objects from preview API (for day view, Issue #326) */
+  conflicts: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string,
+      conflict_type: PropTypes.string,
+      severity: PropTypes.oneOf(['error', 'warning']),
+      message: PropTypes.string,
+      start_time: PropTypes.string,
     })
   ),
   moonPhases: PropTypes.objectOf(

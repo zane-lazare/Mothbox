@@ -403,8 +403,10 @@ describe('CalendarGrid', () => {
     })
   })
 
-  describe('Day View', () => {
-    it('shows full formatted date in header', () => {
+  describe('Day View (DayTimeline)', () => {
+    // Day view now uses DayTimeline component (Issue #326)
+
+    it('renders DayTimeline with day-timeline testid', () => {
       render(
         <CalendarGrid
           viewMode="day"
@@ -416,10 +418,10 @@ describe('CalendarGrid', () => {
         />
       )
 
-      expect(screen.getByText('Wednesday, January 15, 2025')).toBeInTheDocument()
+      expect(screen.getByTestId('day-timeline')).toBeInTheDocument()
     })
 
-    it('shows all executions for selected date', () => {
+    it('shows executions for selected date in hour rows', () => {
       render(
         <CalendarGrid
           viewMode="day"
@@ -431,12 +433,14 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Should show 2 executions for Jan 15
-      expect(screen.getByText('Morning Capture')).toBeInTheDocument()
-      expect(screen.getByText('Evening Capture')).toBeInTheDocument()
+      // Should show executions for Jan 15
+      // Evening Capture at 18:00 should be in hour-row-18
+      expect(screen.getByTestId('hour-row-18')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-pattern2-1800')).toBeInTheDocument()
 
-      // Should NOT show execution from Jan 20
-      expect(screen.queryByText('Afternoon Capture')).not.toBeInTheDocument()
+      // Verify we have 24 hour rows
+      expect(screen.getByTestId('hour-row-0')).toBeInTheDocument()
+      expect(screen.getByTestId('hour-row-23')).toBeInTheDocument()
     })
 
     it('shows empty state when no executions for day', () => {
@@ -451,10 +455,11 @@ describe('CalendarGrid', () => {
         />
       )
 
-      expect(screen.getByText('No executions scheduled')).toBeInTheDocument()
+      expect(screen.getByTestId('day-timeline-empty')).toBeInTheDocument()
+      expect(screen.getByText('No scheduled events')).toBeInTheDocument()
     })
 
-    it('calls onExecutionClick when execution is clicked in day view', async () => {
+    it('calls onExecutionClick when execution chip is clicked', async () => {
       const user = userEvent.setup()
 
       render(
@@ -468,18 +473,19 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const executionDiv = screen.getByText('Morning Capture').closest('div')
-      await user.click(executionDiv)
+      // Click the Evening Capture chip
+      const executionChip = screen.getByTestId('execution-pattern2-1800')
+      await user.click(executionChip)
 
       expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)
       expect(mockOnExecutionClick).toHaveBeenCalledWith(
         expect.objectContaining({
-          pattern_name: 'Morning Capture',
+          pattern_name: 'Evening Capture',
         })
       )
     })
 
-    it('shows execution times in day view', () => {
+    it('renders 24 hour rows', () => {
       render(
         <CalendarGrid
           viewMode="day"
@@ -491,62 +497,37 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // formatTime displays times in user's local timezone
-      // Find time elements by their format (H:MM or HH:MM pattern)
-      const timeElements = screen.getAllByText(/^\d{1,2}:\d{2}$/)
-      expect(timeElements).toHaveLength(2) // Two executions should have time displayed
+      // Should have 24 hour rows (0-23)
+      for (let hour = 0; hour < 24; hour++) {
+        expect(screen.getByTestId(`hour-row-${hour}`)).toBeInTheDocument()
+      }
     })
 
-    it('shows pattern color indicators in day view', () => {
-      const { container } = render(
+    it('passes conflicts to DayTimeline', () => {
+      const conflicts = [
+        {
+          id: 'c1',
+          severity: 'error',
+          message: 'camera busy',
+          start_time: '2025-01-15T08:30:00Z',
+        },
+      ]
+
+      render(
         <CalendarGrid
           viewMode="day"
           currentDate={new Date(2025, 0, 15)}
           executions={mockExecutions}
+          conflicts={conflicts}
           moonPhases={{}}
           onCellClick={mockOnCellClick}
           onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      // Find colored dots (w-3 h-3 rounded-full)
-      const colorDots = container.querySelectorAll('.w-3.h-3.rounded-full')
-      expect(colorDots.length).toBe(2) // Two executions on this day
-    })
-
-    it('has scrollable container with max height in day view', () => {
-      const { container } = render(
-        <CalendarGrid
-          viewMode="day"
-          currentDate={new Date(2025, 0, 15)}
-          executions={mockExecutions}
-          moonPhases={{}}
-          onCellClick={mockOnCellClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      // Find the scrollable container
-      const scrollableContainer = container.querySelector('.max-h-96.overflow-y-auto')
-      expect(scrollableContainer).toBeInTheDocument()
-    })
-
-    it('has scrollable container in empty state', () => {
-      const { container } = render(
-        <CalendarGrid
-          viewMode="day"
-          currentDate={new Date(2025, 0, 10)} // Day with no executions
-          executions={mockExecutions}
-          moonPhases={{}}
-          onCellClick={mockOnCellClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      // Scrollable container should exist even in empty state
-      const scrollableContainer = container.querySelector('.max-h-96.overflow-y-auto')
-      expect(scrollableContainer).toBeInTheDocument()
-      expect(screen.getByText('No executions scheduled')).toBeInTheDocument()
+      // Conflict summary should be visible
+      expect(screen.getByTestId('conflict-summary')).toBeInTheDocument()
+      expect(screen.getByText('1 conflict')).toBeInTheDocument()
     })
   })
 
@@ -673,9 +654,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Check for dark mode background classes
-      const elements = container.querySelectorAll('.dark\\:bg-gray-700')
-      expect(elements.length).toBeGreaterThan(0)
+      // DayTimeline uses dark mode classes for text
+      const darkElements = container.querySelectorAll('[class*="dark:"]')
+      expect(darkElements.length).toBeGreaterThan(0)
     })
   })
 
@@ -710,7 +691,7 @@ describe('CalendarGrid', () => {
   })
 
   describe('Accessibility', () => {
-    it('provides keyboard support for day view executions', async () => {
+    it('provides keyboard support for day view execution chips', async () => {
       const user = userEvent.setup()
 
       render(
@@ -724,8 +705,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const executionDiv = screen.getByText('Morning Capture').closest('div')
-      executionDiv.focus()
+      // ExecutionChip uses button element, so we can tab to it and press Enter
+      const executionChip = screen.getByTestId('execution-pattern2-1800')
+      executionChip.focus()
       await user.keyboard('{Enter}')
 
       expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)

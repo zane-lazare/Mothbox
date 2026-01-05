@@ -237,6 +237,7 @@ export function CalendarView() {
           viewMode={viewMode}
           currentDate={currentDate}
           executions={previewData?.executions || []}
+          conflicts={previewData?.conflicts || []}
           moonPhases={previewData?.moon_phases || {}}
           onCellClick={handleCellClick}
           onExecutionClick={handleExecutionClick}
