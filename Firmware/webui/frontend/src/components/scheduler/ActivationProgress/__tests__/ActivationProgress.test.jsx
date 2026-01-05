@@ -403,6 +403,14 @@ describe('ActivationProgress', () => {
   // ==========================================================================
 
   describe('Socket Cleanup', () => {
+    it('removes event listener on unmount', () => {
+      const { unmount } = render(<ActivationProgress scheduleId="sched-1" />)
+
+      unmount()
+
+      expect(mockSocket.off).toHaveBeenCalledWith('schedule:activation_progress')
+    })
+
     it('disconnects socket on unmount', () => {
       const { unmount } = render(<ActivationProgress scheduleId="sched-1" />)
 
@@ -468,13 +476,14 @@ describe('ActivationProgress', () => {
   // ==========================================================================
 
   describe('Dark Mode', () => {
-    it('has dark mode classes on progress bar container', () => {
+    it('has light and dark mode classes on progress bar container', () => {
       render(<ActivationProgress scheduleId="sched-1" />)
       const container = screen.getByTestId('activation-progress-bar').parentElement
-      expect(container).toHaveClass('bg-gray-800')
+      expect(container).toHaveClass('bg-gray-200')
+      expect(container).toHaveClass('dark:bg-gray-800')
     })
 
-    it('has dark mode classes on error state', async () => {
+    it('has light and dark mode classes on error state', async () => {
       render(<ActivationProgress scheduleId="sched-1" />)
 
       simulateProgressEvent({
@@ -485,7 +494,8 @@ describe('ActivationProgress', () => {
 
       await waitFor(() => {
         const wrapper = screen.getByTestId('activation-progress')
-        expect(wrapper).toHaveClass('border-red-900/50')
+        expect(wrapper).toHaveClass('border-red-300')
+        expect(wrapper).toHaveClass('dark:border-red-900/50')
       })
     })
   })

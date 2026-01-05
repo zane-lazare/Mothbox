@@ -5,4 +5,4 @@
  */
 
 export { default as ActivationProgress } from './ActivationProgress'
-export { PHASE_LABELS, PHASE_PROGRESS } from './constants'
+export { PHASE_LABELS } from './constants'

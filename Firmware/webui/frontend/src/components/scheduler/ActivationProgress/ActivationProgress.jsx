@@ -12,7 +12,7 @@
  * @module components/scheduler/ActivationProgress/ActivationProgress
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import { io } from 'socket.io-client'
 import { PHASE_LABELS } from './constants'
@@ -47,17 +47,15 @@ export default function ActivationProgress({
   const [errorMessage, setErrorMessage] = useState('')
   const socketRef = useRef(null)
 
-  // Memoize callbacks to avoid effect re-runs
-  const handleComplete = useCallback(() => {
-    onComplete?.()
-  }, [onComplete])
+  // Store latest callbacks in refs to avoid effect re-runs when parent re-renders
+  const onCompleteRef = useRef(onComplete)
+  const onErrorRef = useRef(onError)
 
-  const handleError = useCallback(
-    (msg) => {
-      onError?.(msg)
-    },
-    [onError]
-  )
+  // Keep refs in sync with props
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+    onErrorRef.current = onError
+  })
 
   useEffect(() => {
     // Setup WebSocket connection (following Camera.jsx pattern)
@@ -78,21 +76,22 @@ export default function ActivationProgress({
 
       if (data.phase === 'complete') {
         setState('complete')
-        handleComplete()
+        onCompleteRef.current?.()
       } else if (data.phase === 'failed') {
         setState('error')
         const msg = data.error || 'Activation failed'
         setErrorMessage(msg)
-        handleError(msg)
+        onErrorRef.current?.(msg)
       }
     })
 
     return () => {
       if (socketRef.current) {
+        socketRef.current.off('schedule:activation_progress')
         socketRef.current.disconnect()
       }
     }
-  }, [scheduleId, handleComplete, handleError])
+  }, [scheduleId])
 
   const handleRetryClick = () => {
     // Reset state for retry
@@ -108,19 +107,19 @@ export default function ActivationProgress({
     return (
       <div
         data-testid="activation-progress"
-        className="border border-red-900/50 rounded-lg p-4 space-y-3"
+        className="border border-red-300 dark:border-red-900/50 rounded-lg p-4 space-y-3 bg-red-50 dark:bg-transparent"
       >
         <div data-testid="activation-error" className="flex items-center justify-between">
-          <span className="text-xs text-red-400">Failed</span>
+          <span className="text-xs text-red-600 dark:text-red-400">Failed</span>
           <button
             type="button"
             onClick={handleRetryClick}
-            className="text-sm text-gray-400 hover:text-white"
+            className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
             Retry
           </button>
         </div>
-        <div className="text-xs text-gray-500">{errorMessage}</div>
+        <div className="text-xs text-gray-600 dark:text-gray-500">{errorMessage}</div>
       </div>
     )
   }
@@ -131,7 +130,7 @@ export default function ActivationProgress({
       <div data-testid="activation-progress" className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full" />
-          <span className="text-xs text-green-400">Activated</span>
+          <span className="text-xs text-green-600 dark:text-green-400">Activated</span>
         </div>
       </div>
     )
@@ -142,12 +141,12 @@ export default function ActivationProgress({
     <div data-testid="activation-progress" className="space-y-2">
       <div className="flex items-center gap-2">
         <div
-          className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"
+          className="w-3 h-3 border-2 border-blue-500 dark:border-blue-400 border-t-transparent rounded-full animate-spin"
           aria-hidden="true"
         />
-        <span className="text-xs text-blue-400">Activating</span>
+        <span className="text-xs text-blue-600 dark:text-blue-400">Activating</span>
       </div>
-      <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+      <div className="h-1 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
         <div
           data-testid="activation-progress-bar"
           className="h-full bg-blue-500 transition-all duration-300"
@@ -160,10 +159,10 @@ export default function ActivationProgress({
         />
       </div>
       <div className="flex justify-between text-xs">
-        <span data-testid="activation-phase" className="text-gray-500">
+        <span data-testid="activation-phase" className="text-gray-600 dark:text-gray-500">
           {PHASE_LABELS[phase] || phase}
         </span>
-        <span className="text-gray-600">{progress}%</span>
+        <span className="text-gray-500 dark:text-gray-600">{progress}%</span>
       </div>
     </div>
   )
