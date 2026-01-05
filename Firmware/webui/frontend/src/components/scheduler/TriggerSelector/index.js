@@ -8,7 +8,10 @@
  * @see Issue #323
  */
 
-export { default as TriggerSelector } from './TriggerSelector'
+import TriggerSelector from './TriggerSelector'
+
+export { TriggerSelector }
+export default TriggerSelector
 export { default as IntervalTriggerForm } from './IntervalTriggerForm'
 export { default as FixedTimeTriggerForm } from './FixedTimeTriggerForm'
 export { default as SolarTriggerForm } from './SolarTriggerForm'
