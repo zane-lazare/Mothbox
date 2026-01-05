@@ -96,6 +96,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               value={preCondition.sensor_type || 'light'}
               onChange={(e) => handleFieldChange('sensor_type', e.target.value)}
               disabled={disabled}
+              aria-label="Sensor type"
               className="rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -118,6 +119,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               value={preCondition.comparison || 'lt'}
               onChange={(e) => handleFieldChange('comparison', e.target.value)}
               disabled={disabled}
+              aria-label="Comparison operator"
               className="rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -136,6 +138,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               value={preCondition.threshold ?? 100}
               onChange={(e) => handleThresholdChange(e.target.value)}
               disabled={disabled}
+              aria-label="Threshold value"
               className="w-20 rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white text-center
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -158,6 +161,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
 PreConditionForm.propTypes = {
   /** Pre-condition config or null if disabled */
   preCondition: PropTypes.shape({
+    trigger_type: PropTypes.string,
     sensor_type: PropTypes.string,
     comparison: PropTypes.string,
     threshold: PropTypes.number,
