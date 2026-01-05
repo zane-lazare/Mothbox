@@ -361,38 +361,81 @@ describe('PatternSelectionPropType', () => {
   });
 });
 
-describe('SchedulePropType', () => {
-  it('accepts valid schedule', () => {
+describe('SchedulePropType (Schema 3.0)', () => {
+  it('accepts valid schedule with routines', () => {
     const validSchedule = {
       schedule_id: 'sched-123',
-      name: 'Summer Moth Survey',
-      description: 'Nightly moth capture from June to August',
-      trigger: {
-        trigger_type: 'solar',
-        solar_event: 'sunset',
-        offset_minutes: 30,
-      },
-      event_patterns: [
+      name: 'Overnight Moth Survey',
+      description: 'UV lights at dusk, photos every 15 minutes',
+      routines: [
         {
-          pattern_id: 'pattern-1',
-          name: 'UV Capture',
-          actions: [{ type: 'gpio' }],
+          routine_id: 'routine-1',
+          name: 'UV On at Dusk',
+          trigger: {
+            trigger_type: 'solar',
+            solar_event: 'dusk',
+            offset_minutes: 0,
+          },
+          actions: [
+            { id: 'a1', action_type: 'gpio', action_name: 'attract_on' },
+          ],
+        },
+        {
+          routine_id: 'routine-2',
+          trigger: {
+            trigger_type: 'interval',
+            interval_minutes: 15,
+            time_window: { start_time: 'sunset', end_time: 'sunrise' },
+          },
+          actions: [
+            { id: 'a2', action_type: 'camera', action_name: 'takephoto' },
+          ],
         },
       ],
-      date_range: {
-        start_date: '2024-06-01',
-        end_date: '2024-08-31',
-      },
+      is_active: false,
+      is_builtin: false,
+      enabled: true,
+      created_at: '2024-01-01T00:00:00',
+      updated_at: '2024-01-01T00:00:00',
     };
     const error = checkPropType(SchedulePropType, validSchedule);
     expect(error).toBeNull();
   });
 
-  it('accepts partial schedule', () => {
-    const partialSchedule = {
+  it('accepts schedule with minimal fields', () => {
+    const minimalSchedule = {
       name: 'Basic Schedule',
+      routines: [],
     };
-    const error = checkPropType(SchedulePropType, partialSchedule);
+    const error = checkPropType(SchedulePropType, minimalSchedule);
+    expect(error).toBeNull();
+  });
+
+  it('accepts schedule with is_active flag', () => {
+    const activeSchedule = {
+      schedule_id: 'sched-456',
+      name: 'Active Schedule',
+      routines: [
+        {
+          routine_id: 'r1',
+          trigger: { trigger_type: 'fixed_time', time: '21:00' },
+          actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+        },
+      ],
+      is_active: true,
+    };
+    const error = checkPropType(SchedulePropType, activeSchedule);
+    expect(error).toBeNull();
+  });
+
+  it('accepts schedule with is_builtin flag', () => {
+    const builtinSchedule = {
+      schedule_id: 'builtin-1',
+      name: 'Built-in Survey',
+      routines: [],
+      is_builtin: true,
+    };
+    const error = checkPropType(SchedulePropType, builtinSchedule);
     expect(error).toBeNull();
   });
 });

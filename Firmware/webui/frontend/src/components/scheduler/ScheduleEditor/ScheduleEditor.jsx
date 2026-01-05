@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import TriggerForm from './TriggerForm';
-import EventPatternSelector from './EventPatternSelector';
-import DateRangeSection from './DateRangeSection';
+import RoutineList from './RoutineList';
 import PreviewSection from './PreviewSection';
-import { TRIGGER_DEFAULTS, SCHEDULE_LIMITS } from './constants';
-import { TriggerPropType, PatternPropType, DateRangePropType } from './propTypes';
+import { SCHEDULE_LIMITS } from './constants';
+import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
 
 /** Delay before focusing name input to allow drawer animation to start */
@@ -23,10 +21,11 @@ const KNOWN_ERROR_CODES = {
 /**
  * Sanitize error messages for safe display
  * - Maps known error codes to user-friendly messages
+ * - Strips HTML tags as defense-in-depth
  * - Truncates long messages to 200 characters
  *
  * Note: React automatically escapes text content when rendering,
- * so manual HTML character stripping is not needed for XSS prevention.
+ * but we strip HTML tags as additional defense-in-depth.
  *
  * @param {Error} error - The error object
  * @returns {string} Sanitized error message
@@ -38,9 +37,18 @@ const sanitizeErrorMessage = (error) => {
   }
 
   // Get message or use fallback
-  const message = String(error?.message || 'Failed to save schedule');
+  let message = String(error?.message || 'Failed to save schedule');
 
-  // Truncate to 200 characters (React auto-escapes text content)
+  // Strip HTML tags as defense-in-depth using iterative approach
+  // to handle incomplete/malformed tags like "<script" without closing ">"
+  let previousLength;
+  do {
+    previousLength = message.length;
+    // Remove complete tags and incomplete opening tags
+    message = message.replace(/<[^>]*>?/g, '');
+  } while (message.length < previousLength);
+
+  // Truncate to 200 characters
   return message.length > 200 ? message.slice(0, 200) + '...' : message;
 };
 
@@ -71,18 +79,8 @@ const ScheduleEditor = ({
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [trigger, setTrigger] = useState({
-    trigger_type: 'interval',
-    ...TRIGGER_DEFAULTS.interval,
-  });
-  const [patternSelection, setPatternSelection] = useState({
-    source: 'library',
-    pattern: null,
-  });
-  const [dateRange, setDateRange] = useState({
-    start_date: null,
-    end_date: null,
-  });
+  const [routines, setRoutines] = useState([]);
+  const [isAddingRoutine, setIsAddingRoutine] = useState(false);
 
   // UI state
   const [errors, setErrors] = useState({});
@@ -98,26 +96,14 @@ const ScheduleEditor = ({
     if (schedule) {
       setName(schedule.name || '');
       setDescription(schedule.description || '');
-      setTrigger(schedule.trigger || { trigger_type: 'interval', ...TRIGGER_DEFAULTS.interval });
-
-      // Handle event patterns - first pattern or null
-      const firstPattern = schedule.event_patterns?.[0] || null;
-      setPatternSelection({
-        source: firstPattern?.category === 'user' ? 'custom' : 'library',
-        pattern: firstPattern,
-      });
-
-      setDateRange({
-        start_date: schedule.date_range?.start_date || null,
-        end_date: schedule.date_range?.end_date || null,
-      });
+      setRoutines(schedule.routines || []);
+      setIsAddingRoutine(false);
     } else {
       // Reset to defaults for new schedule
       setName('');
       setDescription('');
-      setTrigger({ trigger_type: 'interval', ...TRIGGER_DEFAULTS.interval });
-      setPatternSelection({ source: 'library', pattern: null });
-      setDateRange({ start_date: null, end_date: null });
+      setRoutines([]);
+      setIsAddingRoutine(false);
     }
     setErrors({});
   }, [schedule]);
@@ -233,13 +219,15 @@ const ScheduleEditor = ({
       newErrors.name = `Name must be ${SCHEDULE_LIMITS.NAME_MAX_LENGTH} characters or less`;
     }
 
-    if (!patternSelection.pattern) {
-      newErrors.pattern = 'Event pattern is required';
+    if (routines.length === 0) {
+      newErrors.routines = 'At least one routine is required';
+    } else if (routines.some(r => !r.trigger || !r.actions || r.actions.length === 0)) {
+      newErrors.routines = 'All routines must have a trigger and at least one action';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [name, patternSelection.pattern]);
+  }, [name, routines]);
 
   /**
    * Handle save
@@ -256,12 +244,7 @@ const ScheduleEditor = ({
         schedule_id: schedule?.schedule_id || generateUUID(),
         name: name.trim(),
         description: description.trim(),
-        trigger,
-        event_patterns: patternSelection.pattern ? [patternSelection.pattern] : [],
-        date_range: {
-          start_date: dateRange.start_date,
-          end_date: dateRange.end_date,
-        },
+        routines,
       };
 
       await onSave(scheduleData);
@@ -275,9 +258,7 @@ const ScheduleEditor = ({
     schedule?.schedule_id,
     name,
     description,
-    trigger,
-    patternSelection.pattern,
-    dateRange,
+    routines,
     onSave,
   ]);
 
@@ -299,28 +280,49 @@ const ScheduleEditor = ({
   };
 
   /**
-   * Handle trigger change
+   * Handle routine update
    */
-  const handleTriggerChange = (newTrigger) => {
-    setTrigger(newTrigger);
-  };
-
-  /**
-   * Handle pattern selection change
-   */
-  const handlePatternChange = (newSelection) => {
-    setPatternSelection(newSelection);
-    if (errors.pattern && newSelection.pattern) {
-      setErrors((prev) => ({ ...prev, pattern: undefined }));
+  const handleRoutineUpdate = useCallback((updatedRoutine) => {
+    setRoutines((prev) =>
+      prev.map((r) =>
+        r.routine_id === updatedRoutine.routine_id ? updatedRoutine : r
+      )
+    );
+    if (errors.routines) {
+      setErrors((prev) => ({ ...prev, routines: undefined }));
     }
-  };
+  }, [errors.routines]);
 
   /**
-   * Handle date range change
+   * Handle routine delete
    */
-  const handleDateRangeChange = (newDateRange) => {
-    setDateRange(newDateRange);
-  };
+  const handleRoutineDelete = useCallback((routineId) => {
+    setRoutines((prev) => prev.filter((r) => r.routine_id !== routineId));
+  }, []);
+
+  /**
+   * Handle routine add
+   */
+  const handleRoutineAdd = useCallback((routine) => {
+    setRoutines((prev) => [...prev, routine]);
+    if (errors.routines) {
+      setErrors((prev) => ({ ...prev, routines: undefined }));
+    }
+  }, [errors.routines]);
+
+  /**
+   * Start adding a new routine
+   */
+  const handleStartAddRoutine = useCallback(() => {
+    setIsAddingRoutine(true);
+  }, []);
+
+  /**
+   * Cancel adding a new routine
+   */
+  const handleCancelAddRoutine = useCallback(() => {
+    setIsAddingRoutine(false);
+  }, []);
 
   // Don't render if not open
   if (!isOpen) {
@@ -433,44 +435,32 @@ const ScheduleEditor = ({
           {/* Divider */}
           <div className="border-t border-gray-200 dark:border-gray-700" />
 
-          {/* Trigger Configuration */}
-          <TriggerForm
-            value={trigger}
-            onChange={handleTriggerChange}
-            disabled={isSaving}
-            errors={errors}
-          />
-
-          {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          {/* Event Pattern Selection */}
-          <EventPatternSelector
-            value={patternSelection}
-            onChange={handlePatternChange}
-            disabled={isSaving}
-            errors={{ pattern: errors.pattern }}
-          />
-
-          {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          {/* Date Range */}
-          <DateRangeSection
-            value={dateRange}
-            onChange={handleDateRangeChange}
-            disabled={isSaving}
-            errors={errors}
-          />
+          {/* Routines Section */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+              Routines *
+            </h3>
+            <RoutineList
+              routines={routines}
+              onRoutineUpdate={handleRoutineUpdate}
+              onRoutineDelete={handleRoutineDelete}
+              onRoutineAdd={handleRoutineAdd}
+              isAddingRoutine={isAddingRoutine}
+              onStartAddRoutine={handleStartAddRoutine}
+              onCancelAddRoutine={handleCancelAddRoutine}
+              disabled={isSaving}
+            />
+            {errors.routines && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
+            )}
+          </div>
 
           {/* Divider */}
           <div className="border-t border-gray-200 dark:border-gray-700" />
 
           {/* Preview */}
           <PreviewSection
-            trigger={trigger}
-            dateRange={dateRange}
-            pattern={patternSelection.pattern}
+            routines={routines}
           />
 
           {/* Save Error */}
@@ -513,14 +503,12 @@ const ScheduleEditor = ({
 ScheduleEditor.propTypes = {
   /** Whether the editor drawer is open */
   isOpen: PropTypes.bool.isRequired,
-  /** Schedule to edit (null for new). Contains trigger, patterns, date range. */
+  /** Schedule to edit (null for new). Contains routines with per-routine triggers. */
   schedule: PropTypes.shape({
     schedule_id: PropTypes.string,
     name: PropTypes.string,
     description: PropTypes.string,
-    trigger: TriggerPropType,
-    event_patterns: PropTypes.arrayOf(PatternPropType),
-    date_range: DateRangePropType,
+    routines: PropTypes.arrayOf(RoutinePropType),
   }),
   /** Callback when schedule is saved. Receives complete schedule object. */
   onSave: PropTypes.func.isRequired,

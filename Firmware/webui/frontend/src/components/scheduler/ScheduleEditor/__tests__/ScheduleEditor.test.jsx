@@ -4,83 +4,44 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ScheduleEditor from '../ScheduleEditor';
 
 // Mock child components
-vi.mock('../TriggerForm', () => ({
-  default: ({ value, onChange, disabled }) => (
-    <div data-testid="trigger-form">
-      <span data-testid="trigger-value">{JSON.stringify(value)}</span>
+vi.mock('../RoutineList', () => ({
+  default: ({
+    routines,
+    onRoutineDelete,
+    onRoutineAdd,
+    disabled,
+  }) => (
+    <div data-testid="routine-list">
+      <span data-testid="routines-count">{routines?.length ?? 0}</span>
       <button
-        data-testid="trigger-change"
-        onClick={() =>
-          onChange({
-            trigger_type: 'interval',
-            interval_minutes: 120,
-          })
-        }
+        data-testid="add-routine"
+        onClick={() => {
+          onRoutineAdd({
+            routine_id: 'routine-1',
+            name: 'Test Routine',
+            trigger: { trigger_type: 'interval', interval_minutes: 15 },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          });
+        }}
         disabled={disabled}
       >
-        Change Trigger
+        Add Routine
       </button>
-    </div>
-  ),
-}));
-
-vi.mock('../EventPatternSelector', () => ({
-  default: ({ value, onChange, disabled, errors }) => (
-    <div data-testid="event-pattern-selector">
-      <span data-testid="pattern-value">{JSON.stringify(value)}</span>
       <button
-        data-testid="pattern-select"
-        onClick={() =>
-          onChange({
-            source: 'library',
-            pattern: {
-              pattern_id: 'test-1',
-              name: 'Test Pattern',
-              actions: [{ action_type: 'take_photo', offset_minutes: 0 }],
-            },
-          })
-        }
+        data-testid="delete-routine"
+        onClick={() => onRoutineDelete('routine-1')}
         disabled={disabled}
       >
-        Select Pattern
-      </button>
-      {errors?.pattern && (
-        <span data-testid="pattern-error" className="text-red-600">
-          {errors.pattern}
-        </span>
-      )}
-    </div>
-  ),
-}));
-
-vi.mock('../DateRangeSection', () => ({
-  default: ({ value, onChange, disabled }) => (
-    <div data-testid="date-range-section">
-      <span data-testid="date-value">{JSON.stringify(value)}</span>
-      <button
-        data-testid="date-change"
-        onClick={() =>
-          onChange({
-            start_date: '2024-01-01',
-            end_date: '2024-12-31',
-          })
-        }
-        disabled={disabled}
-      >
-        Change Dates
+        Delete Routine
       </button>
     </div>
   ),
 }));
 
 vi.mock('../PreviewSection', () => ({
-  default: ({ trigger, dateRange, pattern }) => (
+  default: ({ routines }) => (
     <div data-testid="preview-section">
-      <span data-testid="preview-trigger">{trigger?.trigger_type || 'none'}</span>
-      <span data-testid="preview-pattern">{pattern?.name || 'none'}</span>
-      <span data-testid="preview-dates">
-        {dateRange?.start_date || 'none'} - {dateRange?.end_date || 'none'}
-      </span>
+      <span data-testid="preview-routines-count">{routines?.length ?? 0}</span>
     </div>
   ),
 }));
@@ -110,14 +71,12 @@ describe('ScheduleEditor', () => {
   });
 
   describe('Rendering', () => {
-    it('renders all section components', () => {
+    it('renders RoutineList and PreviewSection components', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
-      expect(screen.getByTestId('trigger-form')).toBeInTheDocument();
-      expect(screen.getByTestId('event-pattern-selector')).toBeInTheDocument();
-      expect(screen.getByTestId('date-range-section')).toBeInTheDocument();
+      expect(screen.getByTestId('routine-list')).toBeInTheDocument();
       expect(screen.getByTestId('preview-section')).toBeInTheDocument();
     });
 
@@ -159,9 +118,7 @@ describe('ScheduleEditor', () => {
         schedule_id: 'sched-1',
         name: 'Existing Schedule',
         description: 'Test description',
-        trigger: { trigger_type: 'interval', interval_minutes: 60 },
-        event_patterns: [],
-        date_range: {},
+        routines: [],
       };
 
       renderWithClient(
@@ -185,6 +142,7 @@ describe('ScheduleEditor', () => {
 
       const nameInput = screen.getByLabelText(/schedule name/i);
       expect(nameInput).toHaveValue('');
+      expect(screen.getByTestId('routines-count')).toHaveTextContent('0');
     });
 
     it('populates form with existing schedule data', () => {
@@ -192,9 +150,14 @@ describe('ScheduleEditor', () => {
         schedule_id: 'sched-1',
         name: 'My Schedule',
         description: 'A test schedule',
-        trigger: { trigger_type: 'solar', solar_event: 'sunset' },
-        event_patterns: [{ pattern_id: 'p1', name: 'Pattern 1', actions: [] }],
-        date_range: { start_date: '2024-01-01', end_date: null },
+        routines: [
+          {
+            routine_id: 'r1',
+            name: 'Routine 1',
+            trigger: { trigger_type: 'solar', solar_event: 'dusk' },
+            actions: [],
+          },
+        ],
       };
 
       renderWithClient(
@@ -211,6 +174,8 @@ describe('ScheduleEditor', () => {
 
       const descInput = screen.getByLabelText(/description/i);
       expect(descInput).toHaveValue('A test schedule');
+
+      expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
     });
 
     it('updates name when typed', () => {
@@ -236,66 +201,29 @@ describe('ScheduleEditor', () => {
     });
   });
 
-  describe('Child Component Integration', () => {
-    it('passes trigger value to TriggerForm', () => {
-      const schedule = {
-        schedule_id: 'sched-1',
-        name: 'Test',
-        trigger: { trigger_type: 'interval', interval_minutes: 30 },
-        event_patterns: [],
-        date_range: {},
-      };
-
-      renderWithClient(
-        <ScheduleEditor
-          isOpen={true}
-          schedule={schedule}
-          onSave={mockOnSave}
-          onCancel={mockOnCancel}
-        />
-      );
-
-      const triggerValue = screen.getByTestId('trigger-value');
-      expect(triggerValue).toHaveTextContent('"interval_minutes":30');
-    });
-
-    it('updates trigger when TriggerForm changes', () => {
+  describe('Routine Management', () => {
+    it('adds routine when RoutineList onRoutineAdd is called', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
-      const changeButton = screen.getByTestId('trigger-change');
-      fireEvent.click(changeButton);
+      expect(screen.getByTestId('routines-count')).toHaveTextContent('0');
 
-      // Verify the preview section receives updated trigger
-      const previewTrigger = screen.getByTestId('preview-trigger');
-      expect(previewTrigger).toHaveTextContent('interval');
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
+
+      expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
     });
 
-    it('updates pattern when EventPatternSelector changes', () => {
+    it('passes routines to PreviewSection', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
-      // Verify the preview section receives updated pattern
-      const previewPattern = screen.getByTestId('preview-pattern');
-      expect(previewPattern).toHaveTextContent('Test Pattern');
-    });
-
-    it('updates date range when DateRangeSection changes', () => {
-      renderWithClient(
-        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
-      );
-
-      const changeButton = screen.getByTestId('date-change');
-      fireEvent.click(changeButton);
-
-      // Verify the preview section receives updated dates
-      const previewDates = screen.getByTestId('preview-dates');
-      expect(previewDates).toHaveTextContent('2024-01-01');
+      expect(screen.getByTestId('preview-routines-count')).toHaveTextContent('1');
     });
   });
 
@@ -304,6 +232,10 @@ describe('ScheduleEditor', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
+
+      // Add a routine first
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -314,12 +246,12 @@ describe('ScheduleEditor', () => {
       expect(mockOnSave).not.toHaveBeenCalled();
     });
 
-    it('shows error when saving without pattern', async () => {
+    it('shows error when saving without routines', async () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
-      // Fill in name but not pattern
+      // Fill in name but no routines
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
 
@@ -327,7 +259,7 @@ describe('ScheduleEditor', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/event pattern is required/i)).toBeInTheDocument();
+        expect(screen.getByText(/at least one routine is required/i)).toBeInTheDocument();
       });
       expect(mockOnSave).not.toHaveBeenCalled();
     });
@@ -343,9 +275,9 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
 
-      // Select a pattern
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      // Add a routine
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       // Save
       const saveButton = screen.getByRole('button', { name: /save/i });
@@ -355,6 +287,11 @@ describe('ScheduleEditor', () => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
             name: 'Test Schedule',
+            routines: expect.arrayContaining([
+              expect.objectContaining({
+                routine_id: 'routine-1',
+              }),
+            ]),
           })
         );
       });
@@ -424,8 +361,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -446,8 +383,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -573,8 +510,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -596,8 +533,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -610,9 +547,8 @@ describe('ScheduleEditor', () => {
       });
     });
 
-    it('displays error messages safely via React auto-escaping', async () => {
-      // React automatically escapes text content, preventing XSS.
-      // We test that the error is displayed (React handles security).
+    it('strips HTML tags from error messages for defense-in-depth', async () => {
+      // HTML tags are stripped as defense-in-depth (React also auto-escapes)
       const xssMessage = '<script>alert("xss")</script>';
       mockOnSave.mockRejectedValue(new Error(xssMessage));
 
@@ -624,18 +560,20 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        // Error should be displayed (React auto-escapes the HTML content)
+        // Error should be displayed with HTML tags stripped
         const errorContainer = document.querySelector('.text-red-600, .text-red-400');
         expect(errorContainer).toBeInTheDocument();
-        // The message is displayed as text, not executed as script
-        expect(errorContainer.textContent).toContain('script');
+        // HTML tags should be stripped, leaving only the text content
+        expect(errorContainer.textContent).toBe('alert("xss")');
+        expect(errorContainer.textContent).not.toContain('<');
+        expect(errorContainer.textContent).not.toContain('>');
       });
     });
 
@@ -652,8 +590,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -676,8 +614,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
@@ -698,8 +636,8 @@ describe('ScheduleEditor', () => {
       const nameInput = screen.getByLabelText(/schedule name/i);
       fireEvent.change(nameInput, { target: { value: 'Test' } });
 
-      const selectButton = screen.getByTestId('pattern-select');
-      fireEvent.click(selectButton);
+      const addButton = screen.getByTestId('add-routine');
+      fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
       fireEvent.click(saveButton);
