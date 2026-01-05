@@ -39,8 +39,14 @@ const sanitizeErrorMessage = (error) => {
   // Get message or use fallback
   let message = String(error?.message || 'Failed to save schedule');
 
-  // Strip HTML tags as defense-in-depth
-  message = message.replace(/<[^>]*>/g, '');
+  // Strip HTML tags as defense-in-depth using iterative approach
+  // to handle incomplete/malformed tags like "<script" without closing ">"
+  let previousLength;
+  do {
+    previousLength = message.length;
+    // Remove complete tags and incomplete opening tags
+    message = message.replace(/<[^>]*>?/g, '');
+  } while (message.length < previousLength);
 
   // Truncate to 200 characters
   return message.length > 200 ? message.slice(0, 200) + '...' : message;
