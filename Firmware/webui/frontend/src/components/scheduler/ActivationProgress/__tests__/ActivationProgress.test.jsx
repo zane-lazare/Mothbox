@@ -567,6 +567,33 @@ describe('ActivationProgress', () => {
       // Component should handle error without crashing
       expect(() => render(<ActivationProgress scheduleId="sched-1" />)).not.toThrow()
     })
+
+    it('handles async connect_error events', async () => {
+      const onError = vi.fn()
+      render(<ActivationProgress scheduleId="sched-1" onError={onError} />)
+
+      // Simulate async connection error via connect_error event
+      const connectErrorHandler = mockSocket.on.mock.calls.find(
+        (call) => call[0] === 'connect_error'
+      )?.[1]
+
+      act(() => {
+        connectErrorHandler?.(new Error('Network unavailable'))
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('activation-error')).toBeInTheDocument()
+        expect(screen.getByText('Connection failed')).toBeInTheDocument()
+        expect(onError).toHaveBeenCalledWith('Connection failed')
+      })
+    })
+
+    it('registers connect_error and error event listeners', () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      expect(mockSocket.on).toHaveBeenCalledWith('connect_error', expect.any(Function))
+      expect(mockSocket.on).toHaveBeenCalledWith('error', expect.any(Function))
+    })
   })
 
   // ==========================================================================

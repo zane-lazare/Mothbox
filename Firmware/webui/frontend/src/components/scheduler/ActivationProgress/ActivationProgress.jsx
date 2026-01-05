@@ -57,7 +57,11 @@ export default function ActivationProgress({
   const onErrorRef = useRef(onError)
 
   // Update refs on every render to avoid stale closures in WebSocket handler.
-  // This is intentional - refs capture the latest callback without triggering effect re-runs.
+  // Pattern explanation: This effect has no dependency array intentionally.
+  // - Refs capture the latest callback on every render
+  // - No dependencies means this runs after every render (not just on prop changes)
+  // - This prevents stale closures in async WebSocket handlers without triggering socket reconnects
+  // See: https://react.dev/reference/react/useRef#referencing-a-value-with-a-ref
   useEffect(() => {
     onCompleteRef.current = onComplete
     onErrorRef.current = onError
@@ -67,10 +71,25 @@ export default function ActivationProgress({
     // Setup WebSocket connection using window.location.origin for robust URL handling
     const wsUrl = window.location.origin
 
+    /**
+     * Helper to handle connection errors uniformly.
+     * Called for both sync errors (io() throws) and async errors (connect_error event).
+     */
+    const handleConnectionError = (error) => {
+      console.error('WebSocket connection failed:', error)
+      setState('error')
+      setErrorMessage('Connection failed')
+      onErrorRef.current?.('Connection failed')
+    }
+
     try {
       socketRef.current = io(wsUrl, {
         transports: ['websocket', 'polling'],
       })
+
+      // Handle async connection errors (network issues, server unavailable, etc.)
+      socketRef.current.on('connect_error', handleConnectionError)
+      socketRef.current.on('error', handleConnectionError)
 
       socketRef.current.on('schedule:activation_progress', (data) => {
         // Filter events for this specific schedule
@@ -90,16 +109,15 @@ export default function ActivationProgress({
         }
       })
     } catch (error) {
-      // Handle WebSocket connection failure gracefully
-      console.error('WebSocket connection failed:', error)
-      setState('error')
-      setErrorMessage('Connection failed')
-      onErrorRef.current?.('Connection failed')
+      // Handle sync errors (e.g., io() throws immediately)
+      handleConnectionError(error)
     }
 
     return () => {
       if (socketRef.current) {
         socketRef.current.off('schedule:activation_progress')
+        socketRef.current.off('connect_error')
+        socketRef.current.off('error')
         socketRef.current.disconnect()
       }
     }
@@ -109,6 +127,8 @@ export default function ActivationProgress({
     // Disconnect old socket to prevent stale messages from previous attempt
     if (socketRef.current) {
       socketRef.current.off('schedule:activation_progress')
+      socketRef.current.off('connect_error')
+      socketRef.current.off('error')
       socketRef.current.disconnect()
       socketRef.current = null
     }
