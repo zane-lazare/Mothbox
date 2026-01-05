@@ -28,21 +28,20 @@ import {
 
 /**
  * Legend component for the timeline
+ * Memoized since LEGEND_ITEMS is static and never changes
  */
-function TimelineLegend() {
+const TimelineLegend = memo(function TimelineLegend() {
   return (
     <div className="flex items-center gap-6 text-xs text-gray-500 mb-6">
       {LEGEND_ITEMS.map((item) => (
         <div key={item.label} className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${item.isRing ? item.color : item.color}`}
-          />
+          <span className={`w-2 h-2 rounded-full ${item.color}`} />
           {item.label}
         </div>
       ))}
     </div>
   )
-}
+})
 
 /**
  * DayTimeline component

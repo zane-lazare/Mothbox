@@ -108,7 +108,14 @@ HourRow.propTypes = {
       pattern_id: PropTypes.string.isRequired,
       pattern_name: PropTypes.string.isRequired,
       start_time: PropTypes.string.isRequired,
-      actions: PropTypes.array,
+      actions: PropTypes.arrayOf(
+        PropTypes.shape({
+          time: PropTypes.string,
+          action_name: PropTypes.string,
+          action_type: PropTypes.oneOf(['camera', 'gpio', 'gps_sync', 'service']),
+          offset_minutes: PropTypes.number,
+        })
+      ),
     })
   ),
   /** Conflict affecting this hour (if any) */

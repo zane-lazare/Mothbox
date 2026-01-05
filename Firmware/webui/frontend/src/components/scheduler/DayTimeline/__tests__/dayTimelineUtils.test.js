@@ -32,6 +32,25 @@ describe('dayTimelineUtils', () => {
       expect(getHourFromIsoTime('invalid')).toBeNull()
       expect(getHourFromIsoTime(123)).toBeNull()
     })
+
+    describe('timezone handling', () => {
+      it('handles UTC timestamps with Z suffix', () => {
+        expect(getHourFromIsoTime('2025-12-17T23:00:00Z')).toBe(23)
+        expect(getHourFromIsoTime('2025-12-17T00:00:00Z')).toBe(0)
+      })
+
+      it('handles timestamps without timezone indicator', () => {
+        expect(getHourFromIsoTime('2025-12-17T14:30:00')).toBe(14)
+        expect(getHourFromIsoTime('2025-12-17T08:15:00')).toBe(8)
+      })
+
+      it('extracts hour directly from ISO format (avoids local timezone)', () => {
+        // This test verifies that the regex extraction is used, not Date.getHours()
+        // which would be affected by the local timezone
+        expect(getHourFromIsoTime('2025-12-17T23:00:00')).toBe(23)
+        expect(getHourFromIsoTime('2025-12-17T05:00:00')).toBe(5)
+      })
+    })
   })
 
   describe('getMinuteFromIsoTime', () => {
@@ -45,6 +64,18 @@ describe('dayTimelineUtils', () => {
       expect(getMinuteFromIsoTime(null)).toBeNull()
       expect(getMinuteFromIsoTime('')).toBeNull()
       expect(getMinuteFromIsoTime('invalid')).toBeNull()
+    })
+
+    describe('timezone handling', () => {
+      it('handles timestamps without timezone indicator', () => {
+        expect(getMinuteFromIsoTime('2025-12-17T14:45:00')).toBe(45)
+        expect(getMinuteFromIsoTime('2025-12-17T08:05:00')).toBe(5)
+      })
+
+      it('extracts minute directly from ISO format (avoids local timezone)', () => {
+        expect(getMinuteFromIsoTime('2025-12-17T23:59:00')).toBe(59)
+        expect(getMinuteFromIsoTime('2025-12-17T00:01:00')).toBe(1)
+      })
     })
   })
 

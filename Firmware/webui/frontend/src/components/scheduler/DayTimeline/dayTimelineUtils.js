@@ -18,7 +18,8 @@ import {
 
 /**
  * Extracts the hour (0-23) from an ISO datetime string.
- * Uses local timezone to match user's display expectations.
+ * Uses regex extraction from ISO format for consistency.
+ * Note: All times are treated as UTC to avoid timezone inconsistencies.
  *
  * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T18:30:00")
  * @returns {number|null} Hour number (0-23), or null if invalid
@@ -36,16 +37,18 @@ export function getHourFromIsoTime(isoString) {
   }
 
   // Fallback to Date parsing for non-standard formats
+  // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     return null
   }
 
-  return date.getHours()
+  return date.getUTCHours()
 }
 
 /**
  * Extracts the minute (0-59) from an ISO datetime string.
+ * Note: All times are treated as UTC to avoid timezone inconsistencies.
  *
  * @param {string} isoString - ISO datetime string
  * @returns {number|null} Minute number (0-59), or null if invalid
@@ -62,12 +65,13 @@ export function getMinuteFromIsoTime(isoString) {
   }
 
   // Fallback to Date parsing for non-standard formats
+  // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     return null
   }
 
-  return date.getMinutes()
+  return date.getUTCMinutes()
 }
 
 /**
@@ -103,13 +107,14 @@ export function formatTimeShort(isoString) {
   }
 
   // Fallback to Date parsing for non-standard formats
+  // Use UTC to match the behavior of regex extraction
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     return ''
   }
 
-  const hours = date.getHours()
-  const minutes = date.getMinutes()
+  const hours = date.getUTCHours()
+  const minutes = date.getUTCMinutes()
   return `${hours}:${minutes.toString().padStart(2, '0')}`
 }
 

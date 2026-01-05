@@ -4,52 +4,17 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import DayTimeline from '../DayTimeline'
+import {
+  mockDate,
+  mockExecutions,
+  mockConflicts,
+  mockErrorConflict,
+  mockWarningConflict,
+} from './testFixtures'
 
 describe('DayTimeline', () => {
-  const mockDate = '2025-12-17'
-
-  const mockExecutions = [
-    {
-      pattern_id: 'routine-1',
-      pattern_name: 'Photo Capture',
-      start_time: '2025-12-17T18:00:00Z',
-      actions: [{ action_name: 'Take Photo', action_type: 'camera' }],
-    },
-    {
-      pattern_id: 'routine-2',
-      pattern_name: 'Attract On',
-      start_time: '2025-12-17T18:15:00Z',
-      actions: [{ action_name: 'Attract On', action_type: 'gpio' }],
-    },
-    {
-      pattern_id: 'routine-3',
-      pattern_name: 'Evening Photo',
-      start_time: '2025-12-17T19:00:00Z',
-      actions: [{ action_name: 'Take Photo', action_type: 'camera' }],
-    },
-    {
-      pattern_id: 'routine-4',
-      pattern_name: 'HDR Shot',
-      start_time: '2025-12-17T19:00:00Z',
-      actions: [{ action_name: 'HDR Bracket', action_type: 'camera' }],
-    },
-  ]
-
-  const mockConflicts = [
-    {
-      id: 'c1',
-      conflict_type: 'time_overlap',
-      severity: 'error',
-      event1_id: 'routine-3',
-      event1_name: 'Evening Photo',
-      event2_id: 'routine-4',
-      event2_name: 'HDR Shot',
-      start_time: '2025-12-17T19:00:00Z',
-      end_time: '2025-12-17T19:15:00Z',
-      message: 'camera busy',
-    },
-  ]
 
   describe('Rendering', () => {
     it('renders with correct data-testid', () => {
@@ -201,21 +166,11 @@ describe('DayTimeline', () => {
     })
 
     it('applies yellow highlighting for warning conflicts', () => {
-      const warningConflict = [
-        {
-          id: 'c2',
-          conflict_type: 'gpio_state_conflict',
-          severity: 'warning',
-          event1_id: 'routine-2',
-          start_time: '2025-12-17T18:15:00Z',
-          message: 'unexpected',
-        },
-      ]
       render(
         <DayTimeline
           date={mockDate}
           executions={mockExecutions}
-          conflicts={warningConflict}
+          conflicts={[mockWarningConflict]}
         />
       )
       const row18 = screen.getByTestId('hour-row-18')
@@ -284,6 +239,142 @@ describe('DayTimeline', () => {
       const grid = row0.parentElement
       expect(grid).toHaveClass('divide-y')
       expect(grid).toHaveClass('divide-gray-800')
+    })
+  })
+
+  describe('Complete Conflict Flow (Integration)', () => {
+    it('displays complete conflict visualization flow', () => {
+      render(
+        <DayTimeline
+          date={mockDate}
+          executions={mockExecutions}
+          conflicts={mockConflicts}
+        />
+      )
+
+      // 1. Conflict summary displayed
+      expect(screen.getByTestId('conflict-summary')).toBeInTheDocument()
+
+      // 2. Hour row highlighted with red background
+      const hourRow = screen.getByTestId('hour-row-19')
+      expect(hourRow).toHaveClass('bg-red-950/20')
+
+      // 3. Execution chip has red ring
+      const chip = screen.getByTestId('execution-routine-3-1900')
+      expect(chip).toHaveClass('ring-1')
+      expect(chip).toHaveClass('ring-red-400')
+
+      // 4. Conflict message displayed
+      expect(screen.getByText('camera busy')).toBeInTheDocument()
+    })
+
+    it('displays complete warning conflict visualization flow', () => {
+      render(
+        <DayTimeline
+          date={mockDate}
+          executions={mockExecutions}
+          conflicts={[mockWarningConflict]}
+        />
+      )
+
+      // 1. Conflict summary displayed
+      expect(screen.getByTestId('conflict-summary')).toBeInTheDocument()
+
+      // 2. Hour row highlighted with yellow background
+      const hourRow = screen.getByTestId('hour-row-18')
+      expect(hourRow).toHaveClass('bg-yellow-950/20')
+
+      // 3. Execution chip has yellow ring
+      const chip = screen.getByTestId('execution-routine-2-1815')
+      expect(chip).toHaveClass('ring-1')
+      expect(chip).toHaveClass('ring-yellow-400')
+
+      // 4. Conflict message displayed
+      expect(screen.getByText('unexpected GPIO state')).toBeInTheDocument()
+    })
+
+    it('handles mixed error and warning conflicts', () => {
+      render(
+        <DayTimeline
+          date={mockDate}
+          executions={mockExecutions}
+          conflicts={[mockErrorConflict, mockWarningConflict]}
+        />
+      )
+
+      // Both conflict types should be visible
+      expect(screen.getByTestId('hour-row-19')).toHaveClass('bg-red-950/20')
+      expect(screen.getByTestId('hour-row-18')).toHaveClass('bg-yellow-950/20')
+
+      // Conflict summary should show 2 conflicts
+      expect(screen.getByText('2 conflicts')).toBeInTheDocument()
+    })
+  })
+
+  describe('Keyboard Navigation', () => {
+    it('allows focus on execution chips', () => {
+      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
+
+      const chip1 = screen.getByTestId('execution-routine-1-1800')
+      chip1.focus()
+      expect(chip1).toHaveFocus()
+    })
+
+    it('supports Enter key to activate chip', () => {
+      const handleClick = vi.fn()
+      render(
+        <DayTimeline
+          date={mockDate}
+          executions={mockExecutions}
+          onExecutionClick={handleClick}
+        />
+      )
+
+      const chip = screen.getByTestId('execution-routine-1-1800')
+      chip.focus()
+      fireEvent.keyDown(chip, { key: 'Enter' })
+
+      expect(handleClick).toHaveBeenCalledWith(mockExecutions[0])
+    })
+
+    it('supports Space key to activate chip', () => {
+      const handleClick = vi.fn()
+      render(
+        <DayTimeline
+          date={mockDate}
+          executions={mockExecutions}
+          onExecutionClick={handleClick}
+        />
+      )
+
+      const chip = screen.getByTestId('execution-routine-1-1800')
+      chip.focus()
+      fireEvent.keyDown(chip, { key: ' ' })
+
+      expect(handleClick).toHaveBeenCalledWith(mockExecutions[0])
+    })
+
+    it('allows tab navigation between execution chips', async () => {
+      const user = userEvent.setup()
+      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
+
+      const chip1 = screen.getByTestId('execution-routine-1-1800')
+      const chip2 = screen.getByTestId('execution-routine-2-1815')
+
+      // Focus first chip and tab to next
+      chip1.focus()
+      expect(chip1).toHaveFocus()
+
+      await user.tab()
+      expect(chip2).toHaveFocus()
+    })
+
+    it('execution chips are focusable buttons', () => {
+      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
+
+      const chip = screen.getByTestId('execution-routine-1-1800')
+      expect(chip.tagName).toBe('BUTTON')
+      expect(chip).toHaveAttribute('type', 'button')
     })
   })
 })

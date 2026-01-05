@@ -5,22 +5,15 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import HourRow from '../HourRow'
+import {
+  mockExecutions,
+  mockErrorConflict,
+  mockWarningConflict,
+} from './testFixtures'
 
 describe('HourRow', () => {
-  const mockExecutions = [
-    {
-      pattern_id: 'routine-1',
-      pattern_name: 'Photo Capture',
-      start_time: '2025-12-17T18:00:00Z',
-      actions: [{ action_name: 'Take Photo', action_type: 'camera' }],
-    },
-    {
-      pattern_id: 'routine-2',
-      pattern_name: 'Attract On',
-      start_time: '2025-12-17T18:15:00Z',
-      actions: [{ action_name: 'Attract On', action_type: 'gpio' }],
-    },
-  ]
+  // Use first two executions from fixtures for hour row tests
+  const hourExecutions = mockExecutions.slice(0, 2)
 
   describe('Rendering', () => {
     it('renders with correct data-testid', () => {
@@ -44,7 +37,7 @@ describe('HourRow', () => {
     })
 
     it('renders ExecutionChip for each execution', () => {
-      render(<HourRow hour={18} executions={mockExecutions} />)
+      render(<HourRow hour={18} executions={hourExecutions} />)
       expect(screen.getByTestId('execution-routine-1-1800')).toBeInTheDocument()
       expect(screen.getByTestId('execution-routine-2-1815')).toBeInTheDocument()
     })
@@ -61,57 +54,43 @@ describe('HourRow', () => {
   })
 
   describe('Conflict Highlighting', () => {
-    const errorConflict = {
-      id: 'c1',
-      severity: 'error',
-      message: 'camera busy',
-      conflict_type: 'time_overlap',
-    }
-
-    const warningConflict = {
-      id: 'c2',
-      severity: 'warning',
-      message: 'unexpected',
-      conflict_type: 'gpio_state_conflict',
-    }
-
     it('applies red background for error conflict', () => {
-      render(<HourRow hour={19} executions={mockExecutions} conflict={errorConflict} />)
+      render(<HourRow hour={19} executions={hourExecutions} conflict={mockErrorConflict} />)
       const row = screen.getByTestId('hour-row-19')
       expect(row).toHaveClass('bg-red-950/20')
     })
 
     it('applies yellow background for warning conflict', () => {
-      render(<HourRow hour={21} executions={mockExecutions} conflict={warningConflict} />)
+      render(<HourRow hour={21} executions={hourExecutions} conflict={mockWarningConflict} />)
       const row = screen.getByTestId('hour-row-21')
       expect(row).toHaveClass('bg-yellow-950/20')
     })
 
     it('changes hour label color for error conflict', () => {
-      render(<HourRow hour={19} executions={mockExecutions} conflict={errorConflict} />)
+      render(<HourRow hour={19} executions={hourExecutions} conflict={mockErrorConflict} />)
       const label = screen.getByText('19:00')
       expect(label).toHaveClass('text-red-400')
     })
 
     it('changes hour label color for warning conflict', () => {
-      render(<HourRow hour={21} executions={mockExecutions} conflict={warningConflict} />)
+      render(<HourRow hour={21} executions={hourExecutions} conflict={mockWarningConflict} />)
       const label = screen.getByText('21:00')
       expect(label).toHaveClass('text-yellow-400')
     })
 
     it('displays inline conflict message', () => {
-      render(<HourRow hour={19} executions={mockExecutions} conflict={errorConflict} />)
+      render(<HourRow hour={19} executions={hourExecutions} conflict={mockErrorConflict} />)
       expect(screen.getByText('camera busy')).toBeInTheDocument()
     })
 
     it('has conflict data-testid', () => {
-      render(<HourRow hour={19} executions={mockExecutions} conflict={errorConflict} />)
+      render(<HourRow hour={19} executions={hourExecutions} conflict={mockErrorConflict} />)
       expect(screen.getByTestId('conflict-c1')).toBeInTheDocument()
     })
 
     it('uses hour as fallback for conflict testid', () => {
       const conflictNoId = { severity: 'error', message: 'test' }
-      render(<HourRow hour={19} executions={mockExecutions} conflict={conflictNoId} />)
+      render(<HourRow hour={19} executions={hourExecutions} conflict={conflictNoId} />)
       expect(screen.getByTestId('conflict-19')).toBeInTheDocument()
     })
   })
@@ -124,7 +103,7 @@ describe('HourRow', () => {
       render(
         <HourRow
           hour={18}
-          executions={mockExecutions}
+          executions={hourExecutions}
           executionConflicts={executionConflicts}
         />
       )
@@ -141,7 +120,7 @@ describe('HourRow', () => {
       render(
         <HourRow
           hour={18}
-          executions={mockExecutions}
+          executions={hourExecutions}
           executionConflicts={executionConflicts}
         />
       )
@@ -156,17 +135,17 @@ describe('HourRow', () => {
       render(
         <HourRow
           hour={18}
-          executions={mockExecutions}
+          executions={hourExecutions}
           onExecutionClick={handleClick}
         />
       )
       fireEvent.click(screen.getByTestId('execution-routine-1-1800'))
       expect(handleClick).toHaveBeenCalledTimes(1)
-      expect(handleClick).toHaveBeenCalledWith(mockExecutions[0])
+      expect(handleClick).toHaveBeenCalledWith(hourExecutions[0])
     })
 
     it('does not throw when onExecutionClick is not provided', () => {
-      render(<HourRow hour={18} executions={mockExecutions} />)
+      render(<HourRow hour={18} executions={hourExecutions} />)
       expect(() => {
         fireEvent.click(screen.getByTestId('execution-routine-1-1800'))
       }).not.toThrow()
