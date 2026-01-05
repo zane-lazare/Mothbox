@@ -556,5 +556,100 @@ describe('ActivationProgress', () => {
         expect(screen.getByText('Activating')).toBeInTheDocument()
       })
     })
+
+    it('handles WebSocket connection failure gracefully', async () => {
+      // Mock io to throw an error on next call
+      const { io: ioMock } = await import('socket.io-client')
+      vi.mocked(ioMock).mockImplementationOnce(() => {
+        throw new Error('Connection failed')
+      })
+
+      // Component should handle error without crashing
+      expect(() => render(<ActivationProgress scheduleId="sched-1" />)).not.toThrow()
+    })
+  })
+
+  // ==========================================================================
+  // Retry Socket Reconnection
+  // ==========================================================================
+
+  describe('Retry Socket Reconnection', () => {
+    it('disconnects socket when retry is clicked', async () => {
+      const user = userEvent.setup()
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'failed',
+        progress: 0,
+      })
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      })
+
+      // Clear mock calls before retry
+      mockSocket.off.mockClear()
+      mockSocket.disconnect.mockClear()
+
+      await user.click(screen.getByRole('button', { name: /retry/i }))
+
+      // Should have disconnected old socket
+      expect(mockSocket.off).toHaveBeenCalledWith('schedule:activation_progress')
+      expect(mockSocket.disconnect).toHaveBeenCalled()
+    })
+
+    it('creates new socket connection on retry', async () => {
+      const user = userEvent.setup()
+      const { io: ioMock } = await import('socket.io-client')
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      const initialCallCount = vi.mocked(ioMock).mock.calls.length
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'failed',
+        progress: 0,
+      })
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /retry/i }))
+
+      // Should have created a new socket connection
+      await waitFor(() => {
+        expect(vi.mocked(ioMock).mock.calls.length).toBeGreaterThan(initialCallCount)
+      })
+    })
+  })
+
+  // ==========================================================================
+  // ARIA Live Region
+  // ==========================================================================
+
+  describe('ARIA Live Region', () => {
+    it('has aria-live region for screen reader announcements', () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+      const liveRegion = screen.getByRole('status')
+      expect(liveRegion).toHaveAttribute('aria-live', 'polite')
+      expect(liveRegion).toHaveAttribute('aria-atomic', 'true')
+    })
+
+    it('announces progress updates to screen readers', async () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'generating_cron',
+        progress: 30,
+      })
+
+      await waitFor(() => {
+        const liveRegion = screen.getByRole('status')
+        expect(liveRegion).toHaveTextContent('Generating schedule... - 30%')
+      })
+    })
   })
 })
