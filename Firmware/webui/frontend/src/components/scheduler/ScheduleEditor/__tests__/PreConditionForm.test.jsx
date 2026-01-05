@@ -215,6 +215,38 @@ describe('PreConditionForm', () => {
       fireEvent.change(thresholdInput, { target: { value: '50' } })
       expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
     })
+
+    it('clears validation error when toggling off and back on', () => {
+      const { rerender } = render(
+        <PreConditionForm
+          preCondition={defaultPreCondition}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+
+      // 1. Enter invalid value -> error shows
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '' } })
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+
+      // 2. Toggle off
+      const toggle = screen.getByTestId('pre-condition-toggle-0')
+      fireEvent.click(toggle)
+
+      // 3. Toggle on (simulate parent passing new preCondition after toggle)
+      rerender(
+        <PreConditionForm
+          preCondition={defaultPreCondition}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      fireEvent.click(screen.getByTestId('pre-condition-toggle-0'))
+
+      // 4. Verify error is gone after re-enabling
+      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+    })
   })
 
   describe('Disabled state', () => {
@@ -431,6 +463,56 @@ describe('PreConditionForm', () => {
 
       expect(onChange1).toHaveBeenCalledWith(null)
       expect(onChange2).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Edge cases', () => {
+    it('handles invalid sensor_type gracefully by falling back to first option', () => {
+      const preCondition = {
+        sensor_type: 'invalid_sensor',
+        comparison: 'lt',
+        threshold: 100,
+      }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      // HTML select falls back to first valid option when value doesn't match
+      const sensorSelect = screen.getByTestId('pre-condition-sensor')
+      expect(sensorSelect).toBeInTheDocument()
+      expect(sensorSelect.value).toBe('light')
+    })
+
+    it('accepts decimal threshold values', () => {
+      const preCondition = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '50.5' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preCondition,
+        threshold: 50.5,
+      })
+      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+    })
+
+    it('accepts zero as valid threshold value', () => {
+      const preCondition = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '0' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preCondition,
+        threshold: 0,
+      })
+      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
     })
   })
 })

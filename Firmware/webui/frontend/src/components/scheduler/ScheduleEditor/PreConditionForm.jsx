@@ -3,6 +3,14 @@ import PropTypes from 'prop-types'
 import { SENSOR_TYPES, validateNumericInput } from './constants'
 import { NUMERIC_ERRORS } from './errorMessages'
 
+/** Default pre-condition when enabled */
+const DEFAULT_PRE_CONDITION = {
+  trigger_type: 'sensor',
+  sensor_type: 'light',
+  comparison: 'lt',
+  threshold: 100,
+}
+
 /**
  * PreConditionForm - Optional sensor condition toggle with configuration
  *
@@ -35,13 +43,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
     if (!isEnabled) {
       onChange(null)
     } else {
-      // Default pre-condition
-      onChange({
-        trigger_type: 'sensor',
-        sensor_type: 'light',
-        comparison: 'lt',
-        threshold: 100,
-      })
+      onChange(DEFAULT_PRE_CONDITION)
     }
   }
 
@@ -93,7 +95,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
           <div className="flex items-center gap-3 text-sm flex-wrap">
             {/* Sensor type - filtered to light/temperature per issue #325 */}
             <select
-              value={preCondition.sensor_type || 'light'}
+              value={preCondition?.sensor_type ?? 'light'}
               onChange={(e) => handleFieldChange('sensor_type', e.target.value)}
               disabled={disabled}
               aria-label="Sensor type"
@@ -116,7 +118,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
              * pre-conditions only need basic comparisons.
              */}
             <select
-              value={preCondition.comparison || 'lt'}
+              value={preCondition?.comparison ?? 'lt'}
               onChange={(e) => handleFieldChange('comparison', e.target.value)}
               disabled={disabled}
               aria-label="Comparison operator"
@@ -135,7 +137,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
             <input
               type="number"
               min={0}
-              value={preCondition.threshold ?? 100}
+              value={preCondition?.threshold ?? 100}
               onChange={(e) => handleThresholdChange(e.target.value)}
               disabled={disabled}
               aria-label="Threshold value"
