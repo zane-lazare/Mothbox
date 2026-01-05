@@ -21,10 +21,11 @@ const KNOWN_ERROR_CODES = {
 /**
  * Sanitize error messages for safe display
  * - Maps known error codes to user-friendly messages
+ * - Strips HTML tags as defense-in-depth
  * - Truncates long messages to 200 characters
  *
  * Note: React automatically escapes text content when rendering,
- * so manual HTML character stripping is not needed for XSS prevention.
+ * but we strip HTML tags as additional defense-in-depth.
  *
  * @param {Error} error - The error object
  * @returns {string} Sanitized error message
@@ -36,9 +37,12 @@ const sanitizeErrorMessage = (error) => {
   }
 
   // Get message or use fallback
-  const message = String(error?.message || 'Failed to save schedule');
+  let message = String(error?.message || 'Failed to save schedule');
 
-  // Truncate to 200 characters (React auto-escapes text content)
+  // Strip HTML tags as defense-in-depth
+  message = message.replace(/<[^>]*>/g, '');
+
+  // Truncate to 200 characters
   return message.length > 200 ? message.slice(0, 200) + '...' : message;
 };
 
@@ -211,11 +215,13 @@ const ScheduleEditor = ({
 
     if (routines.length === 0) {
       newErrors.routines = 'At least one routine is required';
+    } else if (routines.some(r => !r.trigger || !r.actions || r.actions.length === 0)) {
+      newErrors.routines = 'All routines must have a trigger and at least one action';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [name, routines.length]);
+  }, [name, routines]);
 
   /**
    * Handle save

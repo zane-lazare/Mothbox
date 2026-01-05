@@ -3,10 +3,10 @@
  *
  * This module provides centralized PropTypes definitions for the ScheduleEditor
  * component family, eliminating duplication and ensuring consistency across:
- * - TriggerForm
- * - PreviewSection
  * - ScheduleEditor
- * - EventPatternSelector
+ * - RoutineList, RoutineCard, NewRoutineCard
+ * - TriggerForm, TriggerSelector
+ * - PreviewSection
  *
  * @module components/scheduler/ScheduleEditor/propTypes
  */

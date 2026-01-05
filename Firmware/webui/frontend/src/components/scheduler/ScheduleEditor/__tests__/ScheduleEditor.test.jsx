@@ -547,9 +547,8 @@ describe('ScheduleEditor', () => {
       });
     });
 
-    it('displays error messages safely via React auto-escaping', async () => {
-      // React automatically escapes text content, preventing XSS.
-      // We test that the error is displayed (React handles security).
+    it('strips HTML tags from error messages for defense-in-depth', async () => {
+      // HTML tags are stripped as defense-in-depth (React also auto-escapes)
       const xssMessage = '<script>alert("xss")</script>';
       mockOnSave.mockRejectedValue(new Error(xssMessage));
 
@@ -568,11 +567,13 @@ describe('ScheduleEditor', () => {
       fireEvent.click(saveButton);
 
       await waitFor(() => {
-        // Error should be displayed (React auto-escapes the HTML content)
+        // Error should be displayed with HTML tags stripped
         const errorContainer = document.querySelector('.text-red-600, .text-red-400');
         expect(errorContainer).toBeInTheDocument();
-        // The message is displayed as text, not executed as script
-        expect(errorContainer.textContent).toContain('script');
+        // HTML tags should be stripped, leaving only the text content
+        expect(errorContainer.textContent).toBe('alert("xss")');
+        expect(errorContainer.textContent).not.toContain('<');
+        expect(errorContainer.textContent).not.toContain('>');
       });
     });
 
