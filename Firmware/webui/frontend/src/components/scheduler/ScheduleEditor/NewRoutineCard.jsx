@@ -14,7 +14,7 @@ import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
 import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
-import { createDefaultTrigger } from '../TriggerSelector/constants'
+import { createDefaultTrigger, validateTrigger } from '../TriggerSelector/constants'
 import { generateUUID } from '@/utils/uuid'
 
 /**
@@ -58,6 +58,13 @@ function NewRoutineCard({ onComplete, onCancel, disabled = false }) {
     // Validate trigger has required type
     if (!trigger?.trigger_type) {
       toast.error('Please select a trigger type')
+      return
+    }
+
+    // Validate trigger configuration is complete
+    const validationError = validateTrigger(trigger)
+    if (validationError) {
+      toast.error(validationError)
       return
     }
 

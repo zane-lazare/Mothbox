@@ -64,7 +64,8 @@ export const TriggerErrorsPropType = PropTypes.shape({
 
 /**
  * PropTypes shape for trigger configuration.
- * Supports all trigger types: interval, solar, moon_phase, fixed_time, sensor.
+ * Supports all trigger types: interval, solar, moon_phase, fixed_time, sensor,
+ * recurring_days, and cron.
  *
  * @example
  * // Interval trigger
@@ -82,9 +83,19 @@ export const TriggerErrorsPropType = PropTypes.shape({
  *   solar_event: 'sunset',
  *   offset_minutes: 30
  * }
+ *
+ * @example
+ * // Cron trigger
+ * {
+ *   trigger_type: 'cron',
+ *   cron_expression: '0 20 * * *'
+ * }
  */
 export const TriggerPropType = PropTypes.shape({
-  trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor']),
+  trigger_type: PropTypes.oneOf([
+    'interval', 'solar', 'moon_phase', 'fixed_time',
+    'sensor', 'recurring_days', 'cron'
+  ]),
   // Interval trigger fields
   interval_minutes: PropTypes.number,
   time_window: TimeWindowPropType,
@@ -93,10 +104,19 @@ export const TriggerPropType = PropTypes.shape({
   offset_minutes: PropTypes.number,
   // Moon phase trigger fields
   moon_phase: PropTypes.string,
+  phases: PropTypes.arrayOf(PropTypes.string),
   time_of_day: PropTypes.string,
   offset_days: PropTypes.number,
   // Fixed time trigger fields
-  // (time_of_day is shared with moon phase)
+  times: PropTypes.arrayOf(PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.shape({ id: PropTypes.string, value: PropTypes.string })
+  ])),
+  // Recurring days trigger fields
+  days: PropTypes.arrayOf(PropTypes.number),
+  time: PropTypes.string,
+  // Cron trigger fields
+  cron_expression: PropTypes.string,
   // Sensor trigger fields
   sensor_type: PropTypes.string,
   comparison: PropTypes.string,
@@ -203,6 +223,25 @@ export const SchedulePropType = PropTypes.shape({
 });
 
 /**
+ * PropTypes shape for an action within a routine.
+ * Note: This differs from ActionPropType which is for pattern actions.
+ *
+ * @example
+ * {
+ *   id: 'action-1',
+ *   action_type: 'gpio',
+ *   action_name: 'attract_on',
+ *   offset_minutes: 5
+ * }
+ */
+export const RoutineActionPropType = PropTypes.shape({
+  id: PropTypes.string,
+  action_type: PropTypes.string,
+  action_name: PropTypes.string,
+  offset_minutes: PropTypes.number,
+});
+
+/**
  * PropTypes shape for a routine configuration.
  * Routines combine a trigger with a sequence of actions.
  *
@@ -221,5 +260,5 @@ export const RoutinePropType = PropTypes.shape({
   routine_id: PropTypes.string,
   name: PropTypes.string,
   trigger: TriggerPropType,
-  actions: PropTypes.arrayOf(ActionPropType),
+  actions: PropTypes.arrayOf(RoutineActionPropType),
 });
