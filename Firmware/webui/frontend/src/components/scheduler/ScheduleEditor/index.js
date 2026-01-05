@@ -38,8 +38,6 @@ export { default as ScheduleEditor } from './ScheduleEditor';
 
 // Section components
 export { default as TriggerForm } from './TriggerForm';
-export { default as EventPatternSelector } from './EventPatternSelector';
-export { default as DateRangeSection } from './DateRangeSection';
 export { default as PreviewSection } from './PreviewSection';
 
 // Trigger form sub-components
