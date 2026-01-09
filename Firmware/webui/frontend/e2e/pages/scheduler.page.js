@@ -14,7 +14,9 @@ export class SchedulerPage {
   constructor(page) {
     this.page = page
 
-    // Selectors - using multiple fallbacks for flexibility
+    // Selectors - using multiple fallbacks for flexibility during terminology refactor
+    // Strategy: Prefer data-testid (stable) > aria-label (accessible) > text content (fragile)
+    // Fallbacks ensure tests work during incremental UI updates (Phases 1-8)
     this.selectors = {
       // Page heading
       pageHeading: 'text=Schedule',
@@ -61,14 +63,16 @@ export class SchedulerPage {
 
       // Calendar View
       scheduleSelector: '#calendar-panel select',
-      dayViewButton: 'button:has-text("Day")',
-      weekViewButton: 'button:has-text("Week")',
-      monthViewButton: 'button:has-text("Month")',
+      // View mode buttons scoped to role="group" to avoid matching "Today" button
+      dayViewButton: '[role="group"][aria-label="View mode"] button:has-text("Day")',
+      weekViewButton: '[role="group"][aria-label="View mode"] button:has-text("Week")',
+      monthViewButton: '[role="group"][aria-label="View mode"] button:has-text("Month")',
       todayButton: 'button:has-text("Today")',
       prevButton: '[data-testid="calendar-nav-previous"], button[aria-label="Previous"]',
       nextButton: '[data-testid="calendar-nav-next"], button[aria-label="Next"]',
       emptyCalendarState: 'text=No schedule selected',
-      calendarDateDisplay: '#calendar-panel header, #calendar-panel h2, #calendar-panel [class*="header"]',
+      // data-testid preferred, CSS class fallback for pre-deployment compatibility
+      calendarDateDisplay: '[data-testid="calendar-date-display"], #calendar-panel span.text-lg.font-semibold',
 
       // Loading states
       loadingSpinner: '.loading, [data-testid="loading-spinner"]',
@@ -431,7 +435,7 @@ export class SchedulerPage {
   /**
    * Select the first available routine from the library
    * @returns {Promise<boolean>} True if a routine was selected
-   * @deprecated Use selectFirstRoutine() - this method kept for backward compatibility
+   * @deprecated #329 - Use selectFirstRoutine() instead. This method kept for backward compatibility.
    */
   async selectFirstEventPattern() {
     return this.selectFirstRoutine()
@@ -443,7 +447,8 @@ export class SchedulerPage {
    */
   async selectFirstRoutine() {
     // Wait for routines to load - look for "Use Routine" or "Add Routine" button
-    const useRoutineButton = this.page.locator('button[aria-label="Use Routine"], [data-testid="add-routine"]').first()
+    // Prefer data-testid (more stable) over aria-label (may change with UI text updates)
+    const useRoutineButton = this.page.locator('[data-testid="add-routine"], button[aria-label="Use Routine"]').first()
     try {
       await useRoutineButton.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
       // Scroll the button into view to ensure it's clickable
@@ -469,7 +474,7 @@ export class SchedulerPage {
   /**
    * Check if a routine is currently selected
    * @returns {Promise<boolean>}
-   * @deprecated Use isRoutineSelected() - this method kept for backward compatibility
+   * @deprecated #329 - Use isRoutineSelected() instead. This method kept for backward compatibility.
    */
   async isEventPatternSelected() {
     return this.isRoutineSelected()
@@ -654,7 +659,7 @@ export class SchedulerPage {
    * @param {'interval' | 'solar' | 'moon_phase' | 'fixed_time' | 'sensor'} triggerType
    */
   async selectTriggerType(triggerType) {
-    await this.page.selectOption('#trigger_type', triggerType)
+    await this.page.selectOption('[data-testid="trigger-type"]', triggerType)
     // Wait for the form to update
     await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
@@ -664,7 +669,7 @@ export class SchedulerPage {
    * @returns {Promise<string>}
    */
   async getSelectedTriggerType() {
-    return this.page.locator('#trigger_type').inputValue()
+    return this.page.locator('[data-testid="trigger-type"]').inputValue()
   }
 
   // ============================================================
@@ -917,7 +922,7 @@ export class SchedulerPage {
   }
 
   /**
-   * @deprecated Use selectRoutineByName() - this method kept for backward compatibility
+   * @deprecated #329 - Use selectRoutineByName() instead. This method kept for backward compatibility.
    */
   async selectEventPatternByName(patternName) {
     return this.selectRoutineByName(patternName)
@@ -934,7 +939,7 @@ export class SchedulerPage {
   }
 
   /**
-   * @deprecated Use hasRoutineWithName() - this method kept for backward compatibility
+   * @deprecated #329 - Use hasRoutineWithName() instead. This method kept for backward compatibility.
    */
   async hasPatternWithName(patternName) {
     return this.hasRoutineWithName(patternName)
@@ -949,7 +954,7 @@ export class SchedulerPage {
   }
 
   /**
-   * @deprecated Use getRoutineCount() - this method kept for backward compatibility
+   * @deprecated #329 - Use getRoutineCount() instead. This method kept for backward compatibility.
    */
   async getPatternCount() {
     return this.getRoutineCount()

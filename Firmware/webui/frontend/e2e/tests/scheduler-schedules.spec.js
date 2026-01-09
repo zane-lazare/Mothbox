@@ -257,7 +257,7 @@ test.describe('Scheduler Schedules', () => {
   // Full CRUD Integration Tests
   // ============================================================
 
-  // NEEDS UPDATE: Uses selectFirstEventPattern() - update when routine workflow complete
+  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
   // The deprecated method still works via backward compatibility wrapper
   test.fixme('create schedule with valid data and verify in list', async () => {
     const initialCount = await scheduler.getScheduleCount()
@@ -306,7 +306,7 @@ test.describe('Scheduler Schedules', () => {
     }
   })
 
-  // NEEDS UPDATE: Uses selectFirstEventPattern() - update when routine workflow complete
+  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
   // The deprecated method still works via backward compatibility wrapper
   test.fixme('full CRUD workflow: create, edit, delete', async () => {
     const testName = scheduler.generateTestScheduleName()
@@ -387,7 +387,7 @@ test.describe('Scheduler Schedules', () => {
   // Form Validation Tests
   // ============================================================
 
-  // NEEDS UPDATE: Uses selectFirstEventPattern() - update when routine workflow complete
+  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
   // The deprecated method still works via backward compatibility wrapper
   test.fixme('save without name shows validation error', async ({ page }) => {
     await scheduler.clickNewSchedule()
@@ -405,9 +405,9 @@ test.describe('Scheduler Schedules', () => {
     await scheduler.clickCancel()
   })
 
-  // OBSOLETE: Pattern Library workflow removed in terminology refactor (#296)
+  // OBSOLETE (#329): Pattern Library workflow removed in terminology refactor (#296)
   // The new routine-based workflow doesn't have pattern selection validation
-  // DELETE after refactor complete (Phase 8)
+  // DELETE after refactor complete
   test.skip('save without event pattern shows validation error', async ({ page }) => {
     await scheduler.clickNewSchedule()
     await scheduler.fillScheduleName(scheduler.generateTestScheduleName())

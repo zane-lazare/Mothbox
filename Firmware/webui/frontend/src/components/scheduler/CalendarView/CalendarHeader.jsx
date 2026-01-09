@@ -82,7 +82,10 @@ export default function CalendarHeader({
             <ChevronRightIcon className="h-5 w-5" />
           </button>
 
-          <span className="text-lg font-semibold ml-4 text-gray-900 dark:text-gray-100">
+          <span
+            className="text-lg font-semibold ml-4 text-gray-900 dark:text-gray-100"
+            data-testid="calendar-date-display"
+          >
             {formatDateRange(viewMode, currentDate)}
           </span>
         </div>
