@@ -659,7 +659,8 @@ export class SchedulerPage {
    * @param {'interval' | 'solar' | 'moon_phase' | 'fixed_time' | 'sensor'} triggerType
    */
   async selectTriggerType(triggerType) {
-    await this.page.selectOption('[data-testid="trigger-type"]', triggerType)
+    // data-testid preferred, #trigger_type fallback for pre-deployment compatibility
+    await this.page.selectOption('[data-testid="trigger-type"], #trigger_type', triggerType)
     // Wait for the form to update
     await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
@@ -669,7 +670,8 @@ export class SchedulerPage {
    * @returns {Promise<string>}
    */
   async getSelectedTriggerType() {
-    return this.page.locator('[data-testid="trigger-type"]').inputValue()
+    // data-testid preferred, #trigger_type fallback for pre-deployment compatibility
+    return this.page.locator('[data-testid="trigger-type"], #trigger_type').inputValue()
   }
 
   // ============================================================
