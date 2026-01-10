@@ -297,7 +297,7 @@ describe('CalendarHeader', () => {
     it('has dark mode classes on date range text', () => {
       const { container } = render(<CalendarHeader {...defaultProps} />)
 
-      const dateRange = container.querySelector('.text-lg.font-semibold')
+      const dateRange = container.querySelector('.text-base.font-semibold')
       expect(dateRange).toHaveClass('dark:text-gray-100')
     })
   })
