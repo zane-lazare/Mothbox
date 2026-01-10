@@ -14,7 +14,9 @@ export class SchedulerPage {
   constructor(page) {
     this.page = page
 
-    // Selectors - using multiple fallbacks for flexibility
+    // Selectors - using multiple fallbacks for flexibility during terminology refactor
+    // Strategy: Prefer data-testid (stable) > aria-label (accessible) > text content (fragile)
+    // Fallbacks ensure tests work during incremental UI updates (Phases 1-8)
     this.selectors = {
       // Page heading
       pageHeading: 'text=Schedule',
@@ -61,14 +63,16 @@ export class SchedulerPage {
 
       // Calendar View
       scheduleSelector: '#calendar-panel select',
-      dayViewButton: 'button:has-text("Day")',
-      weekViewButton: 'button:has-text("Week")',
-      monthViewButton: 'button:has-text("Month")',
+      // View mode buttons scoped to role="group" to avoid matching "Today" button
+      dayViewButton: '[role="group"][aria-label="View mode"] button:has-text("Day")',
+      weekViewButton: '[role="group"][aria-label="View mode"] button:has-text("Week")',
+      monthViewButton: '[role="group"][aria-label="View mode"] button:has-text("Month")',
       todayButton: 'button:has-text("Today")',
       prevButton: '[data-testid="calendar-nav-previous"], button[aria-label="Previous"]',
       nextButton: '[data-testid="calendar-nav-next"], button[aria-label="Next"]',
       emptyCalendarState: 'text=No schedule selected',
-      calendarDateDisplay: '#calendar-panel header, #calendar-panel h2, #calendar-panel [class*="header"]',
+      // data-testid preferred, CSS class fallback for pre-deployment compatibility
+      calendarDateDisplay: '[data-testid="calendar-date-display"], #calendar-panel span.text-lg.font-semibold',
 
       // Loading states
       loadingSpinner: '.loading, [data-testid="loading-spinner"]',
@@ -78,10 +82,11 @@ export class SchedulerPage {
       toastSuccess: '.toast-success, [class*="toast"]:has-text("success")',
       toastError: '.toast-error, [class*="toast"]:has-text("error"), [class*="toast"]:has-text("fail")',
 
-      // Event Pattern Selection
-      patternTabLibrary: '[data-testid="pattern-tab-library"], button[role="tab"]:has-text("Library")',
-      patternTabCustom: '[data-testid="pattern-tab-custom"], button[role="tab"]:has-text("Custom")',
-      patternCard: '[role="article"][aria-label^="Pattern:"]',
+      // Routine Selection (formerly Event Pattern)
+      routineTabLibrary: '[data-testid="routine-tab-library"], button[role="tab"]:has-text("Library")',
+      routineTabCustom: '[data-testid="routine-tab-custom"], button[role="tab"]:has-text("Custom")',
+      routineCard: '[data-testid^="routine-"], [role="article"][aria-label^="Routine:"]',
+      selectedRoutineSummary: '[data-testid="selected-routine-summary"]',
     }
   }
 
@@ -424,31 +429,41 @@ export class SchedulerPage {
   }
 
   // ============================================================
-  // Event Pattern Selection
+  // Routine Selection (formerly Event Pattern)
   // ============================================================
 
   /**
-   * Select the first available event pattern from the library
-   * @returns {Promise<boolean>} True if a pattern was selected
+   * Select the first available routine from the library
+   * @returns {Promise<boolean>} True if a routine was selected
+   * @deprecated #329 - Use selectFirstRoutine() instead. This method kept for backward compatibility.
    */
   async selectFirstEventPattern() {
-    // Wait for patterns to load - look for "Use Pattern" button with aria-label
-    const usePatternButton = this.page.locator('button[aria-label="Use Pattern"]').first()
+    return this.selectFirstRoutine()
+  }
+
+  /**
+   * Select the first available routine from the library
+   * @returns {Promise<boolean>} True if a routine was selected
+   */
+  async selectFirstRoutine() {
+    // Wait for routines to load - look for "Use Routine" or "Add Routine" button
+    // Prefer data-testid (more stable) over aria-label (may change with UI text updates)
+    const useRoutineButton = this.page.locator('[data-testid="add-routine"], button[aria-label="Use Routine"]').first()
     try {
-      await usePatternButton.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await useRoutineButton.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
       // Scroll the button into view to ensure it's clickable
-      await usePatternButton.scrollIntoViewIfNeeded()
-      await usePatternButton.click()
-      // Wait for pattern to be applied and UI to update
+      await useRoutineButton.scrollIntoViewIfNeeded()
+      await useRoutineButton.click()
+      // Wait for routine to be applied and UI to update
       await this.page.waitForTimeout(TIMEOUTS.SAVE)
       return true
     } catch {
-      // No patterns available or button not found, try clicking pattern card as fallback
-      const patternCard = this.page.locator(this.selectors.patternCard).first()
+      // No routines available or button not found, try clicking routine card as fallback
+      const routineCard = this.page.locator(this.selectors.routineCard).first()
       try {
-        await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
-        await patternCard.scrollIntoViewIfNeeded()
-        await patternCard.click()
+        await routineCard.waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+        await routineCard.scrollIntoViewIfNeeded()
+        await routineCard.click()
         return true
       } catch {
         return false
@@ -457,12 +472,20 @@ export class SchedulerPage {
   }
 
   /**
-   * Check if an event pattern is currently selected
+   * Check if a routine is currently selected
    * @returns {Promise<boolean>}
+   * @deprecated #329 - Use isRoutineSelected() instead. This method kept for backward compatibility.
    */
   async isEventPatternSelected() {
-    // Look for the pattern summary showing a selected pattern name
-    const summary = this.page.locator('[data-testid="selected-pattern-summary"]')
+    return this.isRoutineSelected()
+  }
+
+  /**
+   * Check if a routine is currently selected
+   * @returns {Promise<boolean>}
+   */
+  async isRoutineSelected() {
+    const summary = this.page.locator(this.selectors.selectedRoutineSummary)
     return summary.isVisible()
   }
 
@@ -636,7 +659,8 @@ export class SchedulerPage {
    * @param {'interval' | 'solar' | 'moon_phase' | 'fixed_time' | 'sensor'} triggerType
    */
   async selectTriggerType(triggerType) {
-    await this.page.selectOption('#trigger_type', triggerType)
+    // data-testid preferred, #trigger_type fallback for pre-deployment compatibility
+    await this.page.selectOption('[data-testid="trigger-type"], #trigger_type', triggerType)
     // Wait for the form to update
     await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
@@ -646,7 +670,8 @@ export class SchedulerPage {
    * @returns {Promise<string>}
    */
   async getSelectedTriggerType() {
-    return this.page.locator('#trigger_type').inputValue()
+    // data-testid preferred, #trigger_type fallback for pre-deployment compatibility
+    return this.page.locator('[data-testid="trigger-type"], #trigger_type').inputValue()
   }
 
   // ============================================================
@@ -879,19 +904,19 @@ export class SchedulerPage {
   }
 
   // ============================================================
-  // Event Pattern Selection (Extended)
+  // Routine Selection (Extended) - formerly Event Pattern
   // ============================================================
 
   /**
-   * Select an event pattern by name
-   * @param {string} patternName
-   * @returns {Promise<boolean>} True if pattern was found and selected
+   * Select a routine by name
+   * @param {string} routineName
+   * @returns {Promise<boolean>} True if routine was found and selected
    */
-  async selectEventPatternByName(patternName) {
-    const patternCard = this.page.locator(`[role="article"][aria-label^="Pattern: ${patternName}"]`)
+  async selectRoutineByName(routineName) {
+    const routineCard = this.page.locator(`[data-testid^="routine-"]:has-text("${routineName}"), [role="article"][aria-label^="Routine: ${routineName}"]`)
     try {
-      await patternCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
-      await patternCard.click()
+      await routineCard.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await routineCard.click()
       return true
     } catch {
       return false
@@ -899,21 +924,42 @@ export class SchedulerPage {
   }
 
   /**
-   * Check if a pattern with the given name exists
-   * @param {string} patternName
-   * @returns {Promise<boolean>}
+   * @deprecated #329 - Use selectRoutineByName() instead. This method kept for backward compatibility.
    */
-  async hasPatternWithName(patternName) {
-    const patternCard = this.page.locator(`[role="article"][aria-label^="Pattern: ${patternName}"]`)
-    return patternCard.isVisible()
+  async selectEventPatternByName(patternName) {
+    return this.selectRoutineByName(patternName)
   }
 
   /**
-   * Get count of available patterns
+   * Check if a routine with the given name exists
+   * @param {string} routineName
+   * @returns {Promise<boolean>}
+   */
+  async hasRoutineWithName(routineName) {
+    const routineCard = this.page.locator(`[data-testid^="routine-"]:has-text("${routineName}"), [role="article"][aria-label^="Routine: ${routineName}"]`)
+    return routineCard.isVisible()
+  }
+
+  /**
+   * @deprecated #329 - Use hasRoutineWithName() instead. This method kept for backward compatibility.
+   */
+  async hasPatternWithName(patternName) {
+    return this.hasRoutineWithName(patternName)
+  }
+
+  /**
+   * Get count of available routines
    * @returns {Promise<number>}
    */
+  async getRoutineCount() {
+    return this.page.locator(this.selectors.routineCard).count()
+  }
+
+  /**
+   * @deprecated #329 - Use getRoutineCount() instead. This method kept for backward compatibility.
+   */
   async getPatternCount() {
-    return this.page.locator(this.selectors.patternCard).count()
+    return this.getRoutineCount()
   }
 
   // ============================================================
@@ -991,9 +1037,9 @@ export class SchedulerPage {
       await this.fillEndDate(config.endDate)
     }
 
-    // Select pattern
-    const patternSelected = await this.selectFirstEventPattern()
-    if (!patternSelected) return false
+    // Select routine (required)
+    const routineSelected = await this.selectFirstRoutine()
+    if (!routineSelected) return false
 
     // Save
     await this.clickSave()
@@ -1027,9 +1073,9 @@ export class SchedulerPage {
       await this.fillMoonPhaseOffset(config.offsetDays)
     }
 
-    // Select pattern
-    const patternSelected = await this.selectFirstEventPattern()
-    if (!patternSelected) return false
+    // Select routine (required)
+    const routineSelected = await this.selectFirstRoutine()
+    if (!routineSelected) return false
 
     // Save
     await this.clickSave()
@@ -1064,9 +1110,9 @@ export class SchedulerPage {
       await this.clickAllDays()
     }
 
-    // Select pattern
-    const patternSelected = await this.selectFirstEventPattern()
-    if (!patternSelected) return false
+    // Select routine (required)
+    const routineSelected = await this.selectFirstRoutine()
+    if (!routineSelected) return false
 
     // Save
     await this.clickSave()

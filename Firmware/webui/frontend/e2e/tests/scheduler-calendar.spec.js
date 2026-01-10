@@ -51,10 +51,11 @@ test.describe('Scheduler Calendar View', () => {
     const calendarTab = page.locator('button:has-text("Calendar")')
     await calendarTab.click()
 
-    // Verify view mode buttons exist
-    const dayButton = page.locator('button:has-text("Day")')
-    const weekButton = page.locator('button:has-text("Week")')
-    const monthButton = page.locator('button:has-text("Month")')
+    // Verify view mode buttons exist (scoped to role="group" to avoid matching "Today")
+    const viewModeGroup = '[role="group"][aria-label="View mode"]'
+    const dayButton = page.locator(`${viewModeGroup} button:has-text("Day")`)
+    const weekButton = page.locator(`${viewModeGroup} button:has-text("Week")`)
+    const monthButton = page.locator(`${viewModeGroup} button:has-text("Month")`)
 
     await expect(dayButton).toBeVisible()
     await expect(weekButton).toBeVisible()
@@ -86,19 +87,22 @@ test.describe('Scheduler Calendar View', () => {
     const calendarTab = page.locator('button:has-text("Calendar")')
     await calendarTab.click()
 
+    // Scope selectors to view mode group to avoid matching "Today"
+    const viewModeGroup = '[role="group"][aria-label="View mode"]'
+
     // Click Week view
-    const weekButton = page.locator('button:has-text("Week")')
+    const weekButton = page.locator(`${viewModeGroup} button:has-text("Week")`)
     await weekButton.click()
 
-    // Verify week view is active (button should have different styling)
-    await expect(weekButton).toHaveClass(/bg-blue|active|selected/)
+    // Verify week view is active (button should have aria-pressed="true")
+    await expect(weekButton).toHaveAttribute('aria-pressed', 'true')
 
     // Click Day view
-    const dayButton = page.locator('button:has-text("Day")')
+    const dayButton = page.locator(`${viewModeGroup} button:has-text("Day")`)
     await dayButton.click()
 
     // Verify day view is active
-    await expect(dayButton).toHaveClass(/bg-blue|active|selected/)
+    await expect(dayButton).toHaveAttribute('aria-pressed', 'true')
   })
 
   // ============================================================
@@ -188,7 +192,7 @@ test.describe('Scheduler Calendar View', () => {
     await scheduler.clickMonthView()
 
     const monthButton = page.locator('button:has-text("Month")')
-    await expect(monthButton).toHaveClass(/bg-blue|active|selected/)
+    await expect(monthButton).toHaveAttribute('aria-pressed', 'true')
 
     // Look for calendar grid indicators (day names, date cells, etc.)
     const calendarContent = page.locator('#calendar-panel')
@@ -205,7 +209,7 @@ test.describe('Scheduler Calendar View', () => {
     await scheduler.clickWeekView()
 
     const weekButton = page.locator('button:has-text("Week")')
-    await expect(weekButton).toHaveClass(/bg-blue|active|selected/)
+    await expect(weekButton).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('day view shows single day', async ({ page }) => {
@@ -217,8 +221,9 @@ test.describe('Scheduler Calendar View', () => {
     // Click Day view
     await scheduler.clickDayView()
 
-    const dayButton = page.locator('button:has-text("Day")')
-    await expect(dayButton).toHaveClass(/bg-blue|active|selected/)
+    // Scope selector to view mode group to avoid matching "Today"
+    const dayButton = page.locator('[role="group"][aria-label="View mode"] button:has-text("Day")')
+    await expect(dayButton).toHaveAttribute('aria-pressed', 'true')
   })
 
   test('calendar retains view mode after navigation', async ({ page }) => {
@@ -230,17 +235,11 @@ test.describe('Scheduler Calendar View', () => {
     // Switch to Week view
     await scheduler.clickWeekView()
 
-    // Navigate (if navigation buttons exist)
-    const navButtons = page.locator('#calendar-panel button')
-    const count = await navButtons.count()
-    if (count >= 3) {
-      // Navigate forward
-      await navButtons.nth(count - 1).click()
-      await page.waitForLoadState('networkidle')
-    }
+    // Navigate forward using page object method
+    await scheduler.clickNext()
 
-    // Verify still in Week view
-    const weekButton = page.locator('button:has-text("Week")')
-    await expect(weekButton).toHaveClass(/bg-blue|active|selected/)
+    // Verify still in Week view (scoped to view mode group)
+    const weekButton = page.locator('[role="group"][aria-label="View mode"] button:has-text("Week")')
+    await expect(weekButton).toHaveAttribute('aria-pressed', 'true')
   })
 })
