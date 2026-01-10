@@ -965,8 +965,8 @@ elif [ "$INSTALL_TYPE" = "legacy" ]; then
     echo ""
 fi
 
-# If we only needed file sync (no git changes), exit here
-if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "true" ]; then
+# If we only needed file sync (no git changes) and no rebuild requested, exit here
+if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "true" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
     echo -e "${GREEN}✓ File sync complete, no other updates needed${NC}"
     echo ""
     verify_installation
