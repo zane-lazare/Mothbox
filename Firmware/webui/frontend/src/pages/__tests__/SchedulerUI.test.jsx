@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SchedulerUI from '../SchedulerUI'
 
@@ -27,16 +26,6 @@ vi.mock('../../components/scheduler/SchedulerHeader', () => ({
 
 vi.mock('../../components/scheduler/SchedulerToolbar', () => ({
   default: () => <div data-testid="scheduler-toolbar">Toolbar</div>
-}))
-
-vi.mock('../../components/scheduler/SchedulerTabs', () => ({
-  default: ({ activeTab, onTabChange }) => (
-    <div data-testid="scheduler-tabs">
-      <button onClick={() => onTabChange('schedules')}>Schedules</button>
-      <button onClick={() => onTabChange('calendar')}>Calendar</button>
-      <span data-testid="active-tab">{activeTab}</span>
-    </div>
-  )
 }))
 
 vi.mock('../../components/scheduler/ActiveScheduleBanner', () => ({
@@ -97,58 +86,12 @@ describe('SchedulerUI', () => {
     expect(screen.getByTestId('scheduler-toolbar')).toBeInTheDocument()
   })
 
-  it('renders SchedulerTabs', () => {
+  it('renders two-column layout with ScheduleList and CalendarView', () => {
     render(<SchedulerUI />, { wrapper: createWrapper() })
 
-    expect(screen.getByTestId('scheduler-tabs')).toBeInTheDocument()
-  })
-
-  it('defaults to Schedules tab', () => {
-    render(<SchedulerUI />, { wrapper: createWrapper() })
-
-    expect(screen.getByTestId('active-tab')).toHaveTextContent('schedules')
-  })
-
-  it('shows ScheduleList initially', () => {
-    render(<SchedulerUI />, { wrapper: createWrapper() })
-
-    // Two instances exist: one for mobile (lg:hidden), one for desktop (hidden lg:grid)
-    const scheduleLists = screen.getAllByTestId('schedule-list')
-    expect(scheduleLists.length).toBeGreaterThanOrEqual(1)
-    // CalendarView also exists in desktop layout but mobile panel should be hidden
-    // (tab-based mobile view shows only schedules panel initially)
-  })
-
-  it('switches to Calendar tab when clicked', async () => {
-    const user = userEvent.setup()
-    render(<SchedulerUI />, { wrapper: createWrapper() })
-
-    // Initially shows Schedules in mobile tab-based view
-    const initialScheduleLists = screen.getAllByTestId('schedule-list')
-    expect(initialScheduleLists.length).toBeGreaterThanOrEqual(1)
-
-    // Click Calendar tab
-    const calendarButton = screen.getByRole('button', { name: /calendar/i })
-    await user.click(calendarButton)
-
-    // Should show Calendar view in mobile tab panel
-    // Note: Desktop layout always shows both, mobile tabs switch between them
-    await waitFor(() => {
-      const calendarViews = screen.getAllByTestId('calendar-view')
-      expect(calendarViews.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  it('shows CalendarView when Calendar tab selected', async () => {
-    const user = userEvent.setup()
-    render(<SchedulerUI />, { wrapper: createWrapper() })
-
-    const calendarButton = screen.getByRole('button', { name: /calendar/i })
-    await user.click(calendarButton)
-
-    // CalendarView exists in both desktop (always visible) and mobile (after tab switch)
-    const calendarViews = screen.getAllByTestId('calendar-view')
-    expect(calendarViews.length).toBeGreaterThanOrEqual(1)
+    // Both should be visible in two-column layout
+    expect(screen.getByTestId('schedule-list')).toBeInTheDocument()
+    expect(screen.getByTestId('calendar-view')).toBeInTheDocument()
   })
 
   it('renders ScheduleEditor', () => {

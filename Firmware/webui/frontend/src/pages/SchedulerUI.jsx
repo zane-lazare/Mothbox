@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react'
 import { SchedulerProvider } from '../contexts/SchedulerContext'
 import SchedulerHeader from '../components/scheduler/SchedulerHeader'
 import SchedulerToolbar from '../components/scheduler/SchedulerToolbar'
-import SchedulerTabs from '../components/scheduler/SchedulerTabs'
 import ActiveScheduleBanner from '../components/scheduler/ActiveScheduleBanner'
 import { ScheduleList } from '../components/scheduler/ScheduleList'
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
@@ -12,7 +11,6 @@ import { useCreateSchedule, useUpdateSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
 
 function SchedulerUIContent() {
-  const [activeTab, setActiveTab] = useState('schedules')
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState(null)
 
@@ -78,41 +76,10 @@ function SchedulerUIContent() {
       </SchedulerHeader>
       <ActiveScheduleBanner />
 
-      {/* Tabs - visible only on mobile (< lg breakpoint) */}
-      <div className="lg:hidden">
-        <SchedulerTabs activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
-
-      {/* Mobile: Tab-based panels (< lg breakpoint) */}
-      <div className="lg:hidden">
-        {activeTab === 'schedules' && (
-          <div id="schedules-panel" role="tabpanel">
-            <ErrorBoundary
-              errorTitle="Error loading schedules"
-              errorMessage="Failed to load the schedule list"
-              onReset={() => window.location.reload()}
-            >
-              <ScheduleList onEditSchedule={handleEditSchedule} />
-            </ErrorBoundary>
-          </div>
-        )}
-        {activeTab === 'calendar' && (
-          <div id="calendar-panel" role="tabpanel">
-            <ErrorBoundary
-              errorTitle="Error loading calendar"
-              errorMessage="Failed to load the calendar view"
-              onReset={() => window.location.reload()}
-            >
-              <CalendarView />
-            </ErrorBoundary>
-          </div>
-        )}
-      </div>
-
-      {/* Desktop: Two-column layout (≥ lg breakpoint) */}
-      <div className="hidden lg:grid lg:grid-cols-3 lg:gap-6">
+      {/* Two-column layout - always visible */}
+      <div className="grid grid-cols-3 gap-6">
         {/* Left column: Schedule List (1/3 width) */}
-        <div className="lg:col-span-1">
+        <div className="col-span-1">
           <ErrorBoundary
             errorTitle="Error loading schedules"
             errorMessage="Failed to load the schedule list"
@@ -122,7 +89,7 @@ function SchedulerUIContent() {
           </ErrorBoundary>
         </div>
         {/* Right column: Calendar/Timeline (2/3 width) */}
-        <div className="lg:col-span-2">
+        <div className="col-span-2">
           <ErrorBoundary
             errorTitle="Error loading calendar"
             errorMessage="Failed to load the calendar view"
