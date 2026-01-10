@@ -39,7 +39,7 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
   const gridClasses = variant === 'sidebar'
     ? SCHEDULER_LAYOUT_CONFIG.SIDEBAR_GRID
     : SCHEDULER_LAYOUT_CONFIG.DEFAULT_GRID
-  const { data, isLoading, error, refetch } = useSchedules()
+  const { data, isLoading, error, refetch } = useSchedules({ include_builtin: true })
   const { data: activeData } = useActiveSchedule()
   const { mutate: activate } = useActivateSchedule()
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
