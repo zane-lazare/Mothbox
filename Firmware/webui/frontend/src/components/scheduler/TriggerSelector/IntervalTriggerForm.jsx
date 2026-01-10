@@ -136,7 +136,7 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
                        focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed
                        ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
-            data-testid="interval-value"
+            data-testid="interval-minutes"
           />
           <select
             value={displayUnit}

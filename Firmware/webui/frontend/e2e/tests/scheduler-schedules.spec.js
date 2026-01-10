@@ -257,9 +257,7 @@ test.describe('Scheduler Schedules', () => {
   // Full CRUD Integration Tests
   // ============================================================
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('create schedule with valid data and verify in list', async () => {
+  test('create schedule with valid data and verify in list', async () => {
     const initialCount = await scheduler.getScheduleCount()
     const testName = scheduler.generateTestScheduleName()
 
@@ -273,9 +271,18 @@ test.describe('Scheduler Schedules', () => {
       // Fill description (optional)
       await scheduler.fillScheduleDescription('E2E test schedule - can be deleted')
 
-      // Select a routine (required) - TODO: Update to selectFirstRoutine()
-      const patternSelected = await scheduler.selectFirstEventPattern()
-      expect(patternSelected, 'Routines should be available').toBeTruthy()
+      // Add routine with trigger and action
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await scheduler.fillIntervalMinutesInRoutine(15)
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Save the routine
+      await scheduler.saveRoutine()
 
       // Save the schedule
       await scheduler.clickSave()
@@ -306,9 +313,7 @@ test.describe('Scheduler Schedules', () => {
     }
   })
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('full CRUD workflow: create, edit, delete', async () => {
+  test('full CRUD workflow: create, edit, delete', async () => {
     const testName = scheduler.generateTestScheduleName()
     const updatedName = `${testName}-updated`
 
@@ -318,9 +323,18 @@ test.describe('Scheduler Schedules', () => {
       await scheduler.fillScheduleName(testName)
       await scheduler.fillScheduleDescription('E2E CRUD test')
 
-      // Select a routine (required) - TODO: Update to selectFirstRoutine()
-      const patternSelected = await scheduler.selectFirstEventPattern()
-      expect(patternSelected, 'Routines should be available').toBeTruthy()
+      // Add routine with trigger and action
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await scheduler.fillIntervalMinutesInRoutine(15)
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Save the routine
+      await scheduler.saveRoutine()
 
       // Save
       await scheduler.clickSave()
@@ -387,13 +401,23 @@ test.describe('Scheduler Schedules', () => {
   // Form Validation Tests
   // ============================================================
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('save without name shows validation error', async ({ page }) => {
+  test('save without name shows validation error', async ({ page }) => {
     await scheduler.clickNewSchedule()
 
-    // Select routine but don't fill name - TODO: Update to selectFirstRoutine()
-    await scheduler.selectFirstEventPattern()
+    // Add routine but don't fill schedule name
+    await scheduler.clickAddRoutine()
+    await scheduler.selectTriggerTypeInRoutine('interval')
+    await scheduler.fillIntervalMinutesInRoutine(15)
+
+    // Add an action
+    await scheduler.clickAddActionInRoutine()
+    await scheduler.selectActionTypeInRoutine(0, 'gpio')
+    await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+    // Save the routine
+    await scheduler.saveRoutine()
+
+    // Try to save without name
     await scheduler.clickSave()
     await page.waitForTimeout(TIMEOUTS.TRANSITION)
 

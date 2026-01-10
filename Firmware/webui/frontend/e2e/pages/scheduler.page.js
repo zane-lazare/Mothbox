@@ -490,6 +490,136 @@ export class SchedulerPage {
   }
 
   // ============================================================
+  // Routine Creation Workflow (Per-Routine Triggers)
+  // ============================================================
+
+  /**
+   * Click the "Add Routine" button to start creating a new routine
+   */
+  async clickAddRoutine() {
+    await this.page.click('[data-testid="add-routine"]')
+    await this.waitForNewRoutineCard()
+  }
+
+  /**
+   * Wait for the NewRoutineCard to appear
+   */
+  async waitForNewRoutineCard() {
+    await this.page.locator('[data-testid="new-routine-card"]').waitFor({
+      state: 'visible',
+      timeout: TIMEOUTS.MEDIUM
+    })
+  }
+
+  /**
+   * Save the current routine being edited
+   */
+  async saveRoutine() {
+    await this.page.click('[data-testid="save-routine"]')
+    await this.page.waitForTimeout(TIMEOUTS.SAVE)
+  }
+
+  /**
+   * Cancel creating a new routine
+   */
+  async cancelNewRoutine() {
+    await this.page.click('[data-testid="cancel-new-routine"]')
+  }
+
+  // ============================================================
+  // Scoped Trigger Methods (within NewRoutineCard)
+  // ============================================================
+
+  /**
+   * Select trigger type within the NewRoutineCard context
+   * @param {'interval' | 'solar' | 'fixed_time' | 'moon_phase' | 'cron'} triggerType
+   */
+  async selectTriggerTypeInRoutine(triggerType) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="trigger-type"]').selectOption(triggerType)
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Fill interval minutes within the NewRoutineCard context
+   * @param {number} minutes
+   */
+  async fillIntervalMinutesInRoutine(minutes) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="interval-minutes"]').fill(String(minutes))
+  }
+
+  /**
+   * Select solar event within the NewRoutineCard context
+   * @param {string} event - e.g., 'dusk', 'dawn', 'sunrise', 'sunset'
+   */
+  async selectSolarEventInRoutine(event) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="solar-event"]').selectOption(event)
+  }
+
+  /**
+   * Fill fixed time within the NewRoutineCard context
+   * @param {string} time - HH:MM format
+   */
+  async fillFixedTimeInRoutine(time) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="fixed-time-input-0"]').fill(time)
+  }
+
+  /**
+   * Select moon phase within the NewRoutineCard context
+   * @param {string} phase - e.g., 'full', 'new', 'first_quarter', 'last_quarter'
+   */
+  async selectMoonPhaseInRoutine(phase) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator(`[data-testid="moon-phase-${phase}"]`).check()
+  }
+
+  /**
+   * Uncheck a moon phase within the NewRoutineCard context
+   * @param {string} phase
+   */
+  async deselectMoonPhaseInRoutine(phase) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator(`[data-testid="moon-phase-${phase}"]`).uncheck()
+  }
+
+  // ============================================================
+  // Action Methods (within NewRoutineCard)
+  // ============================================================
+
+  /**
+   * Click "Add Action" button within the NewRoutineCard
+   */
+  async clickAddActionInRoutine() {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="add-action"]').click()
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Select action type for a specific action within the routine
+   * @param {number} index - Action index (0-based)
+   * @param {string} type - e.g., 'gpio', 'camera', 'gps_sync', 'service'
+   */
+  async selectActionTypeInRoutine(index, type) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    // ActionForm uses data-testid="action-type" - we need to find the right one by index
+    await card.locator('[data-testid="action-type"]').nth(index).selectOption(type)
+  }
+
+  /**
+   * Select action name for a specific action within the routine
+   * @param {number} index - Action index (0-based)
+   * @param {string} name - e.g., 'attract_on', 'attract_off', 'takephoto'
+   */
+  async selectActionNameInRoutine(index, name) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="action-name"]').nth(index).selectOption(name)
+  }
+
+  // ============================================================
   // Delete Confirmation Dialog
   // ============================================================
 
@@ -987,62 +1117,30 @@ export class SchedulerPage {
    * @param {Object} config - Schedule configuration
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
-   * @param {number} config.intervalMinutes - Interval in minutes
-   * @param {Object} config.timeWindow - Time window configuration
-   * @param {string} config.startDate - Start date (YYYY-MM-DD)
-   * @param {string} config.endDate - End date (YYYY-MM-DD)
+   * @param {number} config.interval - Interval in minutes (default: 15)
+   * @param {number} config.intervalMinutes - Alias for config.interval (deprecated)
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createIntervalSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select interval trigger
-    await this.selectTriggerType('interval')
-    await this.fillIntervalMinutes(config.intervalMinutes)
+    // Add routine with interval trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('interval')
+    await this.fillIntervalMinutesInRoutine(config.interval || config.intervalMinutes || 15)
 
-    // Configure time window
-    if (config.timeWindow) {
-      if (config.timeWindow.startType === 'solar') {
-        await this.selectStartTimeType('solar')
-        await this.selectStartSolarEvent(config.timeWindow.startEvent)
-        if (config.timeWindow.startOffset) {
-          await this.fillStartOffset(config.timeWindow.startOffset)
-        }
-      } else {
-        await this.fillStartTime(config.timeWindow.startTime)
-      }
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
 
-      if (config.timeWindow.endType === 'solar') {
-        await this.selectEndTimeType('solar')
-        await this.selectEndSolarEvent(config.timeWindow.endEvent)
-        if (config.timeWindow.endOffset) {
-          await this.fillEndOffset(config.timeWindow.endOffset)
-        }
-      } else {
-        await this.fillEndTime(config.timeWindow.endTime)
-      }
-    }
-
-    // Set date range
-    if (config.startDate) {
-      await this.fillStartDate(config.startDate)
-    }
-    if (config.endDate) {
-      await this.fillEndDate(config.endDate)
-    }
-
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
-
-    // Save
+    await this.saveRoutine()
     await this.clickSave()
+    await this.waitForLoad()
     return !(await this.isEditorOpen())
   }
 
@@ -1051,34 +1149,31 @@ export class SchedulerPage {
    * @param {Object} config - Schedule configuration
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
-   * @param {string} config.moonPhase - Moon phase (full, new, etc.)
-   * @param {string} config.timeOfDay - Time of day (HH:MM)
-   * @param {number} config.offsetDays - Offset days
+   * @param {string} config.moonPhase - Moon phase (full, new, first_quarter, last_quarter)
+   * @param {string} config.timeOfDay - Time of day (HH:MM) - currently not used in per-routine workflow
+   * @param {number} config.offsetDays - Offset days - currently not used in per-routine workflow
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createMoonPhaseSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select moon phase trigger
-    await this.selectTriggerType('moon_phase')
-    await this.selectMoonPhase(config.moonPhase)
-    await this.fillMoonPhaseTime(config.timeOfDay)
-    if (config.offsetDays !== undefined) {
-      await this.fillMoonPhaseOffset(config.offsetDays)
-    }
+    // Add routine with moon phase trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('moon_phase')
+    await this.selectMoonPhaseInRoutine(config.moonPhase || 'full')
 
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
 
-    // Save
+    await this.saveRoutine()
     await this.clickSave()
+    await this.waitForLoad()
     return !(await this.isEditorOpen())
   }
 
@@ -1088,34 +1183,29 @@ export class SchedulerPage {
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
    * @param {string} config.timeOfDay - Time of day (HH:MM)
-   * @param {Array<number>|null} config.daysOfWeek - Days of week (null for all days)
+   * @param {Array<number>|null} config.daysOfWeek - Days of week (null for all days) - currently not used
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createFixedTimeSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select fixed time trigger
-    await this.selectTriggerType('fixed_time')
-    await this.fillFixedTimeOfDay(config.timeOfDay)
+    // Add routine with fixed time trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('fixed_time')
+    await this.fillFixedTimeInRoutine(config.timeOfDay || '21:00')
 
-    // Configure days of week if specified
-    if (config.daysOfWeek !== null && config.daysOfWeek !== undefined) {
-      // First click All Days to ensure we start fresh
-      await this.clickAllDays()
-    }
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
 
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
-
-    // Save
+    await this.saveRoutine()
     await this.clickSave()
+    await this.waitForLoad()
     return !(await this.isEditorOpen())
   }
 }

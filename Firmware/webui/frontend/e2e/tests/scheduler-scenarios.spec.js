@@ -46,9 +46,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
   test.describe('Scenario 1: Summer Moth Survey', () => {
     const scenarioName = `Summer Moth Survey ${Date.now()}`
 
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('create schedule with interval trigger and solar events', async ({ page }) => {
+    test('create schedule with interval trigger and solar events', async ({ page }) => {
       try {
         // Step 1: Open schedule editor
         await scheduler.clickNewSchedule()
@@ -63,65 +61,50 @@ test.describe('Scheduler Real-World Scenarios', () => {
           'Automated moth photography during summer nights - E2E test'
         )
 
-        // Step 4: Select interval trigger type
-        await scheduler.selectTriggerType('interval')
+        // Step 4: Add routine with interval trigger
+        await scheduler.clickAddRoutine()
+        await scheduler.selectTriggerTypeInRoutine('interval')
 
         // Step 5: Configure 30-minute interval
-        await scheduler.fillIntervalMinutes(30)
+        await scheduler.fillIntervalMinutesInRoutine(30)
 
-        // Step 6: Configure time window with solar events
-        // Start: sunset + 30 minutes
-        await scheduler.selectStartTimeType('solar')
-        await page.waitForTimeout(TIMEOUTS.TRANSITION)
-        await scheduler.selectStartSolarEvent('sunset')
-        await scheduler.fillStartOffset(30)
+        // Step 6: Add at least one action
+        await scheduler.clickAddActionInRoutine()
+        await scheduler.selectActionTypeInRoutine(0, 'gpio')
+        await scheduler.selectActionNameInRoutine(0, 'attract_on')
 
-        // End: sunrise
-        await scheduler.selectEndTimeType('solar')
-        await page.waitForTimeout(TIMEOUTS.TRANSITION)
-        await scheduler.selectEndSolarEvent('sunrise')
+        // Step 7: Save the routine
+        await scheduler.saveRoutine()
 
-        // Step 7: Set date range (summer months)
+        // Step 8: Set date range (summer months)
         const currentYear = new Date().getFullYear()
         await scheduler.fillStartDate(`${currentYear}-06-01`)
         await scheduler.fillEndDate(`${currentYear}-08-31`)
 
-        // Step 8: Verify preview text shows interval configuration
-        const previewText = await scheduler.getTriggerPreviewText()
-        expect(previewText).toBeTruthy()
-        // Preview should mention the interval
-        if (previewText) {
-          expect(previewText.toLowerCase()).toContain('30')
-        }
-
-        // Step 9: Select a routine - TODO: Update to selectFirstRoutine()
-        const patternSelected = await scheduler.selectFirstEventPattern()
-        expect(patternSelected, 'Routines should be available').toBeTruthy()
-
-        // Step 10: Save the schedule
+        // Step 9: Save the schedule
         await scheduler.clickSave()
 
-        // Step 11: Verify editor closed (save succeeded)
+        // Step 10: Verify editor closed (save succeeded)
         const editorStillOpen = await scheduler.isEditorOpen()
         expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
-        // Step 12: Verify schedule appears in list
+        // Step 11: Verify schedule appears in list
         await scheduler.waitForLoad()
         const scheduleExists = await scheduler.hasScheduleWithName(scenarioName)
         expect(scheduleExists, 'Schedule should appear in list').toBeTruthy()
 
-        // Step 13: Activate the schedule
+        // Step 12: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
         await scheduler.waitForLoad()
 
-        // Step 14: Verify activation (either banner or badge)
+        // Step 13: Verify activation (either banner or badge)
         const bannerVisible = await scheduler.isActiveBannerVisible()
         const cardIndex = await findScheduleIndex(scheduler, scenarioName)
         const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
         expect(bannerVisible || cardActive, 'Schedule should show as active').toBeTruthy()
 
-        // Step 15: Switch to calendar and verify
+        // Step 14: Switch to calendar and verify
         await scheduler.switchToCalendarTab()
         await page.waitForTimeout(TIMEOUTS.TRANSITION)
         const calendarOptions = await scheduler.getCalendarScheduleOptions()
@@ -132,48 +115,44 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    // New UI requires adding a routine first, then configuring trigger within that routine
-    test.fixme('interval trigger form validates minimum interval', async () => {
+    test('interval trigger form validates minimum interval', async () => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('interval')
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+      // Add routine and select interval trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
 
       // Try to set interval below minimum (should show validation or clamp)
-      await scheduler.fillIntervalMinutes(0)
+      await scheduler.fillIntervalMinutesInRoutine(0)
 
       // The form should either show an error or reset to minimum
-      // Check by verifying the value is at least 1
       await scheduler.page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Try to save without pattern - should fail validation
+      // Try to save routine without valid interval - should fail validation
+      await scheduler.saveRoutine()
+
+      // Try to save schedule - should fail validation
       await scheduler.clickSave()
       expect(await scheduler.isEditorOpen()).toBeTruthy()
 
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    // New UI requires adding a routine first, then configuring trigger within that routine
-    test.fixme('solar event offsets can be configured', async () => {
+    test('solar event trigger can be configured', async () => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('interval')
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
 
-      // Configure start with positive offset
-      await scheduler.selectStartTimeType('solar')
+      // Add routine and select solar trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('solar')
+
+      // Select solar event (e.g., sunset)
+      await scheduler.selectSolarEventInRoutine('sunset')
+
       await scheduler.page.waitForTimeout(TIMEOUTS.TRANSITION)
-      await scheduler.selectStartSolarEvent('sunset')
-      await scheduler.fillStartOffset(60) // 1 hour after sunset
 
-      // Configure end with negative offset
-      await scheduler.selectEndTimeType('solar')
-      await scheduler.page.waitForTimeout(TIMEOUTS.TRANSITION)
-      await scheduler.selectEndSolarEvent('sunrise')
-      await scheduler.fillEndOffset(-30) // 30 min before sunrise
-
-      // Verify preview updates with offset info
-      const previewText = await scheduler.getTriggerPreviewText()
-      expect(previewText).toBeTruthy()
-
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
   })
@@ -186,9 +165,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
   test.describe('Scenario 2: Full Moon Observation Session', () => {
     const scenarioName = `Full Moon Observation ${Date.now()}`
 
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('create schedule with moon phase trigger', async ({ page }) => {
+    test('create schedule with moon phase trigger', async ({ page }) => {
       try {
         // Step 1: Open schedule editor
         await scheduler.clickNewSchedule()
@@ -202,46 +179,38 @@ test.describe('Scheduler Real-World Scenarios', () => {
           'Photography during full moon nights - E2E test'
         )
 
-        // Step 4: Select moon phase trigger type
-        await scheduler.selectTriggerType('moon_phase')
+        // Step 4: Add routine with moon phase trigger
+        await scheduler.clickAddRoutine()
+        await scheduler.selectTriggerTypeInRoutine('moon_phase')
         await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
         // Step 5: Select full moon phase
-        await scheduler.selectMoonPhase('full')
+        await scheduler.selectMoonPhaseInRoutine('full')
 
-        // Step 6: Set time of day for capture
-        await scheduler.fillMoonPhaseTime('21:00')
+        // Step 6: Add at least one action
+        await scheduler.clickAddActionInRoutine()
+        await scheduler.selectActionTypeInRoutine(0, 'gpio')
+        await scheduler.selectActionNameInRoutine(0, 'attract_on')
 
-        // Step 7: Set offset days (±2 days around full moon)
-        await scheduler.fillMoonPhaseOffset(0)
+        // Step 7: Save the routine
+        await scheduler.saveRoutine()
 
-        // Step 8: Verify preview shows moon phase configuration
-        const previewText = await scheduler.getTriggerPreviewText()
-        expect(previewText).toBeTruthy()
-        if (previewText) {
-          expect(previewText.toLowerCase()).toContain('full')
-        }
-
-        // Step 9: Select a routine - TODO: Update to selectFirstRoutine()
-        const patternSelected = await scheduler.selectFirstEventPattern()
-        expect(patternSelected, 'Routines should be available').toBeTruthy()
-
-        // Step 10: Save the schedule
+        // Step 8: Save the schedule
         await scheduler.clickSave()
 
-        // Step 11: Verify editor closed
+        // Step 9: Verify editor closed
         expect(await scheduler.isEditorOpen()).toBeFalsy()
 
-        // Step 12: Verify schedule appears in list
+        // Step 10: Verify schedule appears in list
         await scheduler.waitForLoad()
         expect(await scheduler.hasScheduleWithName(scenarioName)).toBeTruthy()
 
-        // Step 13: Activate the schedule
+        // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
         await scheduler.waitForLoad()
 
-        // Step 14: Verify activation
+        // Step 12: Verify activation
         const bannerVisible = await scheduler.isActiveBannerVisible()
         const cardIndex = await findScheduleIndex(scheduler, scenarioName)
         const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
@@ -252,72 +221,74 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    test.fixme('moon phase dropdown shows all 8 phases', async ({ page }) => {
+    test('moon phase checkboxes show all 8 phases', async ({ page }) => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('moon_phase')
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+      // Add routine and select moon phase trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('moon_phase')
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Get all options from moon phase dropdown
-      const options = await page.locator('#moon_phase option').allTextContents()
-
-      // Should have all 8 moon phases
+      // Check for moon phase checkboxes within the NewRoutineCard
+      const card = page.locator('[data-testid="new-routine-card"]')
       const expectedPhases = [
-        'New Moon',
-        'Waxing Crescent',
-        'First Quarter',
-        'Waxing Gibbous',
-        'Full Moon',
-        'Waning Gibbous',
-        'Last Quarter',
-        'Waning Crescent',
+        'new',
+        'waxing_crescent',
+        'first_quarter',
+        'waxing_gibbous',
+        'full',
+        'waning_gibbous',
+        'last_quarter',
+        'waning_crescent',
       ]
 
       for (const phase of expectedPhases) {
-        expect(
-          options.some((opt) => opt.toLowerCase().includes(phase.toLowerCase())),
-          `Should include ${phase}`
-        ).toBeTruthy()
+        const checkbox = card.locator(`[data-testid="moon-phase-${phase}"]`)
+        await expect(checkbox, `Should include ${phase} checkbox`).toBeVisible()
       }
 
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    test.fixme('moon phase offset presets work correctly', async ({ page }) => {
+    test('moon phase can select multiple phases', async ({ page }) => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('moon_phase')
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+      // Add routine and select moon phase trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('moon_phase')
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Test -1 day preset
-      await scheduler.clickMoonPhaseOffsetPreset('-1 day')
-      let offsetValue = await page.locator('#offset_days').inputValue()
-      expect(offsetValue).toBe('-1')
+      const card = page.locator('[data-testid="new-routine-card"]')
 
-      // Test No offset preset
-      await scheduler.clickMoonPhaseOffsetPreset('No offset')
-      offsetValue = await page.locator('#offset_days').inputValue()
-      expect(offsetValue).toBe('0')
+      // Select full moon
+      await scheduler.selectMoonPhaseInRoutine('full')
+      let fullCheckbox = card.locator('[data-testid="moon-phase-full"]')
+      await expect(fullCheckbox).toBeChecked()
 
-      // Test +1 day preset
-      await scheduler.clickMoonPhaseOffsetPreset('+1 day')
-      offsetValue = await page.locator('#offset_days').inputValue()
-      expect(offsetValue).toBe('1')
+      // Also select new moon
+      await scheduler.selectMoonPhaseInRoutine('new')
+      let newCheckbox = card.locator('[data-testid="moon-phase-new"]')
+      await expect(newCheckbox).toBeChecked()
 
+      // Deselect full moon
+      await scheduler.deselectMoonPhaseInRoutine('full')
+      await expect(fullCheckbox).not.toBeChecked()
+
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - createMoonPhaseSchedule uses old workflow
-    test.fixme('moon phase schedule with offset days', async () => {
-      const offsetName = `Moon Phase Offset ${Date.now()}`
+    test('moon phase schedule with helper method', async () => {
+      const offsetName = `Moon Phase Helper ${Date.now()}`
 
       try {
         const created = await scheduler.createMoonPhaseSchedule({
           name: offsetName,
-          description: 'Moon phase with offset - E2E test',
+          description: 'Moon phase via helper - E2E test',
           moonPhase: 'full',
-          timeOfDay: '20:00',
-          offsetDays: 2, // 2 days after full moon
         })
 
         expect(created, 'Schedule should be created successfully').toBeTruthy()
@@ -336,9 +307,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
   test.describe('Scenario 3: Power-Efficient Daily Capture', () => {
     const scenarioName = `Power-Efficient Daily ${Date.now()}`
 
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('create schedule with fixed time trigger', async ({ page }) => {
+    test('create schedule with fixed time trigger', async ({ page }) => {
       try {
         // Step 1: Open schedule editor
         await scheduler.clickNewSchedule()
@@ -352,43 +321,38 @@ test.describe('Scheduler Real-World Scenarios', () => {
           'Power-efficient captures at fixed times - E2E test'
         )
 
-        // Step 4: Select fixed time trigger type
-        await scheduler.selectTriggerType('fixed_time')
+        // Step 4: Add routine with fixed time trigger
+        await scheduler.clickAddRoutine()
+        await scheduler.selectTriggerTypeInRoutine('fixed_time')
         await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
         // Step 5: Set fixed time (21:00)
-        await scheduler.fillFixedTimeOfDay('21:00')
+        await scheduler.fillFixedTimeInRoutine('21:00')
 
-        // Step 6: Verify preview shows fixed time
-        const previewText = await scheduler.getTriggerPreviewText()
-        expect(previewText).toBeTruthy()
-        if (previewText) {
-          expect(previewText).toContain('21:00')
-        }
+        // Step 6: Add at least one action
+        await scheduler.clickAddActionInRoutine()
+        await scheduler.selectActionTypeInRoutine(0, 'gpio')
+        await scheduler.selectActionNameInRoutine(0, 'attract_on')
 
-        // Step 7: Ensure "All Days" is selected
-        await scheduler.clickAllDays()
+        // Step 7: Save the routine
+        await scheduler.saveRoutine()
 
-        // Step 8: Select a routine - TODO: Update to selectFirstRoutine()
-        const patternSelected = await scheduler.selectFirstEventPattern()
-        expect(patternSelected, 'Routines should be available').toBeTruthy()
-
-        // Step 9: Save the schedule
+        // Step 8: Save the schedule
         await scheduler.clickSave()
 
-        // Step 10: Verify editor closed
+        // Step 9: Verify editor closed
         expect(await scheduler.isEditorOpen()).toBeFalsy()
 
-        // Step 11: Verify schedule appears in list
+        // Step 10: Verify schedule appears in list
         await scheduler.waitForLoad()
         expect(await scheduler.hasScheduleWithName(scenarioName)).toBeTruthy()
 
-        // Step 12: Activate the schedule
+        // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
         await scheduler.waitForLoad()
 
-        // Step 13: Verify activation
+        // Step 12: Verify activation
         const bannerVisible = await scheduler.isActiveBannerVisible()
         const cardIndex = await findScheduleIndex(scheduler, scenarioName)
         const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
@@ -399,57 +363,56 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    test.fixme('fixed time presets work correctly', async ({ page }) => {
+    test('fixed time can be configured within routine', async ({ page }) => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('fixed_time')
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+      // Add routine and select fixed time trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('fixed_time')
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Test each preset
-      const presets = [
-        { label: '6 AM', value: '06:00' },
-        { label: '12 PM', value: '12:00' },
-        { label: '6 PM', value: '18:00' },
-        { label: '9 PM', value: '21:00' },
-      ]
+      // Set a time value
+      await scheduler.fillFixedTimeInRoutine('21:00')
 
-      for (const preset of presets) {
-        await scheduler.clickTimePreset(preset.label)
-        const timeValue = await page.locator('#time_of_day').inputValue()
-        expect(timeValue, `Preset ${preset.label} should set time to ${preset.value}`).toBe(
-          preset.value
-        )
-      }
+      // Verify time was set
+      const card = page.locator('[data-testid="new-routine-card"]')
+      const timeInput = card.locator('[data-testid="fixed-time-input-0"]')
+      await expect(timeInput).toHaveValue('21:00')
 
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    test.fixme('days of week selector allows custom selection', async ({ page }) => {
+    test('can add multiple actions to a routine', async ({ page }) => {
       await scheduler.clickNewSchedule()
-      await scheduler.selectTriggerType('fixed_time')
-      await page.waitForTimeout(TIMEOUTS.TRANSITION)
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
 
-      // Click All Days first to ensure all are selected
-      await scheduler.clickAllDays()
+      // Add routine
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('fixed_time')
+      await scheduler.fillFixedTimeInRoutine('21:00')
 
-      // Toggle individual days to create weekday-only selection
-      await scheduler.toggleDay('Sat')
-      await scheduler.toggleDay('Sun')
+      // Add first action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
 
-      // Verify Saturday button is no longer selected (aria-pressed should be false)
-      const satButton = page.locator('button[aria-label="Saturday"]')
-      await expect(satButton).toHaveAttribute('aria-pressed', 'false')
+      // Add second action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(1, 'gpio')
+      await scheduler.selectActionNameInRoutine(1, 'flash_on')
 
-      // Verify Sunday button is no longer selected
-      const sunButton = page.locator('button[aria-label="Sunday"]')
-      await expect(sunButton).toHaveAttribute('aria-pressed', 'false')
+      // Verify both actions exist
+      const card = page.locator('[data-testid="new-routine-card"]')
+      const actionTypes = card.locator('[data-testid="action-type"]')
+      await expect(actionTypes).toHaveCount(2)
 
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - createFixedTimeSchedule uses old workflow
-    test.fixme('create fixed time schedule using helper method', async () => {
+    test('create fixed time schedule using helper method', async () => {
       const helperName = `Fixed Time Helper ${Date.now()}`
 
       try {
@@ -457,7 +420,6 @@ test.describe('Scheduler Real-World Scenarios', () => {
           name: helperName,
           description: 'Created via helper method - E2E test',
           timeOfDay: '03:00',
-          daysOfWeek: null, // All days
         })
 
         expect(created, 'Schedule should be created successfully').toBeTruthy()
@@ -473,44 +435,52 @@ test.describe('Scheduler Real-World Scenarios', () => {
   // ============================================================
 
   test.describe('Cross-Scenario Integration', () => {
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - TriggerSelector not in schedule editor
-    test.fixme('switching between trigger types resets form correctly', async ({ page }) => {
+    test('switching between trigger types resets form correctly', async ({ page }) => {
       await scheduler.clickNewSchedule()
+      await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
+
+      // Add routine
+      await scheduler.clickAddRoutine()
+
+      const card = page.locator('[data-testid="new-routine-card"]')
 
       // Start with interval
-      await scheduler.selectTriggerType('interval')
-      await scheduler.fillIntervalMinutes(45)
-      await page.waitForTimeout(TIMEOUTS.TRANSITION)
-
-      // Switch to moon phase
-      await scheduler.selectTriggerType('moon_phase')
-      await page.waitForTimeout(TIMEOUTS.TRANSITION)
-
-      // Verify moon phase form is visible
-      const moonPhaseSelect = page.locator('#moon_phase')
-      await expect(moonPhaseSelect).toBeVisible()
-
-      // Switch to fixed time
-      await scheduler.selectTriggerType('fixed_time')
-      await page.waitForTimeout(TIMEOUTS.TRANSITION)
-
-      // Verify fixed time form is visible
-      const timeInput = page.locator('#time_of_day')
-      await expect(timeInput).toBeVisible()
-
-      // Switch back to interval
-      await scheduler.selectTriggerType('interval')
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await scheduler.fillIntervalMinutesInRoutine(45)
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
       // Verify interval form is visible
-      const intervalInput = page.locator('#interval_minutes')
+      const intervalInput = card.locator('[data-testid="interval-minutes"]')
       await expect(intervalInput).toBeVisible()
 
+      // Switch to moon phase
+      await scheduler.selectTriggerTypeInRoutine('moon_phase')
+      await page.waitForTimeout(TIMEOUTS.TRANSITION)
+
+      // Verify moon phase checkboxes are visible
+      const moonPhaseCheckbox = card.locator('[data-testid="moon-phase-full"]')
+      await expect(moonPhaseCheckbox).toBeVisible()
+
+      // Switch to fixed time
+      await scheduler.selectTriggerTypeInRoutine('fixed_time')
+      await page.waitForTimeout(TIMEOUTS.TRANSITION)
+
+      // Verify fixed time form is visible
+      const timeInput = card.locator('[data-testid="fixed-time-input-0"]')
+      await expect(timeInput).toBeVisible()
+
+      // Switch back to interval
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await page.waitForTimeout(TIMEOUTS.TRANSITION)
+
+      // Verify interval form is visible again
+      await expect(intervalInput).toBeVisible()
+
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - helper methods use old workflow
-    test.fixme('all trigger types can be saved and activated', async () => {
+    test('all trigger types can be saved and activated', async () => {
       const names = {
         interval: `Integration Interval ${Date.now()}`,
         moonPhase: `Integration Moon ${Date.now()}`,
@@ -522,13 +492,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
         let created = await scheduler.createIntervalSchedule({
           name: names.interval,
           description: 'Integration test - interval',
-          intervalMinutes: 30,
-          timeWindow: {
-            startType: 'fixed',
-            startTime: '20:00',
-            endType: 'fixed',
-            endTime: '06:00',
-          },
+          interval: 30,
         })
         expect(created, 'Interval schedule should be created').toBeTruthy()
 
@@ -537,8 +501,6 @@ test.describe('Scheduler Real-World Scenarios', () => {
           name: names.moonPhase,
           description: 'Integration test - moon phase',
           moonPhase: 'new',
-          timeOfDay: '22:00',
-          offsetDays: 0,
         })
         expect(created, 'Moon phase schedule should be created').toBeTruthy()
 
@@ -547,7 +509,6 @@ test.describe('Scheduler Real-World Scenarios', () => {
           name: names.fixedTime,
           description: 'Integration test - fixed time',
           timeOfDay: '18:00',
-          daysOfWeek: null,
         })
         expect(created, 'Fixed time schedule should be created').toBeTruthy()
 
@@ -573,8 +534,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    // NEEDS UPDATE (#329): Per-routine triggers architecture - createFixedTimeSchedule uses old workflow
-    test.fixme('only one schedule can be active at a time', async () => {
+    test('only one schedule can be active at a time', async () => {
       const names = {
         first: `First Active ${Date.now()}`,
         second: `Second Active ${Date.now()}`,
@@ -632,17 +592,27 @@ test.describe('Scheduler Real-World Scenarios', () => {
   // ============================================================
 
   test.describe('Form Validation', () => {
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('interval trigger requires valid interval', async ({ page }) => {
+    test('interval trigger requires valid interval', async ({ page }) => {
       await scheduler.clickNewSchedule()
       await scheduler.fillScheduleName(`Validation Test ${Date.now()}`)
-      await scheduler.selectTriggerType('interval')
 
-      // Leave interval empty and try to save
-      await page.locator('#interval_minutes').fill('')
-      // TODO: Update to selectFirstRoutine()
-      await scheduler.selectFirstEventPattern()
+      // Add routine with interval trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
+
+      // Leave interval empty
+      const card = page.locator('[data-testid="new-routine-card"]')
+      await card.locator('[data-testid="interval-minutes"]').fill('')
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Try to save routine
+      await scheduler.saveRoutine()
+
+      // Try to save schedule
       await scheduler.clickSave()
 
       // Should stay open with validation error
@@ -651,39 +621,56 @@ test.describe('Scheduler Real-World Scenarios', () => {
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('moon phase trigger requires time of day', async ({ page }) => {
+    test('moon phase trigger requires at least one phase selected', async ({ page }) => {
       await scheduler.clickNewSchedule()
       await scheduler.fillScheduleName(`Moon Validation ${Date.now()}`)
-      await scheduler.selectTriggerType('moon_phase')
+
+      // Add routine with moon phase trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('moon_phase')
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Clear time of day
-      await page.locator('#time_of_day').fill('')
-      // TODO: Update to selectFirstRoutine()
-      await scheduler.selectFirstEventPattern()
+      // Don't select any moon phase (leave all unchecked)
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Try to save routine
+      await scheduler.saveRoutine()
+
+      // Try to save schedule
       await scheduler.clickSave()
 
-      // Should stay open (either due to validation or empty time)
-      // Note: Some browsers may default to 00:00 if cleared
+      // Should stay open (validation should require at least one phase)
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
       await scheduler.clickCancel()
     })
 
-    // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-    // The deprecated method still works via backward compatibility wrapper
-    test.fixme('fixed time trigger requires time of day', async ({ page }) => {
+    test('fixed time trigger requires time of day', async ({ page }) => {
       await scheduler.clickNewSchedule()
       await scheduler.fillScheduleName(`Fixed Validation ${Date.now()}`)
-      await scheduler.selectTriggerType('fixed_time')
+
+      // Add routine with fixed time trigger
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('fixed_time')
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
       // Clear time
-      await page.locator('#time_of_day').fill('')
-      // TODO: Update to selectFirstRoutine()
-      await scheduler.selectFirstEventPattern()
+      const card = page.locator('[data-testid="new-routine-card"]')
+      await card.locator('[data-testid="fixed-time-input-0"]').fill('')
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Try to save routine
+      await scheduler.saveRoutine()
+
+      // Try to save schedule
       await scheduler.clickSave()
 
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
