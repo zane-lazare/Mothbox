@@ -377,4 +377,99 @@ describe('DayTimeline', () => {
       expect(chip).toHaveAttribute('type', 'button')
     })
   })
+
+  describe('Edge Cases', () => {
+    it('handles execution at exact hour boundary (12:00)', () => {
+      const hourBoundaryExecution = {
+        pattern_id: 'routine-noon',
+        pattern_name: 'Noon Photo',
+        start_time: '2025-12-17T12:00:00',
+        actions: [
+          {
+            time: '2025-12-17T12:00:00',
+            action_name: 'Take Photo',
+            action_type: 'camera',
+            offset_minutes: 0,
+          },
+        ],
+      }
+      render(<DayTimeline date={mockDate} executions={[hourBoundaryExecution]} />)
+
+      // Should render in hour 12 row
+      const row12 = screen.getByTestId('hour-row-12')
+      expect(within(row12).getByTestId('execution-routine-noon-1200')).toBeInTheDocument()
+    })
+
+    it('handles multiple executions in same minute', () => {
+      const sameMinuteExecutions = [
+        {
+          pattern_id: 'routine-a',
+          pattern_name: 'Photo A',
+          start_time: '2025-12-17T14:30:00',
+          actions: [{ action_name: 'Photo A', action_type: 'camera' }],
+        },
+        {
+          pattern_id: 'routine-b',
+          pattern_name: 'Photo B',
+          start_time: '2025-12-17T14:30:00',
+          actions: [{ action_name: 'Photo B', action_type: 'camera' }],
+        },
+        {
+          pattern_id: 'routine-c',
+          pattern_name: 'GPIO C',
+          start_time: '2025-12-17T14:30:00',
+          actions: [{ action_name: 'Flash On', action_type: 'gpio' }],
+        },
+      ]
+      render(<DayTimeline date={mockDate} executions={sameMinuteExecutions} />)
+
+      // All three should render in hour 14 row
+      const row14 = screen.getByTestId('hour-row-14')
+      expect(within(row14).getByTestId('execution-routine-a-1430')).toBeInTheDocument()
+      expect(within(row14).getByTestId('execution-routine-b-1430')).toBeInTheDocument()
+      expect(within(row14).getByTestId('execution-routine-c-1430')).toBeInTheDocument()
+    })
+
+    it('handles execution with missing pattern_name', () => {
+      const missingNameExecution = {
+        pattern_id: 'routine-no-name',
+        // pattern_name is missing
+        start_time: '2025-12-17T10:00:00',
+        actions: [{ action_name: 'Take Photo', action_type: 'camera' }],
+      }
+      render(<DayTimeline date={mockDate} executions={[missingNameExecution]} />)
+
+      // Should still render without crashing
+      expect(screen.getByTestId('day-timeline')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-routine-no-name-1000')).toBeInTheDocument()
+    })
+
+    it('handles execution at 23:59 correctly', () => {
+      const lateNightExecution = {
+        pattern_id: 'routine-late',
+        pattern_name: 'Late Night',
+        start_time: '2025-12-17T23:59:00',
+        actions: [{ action_name: 'Backup', action_type: 'service' }],
+      }
+      render(<DayTimeline date={mockDate} executions={[lateNightExecution]} />)
+
+      // Should render in hour 23 row
+      const row23 = screen.getByTestId('hour-row-23')
+      expect(within(row23).getByTestId('execution-routine-late-2359')).toBeInTheDocument()
+    })
+
+    it('handles execution at 00:00 correctly', () => {
+      const midnightExecution = {
+        pattern_id: 'routine-midnight',
+        pattern_name: 'Midnight',
+        start_time: '2025-12-17T00:00:00',
+        actions: [{ action_name: 'Start', action_type: 'service' }],
+      }
+      render(<DayTimeline date={mockDate} executions={[midnightExecution]} />)
+
+      // Should render in hour 0 row (testid format is HHMM without leading zeros for hour)
+      const row0 = screen.getByTestId('hour-row-0')
+      expect(within(row0).getByTestId('execution-routine-midnight-000')).toBeInTheDocument()
+    })
+  })
 })

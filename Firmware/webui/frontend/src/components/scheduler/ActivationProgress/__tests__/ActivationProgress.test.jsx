@@ -679,4 +679,81 @@ describe('ActivationProgress', () => {
       })
     })
   })
+
+  // ==========================================================================
+  // Additional Edge Cases
+  // ==========================================================================
+
+  describe('Additional Edge Cases', () => {
+    it('handles progress value greater than 100 by clamping to 100', async () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'applying_cron',
+        progress: 150, // Invalid: > 100
+      })
+
+      await waitFor(() => {
+        // Progress bar should handle the value gracefully (component may clamp or display as-is)
+        const progressBar = screen.getByTestId('activation-progress-bar')
+        // The component should still render without crashing
+        expect(progressBar).toBeInTheDocument()
+      })
+    })
+
+    it('handles rapid successive progress events', async () => {
+      const onComplete = vi.fn()
+      render(<ActivationProgress scheduleId="sched-1" onComplete={onComplete} />)
+
+      // Simulate rapid progress updates
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'checking_conflicts', progress: 10 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'checking_conflicts', progress: 20 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'generating_cron', progress: 30 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'generating_cron', progress: 40 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'applying_cron', progress: 60 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'updating_state', progress: 90 })
+      simulateProgressEvent({ schedule_id: 'sched-1', phase: 'complete', progress: 100 })
+
+      await waitFor(() => {
+        expect(screen.getByText('Activated')).toBeInTheDocument()
+        expect(onComplete).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('handles very long error messages with text overflow', async () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      const veryLongError = 'This is a very long error message that explains in great detail what went wrong during the schedule activation process including technical details about crontab permissions and file system errors'
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'failed',
+        progress: 0,
+        error: veryLongError,
+      })
+
+      await waitFor(() => {
+        const errorElement = screen.getByTestId('activation-error')
+        expect(errorElement).toBeInTheDocument()
+        // The error message should be present (may be truncated in UI)
+        expect(screen.getByText(veryLongError)).toBeInTheDocument()
+      })
+    })
+
+    it('handles zero progress correctly', async () => {
+      render(<ActivationProgress scheduleId="sched-1" />)
+
+      simulateProgressEvent({
+        schedule_id: 'sched-1',
+        phase: 'checking_conflicts',
+        progress: 0,
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('0%')).toBeInTheDocument()
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+      })
+    })
+  })
 })

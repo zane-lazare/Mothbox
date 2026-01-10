@@ -301,4 +301,76 @@ describe('RoutineCard', () => {
       expect(card).toHaveClass('border-gray-700')
     })
   })
+
+  describe('Edge Cases', () => {
+    it('handles routine with empty actions array', () => {
+      const routineWithNoActions = {
+        ...defaultRoutine,
+        actions: [],
+      }
+      render(<RoutineCard {...defaultProps} routine={routineWithNoActions} />)
+
+      // Should still render without crashing
+      expect(screen.getByTestId('routine-0')).toBeInTheDocument()
+      // Name should have fallback (based on trigger only)
+      expect(screen.getByTestId('routine-name')).toBeInTheDocument()
+    })
+
+    it('handles routine with null/undefined trigger', () => {
+      const routineWithNoTrigger = {
+        routine_id: 'test-routine-1',
+        name: '',
+        trigger: null,
+        actions: [{ id: '1', action_type: 'gpio', action_name: 'attract_on' }],
+      }
+      render(<RoutineCard {...defaultProps} routine={routineWithNoTrigger} />)
+
+      // Should still render without crashing
+      expect(screen.getByTestId('routine-0')).toBeInTheDocument()
+    })
+
+    it('handles routine with mixed GPIO + Camera actions', () => {
+      const mixedActionsRoutine = {
+        routine_id: 'test-mixed',
+        name: '',
+        trigger: { trigger_type: 'interval', interval_minutes: 15 },
+        actions: [
+          { id: '1', action_type: 'gpio', action_name: 'flash_on' },
+          { id: '2', action_type: 'camera', action_name: 'takephoto' },
+          { id: '3', action_type: 'gpio', action_name: 'flash_off' },
+        ],
+      }
+      render(<RoutineCard {...defaultProps} routine={mixedActionsRoutine} />)
+
+      // Primary action color should be based on first action (GPIO = orange)
+      const dot = screen.getByTestId('routine-0').querySelector('.bg-orange-400')
+      expect(dot).toBeInTheDocument()
+    })
+
+    it('handles routine with undefined actions', () => {
+      const routineWithUndefinedActions = {
+        routine_id: 'test-routine-1',
+        name: '',
+        trigger: { trigger_type: 'solar', solar_event: 'dusk' },
+        // actions property omitted (undefined)
+      }
+      render(<RoutineCard {...defaultProps} routine={routineWithUndefinedActions} />)
+
+      // Should render without crashing - ActionList should receive empty array fallback
+      expect(screen.getByTestId('routine-0')).toBeInTheDocument()
+    })
+
+    it('handles very long explicit routine name with truncation', () => {
+      const longNameRoutine = {
+        ...defaultRoutine,
+        name: 'This is a very long routine name that should be truncated in the UI display to prevent layout issues',
+      }
+      render(<RoutineCard {...defaultProps} routine={longNameRoutine} />)
+
+      // Name element should have truncate class
+      const nameElement = screen.getByTestId('routine-name')
+      expect(nameElement).toHaveClass('truncate')
+      expect(nameElement).toHaveTextContent(longNameRoutine.name)
+    })
+  })
 })

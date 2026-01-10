@@ -514,5 +514,49 @@ describe('PreConditionForm', () => {
       })
       expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
     })
+
+    it('handles very large threshold values', () => {
+      const preCondition = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '999999' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preCondition,
+        threshold: 999999,
+      })
+      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+    })
+
+    it('shows validation error for whitespace-only threshold input', () => {
+      const preCondition = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: '   ' } })
+
+      // Should show error and NOT call onChange (whitespace parsed as NaN)
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows validation error for non-numeric threshold input', () => {
+      const preCondition = { sensor_type: 'light', comparison: 'lt', threshold: 100 }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      fireEvent.change(thresholdInput, { target: { value: 'abc' } })
+
+      // Should show error and NOT call onChange
+      expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
   })
 })

@@ -241,4 +241,53 @@ describe('TriggerSelector', () => {
       expect(screen.getByLabelText(/when to run/i)).toBeInTheDocument()
     })
   })
+
+  describe('Edge Cases', () => {
+    it('handles unknown trigger_type by falling back to interval form', () => {
+      render(
+        <TriggerSelector
+          trigger={{ trigger_type: 'unknown_type', some_field: 'value' }}
+          onChange={mockOnChange}
+        />
+      )
+
+      // Should render interval form as fallback (default case in switch)
+      expect(screen.getByTestId('interval-trigger-form')).toBeInTheDocument()
+    })
+
+    it('handles malformed trigger object with missing fields', () => {
+      render(
+        <TriggerSelector
+          trigger={{ trigger_type: 'interval' }}
+          onChange={mockOnChange}
+        />
+      )
+
+      // Should still render without crashing
+      expect(screen.getByTestId('trigger-selector')).toBeInTheDocument()
+      expect(screen.getByTestId('interval-trigger-form')).toBeInTheDocument()
+    })
+
+    it('handles null trigger prop gracefully', () => {
+      render(<TriggerSelector trigger={null} onChange={mockOnChange} />)
+
+      // Should render with default interval type
+      expect(screen.getByTestId('trigger-type')).toHaveValue('interval')
+      expect(screen.getByTestId('interval-trigger-form')).toBeInTheDocument()
+    })
+
+    it('handles undefined trigger prop gracefully', () => {
+      render(<TriggerSelector trigger={undefined} onChange={mockOnChange} />)
+
+      // Should render with default interval type
+      expect(screen.getByTestId('trigger-type')).toHaveValue('interval')
+    })
+
+    it('handles trigger with empty object', () => {
+      render(<TriggerSelector trigger={{}} onChange={mockOnChange} />)
+
+      // Should render with default interval type (since trigger_type is undefined)
+      expect(screen.getByTestId('trigger-type')).toHaveValue('interval')
+    })
+  })
 })
