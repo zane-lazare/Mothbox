@@ -480,3 +480,22 @@ export const Z_INDEX = {
   MAP_CONTROLS: 'z-[1000]',  // Leaflet map controls layer
   MAP_POPUP: 1100,           // Map hover popup (numeric for inline style)
 }
+
+/**
+ * Scheduler Layout Configuration
+ *
+ * Responsive grid classes for the scheduler ScheduleList component.
+ * Used to switch between full-page grid and sidebar vertical stack.
+ *
+ * @property {string} DEFAULT_GRID - Full-page grid layout (3 columns on desktop)
+ *   - Used when ScheduleList is the main content (mobile, or full-width views)
+ *   - Responsive: 1 col → 2 cols (md) → 3 cols (lg)
+ *
+ * @property {string} SIDEBAR_GRID - Sidebar vertical stack (single column)
+ *   - Used when ScheduleList appears in the left column of two-column layout
+ *   - Always single column with vertical spacing
+ */
+export const SCHEDULER_LAYOUT_CONFIG = {
+  DEFAULT_GRID: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
+  SIDEBAR_GRID: 'flex flex-col space-y-3',
+}

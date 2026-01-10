@@ -22,6 +22,7 @@ import {
 import ScheduleCard from './ScheduleCard'
 import ConfirmDialog from '../../common/ConfirmDialog'
 import LoadingSpinner from '../../LoadingSpinner'
+import { SCHEDULER_LAYOUT_CONFIG } from '../../../constants/config'
 
 /** Toast message constants for i18n and consistency */
 const TOAST_MESSAGES = {
@@ -33,10 +34,11 @@ const TOAST_MESSAGES = {
   DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
 }
 
-/** Responsive grid layout for schedule cards */
-const GRID_CLASSES = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'
-
-export function ScheduleList({ onEditSchedule }) {
+export function ScheduleList({ onEditSchedule, variant = 'default' }) {
+  // Select grid classes based on variant (sidebar vs full-page)
+  const gridClasses = variant === 'sidebar'
+    ? SCHEDULER_LAYOUT_CONFIG.SIDEBAR_GRID
+    : SCHEDULER_LAYOUT_CONFIG.DEFAULT_GRID
   const { data, isLoading, error, refetch } = useSchedules()
   const { data: activeData } = useActiveSchedule()
   const { mutate: activate } = useActivateSchedule()
@@ -144,7 +146,7 @@ export function ScheduleList({ onEditSchedule }) {
   // List state
   return (
     <>
-      <div role="list" className={GRID_CLASSES}>
+      <div role="list" className={gridClasses}>
         {schedules.map((schedule) => (
           <ScheduleCard
             key={schedule.schedule_id}
@@ -177,5 +179,8 @@ export function ScheduleList({ onEditSchedule }) {
 }
 
 ScheduleList.propTypes = {
+  /** Callback when a schedule is selected for editing */
   onEditSchedule: PropTypes.func.isRequired,
+  /** Layout variant: 'default' for full-page grid, 'sidebar' for vertical stack */
+  variant: PropTypes.oneOf(['default', 'sidebar']),
 }

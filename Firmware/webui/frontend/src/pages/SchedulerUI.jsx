@@ -77,20 +77,52 @@ function SchedulerUIContent() {
         <SchedulerToolbar onNewSchedule={handleNewSchedule} />
       </SchedulerHeader>
       <ActiveScheduleBanner />
-      <SchedulerTabs activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 'schedules' && (
-        <div id="schedules-panel" role="tabpanel">
+
+      {/* Tabs - visible only on mobile (< lg breakpoint) */}
+      <div className="lg:hidden">
+        <SchedulerTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
+
+      {/* Mobile: Tab-based panels (< lg breakpoint) */}
+      <div className="lg:hidden">
+        {activeTab === 'schedules' && (
+          <div id="schedules-panel" role="tabpanel">
+            <ErrorBoundary
+              errorTitle="Error loading schedules"
+              errorMessage="Failed to load the schedule list"
+              onReset={() => window.location.reload()}
+            >
+              <ScheduleList onEditSchedule={handleEditSchedule} />
+            </ErrorBoundary>
+          </div>
+        )}
+        {activeTab === 'calendar' && (
+          <div id="calendar-panel" role="tabpanel">
+            <ErrorBoundary
+              errorTitle="Error loading calendar"
+              errorMessage="Failed to load the calendar view"
+              onReset={() => window.location.reload()}
+            >
+              <CalendarView />
+            </ErrorBoundary>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: Two-column layout (≥ lg breakpoint) */}
+      <div className="hidden lg:grid lg:grid-cols-3 lg:gap-6">
+        {/* Left column: Schedule List (1/3 width) */}
+        <div className="lg:col-span-1">
           <ErrorBoundary
             errorTitle="Error loading schedules"
             errorMessage="Failed to load the schedule list"
             onReset={() => window.location.reload()}
           >
-            <ScheduleList onEditSchedule={handleEditSchedule} />
+            <ScheduleList onEditSchedule={handleEditSchedule} variant="sidebar" />
           </ErrorBoundary>
         </div>
-      )}
-      {activeTab === 'calendar' && (
-        <div id="calendar-panel" role="tabpanel">
+        {/* Right column: Calendar/Timeline (2/3 width) */}
+        <div className="lg:col-span-2">
           <ErrorBoundary
             errorTitle="Error loading calendar"
             errorMessage="Failed to load the calendar view"
@@ -99,7 +131,7 @@ function SchedulerUIContent() {
             <CalendarView />
           </ErrorBoundary>
         </div>
-      )}
+      </div>
 
       <ScheduleEditor
         isOpen={editorOpen}
