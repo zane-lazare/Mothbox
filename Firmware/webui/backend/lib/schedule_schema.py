@@ -1270,10 +1270,11 @@ def validate_interval_trigger(trigger: IntervalTrigger) -> tuple[bool, str | Non
             f"Interval exceeds {MAX_INTERVAL_MINUTES} minutes (7 days)",
         )
 
-    # Validate time_window
-    valid, error = validate_time_window(trigger.time_window)
-    if not valid:
-        return False, f"Time window: {error}"
+    # Validate time_window if present
+    if trigger.time_window is not None:
+        valid, error = validate_time_window(trigger.time_window)
+        if not valid:
+            return False, f"Time window: {error}"
 
     # Validate days_of_week
     valid, error = _validate_days_of_week(trigger.days_of_week)
