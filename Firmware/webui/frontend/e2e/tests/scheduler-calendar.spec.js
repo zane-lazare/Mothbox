@@ -26,20 +26,15 @@ test.describe('Scheduler Calendar View', () => {
     await expect(heading.first()).toBeVisible()
   })
 
-  test('calendar tab switches to calendar view', async ({ page }) => {
-    // Click Calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
-
-    // Verify calendar panel is visible
-    const calendarPanel = page.locator('#calendar-panel')
-    await expect(calendarPanel).toBeVisible()
+  test('calendar is always visible in two-column layout', async ({ page }) => {
+    // Calendar is always visible in the two-column layout (no tab switching needed)
+    // Verify calendar header elements are visible
+    const scheduleSelector = page.locator('select[aria-label="Select schedule"]')
+    await expect(scheduleSelector).toBeVisible()
   })
 
   test('empty state shows when no schedule selected', async ({ page }) => {
-    // Switch to calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
+    // Calendar is always visible in two-column layout - no tab switching needed
 
     // Verify empty state message is shown
     const emptyState = page.locator('text=No schedule selected')
@@ -47,9 +42,7 @@ test.describe('Scheduler Calendar View', () => {
   })
 
   test('view mode buttons are visible', async ({ page }) => {
-    // Switch to calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
+    // Calendar is always visible in two-column layout - no tab switching needed
 
     // Verify view mode buttons exist (scoped to role="group" to avoid matching "Today")
     const viewModeGroup = '[role="group"][aria-label="View mode"]'
@@ -63,9 +56,7 @@ test.describe('Scheduler Calendar View', () => {
   })
 
   test('navigation buttons are visible', async ({ page }) => {
-    // Switch to calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
+    // Calendar is always visible in two-column layout - no tab switching needed
 
     // Verify navigation buttons
     const todayButton = page.locator('button:has-text("Today")')
@@ -73,19 +64,15 @@ test.describe('Scheduler Calendar View', () => {
   })
 
   test('schedule selector dropdown is visible', async ({ page }) => {
-    // Switch to calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
+    // Calendar is always visible in two-column layout - no tab switching needed
 
-    // Look for schedule selector (select element or combobox)
-    const scheduleSelector = page.locator('select, [role="combobox"]')
-    await expect(scheduleSelector.first()).toBeVisible()
+    // Look for schedule selector
+    const scheduleSelector = page.locator('select[aria-label="Select schedule"]')
+    await expect(scheduleSelector).toBeVisible()
   })
 
   test('view mode switching works', async ({ page }) => {
-    // Switch to calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await calendarTab.click()
+    // Calendar is always visible in two-column layout - no tab switching needed
 
     // Scope selectors to view mode group to avoid matching "Today"
     const viewModeGroup = '[role="group"][aria-label="View mode"]'
@@ -185,7 +172,7 @@ test.describe('Scheduler Calendar View', () => {
   test('month view shows calendar grid', async ({ page }) => {
     const scheduler = new SchedulerPage(page)
 
-    // Switch to calendar tab
+    // Switch to calendar tab (no-op in two-column layout)
     await scheduler.switchToCalendarTab()
 
     // Click Month view
@@ -194,9 +181,9 @@ test.describe('Scheduler Calendar View', () => {
     const monthButton = page.locator('button:has-text("Month")')
     await expect(monthButton).toHaveAttribute('aria-pressed', 'true')
 
-    // Look for calendar grid indicators (day names, date cells, etc.)
-    const calendarContent = page.locator('#calendar-panel')
-    await expect(calendarContent).toBeVisible()
+    // Verify calendar header elements are visible (calendar view is always shown)
+    const calendarDateDisplay = page.locator('[data-testid="calendar-date-display"]')
+    await expect(calendarDateDisplay).toBeVisible()
   })
 
   test('week view shows week layout', async ({ page }) => {

@@ -21,11 +21,12 @@ export class SchedulerPage {
       // Page heading
       pageHeading: 'text=Schedule',
 
-      // Tabs
+      // Tabs - DEPRECATED: UI now uses two-column layout with always-visible calendar
+      // These selectors kept for backward compatibility, some now target the new layout
       schedulesTab: 'button:has-text("Schedules")',
-      calendarTab: 'button:has-text("Calendar")',
-      schedulesPanel: '#schedules-panel',
-      calendarPanel: '#calendar-panel',
+      calendarTab: 'button:has-text("Calendar")', // No longer exists in two-column layout
+      schedulesPanel: '[data-testid="schedule-list"], .col-span-1', // Schedule list column
+      calendarPanel: '.col-span-2', // Calendar column (always visible)
 
       // Toolbar
       newScheduleButton: 'button:has-text("New Schedule")',
@@ -61,8 +62,8 @@ export class SchedulerPage {
       confirmDeleteButton: '[data-testid="confirm-dialog-confirm"], button:has-text("Confirm")',
       cancelDeleteButton: '[data-testid="confirm-dialog-cancel"], button:has-text("Cancel")',
 
-      // Calendar View
-      scheduleSelector: '#calendar-panel select',
+      // Calendar View (now always visible in two-column layout)
+      scheduleSelector: 'select[aria-label="Select schedule"]',
       // View mode buttons scoped to role="group" to avoid matching "Today" button
       dayViewButton: '[role="group"][aria-label="View mode"] button:has-text("Day")',
       weekViewButton: '[role="group"][aria-label="View mode"] button:has-text("Week")',
@@ -71,8 +72,8 @@ export class SchedulerPage {
       prevButton: '[data-testid="calendar-nav-previous"], button[aria-label="Previous"]',
       nextButton: '[data-testid="calendar-nav-next"], button[aria-label="Next"]',
       emptyCalendarState: 'text=No schedule selected',
-      // data-testid preferred, CSS class fallback for pre-deployment compatibility
-      calendarDateDisplay: '[data-testid="calendar-date-display"], #calendar-panel span.text-lg.font-semibold',
+      // data-testid preferred
+      calendarDateDisplay: '[data-testid="calendar-date-display"]',
 
       // Loading states
       loadingSpinner: '.loading, [data-testid="loading-spinner"]',
@@ -123,18 +124,24 @@ export class SchedulerPage {
 
   /**
    * Switch to Schedules tab
+   * @deprecated The UI now uses a two-column layout where schedules list is always visible.
+   *             This method is kept for backward compatibility but is a no-op.
    */
   async switchToSchedulesTab() {
-    await this.page.click(this.selectors.schedulesTab)
-    await this.page.locator(this.selectors.schedulesPanel).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+    // No-op: Schedules list is always visible in two-column layout
+    // Wait a moment for any UI to settle
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   /**
    * Switch to Calendar tab
+   * @deprecated The UI now uses a two-column layout where calendar is always visible.
+   *             This method is kept for backward compatibility but is a no-op.
    */
   async switchToCalendarTab() {
-    await this.page.click(this.selectors.calendarTab)
-    await this.page.locator(this.selectors.calendarPanel).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+    // No-op: Calendar is always visible in two-column layout
+    // Wait a moment for any UI to settle
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   // ============================================================
@@ -569,20 +576,30 @@ export class SchedulerPage {
 
   /**
    * Select moon phase within the NewRoutineCard context
+   * Uses click({ force: true }) because the checkbox is sr-only and wrapped in a label
    * @param {string} phase - e.g., 'full', 'new', 'first_quarter', 'last_quarter'
    */
   async selectMoonPhaseInRoutine(phase) {
     const card = this.page.locator('[data-testid="new-routine-card"]')
-    await card.locator(`[data-testid="moon-phase-${phase}"]`).check()
+    const checkbox = card.locator(`[data-testid="moon-phase-${phase}"]`)
+    const isChecked = await checkbox.isChecked()
+    if (!isChecked) {
+      await checkbox.click({ force: true })
+    }
   }
 
   /**
    * Uncheck a moon phase within the NewRoutineCard context
+   * Uses click({ force: true }) because the checkbox is sr-only and wrapped in a label
    * @param {string} phase
    */
   async deselectMoonPhaseInRoutine(phase) {
     const card = this.page.locator('[data-testid="new-routine-card"]')
-    await card.locator(`[data-testid="moon-phase-${phase}"]`).uncheck()
+    const checkbox = card.locator(`[data-testid="moon-phase-${phase}"]`)
+    const isChecked = await checkbox.isChecked()
+    if (isChecked) {
+      await checkbox.click({ force: true })
+    }
   }
 
   // ============================================================
@@ -1002,35 +1019,47 @@ export class SchedulerPage {
   // ============================================================
   // Date Range Section
   // ============================================================
+  // NOTE: Date range fields were removed in the per-routine architecture refactor.
+  // These methods are kept for backward compatibility but are no-ops.
 
   /**
    * Fill start date
    * @param {string} date - YYYY-MM-DD format
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
+  // eslint-disable-next-line no-unused-vars
   async fillStartDate(date) {
-    await this.page.fill('#start-date', date)
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('fillStartDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Fill end date
    * @param {string} date - YYYY-MM-DD format
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
+  // eslint-disable-next-line no-unused-vars
   async fillEndDate(date) {
-    await this.page.fill('#end-date', date)
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('fillEndDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Clear start date
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
   async clearStartDate() {
-    await this.page.click('button[aria-label="Clear start date"]')
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('clearStartDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Clear end date
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
   async clearEndDate() {
-    await this.page.click('button[aria-label="Clear end date"]')
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('clearEndDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   // ============================================================

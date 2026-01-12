@@ -458,9 +458,30 @@ class FixedTimeTrigger:
 
     @classmethod
     def from_dict(cls, data: dict) -> "FixedTimeTrigger":
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Accepts either:
+        - "time": "HH:MM" (single string, per API contract)
+        - "times": ["HH:MM", ...] (array from frontend, uses first value)
+        - "times": [{"id": "...", "value": "HH:MM"}, ...] (ID-keyed from frontend)
+        """
+        # Handle 'times' array from frontend (backward compatibility)
+        if "times" in data and data["times"]:
+            times_val = data["times"]
+            if isinstance(times_val, list) and len(times_val) > 0:
+                first_time = times_val[0]
+                # Handle both string and object formats
+                if isinstance(first_time, dict):
+                    time = first_time.get("value", "00:00")
+                else:
+                    time = first_time
+            else:
+                time = data.get("time", "00:00")
+        else:
+            time = data["time"]
+
         return cls(
-            time=data["time"],
+            time=time,
             days_of_week=data.get("days_of_week"),
         )
 

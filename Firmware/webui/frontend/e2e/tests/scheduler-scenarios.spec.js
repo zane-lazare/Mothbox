@@ -76,36 +76,33 @@ test.describe('Scheduler Real-World Scenarios', () => {
         // Step 7: Save the routine
         await scheduler.saveRoutine()
 
-        // Step 8: Set date range (summer months)
-        const currentYear = new Date().getFullYear()
-        await scheduler.fillStartDate(`${currentYear}-06-01`)
-        await scheduler.fillEndDate(`${currentYear}-08-31`)
+        // Note: Date range fields were removed in per-routine architecture
+        // Date range is now specified per-routine via time_window, not schedule-level
 
-        // Step 9: Save the schedule
+        // Step 8: Save the schedule
         await scheduler.clickSave()
 
-        // Step 10: Verify editor closed (save succeeded)
+        // Step 9: Verify editor closed (save succeeded)
         const editorStillOpen = await scheduler.isEditorOpen()
         expect(editorStillOpen, 'Editor should close after successful save').toBeFalsy()
 
-        // Step 11: Verify schedule appears in list
+        // Step 10: Verify schedule appears in list
         await scheduler.waitForLoad()
         const scheduleExists = await scheduler.hasScheduleWithName(scenarioName)
         expect(scheduleExists, 'Schedule should appear in list').toBeTruthy()
 
-        // Step 12: Activate the schedule
+        // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
         await scheduler.waitForLoad()
 
-        // Step 13: Verify activation (either banner or badge)
+        // Step 12: Verify activation (either banner or badge)
         const bannerVisible = await scheduler.isActiveBannerVisible()
         const cardIndex = await findScheduleIndex(scheduler, scenarioName)
         const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
         expect(bannerVisible || cardActive, 'Schedule should show as active').toBeTruthy()
 
-        // Step 14: Switch to calendar and verify
-        await scheduler.switchToCalendarTab()
+        // Step 13: Verify schedule appears in calendar dropdown (calendar is always visible in two-column layout)
         await page.waitForTimeout(TIMEOUTS.TRANSITION)
         const calendarOptions = await scheduler.getCalendarScheduleOptions()
         expect(calendarOptions.some((opt) => opt.includes(scenarioName))).toBeTruthy()
@@ -221,7 +218,7 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    test('moon phase checkboxes show all 8 phases', async ({ page }) => {
+    test('moon phase checkboxes show all 4 primary phases', async ({ page }) => {
       await scheduler.clickNewSchedule()
       await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
 
@@ -231,16 +228,13 @@ test.describe('Scheduler Real-World Scenarios', () => {
       await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
       // Check for moon phase checkboxes within the NewRoutineCard
+      // UI uses 4 primary lunar phases (new, first_quarter, full, last_quarter)
       const card = page.locator('[data-testid="new-routine-card"]')
       const expectedPhases = [
         'new',
-        'waxing_crescent',
         'first_quarter',
-        'waxing_gibbous',
         'full',
-        'waning_gibbous',
         'last_quarter',
-        'waning_crescent',
       ]
 
       for (const phase of expectedPhases) {
