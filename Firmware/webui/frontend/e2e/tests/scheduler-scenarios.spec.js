@@ -94,13 +94,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
         // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
 
-        // Step 12: Verify activation (either banner or badge)
-        const bannerVisible = await scheduler.isActiveBannerVisible()
-        const cardIndex = await findScheduleIndex(scheduler, scenarioName)
-        const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
-        expect(bannerVisible || cardActive, 'Schedule should show as active').toBeTruthy()
+        // Step 12: Wait for and verify activation (banner appears after async refetch)
+        const bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'Schedule should show active banner').toBeTruthy()
 
         // Step 13: Verify schedule appears in calendar dropdown (calendar is always visible in two-column layout)
         await page.waitForTimeout(TIMEOUTS.TRANSITION)
@@ -205,13 +202,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
         // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
 
-        // Step 12: Verify activation
-        const bannerVisible = await scheduler.isActiveBannerVisible()
-        const cardIndex = await findScheduleIndex(scheduler, scenarioName)
-        const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
-        expect(bannerVisible || cardActive).toBeTruthy()
+        // Step 12: Wait for and verify activation (banner appears after async refetch)
+        const bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'Schedule should show active banner').toBeTruthy()
       } finally {
         // Cleanup
         await cleanupSchedule(scheduler, scenarioName)
@@ -344,13 +338,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
         // Step 11: Activate the schedule
         const card = scheduler.getScheduleCardByName(scenarioName)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
 
-        // Step 12: Verify activation
-        const bannerVisible = await scheduler.isActiveBannerVisible()
-        const cardIndex = await findScheduleIndex(scheduler, scenarioName)
-        const cardActive = cardIndex >= 0 ? await scheduler.isScheduleActive(cardIndex) : false
-        expect(bannerVisible || cardActive).toBeTruthy()
+        // Step 12: Wait for and verify activation (banner appears after async refetch)
+        const bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'Schedule should show active banner').toBeTruthy()
       } finally {
         // Cleanup
         await cleanupSchedule(scheduler, scenarioName)
@@ -515,11 +506,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
         // Activate one of them
         const card = scheduler.getScheduleCardByName(names.fixedTime)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
 
-        // Verify it's active
-        const bannerVisible = await scheduler.isActiveBannerVisible()
-        expect(bannerVisible).toBeTruthy()
+        // Wait for and verify activation (banner appears after async refetch)
+        const bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'Schedule should show active banner').toBeTruthy()
       } finally {
         // Cleanup all three
         for (const name of Object.values(names)) {
@@ -550,29 +540,21 @@ test.describe('Scheduler Real-World Scenarios', () => {
 
         await scheduler.waitForLoad()
 
-        // Activate first
+        // Activate first schedule and wait for banner
         let card = scheduler.getScheduleCardByName(names.first)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
+        let bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'First schedule should show active banner').toBeTruthy()
 
-        // Verify first is active
-        let firstIndex = await findScheduleIndex(scheduler, names.first)
-        expect(await scheduler.isScheduleActive(firstIndex)).toBeTruthy()
-
-        // Activate second
+        // Activate second schedule and wait for banner to update
         card = scheduler.getScheduleCardByName(names.second)
         await card.locator('button:has-text("Activate")').click()
-        await scheduler.waitForLoad()
+        bannerVisible = await scheduler.waitForActiveBanner()
+        expect(bannerVisible, 'Second schedule should show active banner').toBeTruthy()
 
-        // Verify second is now active, first is not
-        let secondIndex = await findScheduleIndex(scheduler, names.second)
-        expect(await scheduler.isScheduleActive(secondIndex)).toBeTruthy()
-
-        // First should no longer be active (re-find index as order may change)
-        firstIndex = await findScheduleIndex(scheduler, names.first)
-        if (firstIndex >= 0) {
-          expect(await scheduler.isScheduleActive(firstIndex)).toBeFalsy()
-        }
+        // Verify banner shows second schedule (not first)
+        const activeName = await scheduler.getActiveBannerScheduleName()
+        expect(activeName).toContain('Second Active')
       } finally {
         for (const name of Object.values(names)) {
           await cleanupSchedule(scheduler, name)

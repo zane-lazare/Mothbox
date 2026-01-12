@@ -305,6 +305,21 @@ export class SchedulerPage {
   }
 
   /**
+   * Wait for active banner to appear (handles async React Query refetch)
+   * @param {number} timeout - Max wait time in ms (default: 5000)
+   * @returns {Promise<boolean>}
+   */
+  async waitForActiveBanner(timeout = 5000) {
+    const banner = this.page.locator(this.selectors.activeBanner)
+    try {
+      await banner.waitFor({ state: 'visible', timeout })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Get the name of the active schedule from banner
    * @returns {Promise<string|null>}
    */
