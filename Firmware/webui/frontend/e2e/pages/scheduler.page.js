@@ -43,9 +43,9 @@ export class SchedulerPage {
       activeBadge: 'text=Active',
 
       // Active Banner (top-level status)
-      activeBanner: '[role="status"]',
-      bannerDeactivateButton: '[role="status"] button:has-text("Deactivate")',
-      bannerScheduleName: '[role="status"] span',
+      activeBanner: '[data-testid="active-schedule-banner"]',
+      bannerDeactivateButton: '[data-testid="active-schedule-banner"] button:has-text("Deactivate")',
+      bannerScheduleName: '[data-testid="active-schedule-banner"] span',
 
       // Editor Drawer
       editorDrawer: '[data-testid="schedule-editor-drawer"]',

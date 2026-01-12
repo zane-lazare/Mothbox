@@ -522,44 +522,48 @@ def _get_routine_trigger_times_for_day(
         return trigger_times
 
     if isinstance(trigger, IntervalTrigger):
-        # Parse time window
-        try:
-            window_start_time = _parse_time_string(trigger.time_window.start_time)
-            window_start = datetime.combine(target_date, window_start_time)
-        except (ValueError, AttributeError):
+        # Parse time window (defaults to all day if not specified)
+        if trigger.time_window is None:
+            window_start = datetime.combine(target_date, time(0, 0))
+            window_end = datetime.combine(target_date, time(23, 59))
+        else:
             try:
-                from webui.backend.lib.solar_time import parse_time_spec
+                window_start_time = _parse_time_string(trigger.time_window.start_time)
+                window_start = datetime.combine(target_date, window_start_time)
+            except (ValueError, AttributeError):
+                try:
+                    from webui.backend.lib.solar_time import parse_time_spec
 
-                window_start = parse_time_spec(
-                    trigger.time_window.start_time,
-                    target_date,
-                    latitude,
-                    longitude,
-                    timezone_name,
-                )
-            except (ImportError, ValueError):
-                window_start = datetime.combine(target_date, time(0, 0))
+                    window_start = parse_time_spec(
+                        trigger.time_window.start_time,
+                        target_date,
+                        latitude,
+                        longitude,
+                        timezone_name,
+                    )
+                except (ImportError, ValueError):
+                    window_start = datetime.combine(target_date, time(0, 0))
 
-        window_start += timedelta(minutes=trigger.time_window.start_offset_minutes)
+            window_start += timedelta(minutes=trigger.time_window.start_offset_minutes)
 
-        try:
-            window_end_time = _parse_time_string(trigger.time_window.end_time)
-            window_end = datetime.combine(target_date, window_end_time)
-        except (ValueError, AttributeError):
             try:
-                from webui.backend.lib.solar_time import parse_time_spec
+                window_end_time = _parse_time_string(trigger.time_window.end_time)
+                window_end = datetime.combine(target_date, window_end_time)
+            except (ValueError, AttributeError):
+                try:
+                    from webui.backend.lib.solar_time import parse_time_spec
 
-                window_end = parse_time_spec(
-                    trigger.time_window.end_time,
-                    target_date,
-                    latitude,
-                    longitude,
-                    timezone_name,
-                )
-            except (ImportError, ValueError):
-                window_end = datetime.combine(target_date, time(23, 59))
+                    window_end = parse_time_spec(
+                        trigger.time_window.end_time,
+                        target_date,
+                        latitude,
+                        longitude,
+                        timezone_name,
+                    )
+                except (ImportError, ValueError):
+                    window_end = datetime.combine(target_date, time(23, 59))
 
-        window_end += timedelta(minutes=trigger.time_window.end_offset_minutes)
+            window_end += timedelta(minutes=trigger.time_window.end_offset_minutes)
 
         if window_end <= window_start:
             window_end += timedelta(days=1)

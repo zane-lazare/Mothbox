@@ -38,6 +38,7 @@ function ActiveScheduleBanner() {
   return (
     <div
       role="status"
+      data-testid="active-schedule-banner"
       className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between"
     >
       <div className="flex items-center gap-2">
