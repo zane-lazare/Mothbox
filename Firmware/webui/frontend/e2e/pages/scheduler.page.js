@@ -185,11 +185,19 @@ export class SchedulerPage {
 
   /**
    * Check if a schedule card exists by name
+   * Waits for the card to appear (handles async React Query cache invalidation)
    * @param {string} name - Schedule name
+   * @param {number} timeout - Max wait time in ms (default: 5000)
    * @returns {Promise<boolean>}
    */
-  async hasScheduleWithName(name) {
-    return this.page.locator(this.selectors.scheduleCardByName(name)).isVisible()
+  async hasScheduleWithName(name, timeout = 5000) {
+    const card = this.page.locator(this.selectors.scheduleCardByName(name))
+    try {
+      await card.waitFor({ state: 'visible', timeout })
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**
