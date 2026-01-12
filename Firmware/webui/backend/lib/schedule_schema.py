@@ -336,28 +336,29 @@ class IntervalTrigger:
 
     Attributes:
         interval_minutes: Interval in minutes (1 to 10080, i.e., 1 min to 7 days)
-        time_window: When executions can occur
+        time_window: When executions can occur (None = all day)
         days_of_week: 0=Mon..6=Sun, None=every day
     """
 
     interval_minutes: int
-    time_window: TimeWindow
+    time_window: TimeWindow | None = None
     days_of_week: list[int] | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "interval_minutes": self.interval_minutes,
-            "time_window": self.time_window.to_dict(),
+            "time_window": self.time_window.to_dict() if self.time_window else None,
             "days_of_week": self.days_of_week,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "IntervalTrigger":
         """Create from dictionary."""
+        time_window_data = data.get("time_window")
         return cls(
             interval_minutes=data["interval_minutes"],
-            time_window=TimeWindow.from_dict(data["time_window"]),
+            time_window=TimeWindow.from_dict(time_window_data) if time_window_data else None,
             days_of_week=data.get("days_of_week"),
         )
 
