@@ -350,8 +350,13 @@ def _calculate_interval_times(
     Returns:
         List of datetime objects for each execution
     """
-    start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
-    end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
+    # Default to all day if no time window specified
+    if trigger.time_window is None:
+        start_hour, start_minute = 0, 0
+        end_hour, end_minute = 23, 59
+    else:
+        start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
+        end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
     end_date = from_date + timedelta(days=years_ahead * 365)
 
     # Generate time-of-day execution times
@@ -741,9 +746,13 @@ def interval_trigger_to_cron(
     Returns:
         List of CronEntry objects, one per execution time within the window
     """
-    # Parse time window
-    start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
-    end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
+    # Parse time window (default to all day if not specified)
+    if trigger.time_window is None:
+        start_hour, start_minute = 0, 0
+        end_hour, end_minute = 23, 59
+    else:
+        start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
+        end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
 
     # Generate execution times
     exec_times = _generate_execution_times(
@@ -1538,9 +1547,13 @@ def _get_events_interval_routine(
     trigger = routine.trigger
     tz = pytz.timezone(timezone_name)
 
-    # Parse time window
-    start_hour, start_min = map(int, trigger.time_window.start_time.split(":"))
-    end_hour, end_min = map(int, trigger.time_window.end_time.split(":"))
+    # Parse time window (default to all day if not specified)
+    if trigger.time_window is None:
+        start_hour, start_min = 0, 0
+        end_hour, end_min = 23, 59
+    else:
+        start_hour, start_min = map(int, trigger.time_window.start_time.split(":"))
+        end_hour, end_min = map(int, trigger.time_window.end_time.split(":"))
 
     current_date = from_time.date()
     days_checked = 0
