@@ -49,8 +49,8 @@ function CronTriggerForm({ trigger, onChange, disabled = false, error = null }) 
   return (
     <div className="border border-gray-800 rounded-lg p-4" data-testid="cron-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Cron Expression</span>
-        <span className="text-xs text-yellow-500">advanced</span>
+        <span className="text-sm text-gray-900 dark:text-white">Cron Expression</span>
+        <span className="text-xs text-yellow-600 dark:text-yellow-500">advanced</span>
       </div>
 
       <div className="space-y-4">
@@ -61,10 +61,10 @@ function CronTriggerForm({ trigger, onChange, disabled = false, error = null }) 
           onChange={handleExpressionChange}
           disabled={disabled}
           placeholder="0 20 * * *"
-          className={`w-full bg-transparent border rounded px-3 py-2 text-sm text-white font-mono
+          className={`w-full bg-transparent border rounded px-3 py-2 text-sm text-gray-900 dark:text-white font-mono
                      focus:outline-none
                      disabled:opacity-50 disabled:cursor-not-allowed
-                     ${hasError ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
+                     ${hasError ? 'border-red-500 focus:border-red-400' : 'border-gray-300 dark:border-gray-800 focus:border-gray-500 dark:focus:border-gray-600'}`}
           data-testid="cron-expression"
         />
 

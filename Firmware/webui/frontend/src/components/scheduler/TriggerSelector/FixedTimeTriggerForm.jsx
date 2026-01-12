@@ -72,8 +72,8 @@ function FixedTimeTriggerForm({ trigger, onChange, disabled = false, error = nul
   return (
     <div className="border border-gray-800 rounded-lg p-4" data-testid="fixed-time-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Fixed Time</span>
-        <span className="text-xs text-gray-600">run at specific times</span>
+        <span className="text-sm text-gray-900 dark:text-white">Fixed Time</span>
+        <span className="text-xs text-gray-500 dark:text-gray-600">run at specific times</span>
       </div>
 
       <div className="space-y-3" data-testid="fixed-time-list">
@@ -84,10 +84,10 @@ function FixedTimeTriggerForm({ trigger, onChange, disabled = false, error = nul
               value={time.value}
               onChange={(e) => handleTimeChange(time.id, e.target.value)}
               disabled={disabled}
-              className={`bg-transparent border rounded px-2 py-1 text-sm text-white
+              className={`bg-transparent border rounded px-2 py-1 text-sm text-gray-900 dark:text-white
                          focus:outline-none
                          disabled:opacity-50 disabled:cursor-not-allowed
-                         ${hasError ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
+                         ${hasError ? 'border-red-500 focus:border-red-400' : 'border-gray-300 dark:border-gray-800 focus:border-gray-500 dark:focus:border-gray-600'}`}
               data-testid={`fixed-time-input-${index}`}
             />
             {times.length > 1 && (

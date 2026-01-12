@@ -36,8 +36,8 @@ function SolarTriggerForm({ trigger, onChange, disabled = false, error = null })
   return (
     <div className="border border-gray-800 rounded-lg p-4" data-testid="solar-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Solar Event</span>
-        <span className="text-xs text-gray-600">based on sun position</span>
+        <span className="text-sm text-gray-900 dark:text-white">Solar Event</span>
+        <span className="text-xs text-gray-500 dark:text-gray-600">based on sun position</span>
       </div>
 
       <div className="space-y-4">
@@ -46,8 +46,8 @@ function SolarTriggerForm({ trigger, onChange, disabled = false, error = null })
           value={solarEvent}
           onChange={handleEventChange}
           disabled={disabled}
-          className="w-full bg-transparent border border-gray-800 rounded px-3 py-2 text-sm text-white
-                     focus:border-gray-600 focus:outline-none
+          className="w-full bg-transparent border border-gray-300 dark:border-gray-800 rounded px-3 py-2 text-sm text-gray-900 dark:text-white
+                     focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
                      disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="solar-event"
         >
@@ -68,10 +68,10 @@ function SolarTriggerForm({ trigger, onChange, disabled = false, error = null })
             value={offsetMinutes}
             onChange={handleOffsetChange}
             disabled={disabled}
-            className={`w-16 bg-transparent border rounded px-2 py-1 text-white text-center
+            className={`w-16 bg-transparent border rounded px-2 py-1 text-gray-900 dark:text-white text-center
                        focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
+                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-300 dark:border-gray-800 focus:border-gray-500 dark:focus:border-gray-600'}`}
             data-testid="solar-offset"
           />
           <span className="text-gray-500">minutes</span>

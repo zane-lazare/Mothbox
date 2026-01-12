@@ -48,8 +48,8 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false, error =
   return (
     <div className="border border-gray-800 rounded-lg p-4" data-testid="recurring-days-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Recurring Days</span>
-        <span className="text-xs text-gray-600">weekly schedule</span>
+        <span className="text-sm text-gray-900 dark:text-white">Recurring Days</span>
+        <span className="text-xs text-gray-500 dark:text-gray-600">weekly schedule</span>
       </div>
 
       <div className="space-y-4">
@@ -102,8 +102,8 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false, error =
             value={time}
             onChange={handleTimeChange}
             disabled={disabled}
-            className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                       focus:border-gray-600 focus:outline-none
+            className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
+                       focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="trigger-time"
           />
