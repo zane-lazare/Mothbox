@@ -7,7 +7,9 @@ import { defineConfig, devices } from '@playwright/test'
  * Uses Firefox browser as specified in project requirements
  *
  * Run tests:
- *   npm run test:e2e           # Run all tests
+ *   npm run test:e2e           # Run all tests sequentially (~53 min)
+ *   npm run test:e2e:parallel  # Run 4 shards in parallel (~13 min)
+ *   npm run test:e2e:shard1    # Run shard 1 of 4 only
  *   npm run test:e2e:headed    # Run with visible browser
  *   npm run test:e2e:debug     # Debug mode with inspector
  *   npm run test:e2e:ui        # Interactive UI mode

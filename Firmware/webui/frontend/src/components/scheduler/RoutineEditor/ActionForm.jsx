@@ -242,6 +242,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                 id="action_type"
                 value={formData.action_type}
                 onChange={(e) => handleActionTypeChange(e.target.value)}
+                data-testid="action-type"
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -272,6 +273,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                 value={formData.action_name}
                 onChange={(e) => handleInputChange('action_name', e.target.value)}
                 disabled={!formData.action_type}
+                data-testid="action-name"
                 className="w-full rounded-md border border-gray-300 dark:border-gray-600
                          bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
