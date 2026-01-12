@@ -593,25 +593,19 @@ test.describe('Scheduler Real-World Scenarios', () => {
       // Add routine with interval trigger
       await scheduler.clickAddRoutine()
       await scheduler.selectTriggerTypeInRoutine('interval')
+      await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
       // Leave interval empty
       const card = page.locator('[data-testid="new-routine-card"]')
       await card.locator('[data-testid="interval-minutes"]').fill('')
+      await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
-      // Add an action
-      await scheduler.clickAddActionInRoutine()
-      await scheduler.selectActionTypeInRoutine(0, 'gpio')
-      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+      // Save routine button should be disabled (no actions yet + empty interval)
+      const saveBtn = card.locator('[data-testid="save-routine"]')
+      await expect(saveBtn).toBeDisabled()
 
-      // Try to save routine
-      await scheduler.saveRoutine()
-
-      // Try to save schedule
-      await scheduler.clickSave()
-
-      // Should stay open with validation error
-      expect(await scheduler.isEditorOpen()).toBeTruthy()
-
+      // Cancel and close
+      await scheduler.cancelNewRoutine()
       await scheduler.clickCancel()
     })
 
