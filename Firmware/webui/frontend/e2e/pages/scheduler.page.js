@@ -39,8 +39,8 @@ export class SchedulerPage {
       deactivateButton: 'button:has-text("Deactivate")',
       deleteButton: 'button:has-text("Delete")',
 
-      // Active Badge (within card)
-      activeBadge: 'text=Active',
+      // Active Badge (within card) - use aria-label to avoid matching schedule names containing "Active"
+      activeBadge: '[aria-label="Schedule is active"]',
 
       // Active Banner (top-level status)
       activeBanner: '[data-testid="active-schedule-banner"]',

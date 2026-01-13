@@ -445,10 +445,12 @@ export function useActivateSchedule() {
   return useMutation({
     mutationFn: ({ id, options }) => activateSchedule(id, options),
     onSuccess: async () => {
-      // Invalidate caches in parallel to avoid race conditions
+      // Refetch queries to ensure UI updates immediately after activation
+      // Using refetchQueries instead of invalidateQueries ensures the refetch completes
+      // before onSuccess returns, which is critical for E2E tests that check for banner visibility
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
     onError: (error) => handleMutationError(error, 'activate'),
@@ -485,10 +487,12 @@ export function useDeactivateSchedule() {
   return useMutation({
     mutationFn: () => deactivateSchedule(),
     onSuccess: async () => {
-      // Invalidate caches in parallel to avoid race conditions
+      // Refetch queries to ensure UI updates immediately after deactivation
+      // Using refetchQueries instead of invalidateQueries ensures the refetch completes
+      // before onSuccess returns, which is critical for E2E tests that check for banner visibility
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
       ])
     },
     onError: (error) => handleMutationError(error, 'deactivate'),
