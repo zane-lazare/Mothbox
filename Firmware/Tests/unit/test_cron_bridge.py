@@ -13,6 +13,7 @@ from webui.backend.lib.cron_bridge import (
     calculate_next_waketime,
     clear_rtc_wakealarm,
     cron_to_human_readable,
+    estimate_cron_entries,
     fixed_time_trigger_to_cron,
     get_solar_execution_time,
     interval_trigger_to_cron,
@@ -20,7 +21,9 @@ from webui.backend.lib.cron_bridge import (
     moon_phase_trigger_to_cron,
     preview_schedule,
     remove_from_system,
+    routine_to_cron,
     routine_to_cron_entries,
+    routine_to_dated_cron,
     schedule_to_cron,
     sensor_trigger_to_cron,
     set_rtc_wakealarm,
@@ -1334,19 +1337,19 @@ class TestEdgeCases:
         )
 
         result = schedule_to_cron(schedule)
-        # With date-specific entries and 5 years default, we get 3 entries per day
-        assert len(result.entries) >= 3
+        # With pattern-based entries, we get 3 entries (one per action)
+        assert len(result.entries) == 3
         expressions = [e.expression for e in result.entries]
-        # Date-specific cron entries: minute hour day month *
+        # Pattern-based cron entries: minute hour * * weekday
         # Check that offsets are correctly applied (minute values: 0, 5, 15)
         minutes_at_21 = [expr.split()[0] for expr in expressions if expr.split()[1] == "21"]
         assert "0" in minutes_at_21  # attract_on at 21:00
         assert "5" in minutes_at_21  # takephoto at 21:05
         assert "15" in minutes_at_21  # attract_off at 21:15
-        # Verify entries are date-specific (day/month are numbers, not wildcards)
+        # Verify entries are pattern-based (day/month are wildcards)
         first_entry_parts = expressions[0].split()
-        assert first_entry_parts[2] != "*"  # day is specific
-        assert first_entry_parts[3] != "*"  # month is specific
+        assert first_entry_parts[2] == "*"  # day is wildcard
+        assert first_entry_parts[3] == "*"  # month is wildcard
 
     def test_rtc_waketime_calculated(self):
         """schedule_to_cron calculates rtc_waketime."""
@@ -1795,6 +1798,322 @@ class TestRoutineToDatedCron:
             # Time should match the cron expression (21:30)
             assert entry.execution_time.hour == 21
             assert entry.execution_time.minute == 30
+
+
+class TestRoutineToCronDispatcher:
+    """Tests for routine_to_cron() dispatcher function."""
+
+    def test_interval_trigger_uses_pattern_based(self):
+        """IntervalTrigger uses pattern-based cron expressions."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=IntervalTrigger(
+                interval_minutes=60,
+                time_window=TimeWindow(start_time="21:00", end_time="23:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(routine)
+
+        # Should generate pattern-based entries (3 entries: 21:00, 22:00, 23:00)
+        assert len(entries) == 3
+        # All entries should have * for day and month (pattern-based)
+        for entry in entries:
+            parts = entry.expression.split()
+            assert parts[2] == "*"  # day is wildcard
+            assert parts[3] == "*"  # month is wildcard
+
+    def test_fixed_time_trigger_uses_pattern_based(self):
+        """FixedTimeTrigger uses pattern-based cron expressions."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(routine)
+
+        # Should generate a single pattern-based entry
+        assert len(entries) == 1
+        entry = entries[0]
+        parts = entry.expression.split()
+        assert parts[0] == "0"  # minute
+        assert parts[1] == "21"  # hour
+        assert parts[2] == "*"  # day is wildcard
+        assert parts[3] == "*"  # month is wildcard
+        assert parts[4] == "*"  # weekday is wildcard
+
+    def test_cron_trigger_uses_pattern_based(self):
+        """CronTrigger uses the raw cron expression."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=CronTrigger(cron_expression="*/15 9-17 * * 1-5"),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(routine)
+
+        assert len(entries) == 1
+        assert entries[0].expression == "*/15 9-17 * * 1-5"
+
+    def test_solar_trigger_uses_dated_cron(self):
+        """SolarTrigger uses date-specific cron entries."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=SolarTrigger(solar_event="sunset", offset_minutes=30),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(
+            routine, latitude=35.96, longitude=-83.92, years_ahead=1
+        )
+
+        # Should generate date-specific entries (~365 per year, may be 364-366)
+        assert len(entries) >= 360
+        assert len(entries) <= 370
+        # All entries should have specific day and month (date-based)
+        for entry in entries:
+            parts = entry.expression.split()
+            assert parts[2] != "*"  # day is specific
+            assert parts[3] != "*"  # month is specific
+
+    def test_moon_phase_trigger_uses_dated_cron(self):
+        """MoonPhaseTrigger uses date-specific cron entries."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=MoonPhaseTrigger(
+                phases=["full"],
+                offset_days=0,
+                time_window=TimeWindow(start_time="21:00", end_time="21:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(routine, years_ahead=1)
+
+        # Should have entries for moon phases (generates entries for days around each phase)
+        # About 12-13 full moons per year, ~3-4 days per phase = 36-52 entries
+        assert len(entries) >= 30
+        assert len(entries) <= 60
+
+    def test_recurring_days_trigger_uses_dated_cron(self):
+        """RecurringDaysTrigger uses date-specific cron entries."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=RecurringDaysTrigger(every_n_days=7, time="21:00"),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        entries = routine_to_cron(routine, years_ahead=1)
+
+        # Should generate entries for about 52 weeks
+        assert len(entries) >= 50
+        assert len(entries) <= 55
+
+    def test_sensor_trigger_raises_error(self):
+        """SensorTrigger raises ValueError (event-driven, not cron-based)."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=SensorTrigger(sensor_type="motion", threshold=0.0),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        with pytest.raises(ValueError, match="event-driven"):
+            routine_to_cron(routine)
+
+    def test_interval_with_action_offset(self):
+        """IntervalTrigger applies action offsets correctly."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=IntervalTrigger(
+                interval_minutes=60,
+                time_window=TimeWindow(start_time="21:00", end_time="21:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=15)],
+        )
+
+        entries = routine_to_cron(routine)
+
+        assert len(entries) == 1
+        parts = entries[0].expression.split()
+        assert parts[0] == "15"  # 21:00 + 15 min offset = 21:15
+
+    def test_interval_with_multiple_actions(self):
+        """IntervalTrigger generates entries for each action."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=IntervalTrigger(
+                interval_minutes=60,
+                time_window=TimeWindow(start_time="21:00", end_time="21:00"),
+            ),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+            ],
+        )
+
+        entries = routine_to_cron(routine)
+
+        # 1 execution time * 2 actions = 2 entries
+        assert len(entries) == 2
+
+    def test_entry_count_comparison(self):
+        """Pattern-based approach generates far fewer entries than date-specific."""
+        routine = Routine(
+            routine_id="r1",
+            trigger=IntervalTrigger(
+                interval_minutes=15,
+                time_window=TimeWindow(start_time="18:00", end_time="06:00"),
+            ),
+            actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+        )
+
+        # Pattern-based approach (new)
+        pattern_entries = routine_to_cron(routine)
+
+        # Date-specific approach (old)
+        dated_entries = routine_to_dated_cron(routine, years_ahead=1)
+
+        # Pattern-based should be MUCH fewer entries
+        # 15-min interval over 12 hours = 49 entries (pattern)
+        # vs 49 * 365 = ~17,885 entries (dated)
+        assert len(pattern_entries) <= 50
+        assert len(dated_entries) >= 17000
+
+        # Both should cover the same times
+        pattern_hours = {int(e.expression.split()[1]) for e in pattern_entries}
+        # Pattern should cover hours 18-23 and 0-6
+        expected_hours = set(range(18, 24)) | set(range(0, 7))
+        assert pattern_hours == expected_hours
+
+
+class TestEstimateCronEntries:
+    """Tests for estimate_cron_entries() function."""
+
+    def test_interval_trigger_estimation(self):
+        """Interval trigger estimates based on executions per day, not per year."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=IntervalTrigger(
+                        interval_minutes=60,
+                        time_window=TimeWindow(start_time="21:00", end_time="23:00"),
+                    ),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                )
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        # 3 entries (21:00, 22:00, 23:00) * 1 action = 3
+        assert estimate == 3
+
+    def test_fixed_time_trigger_estimation(self):
+        """Fixed time trigger estimates 1 entry per action."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                )
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        # 1 time * 1 action = 1
+        assert estimate == 1
+
+    def test_cron_trigger_estimation(self):
+        """Cron trigger estimates 1 entry per action."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=CronTrigger(cron_expression="0 21 * * *"),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                )
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        assert estimate == 1
+
+    def test_solar_trigger_estimation(self):
+        """Solar trigger estimates based on days * actions."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=SolarTrigger(solar_event="sunset", offset_minutes=0),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                )
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        # 365 days * 1 action = 365
+        assert estimate == 365
+
+    def test_multiple_routines(self):
+        """Multiple routines are summed."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                ),
+                Routine(
+                    routine_id="r2",
+                    trigger=FixedTimeTrigger(time="22:00", days_of_week=None),
+                    actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
+                ),
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        # 1 + 1 = 2
+        assert estimate == 2
+
+    def test_multiple_actions_per_routine(self):
+        """Multiple actions multiply the entry count."""
+        schedule = Schedule(
+            schedule_id="s1",
+            name="Test",
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+                    actions=[
+                        Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                        Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+                    ],
+                )
+            ],
+        )
+
+        estimate = estimate_cron_entries(schedule, years_ahead=1)
+
+        # 1 time * 2 actions = 2
+        assert estimate == 2
 
 
 class TestBuildActionCommand:

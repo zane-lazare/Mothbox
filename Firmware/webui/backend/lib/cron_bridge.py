@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
+MAX_CRON_ENTRIES: Final[int] = 10000  # System crontab line limit
 
 # Pre-compiled regex patterns for cron field validation (performance optimization)
 _CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
@@ -292,6 +293,115 @@ def datetime_to_cron(dt: datetime) -> str:
         '30 21 15 6 *'
     """
     return f"{dt.minute} {dt.hour} {dt.day} {dt.month} *"
+
+
+# =============================================================================
+# CRON ENTRY ESTIMATION (O(1) calculation without generating entries)
+# =============================================================================
+
+
+def estimate_cron_entries(
+    schedule: Schedule,
+    years_ahead: int = 1,
+) -> int:
+    """
+    Estimate total cron entries a schedule would generate.
+
+    Uses the same strategy as routine_to_cron():
+    - Pattern-based triggers (interval, fixed_time, cron): Fixed number of entries
+    - Date-specific triggers (solar, moon_phase, recurring_days): Entries per day
+
+    Args:
+        schedule: Schedule object to estimate
+        years_ahead: Number of years to estimate for (default 1)
+
+    Returns:
+        Estimated number of cron entries that would be generated.
+    """
+    if not schedule.enabled:
+        return 0
+
+    total = 0
+    days = years_ahead * 365
+
+    for routine in schedule.routines:
+        trigger = routine.trigger
+        action_count = len(routine.actions) if routine.actions else 1
+
+        if isinstance(trigger, IntervalTrigger):
+            # Check for solar-based time window (e.g., "sunset" to "sunrise")
+            # These require date-specific entries because times vary daily
+            has_solar_window = False
+            if trigger.time_window:
+                start = trigger.time_window.start_time or ""
+                end = trigger.time_window.end_time or ""
+                solar_keywords = {
+                    "sunrise", "sunset", "dawn", "dusk",
+                    "civil_dawn", "civil_dusk",
+                    "nautical_dawn", "nautical_dusk",
+                    "astronomical_dawn", "astronomical_dusk",
+                }
+                if start.lower() in solar_keywords or end.lower() in solar_keywords:
+                    has_solar_window = True
+
+            if has_solar_window:
+                # Date-specific: entries = exec_times_per_day × days × actions
+                # Assume ~12 hour window for solar-based (dusk to dawn)
+                window_minutes = 12 * 60  # 12 hours estimate
+                executions_per_day = max(1, (window_minutes // trigger.interval_minutes) + 1)
+                total += executions_per_day * days * action_count
+            else:
+                # Pattern-based: entries = exec_times_per_day × actions (NOT × days)
+                if trigger.time_window:
+                    try:
+                        start_h, start_m = map(int, trigger.time_window.start_time.split(":"))
+                        end_h, end_m = map(int, trigger.time_window.end_time.split(":"))
+                        start_mins = start_h * 60 + start_m
+                        end_mins = end_h * 60 + end_m
+                        # Handle overnight windows (e.g., 18:00-06:00)
+                        if end_mins <= start_mins:
+                            window_minutes = (24 * 60 - start_mins) + end_mins
+                        else:
+                            window_minutes = end_mins - start_mins
+                    except (ValueError, AttributeError):
+                        window_minutes = 24 * 60  # Default to full day if parsing fails
+                else:
+                    window_minutes = 24 * 60  # Full day
+
+                # +1 because we include both start and end times
+                executions_per_day = max(1, (window_minutes // trigger.interval_minutes) + 1)
+                # Pattern-based: no multiplication by days
+                total += executions_per_day * action_count
+
+        elif isinstance(trigger, FixedTimeTrigger):
+            # Pattern-based: 1 entry per action (regardless of days)
+            total += action_count
+
+        elif isinstance(trigger, CronTrigger):
+            # Pattern-based: 1 entry per action (raw cron expression)
+            total += action_count
+
+        elif isinstance(trigger, SolarTrigger):
+            # Date-specific: entries = days × actions (times vary daily)
+            if trigger.days_of_week:
+                active_days = len(trigger.days_of_week) * (days // 7)
+            else:
+                active_days = days
+            total += active_days * action_count
+
+        elif isinstance(trigger, MoonPhaseTrigger):
+            # Date-specific: entries = phase_occurrences × actions
+            phases_count = len(trigger.phases) if trigger.phases else 1
+            total += (days // 28) * phases_count * action_count
+
+        elif isinstance(trigger, RecurringDaysTrigger):
+            # Date-specific: entries = matching_days × actions
+            if trigger.every_n_days and trigger.every_n_days > 0:
+                total += (days // trigger.every_n_days) * action_count
+            else:
+                total += action_count
+
+    return total
 
 
 # =============================================================================
@@ -696,6 +806,268 @@ def routine_to_dated_cron(
             )
 
     return entries
+
+
+# =============================================================================
+# PATTERN-BASED CRON GENERATION (efficient for fixed-pattern triggers)
+# =============================================================================
+
+# Solar event names that indicate a time window varies daily
+SOLAR_TIME_KEYWORDS = {
+    "sunrise", "sunset", "dawn", "dusk",
+    "civil_dawn", "civil_dusk",
+    "nautical_dawn", "nautical_dusk",
+    "astronomical_dawn", "astronomical_dusk",
+}
+
+
+def _has_solar_time_window(trigger: IntervalTrigger) -> bool:
+    """Check if an interval trigger uses solar-based time windows.
+
+    Solar-based time windows (e.g., "sunset" to "sunrise") require date-specific
+    cron entries because the actual start/end times vary daily.
+
+    Args:
+        trigger: IntervalTrigger to check
+
+    Returns:
+        True if the trigger has a solar-based time window
+    """
+    if trigger.time_window is None:
+        return False
+
+    start = trigger.time_window.start_time
+    end = trigger.time_window.end_time
+
+    # Check if start or end is a solar event keyword
+    if start and start.lower() in SOLAR_TIME_KEYWORDS:
+        return True
+    if end and end.lower() in SOLAR_TIME_KEYWORDS:
+        return True
+
+    return False
+
+
+def _routine_interval_to_cron(routine: Routine) -> list[CronEntry]:
+    """Generate pattern-based cron entries for interval trigger.
+
+    Uses efficient cron expressions like "0 21 * * *" instead of
+    date-specific entries for each day.
+
+    Args:
+        routine: Routine with IntervalTrigger
+
+    Returns:
+        List of CronEntry objects with pattern-based expressions
+    """
+    trigger = routine.trigger
+    entries = []
+
+    # Generate execution times within window
+    if trigger.time_window is None:
+        start_hour, start_minute = 0, 0
+        end_hour, end_minute = 23, 59
+    else:
+        start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
+        end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
+
+    exec_times = _generate_execution_times(
+        start_hour, start_minute, end_hour, end_minute, trigger.interval_minutes
+    )
+    dow_str = _iso_to_cron_weekday(trigger.days_of_week)
+    routine_name = routine.get_display_name()
+
+    # Create entries for each action at each execution time
+    for hour, minute in exec_times:
+        for action in routine.actions:
+            # Apply action offset
+            action_hour = hour
+            action_minute = minute + action.offset_minutes
+            # Handle minute overflow/underflow
+            while action_minute >= 60:
+                action_minute -= 60
+                action_hour += 1
+            while action_minute < 0:
+                action_minute += 60
+                action_hour -= 1
+            action_hour = action_hour % 24
+
+            expression = f"{action_minute} {action_hour} * * {dow_str}"
+            comment = f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}"
+
+            entries.append(
+                CronEntry(
+                    expression=expression,
+                    command=build_action_command(action, routine.pre_condition),
+                    comment=comment,
+                    routine_id=routine.routine_id,
+                )
+            )
+
+    return entries
+
+
+def _routine_fixed_time_to_cron(routine: Routine) -> list[CronEntry]:
+    """Generate pattern-based cron entries for fixed_time trigger.
+
+    Uses efficient cron expressions like "0 21 * * 1,2,3,4,5".
+
+    Args:
+        routine: Routine with FixedTimeTrigger
+
+    Returns:
+        List of CronEntry objects with pattern-based expressions
+    """
+    trigger = routine.trigger
+    hour, minute = map(int, trigger.time.split(":"))
+    dow_str = _iso_to_cron_weekday(trigger.days_of_week)
+    routine_name = routine.get_display_name()
+
+    entries = []
+    for action in routine.actions:
+        action_hour = hour
+        action_minute = minute + action.offset_minutes
+        # Handle minute overflow/underflow
+        while action_minute >= 60:
+            action_minute -= 60
+            action_hour += 1
+        while action_minute < 0:
+            action_minute += 60
+            action_hour -= 1
+        action_hour = action_hour % 24
+
+        expression = f"{action_minute} {action_hour} * * {dow_str}"
+        comment = f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}"
+
+        entries.append(
+            CronEntry(
+                expression=expression,
+                command=build_action_command(action, routine.pre_condition),
+                comment=comment,
+                routine_id=routine.routine_id,
+            )
+        )
+
+    return entries
+
+
+def _routine_cron_trigger_to_cron(routine: Routine) -> list[CronEntry]:
+    """Generate cron entries for expert-mode cron trigger.
+
+    Uses the raw cron expression provided by the user.
+
+    Args:
+        routine: Routine with CronTrigger
+
+    Returns:
+        List of CronEntry objects
+
+    Note:
+        Action offsets cannot be applied to arbitrary cron expressions
+        and will be logged as warnings if non-zero.
+    """
+    trigger = routine.trigger
+    routine_name = routine.get_display_name()
+
+    entries = []
+    for action in routine.actions:
+        # For cron triggers, use the raw expression
+        # Action offsets can't be easily applied to arbitrary cron expressions
+        if action.offset_minutes != 0:
+            logger.warning(
+                f"Action offset {action.offset_minutes} ignored for cron trigger "
+                f"in routine '{routine_name}' (not supported for arbitrary cron expressions)"
+            )
+
+        entries.append(
+            CronEntry(
+                expression=trigger.cron_expression,
+                command=build_action_command(action, routine.pre_condition),
+                comment=f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}",
+                routine_id=routine.routine_id,
+            )
+        )
+
+    return entries
+
+
+def routine_to_cron(
+    routine: Routine,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    timezone_name: str = "UTC",
+    years_ahead: int = 1,
+) -> list[CronEntry]:
+    """Generate cron entries for a routine using optimal strategy.
+
+    Dispatcher function that selects the appropriate cron generation method:
+
+    For triggers with fixed patterns (interval, fixed_time, cron):
+      - Uses pattern-based cron expressions (efficient, ~48 entries for 15-min interval)
+
+    For triggers with variable times (solar, moon_phase, recurring_days):
+      - Uses date-specific cron entries (required because times vary daily)
+
+    Args:
+        routine: Routine with embedded trigger and actions
+        latitude: Observer latitude (required for solar triggers)
+        longitude: Observer longitude (required for solar triggers)
+        timezone_name: Timezone for calculations
+        years_ahead: Number of years to pre-calculate (for date-specific triggers)
+
+    Returns:
+        List of CronEntry objects
+
+    Raises:
+        ValueError: If trigger requires coordinates but none provided
+    """
+    trigger = routine.trigger
+
+    if trigger is None:
+        return []
+
+    # Pattern-based triggers - use efficient cron expressions
+    # BUT: If an IntervalTrigger has solar-based time window (e.g., "sunset" to "sunrise"),
+    # we must use date-specific entries because the window changes daily
+    if isinstance(trigger, IntervalTrigger):
+        if _has_solar_time_window(trigger):
+            # Solar-based window requires date-specific entries
+            return routine_to_dated_cron(
+                routine, latitude, longitude, timezone_name, years_ahead
+            )
+        return _routine_interval_to_cron(routine)
+    elif isinstance(trigger, FixedTimeTrigger):
+        return _routine_fixed_time_to_cron(routine)
+    elif isinstance(trigger, CronTrigger):
+        return _routine_cron_trigger_to_cron(routine)
+
+    # Date-specific triggers - times vary daily or use specific dates
+    elif isinstance(trigger, SolarTrigger):
+        return routine_to_dated_cron(
+            routine, latitude, longitude, timezone_name, years_ahead
+        )
+    elif isinstance(trigger, MoonPhaseTrigger):
+        return routine_to_dated_cron(
+            routine, latitude, longitude, timezone_name, years_ahead
+        )
+    elif isinstance(trigger, RecurringDaysTrigger):
+        # RecurringDays uses "every N days" which requires date-specific
+        return routine_to_dated_cron(
+            routine, latitude, longitude, timezone_name, years_ahead
+        )
+    elif isinstance(trigger, SensorTrigger):
+        # Sensor triggers are event-driven, not cron-based
+        raise ValueError(
+            f"Sensor trigger is event-driven and cannot be converted to cron"
+        )
+
+    logger.warning(f"Unknown trigger type: {type(trigger).__name__}")
+    return []
+
+
+# =============================================================================
+# LEGACY TRIGGER-TO-CRON FUNCTIONS (for backward compatibility)
+# =============================================================================
 
 
 def fixed_time_trigger_to_cron(
@@ -1371,10 +1743,10 @@ def schedule_to_cron(
     if not schedule.routines:
         return result
 
-    # Process each routine using unified date-specific cron generation
+    # Process each routine using optimal cron generation strategy
     for routine in schedule.routines:
         try:
-            entries = routine_to_dated_cron(
+            entries = routine_to_cron(
                 routine=routine,
                 latitude=latitude,
                 longitude=longitude,
