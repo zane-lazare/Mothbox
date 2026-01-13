@@ -306,13 +306,15 @@ export class SchedulerPage {
 
   /**
    * Wait for active banner to appear (handles async React Query refetch)
-   * @param {number} timeout - Max wait time in ms (default: 5000)
+   * @param {number} timeout - Max wait time in ms (default: 10000)
    * @returns {Promise<boolean>}
    */
-  async waitForActiveBanner(timeout = 5000) {
+  async waitForActiveBanner(timeout = 10000) {
     const banner = this.page.locator(this.selectors.activeBanner)
     try {
-      await banner.waitFor({ state: 'visible', timeout })
+      // Wait for networkidle first to ensure query refetch completes
+      await this.page.waitForLoadState('networkidle', { timeout: timeout / 2 })
+      await banner.waitFor({ state: 'visible', timeout: timeout / 2 })
       return true
     } catch {
       return false
@@ -332,6 +334,24 @@ export class SchedulerPage {
     // Extract name from "Active: Schedule Name"
     const match = text.match(/Active:\s*(.+?)(?:\s*Deactivate)?$/i)
     return match ? match[1].trim() : null
+  }
+
+  /**
+   * Wait for the banner to show a specific schedule name
+   * Useful when switching between active schedules
+   * @param {string} expectedName - The expected schedule name (partial match)
+   * @param {number} timeout - Max wait time in ms (default: 10000)
+   * @returns {Promise<boolean>}
+   */
+  async waitForActiveBannerWithName(expectedName, timeout = 10000) {
+    const banner = this.page.locator(this.selectors.activeBanner)
+    try {
+      // Wait for banner to contain the expected name
+      await banner.filter({ hasText: expectedName }).waitFor({ state: 'visible', timeout })
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**

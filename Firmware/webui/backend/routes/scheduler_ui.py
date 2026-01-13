@@ -356,8 +356,7 @@ def get_active_schedule() -> tuple[Response, int]:
 
     Returns:
         200 OK: {
-            "active": true/false,
-            "schedule": {...} or null
+            "active_schedule": {...} or null
         }
     """
     try:
@@ -367,15 +366,13 @@ def get_active_schedule() -> tuple[Response, int]:
         if schedule is None:
             return jsonify(
                 {
-                    "active": False,
-                    "schedule": None,
+                    "active_schedule": None,
                 }
             ), 200
 
         return jsonify(
             {
-                "active": True,
-                "schedule": schedule.to_dict(),
+                "active_schedule": schedule.to_dict(),
             }
         ), 200
 

@@ -503,12 +503,13 @@ test.describe('Scheduler Real-World Scenarios', () => {
         expect(await scheduler.hasScheduleWithName(names.moonPhase)).toBeTruthy()
         expect(await scheduler.hasScheduleWithName(names.fixedTime)).toBeTruthy()
 
-        // Activate one of them
+        // Activate one of them (fixed time schedule)
         const card = scheduler.getScheduleCardByName(names.fixedTime)
         await card.locator('button:has-text("Activate")').click()
 
         // Wait for and verify activation (banner appears after async refetch)
-        const bannerVisible = await scheduler.waitForActiveBanner()
+        // Use waitForActiveBannerWithName to wait for specific schedule
+        const bannerVisible = await scheduler.waitForActiveBannerWithName('Integration Fixed')
         expect(bannerVisible, 'Schedule should show active banner').toBeTruthy()
       } finally {
         // Cleanup all three
@@ -540,16 +541,16 @@ test.describe('Scheduler Real-World Scenarios', () => {
 
         await scheduler.waitForLoad()
 
-        // Activate first schedule and wait for banner
+        // Activate first schedule and wait for banner to show first schedule name
         let card = scheduler.getScheduleCardByName(names.first)
         await card.locator('button:has-text("Activate")').click()
-        let bannerVisible = await scheduler.waitForActiveBanner()
+        let bannerVisible = await scheduler.waitForActiveBannerWithName('First Active')
         expect(bannerVisible, 'First schedule should show active banner').toBeTruthy()
 
-        // Activate second schedule and wait for banner to update
+        // Activate second schedule and wait for banner to update to second schedule name
         card = scheduler.getScheduleCardByName(names.second)
         await card.locator('button:has-text("Activate")').click()
-        bannerVisible = await scheduler.waitForActiveBanner()
+        bannerVisible = await scheduler.waitForActiveBannerWithName('Second Active')
         expect(bannerVisible, 'Second schedule should show active banner').toBeTruthy()
 
         // Verify banner shows second schedule (not first)
