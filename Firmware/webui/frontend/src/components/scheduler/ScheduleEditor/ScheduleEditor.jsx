@@ -96,13 +96,28 @@ const ScheduleEditor = ({
   );
 
   /**
+   * Reset form when schedule changes (before new data loads)
+   * This prevents showing stale data from the previous schedule
+   */
+  useEffect(() => {
+    if (isOpen && isEditMode) {
+      // Clear form while loading new schedule data
+      setName('');
+      setDescription('');
+      setRoutines([]);
+      setIsAddingRoutine(false);
+      setErrors({});
+    }
+  }, [schedule?.schedule_id]); // Only trigger on schedule ID change
+
+  /**
    * Initialize form from schedule data
    * In edit mode, use fullSchedule (fetched from API with complete data including routines)
    * In create mode, reset to defaults
    */
   useEffect(() => {
-    if (isEditMode && fullSchedule) {
-      // Use full schedule data from API (includes routines)
+    if (isEditMode && fullSchedule && fullSchedule.schedule_id === schedule?.schedule_id) {
+      // Only populate when fetched data matches the requested schedule
       setName(fullSchedule.name || '');
       setDescription(fullSchedule.description || '');
       setRoutines(fullSchedule.routines || []);
@@ -116,7 +131,7 @@ const ScheduleEditor = ({
       setIsAddingRoutine(false);
       setErrors({});
     }
-  }, [isEditMode, fullSchedule, isOpen]);
+  }, [isEditMode, fullSchedule, isOpen, schedule?.schedule_id]);
 
   /**
    * Focus name input when drawer opens
