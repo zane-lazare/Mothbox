@@ -45,6 +45,21 @@ const ACTION_NAME_MAP = {
 }
 
 /**
+ * Short labels for action summary (used when combining multiple actions)
+ */
+const ACTION_SHORT_LABELS = {
+  attract_on: 'Attract',
+  attract_off: 'Attract',
+  flash_on: 'Flash',
+  flash_off: 'Flash',
+  uv_on: 'UV',
+  uv_off: 'UV',
+  takephoto: 'Photo',
+  take_photo: 'Photo',
+  gps_sync: 'GPS',
+}
+
+/**
  * Solar event labels for display
  */
 const SOLAR_EVENT_MAP = {
@@ -105,14 +120,27 @@ export function getPrimaryActionColor(actions) {
 export function summarizeActions(actions) {
   if (!actions?.length) return ''
 
-  const firstAction = actions[0]
-  const actionName = firstAction.action_name || firstAction.name || ''
+  // For single action, use full name
+  if (actions.length === 1) {
+    const actionName = actions[0].action_name || actions[0].name || ''
+    const readableName = ACTION_NAME_MAP[actionName.toLowerCase()] || actionName
+    return readableName.charAt(0).toUpperCase() + readableName.slice(1)
+  }
 
-  // Look up readable name
-  const readableName = ACTION_NAME_MAP[actionName.toLowerCase()] || actionName
+  // For multiple actions, use short labels and deduplicate
+  const shortLabels = actions.map(action => {
+    const actionName = action.action_name || action.name || ''
+    return ACTION_SHORT_LABELS[actionName.toLowerCase()] || actionName
+  })
 
-  // Capitalize first letter if needed
-  return readableName.charAt(0).toUpperCase() + readableName.slice(1)
+  // Remove duplicates while preserving order
+  const uniqueLabels = [...new Set(shortLabels)].filter(Boolean)
+
+  if (uniqueLabels.length === 0) return ''
+  if (uniqueLabels.length === 1) return uniqueLabels[0]
+
+  // Join with " + " for readability: "Flash + Photo"
+  return uniqueLabels.join(' + ')
 }
 
 /**
