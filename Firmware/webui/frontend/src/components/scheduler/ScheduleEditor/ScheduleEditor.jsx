@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import RoutineList from './RoutineList';
-import MiniTimeline from './MiniTimeline';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
-import { useSchedule, useRoutinesPreview } from '../../../hooks/useSchedules';
+import { useSchedule } from '../../../hooks/useSchedules';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
@@ -93,14 +92,6 @@ const ScheduleEditor = ({
   // Fetch full schedule data when editing (list endpoint only returns summaries without routines)
   const { data: fullSchedule, isLoading: isLoadingSchedule } = useSchedule(
     isOpen && isEditMode ? schedule?.schedule_id : null
-  );
-
-  // Fetch preview for current routines (Issue #331)
-  // Use 1 day to show a single cycle of the schedule
-  const { data: previewData, isLoading: isPreviewLoading } = useRoutinesPreview(
-    routines,
-    { days: 1 },
-    { enabled: routines.length > 0 }
   );
 
   /**
@@ -495,26 +486,6 @@ const ScheduleEditor = ({
             />
             {errors.routines && (
               <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
-            )}
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          {/* Preview */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              Schedule Preview
-            </h3>
-            {isPreviewLoading ? (
-              <div className="flex items-center justify-center h-24">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
-              </div>
-            ) : (
-              <MiniTimeline
-                executions={previewData?.executions || []}
-                conflicts={previewData?.conflicts || []}
-              />
             )}
           </div>
 

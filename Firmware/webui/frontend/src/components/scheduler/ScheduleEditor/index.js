@@ -38,7 +38,6 @@ export { default as ScheduleEditor } from './ScheduleEditor';
 
 // Section components
 export { default as TriggerForm } from './TriggerForm';
-export { default as MiniTimeline } from './MiniTimeline';
 
 // Trigger form sub-components
 export { default as IntervalTriggerForm } from './IntervalTriggerForm';

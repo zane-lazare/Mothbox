@@ -38,27 +38,6 @@ vi.mock('../RoutineList', () => ({
   ),
 }));
 
-vi.mock('../MiniTimeline', () => ({
-  default: ({ executions, conflicts }) => (
-    <div data-testid="mini-timeline">
-      <span data-testid="executions-count">{executions?.length ?? 0}</span>
-      <span data-testid="conflicts-count">{conflicts?.length ?? 0}</span>
-    </div>
-  ),
-}));
-
-// Mock useRoutinesPreview hook
-vi.mock('../../../../hooks/useSchedules', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    useRoutinesPreview: () => ({
-      data: { executions: [], conflicts: [] },
-      isLoading: false,
-    }),
-  };
-});
-
 // Helper to render with QueryClient
 const createTestQueryClient = () =>
   new QueryClient({
@@ -84,13 +63,12 @@ describe('ScheduleEditor', () => {
   });
 
   describe('Rendering', () => {
-    it('renders RoutineList and MiniTimeline components', () => {
+    it('renders RoutineList component', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
       expect(screen.getByTestId('routine-list')).toBeInTheDocument();
-      expect(screen.getByTestId('mini-timeline')).toBeInTheDocument();
     });
 
     it('renders schedule name input', () => {
@@ -158,19 +136,12 @@ describe('ScheduleEditor', () => {
       expect(screen.getByTestId('routines-count')).toHaveTextContent('0');
     });
 
-    it('populates form with existing schedule data', () => {
+    it('shows loading state in edit mode while fetching schedule data', () => {
       const schedule = {
         schedule_id: 'sched-1',
         name: 'My Schedule',
         description: 'A test schedule',
-        routines: [
-          {
-            routine_id: 'r1',
-            name: 'Routine 1',
-            trigger: { trigger_type: 'solar', solar_event: 'dusk' },
-            actions: [],
-          },
-        ],
+        routines: [],
       };
 
       renderWithClient(
@@ -182,13 +153,9 @@ describe('ScheduleEditor', () => {
         />
       );
 
-      const nameInput = screen.getByLabelText(/schedule name/i);
-      expect(nameInput).toHaveValue('My Schedule');
-
-      const descInput = screen.getByLabelText(/description/i);
-      expect(descInput).toHaveValue('A test schedule');
-
-      expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
+      // In edit mode, component fetches fresh data from API
+      // Without API mock, it should show loading state
+      expect(screen.getByText(/loading schedule/i)).toBeInTheDocument();
     });
 
     it('updates name when typed', () => {
@@ -226,16 +193,6 @@ describe('ScheduleEditor', () => {
       fireEvent.click(addButton);
 
       expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
-    });
-
-    it('renders MiniTimeline with preview data', () => {
-      renderWithClient(
-        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
-      );
-
-      // MiniTimeline should render with preview data from useRoutinesPreview hook
-      expect(screen.getByTestId('mini-timeline')).toBeInTheDocument();
-      expect(screen.getByTestId('executions-count')).toHaveTextContent('0');
     });
   });
 

@@ -239,35 +239,6 @@ export const getSchedulePreview = (id, params = {}) =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules/${id}/preview`, { params, timeout: API_TIMEOUT_MS })
 
 /**
- * Preview execution times for unsaved routines.
- *
- * Accepts routines directly (without requiring a saved schedule_id),
- * useful for previewing unsaved schedules in the editor.
- *
- * @param {Array} routines - Array of routine objects
- * @param {Object} [params] - Preview parameters
- * @param {number} [params.days] - Number of days to preview (default: 7)
- * @param {number} [params.lat] - Latitude for solar/moon calculations
- * @param {number} [params.lon] - Longitude for solar/moon calculations
- * @param {string} [params.tz] - Timezone (e.g., "America/New_York")
- * @returns {Promise<Object>} Axios response with preview executions
- *
- * Response: Same structure as getSchedulePreview
- */
-export const previewRoutines = (routines, params = {}) =>
-  api.post(
-    `${SCHEDULER_API_PREFIX}/routines/preview`,
-    {
-      routines,
-      days: params.days || 7,
-      latitude: params.lat,
-      longitude: params.lon,
-      timezone: params.tz,
-    },
-    { timeout: API_TIMEOUT_MS }
-  )
-
-/**
  * Validate schedule configuration
  *
  * @param {string} id - Schedule ID
