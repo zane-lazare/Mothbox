@@ -1118,6 +1118,138 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
         ), 500
 
 
+@scheduler_ui_bp.route("/schedules/validate-draft", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_json
+def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
+    """
+    Validate draft routines for conflicts without requiring a saved schedule.
+
+    POST /api/scheduler/ui/schedules/validate-draft
+
+    Useful for previewing conflicts in the schedule editor before saving.
+
+    Request Body:
+        {
+            "routines": [...],       // required: array of routine objects
+            "days": 7,               // optional: preview days (default: 7)
+            "latitude": 0.0,         // optional: for solar calculations
+            "longitude": 0.0,        // optional: for solar calculations
+            "timezone": "UTC"        // optional: timezone (default: UTC)
+        }
+
+    Returns:
+        200 OK: {
+            "valid": true/false,
+            "has_warnings": true/false,
+            "conflicts": [...],
+            "total_conflicts": number,
+            "blocking_conflicts": number
+        }
+        400 Bad Request: Invalid parameters or routines
+    """
+    try:
+        # Validate routines field exists
+        if "routines" not in json_data:
+            return jsonify({"error": "routines array required"}), 400
+
+        routines_data = json_data["routines"]
+        if not isinstance(routines_data, list):
+            return jsonify({"error": "routines must be an array"}), 400
+
+        # Empty routines is valid - no conflicts possible
+        if not routines_data:
+            return jsonify(
+                {
+                    "valid": True,
+                    "has_warnings": False,
+                    "conflicts": [],
+                    "total_conflicts": 0,
+                    "blocking_conflicts": 0,
+                }
+            ), 200
+
+        # Parse routines
+        try:
+            routines = [Routine.from_dict(r) for r in routines_data]
+        except (KeyError, ValueError, TypeError) as e:
+            logger.debug(f"Invalid routine format: {e}")
+            return jsonify({"error": "Invalid routine format"}), 400
+
+        # Parse optional parameters
+        preview_days = json_data.get("days", DEFAULT_PREVIEW_DAYS)
+        try:
+            preview_days = min(max(int(preview_days), 1), 90)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid days parameter"}), 400
+
+        # Check if coordinates were explicitly provided in request
+        lat_provided = "latitude" in json_data
+        lon_provided = "longitude" in json_data
+
+        # Require both coordinates or neither
+        if lat_provided != lon_provided:
+            return jsonify(
+                {"error": "Both latitude and longitude must be provided together"}
+            ), 400
+
+        # Type validation for coordinates
+        try:
+            latitude = float(json_data["latitude"]) if lat_provided else 0.0
+            longitude = float(json_data["longitude"]) if lon_provided else 0.0
+        except (ValueError, TypeError):
+            return jsonify({"error": "Coordinates must be numeric"}), 400
+
+        timezone_name = json_data.get("timezone", "UTC")
+
+        # Validate coordinate ranges if explicitly provided
+        if lat_provided and lon_provided:
+            valid, coord_error = validate_coordinates(latitude, longitude)
+            if not valid:
+                return jsonify({"error": f"Invalid coordinates: {coord_error}"}), 400
+
+        # Validate timezone
+        valid, tz_error = validate_timezone(timezone_name)
+        if not valid:
+            return jsonify({"error": f"Invalid timezone: {tz_error}"}), 400
+
+        # Create temporary schedule for conflict detection
+        temp_schedule = Schedule(
+            schedule_id="draft-validation",
+            name="Draft Schedule",
+            routines=routines,
+        )
+
+        # Import and run conflict detection
+        from webui.backend.lib.schedule_conflict import SEVERITY_ERROR, detect_conflicts
+
+        report = detect_conflicts(
+            schedule=temp_schedule,
+            preview_days=preview_days,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_name=timezone_name,
+        )
+
+        # Count total and blocking conflicts
+        total_conflicts = len(report.conflicts)
+        blocking_count = len([c for c in report.conflicts if c.severity == SEVERITY_ERROR])
+
+        return jsonify(
+            {
+                "valid": not report.has_blocking_conflicts,
+                "has_warnings": total_conflicts > 0 and not report.has_blocking_conflicts,
+                "conflicts": [c.to_dict() for c in report.conflicts],
+                "total_conflicts": total_conflicts,
+                "blocking_conflicts": blocking_count,
+            }
+        ), 200
+
+    except Exception as e:
+        logger.error(f"Error validating draft routines: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
 # ============================================================================
 # Cron Validation Endpoint (Issue #233 - Phase 1)
 # ============================================================================

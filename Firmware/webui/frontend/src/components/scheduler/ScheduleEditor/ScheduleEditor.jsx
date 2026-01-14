@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import RoutineList from './RoutineList';
+import ConflictPanel from './ConflictPanel';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
 import { useSchedule } from '../../../hooks/useSchedules';
+import { useValidateDraft } from '../../../hooks/useValidateDraft';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
@@ -94,6 +96,16 @@ const ScheduleEditor = ({
     isOpen && isEditMode ? schedule?.schedule_id : null
   );
 
+  // Draft validation for conflict detection
+  const {
+    validateDraft,
+    conflictReport,
+    isValidating,
+    isError: isValidationError,
+    error: validationError,
+    reset: resetValidation,
+  } = useValidateDraft();
+
   /**
    * Reset form when schedule changes (before new data loads)
    * This prevents showing stale data from the previous schedule
@@ -106,8 +118,10 @@ const ScheduleEditor = ({
       setRoutines([]);
       setIsAddingRoutine(false);
       setErrors({});
+      resetValidation();
     }
-  }, [schedule?.schedule_id]); // Only trigger on schedule ID change
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on schedule_id change, not drawer open/close
+  }, [schedule?.schedule_id, resetValidation]);
 
   /**
    * Initialize form from schedule data
@@ -122,6 +136,7 @@ const ScheduleEditor = ({
       setRoutines(fullSchedule.routines || []);
       setIsAddingRoutine(false);
       setErrors({});
+      resetValidation();
     } else if (!isEditMode && isOpen) {
       // Reset to defaults for new schedule
       setName('');
@@ -129,8 +144,19 @@ const ScheduleEditor = ({
       setRoutines([]);
       setIsAddingRoutine(false);
       setErrors({});
+      resetValidation();
     }
-  }, [isEditMode, fullSchedule, isOpen, schedule?.schedule_id]);
+  }, [isEditMode, fullSchedule, isOpen, schedule?.schedule_id, resetValidation]);
+
+  /**
+   * Validate routines for conflicts when they change
+   * The hook handles debouncing (400ms) to avoid excessive API calls
+   */
+  useEffect(() => {
+    if (isOpen && routines.length > 0) {
+      validateDraft(routines);
+    }
+  }, [isOpen, routines, validateDraft]);
 
   /**
    * Focus name input when drawer opens
@@ -369,7 +395,7 @@ const ScheduleEditor = ({
         role="dialog"
         aria-label="Schedule Editor"
         aria-modal="true"
-        className="fixed inset-y-0 right-0 w-full max-w-2xl bg-white dark:bg-gray-900
+        className="fixed inset-y-0 right-0 w-full max-w-4xl bg-white dark:bg-gray-900
                    shadow-xl z-50 flex flex-col
                    transform transition-transform duration-300 ease-in-out"
       >
@@ -401,102 +427,119 @@ const ScheduleEditor = ({
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-          {/* Loading state when fetching full schedule data */}
-          {isEditMode && isLoadingSchedule ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Loading schedule...</p>
+        {/* Two-column content area */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left Column: Form */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+            {/* Loading state when fetching full schedule data */}
+            {isEditMode && isLoadingSchedule ? (
+              <div className="flex items-center justify-center h-48">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Loading schedule...</p>
+                </div>
+              </div>
+            ) : (
+            <>
+            {/* Name and Description */}
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="schedule-name"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Schedule Name *
+                </label>
+                <input
+                  ref={nameInputRef}
+                  id="schedule-name"
+                  type="text"
+                  value={name}
+                  onChange={handleNameChange}
+                  maxLength={SCHEDULE_LIMITS.NAME_MAX_LENGTH}
+                  disabled={isSaving}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600
+                             bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
+                             focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="Enter schedule name"
+                  aria-label="Schedule name"
+                />
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="schedule-description"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Description
+                </label>
+                <textarea
+                  id="schedule-description"
+                  value={description}
+                  onChange={handleDescriptionChange}
+                  maxLength={SCHEDULE_LIMITS.DESCRIPTION_MAX_LENGTH}
+                  rows={3}
+                  disabled={isSaving}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600
+                             bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
+                             focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="Optional description"
+                  aria-label="Description"
+                />
               </div>
             </div>
-          ) : (
-          <>
-          {/* Name and Description */}
-          <div className="space-y-4">
+
+            {/* Divider */}
+            <div className="border-t border-gray-200 dark:border-gray-700" />
+
+            {/* Routines Section */}
             <div>
-              <label
-                htmlFor="schedule-name"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Schedule Name *
-              </label>
-              <input
-                ref={nameInputRef}
-                id="schedule-name"
-                type="text"
-                value={name}
-                onChange={handleNameChange}
-                maxLength={SCHEDULE_LIMITS.NAME_MAX_LENGTH}
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                Routines *
+              </h3>
+              <RoutineList
+                routines={routines}
+                onRoutineUpdate={handleRoutineUpdate}
+                onRoutineDelete={handleRoutineDelete}
+                onRoutineAdd={handleRoutineAdd}
+                isAddingRoutine={isAddingRoutine}
+                onStartAddRoutine={handleStartAddRoutine}
+                onCancelAddRoutine={handleCancelAddRoutine}
                 disabled={isSaving}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                           focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Enter schedule name"
-                aria-label="Schedule name"
               />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+              {errors.routines && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="schedule-description"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Description
-              </label>
-              <textarea
-                id="schedule-description"
-                value={description}
-                onChange={handleDescriptionChange}
-                maxLength={SCHEDULE_LIMITS.DESCRIPTION_MAX_LENGTH}
-                rows={3}
-                disabled={isSaving}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600
-                           bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
-                           focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Optional description"
-                aria-label="Description"
-              />
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          {/* Routines Section */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              Routines *
-            </h3>
-            <RoutineList
-              routines={routines}
-              onRoutineUpdate={handleRoutineUpdate}
-              onRoutineDelete={handleRoutineDelete}
-              onRoutineAdd={handleRoutineAdd}
-              isAddingRoutine={isAddingRoutine}
-              onStartAddRoutine={handleStartAddRoutine}
-              onCancelAddRoutine={handleCancelAddRoutine}
-              disabled={isSaving}
-            />
-            {errors.routines && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
+            {/* Save Error */}
+            {errors.save && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{errors.save}</p>
+              </div>
+            )}
+            </>
             )}
           </div>
 
-          {/* Save Error */}
-          {errors.save && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-              <p className="text-sm text-red-600 dark:text-red-400">{errors.save}</p>
-            </div>
-          )}
-          </>
-          )}
+          {/* Right Column: Conflict Panel */}
+          <div className="w-80 border-l border-gray-200 dark:border-gray-700 overflow-y-auto
+                          bg-gray-50 dark:bg-gray-800/50 px-4 py-6 flex-shrink-0">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+              Conflict Detection
+            </h3>
+            <ConflictPanel
+              conflictReport={conflictReport}
+              isValidating={isValidating}
+              isError={isValidationError}
+              error={validationError}
+            />
+          </div>
         </div>
 
         {/* Footer */}

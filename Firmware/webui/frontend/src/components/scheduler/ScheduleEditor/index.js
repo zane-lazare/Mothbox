@@ -57,6 +57,9 @@ export { default as RoutineList } from './RoutineList';
 export { default as NewRoutineCard } from './NewRoutineCard';
 export { default as PreConditionForm } from './PreConditionForm';
 
+// Conflict detection (Issue #331)
+export { default as ConflictPanel } from './ConflictPanel';
+
 // Constants and types
 export {
   SCHEDULE_LIMITS,
