@@ -6,7 +6,7 @@
  * - ScheduleEditor
  * - RoutineList, RoutineCard, NewRoutineCard
  * - TriggerForm, TriggerSelector
- * - PreviewSection
+ * - MiniTimeline
  *
  * @module components/scheduler/ScheduleEditor/propTypes
  */

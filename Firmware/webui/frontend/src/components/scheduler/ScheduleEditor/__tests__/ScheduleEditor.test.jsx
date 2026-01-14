@@ -38,13 +38,26 @@ vi.mock('../RoutineList', () => ({
   ),
 }));
 
-vi.mock('../PreviewSection', () => ({
-  default: ({ routines }) => (
-    <div data-testid="preview-section">
-      <span data-testid="preview-routines-count">{routines?.length ?? 0}</span>
+vi.mock('../MiniTimeline', () => ({
+  default: ({ executions, conflicts }) => (
+    <div data-testid="mini-timeline">
+      <span data-testid="executions-count">{executions?.length ?? 0}</span>
+      <span data-testid="conflicts-count">{conflicts?.length ?? 0}</span>
     </div>
   ),
 }));
+
+// Mock useRoutinesPreview hook
+vi.mock('../../../../hooks/useSchedules', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useRoutinesPreview: () => ({
+      data: { executions: [], conflicts: [] },
+      isLoading: false,
+    }),
+  };
+});
 
 // Helper to render with QueryClient
 const createTestQueryClient = () =>
@@ -71,13 +84,13 @@ describe('ScheduleEditor', () => {
   });
 
   describe('Rendering', () => {
-    it('renders RoutineList and PreviewSection components', () => {
+    it('renders RoutineList and MiniTimeline components', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
       expect(screen.getByTestId('routine-list')).toBeInTheDocument();
-      expect(screen.getByTestId('preview-section')).toBeInTheDocument();
+      expect(screen.getByTestId('mini-timeline')).toBeInTheDocument();
     });
 
     it('renders schedule name input', () => {
@@ -215,15 +228,14 @@ describe('ScheduleEditor', () => {
       expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
     });
 
-    it('passes routines to PreviewSection', () => {
+    it('renders MiniTimeline with preview data', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
-      const addButton = screen.getByTestId('add-routine');
-      fireEvent.click(addButton);
-
-      expect(screen.getByTestId('preview-routines-count')).toHaveTextContent('1');
+      // MiniTimeline should render with preview data from useRoutinesPreview hook
+      expect(screen.getByTestId('mini-timeline')).toBeInTheDocument();
+      expect(screen.getByTestId('executions-count')).toHaveTextContent('0');
     });
   });
 

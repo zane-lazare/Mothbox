@@ -6,6 +6,7 @@
  * - useSchedule: Get single schedule
  * - useActiveSchedule: Get active schedule
  * - useSchedulePreview: Get schedule preview
+ * - useRoutinesPreview: Preview unsaved routines (Issue #331)
  * - useBuiltinSchedules: List built-in schedules
  * - useCreateSchedule: Create new schedule
  * - useUpdateSchedule: Update existing schedule
@@ -32,11 +33,13 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
+import { useMemo } from 'react'
 import {
   listSchedules,
   getSchedule,
   getActiveSchedule,
   getSchedulePreview,
+  previewRoutines,
   listBuiltinSchedules,
   createSchedule,
   updateSchedule,
@@ -230,6 +233,55 @@ export function useSchedulePreview(id, params = {}, queryOptions = {}) {
     },
     enabled: !!id,
     staleTime: QUERY_CONFIG.STALE_TIME,
+    ...queryOptions,
+  })
+}
+
+/**
+ * Preview execution times for unsaved routines.
+ *
+ * Accepts routines directly (without requiring a saved schedule_id),
+ * useful for previewing unsaved schedules in the editor.
+ *
+ * @param {Array} routines - Array of routine objects
+ * @param {Object} [params] - Preview parameters
+ * @param {number} [params.days] - Number of days to preview (default: 7)
+ * @param {number} [params.lat] - Latitude for solar/moon calculations
+ * @param {number} [params.lon] - Longitude for solar/moon calculations
+ * @param {string} [params.tz] - Timezone (e.g., "America/New_York")
+ * @param {Object} [queryOptions] - React Query options
+ * @returns {Object} React Query result
+ *
+ * @example
+ * const { data, isLoading } = useRoutinesPreview(routines, { days: 7 })
+ * if (data) {
+ *   console.log(`${data.total_executions} executions`)
+ * }
+ */
+export function useRoutinesPreview(routines, params = {}, queryOptions = {}) {
+  const { days = 7, lat, lon, tz } = params
+
+  // Create stable query key from routines content to avoid unnecessary refetches
+  const routinesHash = useMemo(() => {
+    if (!routines?.length) return null
+    return JSON.stringify(routines)
+  }, [routines])
+
+  // Only include defined params in query key
+  const queryKeyParams = {}
+  if (days !== undefined) queryKeyParams.days = days
+  if (lat !== undefined) queryKeyParams.lat = lat
+  if (lon !== undefined) queryKeyParams.lon = lon
+  if (tz !== undefined) queryKeyParams.tz = tz
+
+  return useQuery({
+    queryKey: ['scheduler', 'routines', 'preview', routinesHash, queryKeyParams],
+    queryFn: async () => {
+      const response = await previewRoutines(routines, { days, lat, lon, tz })
+      return response.data
+    },
+    enabled: !!routines?.length && queryOptions.enabled !== false,
+    staleTime: 30 * 1000, // 30 seconds - shorter since content may change frequently
     ...queryOptions,
   })
 }
