@@ -121,7 +121,7 @@ const ScheduleEditor = ({
       resetValidation();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on schedule_id change, not drawer open/close
-  }, [schedule?.schedule_id, resetValidation]);
+  }, [schedule?.schedule_id]);
 
   /**
    * Initialize form from schedule data
