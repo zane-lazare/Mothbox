@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types'
 import cronstrue from 'cronstrue'
+import { TRIGGER_FORM_BORDER } from './constants'
 
 /**
  * CronTriggerForm Component
@@ -47,7 +48,7 @@ function CronTriggerForm({ trigger, onChange, disabled = false, error = null }) 
   const hasError = error || !isValidCron(cronExpression)
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4" data-testid="cron-trigger-form">
+    <div className={TRIGGER_FORM_BORDER} data-testid="cron-trigger-form">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-sm text-gray-900 dark:text-white">Cron Expression</span>
         <span className="text-xs text-yellow-600 dark:text-yellow-500">advanced</span>

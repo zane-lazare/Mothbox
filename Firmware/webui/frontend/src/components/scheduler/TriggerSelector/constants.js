@@ -4,6 +4,13 @@
  */
 
 /**
+ * Shared border style for trigger form containers
+ * Lighter than routine card borders to show visual hierarchy
+ * @constant {string}
+ */
+export const TRIGGER_FORM_BORDER = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4'
+
+/**
  * Trigger type options for the dropdown selector
  * @constant {Array<Object>}
  */

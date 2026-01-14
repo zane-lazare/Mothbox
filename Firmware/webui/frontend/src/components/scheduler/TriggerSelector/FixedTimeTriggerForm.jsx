@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types'
+import { TRIGGER_FORM_BORDER } from './constants'
 
 /**
  * Generate a unique ID for time entries
@@ -70,7 +71,7 @@ function FixedTimeTriggerForm({ trigger, onChange, disabled = false, error = nul
   const hasError = error || times.length === 0
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4" data-testid="fixed-time-trigger-form">
+    <div className={TRIGGER_FORM_BORDER} data-testid="fixed-time-trigger-form">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-sm text-gray-900 dark:text-white">Fixed Time</span>
         <span className="text-xs text-gray-500 dark:text-gray-600">run at specific times</span>

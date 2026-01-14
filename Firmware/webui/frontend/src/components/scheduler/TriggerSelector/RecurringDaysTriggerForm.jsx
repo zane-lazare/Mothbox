@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { DAYS_OF_WEEK } from './constants'
+import { DAYS_OF_WEEK, TRIGGER_FORM_BORDER } from './constants'
 
 /**
  * RecurringDaysTriggerForm Component
@@ -46,7 +46,7 @@ function RecurringDaysTriggerForm({ trigger, onChange, disabled = false, error =
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4" data-testid="recurring-days-trigger-form">
+    <div className={TRIGGER_FORM_BORDER} data-testid="recurring-days-trigger-form">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-sm text-gray-900 dark:text-white">Recurring Days</span>
         <span className="text-xs text-gray-500 dark:text-gray-600">weekly schedule</span>
