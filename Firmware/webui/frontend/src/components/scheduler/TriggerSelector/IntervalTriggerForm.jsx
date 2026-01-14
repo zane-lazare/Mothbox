@@ -5,6 +5,26 @@ import { INTERVAL_UNITS } from './constants'
 const MAX_MINUTES = 1440 // 24 hours
 const MAX_HOURS = 24
 
+// Regex to detect HH:MM time format
+const TIME_FORMAT_REGEX = /^([0-1][0-9]|2[0-3]):([0-5][0-9])$/
+
+/**
+ * Check if a value is a fixed time (HH:MM format) vs a solar event
+ */
+const isFixedTime = (value) => {
+  if (!value) return true
+  return TIME_FORMAT_REGEX.test(value)
+}
+
+/**
+ * Format a solar event value for display (e.g., "sunset" -> "Sunset")
+ */
+const formatSolarEvent = (value) => {
+  if (!value) return ''
+  // Convert snake_case to Title Case (e.g., "civil_dawn" -> "Civil Dawn")
+  return value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 /**
  * IntervalTriggerForm Component
  *
@@ -183,27 +203,47 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
         {timeWindow && (
           <div className="space-y-2 pl-6">
             <div className="flex items-center gap-3 text-sm">
-              <input
-                type="time"
-                value={timeWindow.start_time || '18:00'}
-                onChange={handleStartTimeChange}
-                disabled={disabled}
-                className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
-                           focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="time-window-start"
-              />
+              {/* Start Time - show solar event label or time input */}
+              {isFixedTime(timeWindow.start_time) ? (
+                <input
+                  type="time"
+                  value={timeWindow.start_time || '18:00'}
+                  onChange={handleStartTimeChange}
+                  disabled={disabled}
+                  className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
+                             focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="time-window-start"
+                />
+              ) : (
+                <span
+                  className="px-2 py-1 text-gray-900 dark:text-white bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded"
+                  data-testid="time-window-start-solar"
+                >
+                  {formatSolarEvent(timeWindow.start_time)}
+                </span>
+              )}
               <span className="text-gray-600">to</span>
-              <input
-                type="time"
-                value={timeWindow.end_time || '06:00'}
-                onChange={handleEndTimeChange}
-                disabled={disabled}
-                className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
-                           focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="time-window-end"
-              />
+              {/* End Time - show solar event label or time input */}
+              {isFixedTime(timeWindow.end_time) ? (
+                <input
+                  type="time"
+                  value={timeWindow.end_time || '06:00'}
+                  onChange={handleEndTimeChange}
+                  disabled={disabled}
+                  className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
+                             focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="time-window-end"
+                />
+              ) : (
+                <span
+                  className="px-2 py-1 text-gray-900 dark:text-white bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded"
+                  data-testid="time-window-end-solar"
+                >
+                  {formatSolarEvent(timeWindow.end_time)}
+                </span>
+              )}
             </div>
             {/* Overnight window indicator */}
             {isOvernightWindow && (
