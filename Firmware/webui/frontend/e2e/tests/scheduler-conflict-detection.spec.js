@@ -96,17 +96,12 @@ test.describe('Scheduler Conflict Detection', () => {
   // ============================================================
 
   /**
-   * Test validation with multiple routines at same time.
+   * Test camera resource conflict at same fixed time.
    *
-   * Note: Point-in-time executions (zero duration) don't trigger time_overlap
-   * conflicts because they don't have duration to overlap. For actual conflicts,
-   * routines need overlapping time windows (e.g., interval triggers with
-   * overlapping start/end windows).
-   *
-   * This test verifies the validation mechanism works correctly even when
-   * no conflicts are detected.
+   * Two camera actions at the exact same time should detect resource contention
+   * because the camera is a single-instance resource.
    */
-  test('validates multiple routines at same fixed time', async ({ page }) => {
+  test('detects camera conflict for same-time fixed triggers', async ({ page }) => {
     await scheduler.clickNewSchedule()
     await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
 
@@ -135,33 +130,30 @@ test.describe('Scheduler Conflict Detection', () => {
     await scheduler.waitForConflictValidation()
     await page.waitForTimeout(TIMEOUTS.SAVE) // Extra time for debounce
 
-    // Panel should show validation result (conflicts or no conflicts)
+    // Should detect camera resource conflict
     const panelText = await scheduler.getConflictPanelText()
     console.log('Conflict panel text:', panelText)
 
-    // Verify panel shows some result
-    expect(panelText).toContain('Conflict Detection')
+    const hasConflicts = await scheduler.hasConflictsDetected()
+    expect(hasConflicts).toBeTruthy()
 
     await scheduler.clickCancel()
   })
 
   /**
-   * Test validation with multiple interval routines.
+   * Test camera resource conflict with same interval triggers.
    *
-   * Same-interval routines execute at the same points in time (instant actions),
-   * which don't produce time_overlap conflicts. For resource contention,
-   * the routines would need overlapping execution windows.
-   *
-   * This test verifies the validation mechanism runs for interval triggers.
+   * Two interval routines with the same interval will execute at the same times,
+   * causing camera resource contention.
    */
-  test('validates multiple routines with same interval trigger', async ({ page }) => {
+  test('detects camera conflict for same-interval triggers', async ({ page }) => {
     await scheduler.clickNewSchedule()
     await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
 
-    // Add first routine with interval trigger (every 5 minutes)
+    // Add first routine with interval trigger (every 30 minutes)
     await scheduler.clickAddRoutine()
     await scheduler.selectTriggerTypeInRoutine('interval')
-    await scheduler.fillIntervalMinutesInRoutine(5)
+    await scheduler.fillIntervalMinutesInRoutine(30)
     await scheduler.clickAddActionInRoutine()
     await scheduler.selectActionTypeInRoutine(0, 'camera')
     await scheduler.selectActionNameInRoutine(0, 'takephoto')
@@ -170,7 +162,7 @@ test.describe('Scheduler Conflict Detection', () => {
     // Add second routine with same interval
     await scheduler.clickAddRoutine()
     await scheduler.selectTriggerTypeInRoutine('interval')
-    await scheduler.fillIntervalMinutesInRoutine(5)
+    await scheduler.fillIntervalMinutesInRoutine(30)
     await scheduler.clickAddActionInRoutine()
     await scheduler.selectActionTypeInRoutine(0, 'camera')
     await scheduler.selectActionNameInRoutine(0, 'takephoto')
@@ -180,12 +172,12 @@ test.describe('Scheduler Conflict Detection', () => {
     await scheduler.waitForConflictValidation()
     await page.waitForTimeout(TIMEOUTS.SAVE)
 
-    // Panel should show validation result
+    // Should detect camera resource conflict
     const panelText = await scheduler.getConflictPanelText()
     console.log('Conflict panel text:', panelText)
 
-    // Verify panel shows some result
-    expect(panelText).toContain('Conflict Detection')
+    const hasConflicts = await scheduler.hasConflictsDetected()
+    expect(hasConflicts).toBeTruthy()
 
     await scheduler.clickCancel()
   })
