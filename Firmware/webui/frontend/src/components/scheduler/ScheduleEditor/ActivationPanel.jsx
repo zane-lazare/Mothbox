@@ -88,14 +88,14 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Handle retry
   const handleRetry = useCallback(() => {
     if (scheduleId) {
-      activate(scheduleId)
+      activate({ id: scheduleId })
     }
   }, [scheduleId, activate])
 
   // Handle activate click
   const handleActivate = () => {
     if (scheduleId) {
-      activate(scheduleId)
+      activate({ id: scheduleId })
     }
   }
 
