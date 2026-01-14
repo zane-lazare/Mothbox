@@ -83,6 +83,7 @@ function SchedulerUIContent() {
         <div className="col-span-1 space-y-3">
           {/* Action type legend */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 px-1">
+            <span className="font-medium">Key:</span>
             <div className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.gpio}`} />
               <span>GPIO</span>
