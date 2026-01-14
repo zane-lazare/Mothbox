@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
+import ActivationPanel from './ActivationPanel';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
@@ -95,6 +96,16 @@ const ScheduleEditor = ({
   const { data: fullSchedule, isLoading: isLoadingSchedule } = useSchedule(
     isOpen && isEditMode ? schedule?.schedule_id : null
   );
+
+  // Track unsaved changes by comparing current form state to loaded data
+  const hasUnsavedChanges = useMemo(() => {
+    if (!isEditMode || !fullSchedule) return true; // New schedule always has "unsaved" state
+    if (name !== (fullSchedule.name || '')) return true;
+    if (description !== (fullSchedule.description || '')) return true;
+    // Compare routine count as a simple heuristic (deep comparison is expensive)
+    if (routines.length !== (fullSchedule.routines || []).length) return true;
+    return false;
+  }, [isEditMode, fullSchedule, name, description, routines.length]);
 
   // Draft validation for conflict detection
   const {
@@ -527,18 +538,35 @@ const ScheduleEditor = ({
             )}
           </div>
 
-          {/* Right Column: Conflict Panel */}
+          {/* Right Column: Conflict Panel & Activation */}
           <div className="w-80 border-l border-gray-200 dark:border-gray-700 overflow-y-auto
-                          bg-gray-50 dark:bg-gray-800/50 px-4 py-6 flex-shrink-0">
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              Conflict Detection
-            </h3>
-            <ConflictPanel
-              conflictReport={conflictReport}
-              isValidating={isValidating}
-              isError={isValidationError}
-              error={validationError}
-            />
+                          bg-gray-50 dark:bg-gray-800/50 px-4 py-6 flex-shrink-0 space-y-6">
+            {/* Conflict Detection */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                Conflict Detection
+              </h3>
+              <ConflictPanel
+                conflictReport={conflictReport}
+                isValidating={isValidating}
+                isError={isValidationError}
+                error={validationError}
+              />
+            </div>
+
+            {/* Activation Panel (only for existing schedules) */}
+            {isEditMode && !isLoadingSchedule && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                  Activation
+                </h3>
+                <ActivationPanel
+                  scheduleId={schedule?.schedule_id}
+                  routineCount={routines.length}
+                  hasUnsavedChanges={hasUnsavedChanges}
+                />
+              </div>
+            )}
           </div>
         </div>
 
