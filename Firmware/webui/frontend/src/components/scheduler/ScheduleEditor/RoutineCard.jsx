@@ -132,7 +132,7 @@ function RoutineCard({
           />
           {/* Auto-generated name */}
           <span
-            className="text-sm text-white dark:text-gray-100 truncate"
+            className="text-sm text-gray-900 dark:text-gray-100 truncate"
             data-testid="routine-name"
           >
             {displayName}
