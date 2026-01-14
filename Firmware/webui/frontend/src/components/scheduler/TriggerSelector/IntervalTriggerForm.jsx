@@ -96,7 +96,7 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
   }
 
   return (
-    <div className="border border-gray-800 rounded-lg p-4" data-testid="interval-trigger-form">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4" data-testid="interval-trigger-form">
       <div className="flex items-center gap-2 mb-4">
         <span className="text-sm text-gray-900 dark:text-white">Interval</span>
         <span className="text-xs text-gray-500 dark:text-gray-600">repeat at fixed intervals</span>
