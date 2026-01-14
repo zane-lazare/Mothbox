@@ -5,6 +5,7 @@ import PreviewSection from './PreviewSection';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
+import { useSchedule } from '../../../hooks/useSchedules';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
@@ -89,24 +90,33 @@ const ScheduleEditor = ({
   // Determine if editing existing schedule (memoized to prevent recalculation on every render)
   const isEditMode = useMemo(() => Boolean(schedule?.schedule_id), [schedule?.schedule_id]);
 
+  // Fetch full schedule data when editing (list endpoint only returns summaries without routines)
+  const { data: fullSchedule, isLoading: isLoadingSchedule } = useSchedule(
+    isOpen && isEditMode ? schedule?.schedule_id : null
+  );
+
   /**
-   * Initialize form from schedule prop
+   * Initialize form from schedule data
+   * In edit mode, use fullSchedule (fetched from API with complete data including routines)
+   * In create mode, reset to defaults
    */
   useEffect(() => {
-    if (schedule) {
-      setName(schedule.name || '');
-      setDescription(schedule.description || '');
-      setRoutines(schedule.routines || []);
+    if (isEditMode && fullSchedule) {
+      // Use full schedule data from API (includes routines)
+      setName(fullSchedule.name || '');
+      setDescription(fullSchedule.description || '');
+      setRoutines(fullSchedule.routines || []);
       setIsAddingRoutine(false);
-    } else {
+      setErrors({});
+    } else if (!isEditMode && isOpen) {
       // Reset to defaults for new schedule
       setName('');
       setDescription('');
       setRoutines([]);
       setIsAddingRoutine(false);
+      setErrors({});
     }
-    setErrors({});
-  }, [schedule]);
+  }, [isEditMode, fullSchedule, isOpen]);
 
   /**
    * Focus name input when drawer opens
@@ -379,6 +389,16 @@ const ScheduleEditor = ({
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+          {/* Loading state when fetching full schedule data */}
+          {isEditMode && isLoadingSchedule ? (
+            <div className="flex items-center justify-center h-48">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Loading schedule...</p>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Name and Description */}
           <div className="space-y-4">
             <div>
@@ -469,6 +489,8 @@ const ScheduleEditor = ({
               <p className="text-sm text-red-600 dark:text-red-400">{errors.save}</p>
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* Footer */}
@@ -487,7 +509,7 @@ const ScheduleEditor = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || (isEditMode && isLoadingSchedule)}
             className="px-4 py-2 bg-blue-600 text-white rounded-md
                        hover:bg-blue-700 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed"
