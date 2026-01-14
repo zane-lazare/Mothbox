@@ -6,6 +6,7 @@ import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
 import { useSchedule } from '../../../hooks/useSchedules';
+import { ACTION_COLORS } from '../../../utils/routineUtils';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
@@ -472,9 +473,26 @@ const ScheduleEditor = ({
 
           {/* Routines Section */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              Routines *
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Routines *
+              </h3>
+              {/* Action type legend */}
+              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.gpio}`} />
+                  <span>GPIO</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.camera}`} />
+                  <span>Camera</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.gps_sync}`} />
+                  <span>GPS</span>
+                </div>
+              </div>
+            </div>
             <RoutineList
               routines={routines}
               onRoutineUpdate={handleRoutineUpdate}
