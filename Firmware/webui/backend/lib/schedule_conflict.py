@@ -671,7 +671,7 @@ def _create_routine_execution(
 
     return RoutineExecution(
         routine_id=routine.routine_id,
-        routine_name=routine.name,
+        routine_name=routine.name or routine.routine_id,
         start_time=trigger_time,
         end_time=end_time,
         resource_usages=resource_usages,
