@@ -88,6 +88,14 @@ export class SchedulerPage {
       routineTabCustom: '[data-testid="routine-tab-custom"], button[role="tab"]:has-text("Custom")',
       routineCard: '[data-testid^="routine-"], [role="article"][aria-label^="Routine:"]',
       selectedRoutineSummary: '[data-testid="selected-routine-summary"]',
+
+      // Conflict Detection Panel (Issue #331)
+      conflictPanel: '.w-80',
+      conflictPanelHeader: 'text=Conflict Detection',
+      conflictValidating: 'text=Checking for conflicts',
+      conflictNoConflicts: 'text=No conflicts detected',
+      conflictList: 'text=conflict',
+      conflictBlocking: 'text=blocking',
     }
   }
 
@@ -1279,5 +1287,105 @@ export class SchedulerPage {
     await this.clickSave()
     await this.waitForLoad()
     return !(await this.isEditorOpen())
+  }
+
+  // ============================================================
+  // Conflict Detection Panel (Issue #331)
+  // ============================================================
+
+  /**
+   * Check if the conflict panel header is visible
+   * @returns {Promise<boolean>}
+   */
+  async isConflictPanelVisible() {
+    return this.page.locator(this.selectors.conflictPanelHeader).isVisible()
+  }
+
+  /**
+   * Check if conflict validation is in progress
+   * @returns {Promise<boolean>}
+   */
+  async isConflictValidating() {
+    return this.page.locator(this.selectors.conflictValidating).isVisible()
+  }
+
+  /**
+   * Check if "No conflicts detected" message is visible
+   * @returns {Promise<boolean>}
+   */
+  async hasNoConflicts() {
+    return this.page.locator(this.selectors.conflictNoConflicts).isVisible()
+  }
+
+  /**
+   * Wait for conflict validation to complete (loading spinner disappears)
+   * @param {number} timeout - Max wait time in ms (default: 5000)
+   * @returns {Promise<void>}
+   */
+  async waitForConflictValidation(timeout = 5000) {
+    // Wait for validation to start (optional, may be quick)
+    try {
+      await this.page.locator(this.selectors.conflictValidating).waitFor({
+        state: 'visible',
+        timeout: 1000,
+      })
+    } catch {
+      // May have already completed
+    }
+
+    // Wait for validation to complete
+    try {
+      await this.page.locator(this.selectors.conflictValidating).waitFor({
+        state: 'hidden',
+        timeout,
+      })
+    } catch {
+      // May not have started or already done
+    }
+
+    // Additional wait for network to settle
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Get the conflict panel text content
+   * @returns {Promise<string>}
+   */
+  async getConflictPanelText() {
+    const panel = this.page.locator(this.selectors.conflictPanel)
+    if (await panel.isVisible()) {
+      return panel.textContent()
+    }
+    return ''
+  }
+
+  /**
+   * Check if any conflicts are detected (text contains "conflict")
+   * @returns {Promise<boolean>}
+   */
+  async hasConflictsDetected() {
+    const panelText = await this.getConflictPanelText()
+    // Check for conflict indicators but not "No conflicts detected"
+    return panelText.includes('conflict') && !panelText.includes('No conflicts detected')
+  }
+
+  /**
+   * Check if blocking conflicts are detected
+   * @returns {Promise<boolean>}
+   */
+  async hasBlockingConflicts() {
+    const panelText = await this.getConflictPanelText()
+    return panelText.toLowerCase().includes('blocking')
+  }
+
+  /**
+   * Get the number of conflicts detected from panel text
+   * @returns {Promise<number>}
+   */
+  async getConflictCount() {
+    const panelText = await this.getConflictPanelText()
+    // Look for pattern like "2 conflicts detected" or "1 conflict detected"
+    const match = panelText.match(/(\d+)\s+conflicts?\s+detected/i)
+    return match ? parseInt(match[1], 10) : 0
   }
 }
