@@ -96,9 +96,10 @@ const ScheduleEditor = ({
   );
 
   // Fetch preview for current routines (Issue #331)
+  // Use 1 day to show a single cycle of the schedule
   const { data: previewData, isLoading: isPreviewLoading } = useRoutinesPreview(
     routines,
-    { days: 7 },
+    { days: 1 },
     { enabled: routines.length > 0 }
   );
 
