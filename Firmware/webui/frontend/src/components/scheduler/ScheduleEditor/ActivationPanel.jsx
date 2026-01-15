@@ -94,8 +94,11 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
 
   // Handle activate click
   const handleActivate = () => {
+    console.log('[ActivationPanel] handleActivate called, scheduleId:', scheduleId)
     if (scheduleId) {
       activate({ id: scheduleId })
+    } else {
+      console.error('[ActivationPanel] scheduleId is falsy, not activating')
     }
   }
 
