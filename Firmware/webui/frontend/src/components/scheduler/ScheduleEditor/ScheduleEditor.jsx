@@ -542,13 +542,13 @@ const ScheduleEditor = ({
           <div className="w-80 border-l border-gray-200 dark:border-gray-700 overflow-y-auto
                           bg-gray-50 dark:bg-gray-800/50 px-4 py-6 flex-shrink-0 space-y-6">
             {/* Activation Panel (only for existing schedules) */}
-            {isEditMode && !isLoadingSchedule && (
+            {isEditMode && !isLoadingSchedule && fullSchedule?.schedule_id && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
                   Activation
                 </h3>
                 <ActivationPanel
-                  scheduleId={schedule?.schedule_id}
+                  scheduleId={fullSchedule.schedule_id}
                   routineCount={routines.length}
                   hasUnsavedChanges={hasUnsavedChanges}
                 />
