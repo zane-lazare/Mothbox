@@ -49,6 +49,8 @@ try:
         list_schedules,
         read_schedule,
         schedule_exists,
+        # Filename utilities
+        slugify_schedule_name,
         update_schedule,
     )
     IMPLEMENTATION_EXISTS = True
@@ -67,6 +69,7 @@ except ImportError:
     is_builtin_schedule = None
     list_schedules = None
     cleanup_temp_files = None
+    slugify_schedule_name = None
     SCHEDULE_FILENAME_EXTENSION = None
     SCHEDULES_DIR = None
     BUILTIN_SCHEDULES_DIR = None
@@ -282,13 +285,14 @@ class TestCRUDOperations:
     """Tests for create, read, update, delete operations."""
 
     def test_create_schedule_writes_json_file(self, temp_schedules_dir, sample_schedule):
-        """Creating a schedule writes a JSON file."""
+        """Creating a schedule writes a JSON file with human-readable name."""
         result = create_schedule(sample_schedule)
 
         assert result is True
 
-        # Verify file exists
-        schedule_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json"
+        # Verify file exists with slugified name
+        expected_filename = slugify_schedule_name(sample_schedule.name)
+        schedule_file = temp_schedules_dir / f"{expected_filename}.json"
         assert schedule_file.exists()
 
         # Verify contents are valid JSON
@@ -307,7 +311,8 @@ class TestCRUDOperations:
         result = create_schedule(sample_schedule)
 
         assert result is True
-        schedule_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json"
+        expected_filename = slugify_schedule_name(sample_schedule.name)
+        schedule_file = temp_schedules_dir / f"{expected_filename}.json"
         assert schedule_file.exists()
 
     def test_create_schedule_raises_on_invalid_schedule(self, temp_schedules_dir):
@@ -334,7 +339,8 @@ class TestCRUDOperations:
 
         assert result is True
         assert temp_schedules_dir.exists()
-        schedule_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json"
+        expected_filename = slugify_schedule_name(sample_schedule.name)
+        schedule_file = temp_schedules_dir / f"{expected_filename}.json"
         assert schedule_file.exists()
 
     def test_read_schedule_returns_schedule_object(self, temp_schedules_dir, sample_schedule):
@@ -412,7 +418,8 @@ class TestCRUDOperations:
         """Delete removes the schedule file."""
         # First create a schedule
         create_schedule(sample_schedule)
-        schedule_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json"
+        expected_filename = slugify_schedule_name(sample_schedule.name)
+        schedule_file = temp_schedules_dir / f"{expected_filename}.json"
         assert schedule_file.exists()
 
         # Delete it
@@ -425,7 +432,8 @@ class TestCRUDOperations:
         """Delete creates .bak before removing."""
         # First create a schedule
         create_schedule(sample_schedule)
-        schedule_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json"
+        expected_filename = slugify_schedule_name(sample_schedule.name)
+        schedule_file = temp_schedules_dir / f"{expected_filename}.json"
         original_content = schedule_file.read_text()
 
         # Delete with backup
@@ -435,7 +443,7 @@ class TestCRUDOperations:
         assert not schedule_file.exists()
 
         # Check backup exists
-        backup_file = temp_schedules_dir / f"{sample_schedule.schedule_id}.json.bak"
+        backup_file = temp_schedules_dir / f"{expected_filename}.json.bak"
         assert backup_file.exists()
         assert backup_file.read_text() == original_content
 
