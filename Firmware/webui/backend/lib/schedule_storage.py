@@ -144,6 +144,8 @@ def find_schedule(schedule_id: str) -> tuple[Path, bool] | None:
     """Find schedule file in user or built-in directories.
 
     User schedules take precedence over built-in schedules with the same ID.
+    Supports both filename-based lookup (filename == schedule_id) and
+    content-based lookup (schedule_id field inside JSON matches).
 
     Args:
         schedule_id: Schedule identifier
@@ -162,10 +164,28 @@ def find_schedule(schedule_id: str) -> tuple[Path, bool] | None:
     if user_path is not None and user_path.exists():
         return (user_path, False)
 
-    # Check built-in directory
+    # Check built-in directory by filename
     builtin_path = get_schedule_path(schedule_id, is_builtin=True)
     if builtin_path is not None and builtin_path.exists():
         return (builtin_path, True)
+
+    # Fallback: scan built-in directory for matching schedule_id inside JSON
+    # This supports human-readable filenames for built-in schedules
+    if BUILTIN_SCHEDULES_DIR.exists():
+        for json_file in BUILTIN_SCHEDULES_DIR.glob(f"*{SCHEDULE_FILENAME_EXTENSION}"):
+            # Skip backup and lock files
+            if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}{BACKUP_EXTENSION}"):
+                continue
+            if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}.lock"):
+                continue
+            try:
+                import json
+                with open(json_file, "r") as f:
+                    data = json.load(f)
+                    if data.get("schedule_id") == schedule_id:
+                        return (json_file, True)
+            except (json.JSONDecodeError, OSError):
+                continue
 
     return None
 
