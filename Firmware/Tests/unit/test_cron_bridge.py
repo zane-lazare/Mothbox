@@ -306,6 +306,60 @@ class TestIntervalTriggerConversion:
         assert entries[0].expression == "0 21 * * *"
 
 
+class TestIntervalSolarTimeWindowConversion:
+    """Test interval triggers with solar time windows (Issue #331)."""
+
+    def test_interval_with_sunset_to_sunrise_window(self):
+        """Interval trigger with sunset to sunrise window generates correct times."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        window = TimeWindow(start_time="sunset", end_time="sunrise")
+        trigger = IntervalTrigger(interval_minutes=60, time_window=window)
+
+        # Oak Ridge, TN coordinates
+        times = calculate_execution_times(
+            trigger,
+            latitude=35.96,
+            longitude=-83.92,
+            timezone_name="America/New_York",
+            years_ahead=0,  # Just one day for testing
+            from_date=date(2024, 6, 21),  # Summer solstice
+        )
+
+        # Should have executions between sunset (~21:00) and sunrise (~06:00 next day)
+        assert len(times) > 0
+        # First execution should be around sunset (evening)
+        assert times[0].hour >= 19  # Should be evening
+
+    def test_interval_with_solar_window_requires_coordinates(self):
+        """Interval trigger with solar window raises ValueError without coordinates."""
+        from webui.backend.lib.cron_bridge import calculate_execution_times
+
+        window = TimeWindow(start_time="sunset", end_time="sunrise")
+        trigger = IntervalTrigger(interval_minutes=60, time_window=window)
+
+        with pytest.raises(ValueError, match="latitude and longitude"):
+            calculate_execution_times(
+                trigger,
+                latitude=None,
+                longitude=None,
+                years_ahead=0,
+                from_date=date(2024, 6, 21),
+            )
+
+    def test_has_solar_time_window_detects_sunset(self):
+        """_has_solar_time_window correctly detects solar keywords."""
+        from webui.backend.lib.cron_bridge import _has_solar_time_window
+
+        solar_window = TimeWindow(start_time="sunset", end_time="sunrise")
+        solar_trigger = IntervalTrigger(interval_minutes=60, time_window=solar_window)
+        assert _has_solar_time_window(solar_trigger) is True
+
+        fixed_window = TimeWindow(start_time="21:00", end_time="06:00")
+        fixed_trigger = IntervalTrigger(interval_minutes=60, time_window=fixed_window)
+        assert _has_solar_time_window(fixed_trigger) is False
+
+
 class TestSolarTriggerConversion:
     """Test solar_trigger_to_cron function."""
 

@@ -486,6 +486,101 @@ def _calculate_interval_times(
     return times
 
 
+def _calculate_interval_solar_times(
+    trigger: IntervalTrigger,
+    latitude: float,
+    longitude: float,
+    timezone_name: str,
+    from_date: date,
+    years_ahead: int,
+) -> list[datetime]:
+    """Calculate execution times for an interval trigger with solar time window.
+
+    When the time_window uses solar events (e.g., "sunset" to "sunrise"), the
+    window boundaries vary by date. This function resolves the solar events to
+    actual times for each day, then generates interval execution times within
+    the resolved window.
+
+    Args:
+        trigger: IntervalTrigger with solar-based time_window
+        latitude: Observer latitude
+        longitude: Observer longitude
+        timezone_name: Timezone for calculations
+        from_date: Start date for calculations
+        years_ahead: Number of years to calculate ahead
+
+    Returns:
+        List of datetime objects for each execution
+    """
+    end_date = from_date + timedelta(days=years_ahead * 365)
+
+    times = []
+    current = from_date
+    while current <= end_date:
+        # Check day-of-week restriction
+        if trigger.days_of_week is not None and current.weekday() not in trigger.days_of_week:
+            current += timedelta(days=1)
+            continue
+
+        try:
+            # Resolve solar events to actual times for this day
+            start_dt = parse_time_spec(
+                trigger.time_window.start_time,
+                current,
+                latitude,
+                longitude,
+                timezone_name,
+            )
+            end_dt = parse_time_spec(
+                trigger.time_window.end_time,
+                current,
+                latitude,
+                longitude,
+                timezone_name,
+            )
+
+            # Handle overnight windows (e.g., sunset to sunrise)
+            # If end is before start, the window spans midnight into next day
+            if end_dt <= start_dt:
+                # Resolve end time for the next day
+                next_day = current + timedelta(days=1)
+                end_dt = parse_time_spec(
+                    trigger.time_window.end_time,
+                    next_day,
+                    latitude,
+                    longitude,
+                    timezone_name,
+                )
+
+            # Generate execution times within the resolved window
+            exec_times = _generate_execution_times(
+                start_dt.hour, start_dt.minute,
+                end_dt.hour, end_dt.minute,
+                trigger.interval_minutes
+            )
+
+            # Convert (hour, minute) tuples to datetime objects
+            for hour, minute in exec_times:
+                # Determine which day this execution falls on
+                if hour < start_dt.hour or (hour == start_dt.hour and minute < start_dt.minute):
+                    # After midnight - use next day
+                    exec_dt = datetime(
+                        current.year, current.month, current.day, hour, minute
+                    ) + timedelta(days=1)
+                else:
+                    # Same day
+                    exec_dt = datetime(current.year, current.month, current.day, hour, minute)
+                times.append(exec_dt)
+
+        except ValueError as e:
+            # Solar event doesn't occur on this day (e.g., midnight sun)
+            logger.debug(f"Skipping date {current}: {e}")
+
+        current += timedelta(days=1)
+
+    return times
+
+
 def _calculate_solar_times(
     trigger: SolarTrigger,
     latitude: float,
@@ -679,6 +774,15 @@ def calculate_execution_times(
         return _calculate_fixed_time_times(trigger, from_date, years_ahead)
 
     if isinstance(trigger, IntervalTrigger):
+        if _has_solar_time_window(trigger):
+            # Solar time window requires lat/lon to resolve times per day
+            if latitude is None or longitude is None:
+                raise ValueError(
+                    "Interval triggers with solar time windows require latitude and longitude"
+                )
+            return _calculate_interval_solar_times(
+                trigger, latitude, longitude, timezone_name, from_date, years_ahead
+            )
         return _calculate_interval_times(trigger, from_date, years_ahead)
 
     if isinstance(trigger, SolarTrigger):
