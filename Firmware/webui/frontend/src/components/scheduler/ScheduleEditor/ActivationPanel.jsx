@@ -70,11 +70,8 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
     setIsActivating(false)
   }, [])
 
-  // Activation callbacks
+  // Activation callbacks (note: onMutate is not valid for mutate() call, only for useMutation hook)
   const activationCallbacks = {
-    onMutate: () => {
-      setIsActivating(true)
-    },
     onError: (error) => {
       setIsActivating(false)
       toast.error(`Activation failed: ${error.message}`)
@@ -84,6 +81,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Handle retry
   const handleRetry = useCallback(() => {
     if (scheduleId) {
+      setIsActivating(true)
       activate({ id: scheduleId }, activationCallbacks)
     }
   }, [scheduleId, activate])
@@ -91,6 +89,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Handle activate click
   const handleActivate = () => {
     if (scheduleId) {
+      setIsActivating(true)
       activate({ id: scheduleId }, activationCallbacks)
     }
   }
