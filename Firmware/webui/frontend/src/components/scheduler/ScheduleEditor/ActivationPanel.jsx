@@ -53,25 +53,10 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   )
 
   // Activation mutation
-  const { mutate: activate } = useActivateSchedule({
-    onMutate: () => {
-      setIsActivating(true)
-    },
-    onError: (error) => {
-      setIsActivating(false)
-      toast.error(`Activation failed: ${error.message}`)
-    },
-  })
+  const { mutate: activate } = useActivateSchedule()
 
   // Deactivation mutation
-  const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
-    onSuccess: () => {
-      toast.success('Schedule deactivated')
-    },
-    onError: (error) => {
-      toast.error(`Deactivation failed: ${error.message}`)
-    },
-  })
+  const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
 
   // Handle activation complete
   const handleActivationComplete = useCallback(() => {
@@ -85,26 +70,41 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
     setIsActivating(false)
   }, [])
 
+  // Activation callbacks
+  const activationCallbacks = {
+    onMutate: () => {
+      setIsActivating(true)
+    },
+    onError: (error) => {
+      setIsActivating(false)
+      toast.error(`Activation failed: ${error.message}`)
+    },
+  }
+
   // Handle retry
   const handleRetry = useCallback(() => {
     if (scheduleId) {
-      activate({ id: scheduleId })
+      activate({ id: scheduleId }, activationCallbacks)
     }
   }, [scheduleId, activate])
 
   // Handle activate click
   const handleActivate = () => {
-    console.log('[ActivationPanel] handleActivate called, scheduleId:', scheduleId)
     if (scheduleId) {
-      activate({ id: scheduleId })
-    } else {
-      console.error('[ActivationPanel] scheduleId is falsy, not activating')
+      activate({ id: scheduleId }, activationCallbacks)
     }
   }
 
   // Handle deactivate click
   const handleDeactivate = () => {
-    deactivate()
+    deactivate(undefined, {
+      onSuccess: () => {
+        toast.success('Schedule deactivated')
+      },
+      onError: (error) => {
+        toast.error(`Deactivation failed: ${error.message}`)
+      },
+    })
   }
 
   // Calculate stats
