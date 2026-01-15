@@ -2550,3 +2550,69 @@ class TestPreviewScheduleExtended:
         assert isinstance(events, list)
         # Should return events for weekdays only
         assert len(events) > 0
+
+
+# =============================================================================
+# ENTRY COUNT VALIDATION TESTS
+# =============================================================================
+
+
+class TestEntryCountValidation:
+    """Test entry count validation for crontab limits."""
+
+    def test_schedule_to_cron_exceeds_limit_reports_error(self):
+        """Schedule generating >10k entries should report error."""
+        from webui.backend.lib.cron_bridge import MAX_CRON_ENTRIES
+
+        # Create mock entries that exceed the limit
+        mock_entries = [
+            CronEntry(
+                expression="0 0 1 1 *",
+                command="/usr/bin/python3 /test/script.py",
+                enabled=True,
+            )
+            for _ in range(MAX_CRON_ENTRIES + 100)
+        ]
+
+        # Patch routine_to_cron to return the mock entries
+        with patch(
+            "webui.backend.lib.cron_bridge.routine_to_cron", return_value=mock_entries
+        ):
+            schedule = Schedule(
+                schedule_id="test-id",
+                name="Exceeds Limit",
+                enabled=True,
+                routines=[
+                    Routine(
+                        routine_id="r1",
+                        trigger=IntervalTrigger(interval_minutes=1),
+                        actions=[Action(action_type="gpio", action_name="attract_on")],
+                    )
+                ],
+            )
+
+            result = schedule_to_cron(schedule)
+
+            # Should have error about exceeding limit
+            assert len(result.errors) > 0
+            assert "10,000" in result.errors[0] or "exceeding" in result.errors[0].lower()
+
+    def test_apply_to_system_raises_on_exceeds_limit(self):
+        """apply_to_system should raise ValueError when entries exceed limit."""
+        from webui.backend.lib.cron_bridge import MAX_CRON_ENTRIES
+
+        # Create entries exceeding the limit
+        entries = [
+            CronEntry(
+                expression="0 0 1 1 *",
+                command="/usr/bin/python3 /test/script.py",
+                enabled=True,
+            )
+            for _ in range(MAX_CRON_ENTRIES + 1)
+        ]
+
+        with pytest.raises(ValueError) as exc_info:
+            apply_to_system(entries, schedule_id="test")
+
+        assert "exceeding" in str(exc_info.value).lower()
+        assert "10,000" in str(exc_info.value)

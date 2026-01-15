@@ -1861,6 +1861,15 @@ def schedule_to_cron(
         except ValueError as e:
             result.errors.append(f"Routine '{routine.get_display_name()}': {str(e)}")
 
+    # Validate total entry count before returning
+    enabled_count = sum(1 for e in result.entries if e.enabled)
+    if enabled_count > MAX_CRON_ENTRIES:
+        result.errors.append(
+            f"Schedule generates {enabled_count:,} cron entries, exceeding the system "
+            f"limit of {MAX_CRON_ENTRIES:,}. Try using longer intervals (e.g., 30 minutes "
+            "instead of 15) or reducing the number of routines."
+        )
+
     # Calculate RTC waketime if we have entries
     if result.entries:
         result.rtc_waketime = calculate_next_from_entries(result.entries)
@@ -2295,7 +2304,19 @@ def apply_to_system(
 
     Returns:
         True if successful, False on error
+
+    Raises:
+        ValueError: If entry count exceeds system crontab limit (10,000 lines)
     """
+    # Validate entry count before attempting to write
+    enabled_count = sum(1 for e in entries if e.enabled)
+    if enabled_count > MAX_CRON_ENTRIES:
+        raise ValueError(
+            f"Schedule generates {enabled_count:,} cron entries, exceeding the system "
+            f"limit of {MAX_CRON_ENTRIES:,}. Consider reducing the schedule duration "
+            "or using longer intervals between executions."
+        )
+
     try:
         # Open user crontab
         cron = CronTab(user=user) if user else CronTab(user=True)
