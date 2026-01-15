@@ -115,8 +115,14 @@ function handleMutationError(error, operation) {
 export function useSchedules(params = {}, queryOptions = {}) {
   const { include_builtin } = params
 
+  // Build query key that includes params for proper cache separation
+  // This ensures different param combinations have separate cache entries
+  const queryKey = include_builtin !== undefined
+    ? [...QUERY_KEYS.SCHEDULES, { include_builtin }]
+    : QUERY_KEYS.SCHEDULES
+
   return useQuery({
-    queryKey: QUERY_KEYS.SCHEDULES,
+    queryKey,
     queryFn: async () => {
       const apiParams = {}
       if (include_builtin !== undefined) {
@@ -306,8 +312,8 @@ export function useCreateSchedule() {
   return useMutation({
     mutationFn: (data) => createSchedule(data),
     onSuccess: () => {
-      // Invalidate schedules list to show new schedule
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES })
+      // Invalidate all schedule list variants (with and without include_builtin)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
     },
     onError: (error) => handleMutationError(error, 'create'),
   })
@@ -347,9 +353,10 @@ export function useUpdateSchedule() {
     mutationFn: ({ id, data }) => updateSchedule(id, data),
     onSuccess: async (_, { id }) => {
       // Invalidate caches in parallel to avoid race conditions
+      // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULE(id) }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'update'),
@@ -403,9 +410,10 @@ export function useDeleteSchedule() {
     mutationFn: (id) => deleteSchedule(id),
     onSuccess: async (_, id) => {
       // Invalidate caches in parallel to avoid race conditions
+      // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULE(id) }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'delete'),
@@ -448,9 +456,10 @@ export function useActivateSchedule() {
       // Refetch queries to ensure UI updates immediately after activation
       // Using refetchQueries instead of invalidateQueries ensures the refetch completes
       // before onSuccess returns, which is critical for E2E tests that check for banner visibility
+      // Use exact: false for SCHEDULES to refetch all variants (with/without include_builtin)
       await Promise.all([
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'activate'),
@@ -490,9 +499,10 @@ export function useDeactivateSchedule() {
       // Refetch queries to ensure UI updates immediately after deactivation
       // Using refetchQueries instead of invalidateQueries ensures the refetch completes
       // before onSuccess returns, which is critical for E2E tests that check for banner visibility
+      // Use exact: false for SCHEDULES to refetch all variants (with/without include_builtin)
       await Promise.all([
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'deactivate'),
