@@ -302,7 +302,7 @@ def datetime_to_cron(dt: datetime) -> str:
 
 def estimate_cron_entries(
     schedule: Schedule,
-    years_ahead: int = 1,
+    days_ahead: int = 60,
 ) -> int:
     """
     Estimate total cron entries a schedule would generate.
@@ -313,7 +313,7 @@ def estimate_cron_entries(
 
     Args:
         schedule: Schedule object to estimate
-        years_ahead: Number of years to estimate for (default 1)
+        days_ahead: Number of days to estimate for (default 60)
 
     Returns:
         Estimated number of cron entries that would be generated.
@@ -322,7 +322,7 @@ def estimate_cron_entries(
         return 0
 
     total = 0
-    days = years_ahead * 365
+    days = days_ahead
 
     for routine in schedule.routines:
         trigger = routine.trigger
@@ -412,7 +412,7 @@ def estimate_cron_entries(
 def _calculate_fixed_time_times(
     trigger: FixedTimeTrigger,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for a fixed time trigger.
 
@@ -422,13 +422,13 @@ def _calculate_fixed_time_times(
     Args:
         trigger: FixedTimeTrigger with time and optional days_of_week
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
     """
     hour, minute = map(int, trigger.time.split(":"))
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     times = []
     current = from_date
@@ -444,7 +444,7 @@ def _calculate_fixed_time_times(
 def _calculate_interval_times(
     trigger: IntervalTrigger,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for an interval trigger.
 
@@ -455,7 +455,7 @@ def _calculate_interval_times(
     Args:
         trigger: IntervalTrigger with interval_minutes, time_window, optional days_of_week
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
@@ -467,7 +467,7 @@ def _calculate_interval_times(
     else:
         start_hour, start_minute = map(int, trigger.time_window.start_time.split(":"))
         end_hour, end_minute = map(int, trigger.time_window.end_time.split(":"))
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     # Generate time-of-day execution times
     exec_times = _generate_execution_times(
@@ -492,7 +492,7 @@ def _calculate_interval_solar_times(
     longitude: float,
     timezone_name: str,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for an interval trigger with solar time window.
 
@@ -507,12 +507,12 @@ def _calculate_interval_solar_times(
         longitude: Observer longitude
         timezone_name: Timezone for calculations
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
     """
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     times = []
     current = from_date
@@ -587,7 +587,7 @@ def _calculate_solar_times(
     longitude: float,
     timezone_name: str,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for a solar trigger.
 
@@ -600,12 +600,12 @@ def _calculate_solar_times(
         longitude: Observer longitude
         timezone_name: Timezone for calculations
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
     """
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     times = []
     current = from_date
@@ -626,7 +626,7 @@ def _calculate_solar_times(
 def _calculate_moon_phase_times(
     trigger: MoonPhaseTrigger,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for a moon phase trigger.
 
@@ -635,7 +635,7 @@ def _calculate_moon_phase_times(
     Args:
         trigger: MoonPhaseTrigger with phases, offset_days, optional time_window
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
@@ -646,7 +646,7 @@ def _calculate_moon_phase_times(
     else:
         hour, minute = 0, 0
 
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     times = []
     current = from_date
@@ -661,7 +661,7 @@ def _calculate_moon_phase_times(
 def _calculate_recurring_days_times(
     trigger: RecurringDaysTrigger,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for a recurring days trigger.
 
@@ -670,7 +670,7 @@ def _calculate_recurring_days_times(
     Args:
         trigger: RecurringDaysTrigger with every_n_days, time, start_date
         from_date: Start date for calculations (overrides trigger.start_date)
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
@@ -682,7 +682,7 @@ def _calculate_recurring_days_times(
 
     # Use trigger's start_date if specified, otherwise use from_date
     start = date.fromisoformat(trigger.start_date) if trigger.start_date else from_date
-    end_date = from_date + timedelta(days=years_ahead * 365)
+    end_date = from_date + timedelta(days=days_ahead)
 
     times = []
     current = start
@@ -702,7 +702,7 @@ def _calculate_recurring_days_times(
 def _calculate_cron_times(
     trigger: CronTrigger,
     from_date: date,
-    years_ahead: int,
+    days_ahead: int,
 ) -> list[datetime]:
     """Calculate execution times for a cron expression trigger.
 
@@ -711,7 +711,7 @@ def _calculate_cron_times(
     Args:
         trigger: CronTrigger with cron_expression
         from_date: Start date for calculations
-        years_ahead: Number of years to calculate ahead
+        days_ahead: Number of days to calculate ahead
 
     Returns:
         List of datetime objects for each execution
@@ -720,7 +720,7 @@ def _calculate_cron_times(
         return []
 
     from_datetime = datetime.combine(from_date, datetime.min.time())
-    end_datetime = from_datetime + timedelta(days=years_ahead * 365)
+    end_datetime = from_datetime + timedelta(days=days_ahead)
 
     times = []
     cron = croniter(trigger.cron_expression, from_datetime)
@@ -745,7 +745,7 @@ def calculate_execution_times(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
+    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
     from_date: date | None = None,
 ) -> list[datetime]:
     """Calculate all execution times for a trigger over a given period.
@@ -758,7 +758,7 @@ def calculate_execution_times(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate
+        days_ahead: Number of days to pre-calculate (default 60)
         from_date: Start date (defaults to today)
 
     Returns:
@@ -771,7 +771,7 @@ def calculate_execution_times(
         from_date = date.today()
 
     if isinstance(trigger, FixedTimeTrigger):
-        return _calculate_fixed_time_times(trigger, from_date, years_ahead)
+        return _calculate_fixed_time_times(trigger, from_date, days_ahead)
 
     if isinstance(trigger, IntervalTrigger):
         if _has_solar_time_window(trigger):
@@ -781,25 +781,25 @@ def calculate_execution_times(
                     "Interval triggers with solar time windows require latitude and longitude"
                 )
             return _calculate_interval_solar_times(
-                trigger, latitude, longitude, timezone_name, from_date, years_ahead
+                trigger, latitude, longitude, timezone_name, from_date, days_ahead
             )
-        return _calculate_interval_times(trigger, from_date, years_ahead)
+        return _calculate_interval_times(trigger, from_date, days_ahead)
 
     if isinstance(trigger, SolarTrigger):
         if latitude is None or longitude is None:
             raise ValueError("Solar triggers require latitude and longitude")
         return _calculate_solar_times(
-            trigger, latitude, longitude, timezone_name, from_date, years_ahead
+            trigger, latitude, longitude, timezone_name, from_date, days_ahead
         )
 
     if isinstance(trigger, MoonPhaseTrigger):
-        return _calculate_moon_phase_times(trigger, from_date, years_ahead)
+        return _calculate_moon_phase_times(trigger, from_date, days_ahead)
 
     if isinstance(trigger, RecurringDaysTrigger):
-        return _calculate_recurring_days_times(trigger, from_date, years_ahead)
+        return _calculate_recurring_days_times(trigger, from_date, days_ahead)
 
     if isinstance(trigger, CronTrigger):
-        return _calculate_cron_times(trigger, from_date, years_ahead)
+        return _calculate_cron_times(trigger, from_date, days_ahead)
 
     if isinstance(trigger, SensorTrigger):
         raise ValueError(
@@ -849,7 +849,7 @@ def routine_to_dated_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
+    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -862,7 +862,7 @@ def routine_to_dated_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate
+        days_ahead: Number of days to pre-calculate (default 60)
 
     Returns:
         List of CronEntry objects with date-specific expressions
@@ -876,7 +876,7 @@ def routine_to_dated_cron(
         ...     trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
         ...     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         ... )
-        >>> entries = routine_to_dated_cron(routine, years_ahead=1)
+        >>> entries = routine_to_dated_cron(routine, days_ahead=1)
         >>> len(entries)  # ~365 entries for 1 year
         365
     """
@@ -888,7 +888,7 @@ def routine_to_dated_cron(
         latitude=latitude,
         longitude=longitude,
         timezone_name=timezone_name,
-        years_ahead=years_ahead,
+        days_ahead=days_ahead,
     )
 
     entries = []
@@ -1100,7 +1100,7 @@ def routine_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,
+    days_ahead: int = 60,
 ) -> list[CronEntry]:
     """Generate cron entries for a routine using optimal strategy.
 
@@ -1117,7 +1117,7 @@ def routine_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate (for date-specific triggers)
+        days_ahead: Number of days to pre-calculate (default 60) (for date-specific triggers)
 
     Returns:
         List of CronEntry objects
@@ -1137,7 +1137,7 @@ def routine_to_cron(
         if _has_solar_time_window(trigger):
             # Solar-based window requires date-specific entries
             return routine_to_dated_cron(
-                routine, latitude, longitude, timezone_name, years_ahead
+                routine, latitude, longitude, timezone_name, days_ahead
             )
         return _routine_interval_to_cron(routine)
     elif isinstance(trigger, FixedTimeTrigger):
@@ -1148,16 +1148,16 @@ def routine_to_cron(
     # Date-specific triggers - times vary daily or use specific dates
     elif isinstance(trigger, SolarTrigger):
         return routine_to_dated_cron(
-            routine, latitude, longitude, timezone_name, years_ahead
+            routine, latitude, longitude, timezone_name, days_ahead
         )
     elif isinstance(trigger, MoonPhaseTrigger):
         return routine_to_dated_cron(
-            routine, latitude, longitude, timezone_name, years_ahead
+            routine, latitude, longitude, timezone_name, days_ahead
         )
     elif isinstance(trigger, RecurringDaysTrigger):
         # RecurringDays uses "every N days" which requires date-specific
         return routine_to_dated_cron(
-            routine, latitude, longitude, timezone_name, years_ahead
+            routine, latitude, longitude, timezone_name, days_ahead
         )
     elif isinstance(trigger, SensorTrigger):
         # Sensor triggers are event-driven, not cron-based
@@ -1811,7 +1811,7 @@ def schedule_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
+    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
 ) -> CronBridgeResult:
     """Convert Schedule to date-specific cron entries.
 
@@ -1827,7 +1827,7 @@ def schedule_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        years_ahead: Number of years to pre-calculate (default 1)
+        days_ahead: Number of days to pre-calculate (default 60) (default 1)
 
     Returns:
         CronBridgeResult with entries, rtc_waketime, and any errors
@@ -1855,7 +1855,7 @@ def schedule_to_cron(
                 latitude=latitude,
                 longitude=longitude,
                 timezone_name=timezone_name,
-                years_ahead=years_ahead,
+                days_ahead=days_ahead,
             )
             result.entries.extend(entries)
         except ValueError as e:

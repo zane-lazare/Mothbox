@@ -322,7 +322,7 @@ class TestIntervalSolarTimeWindowConversion:
             latitude=35.96,
             longitude=-83.92,
             timezone_name="America/New_York",
-            years_ahead=0,  # Just one day for testing
+            days_ahead=1,  # Just one day for testing
             from_date=date(2024, 6, 21),  # Summer solstice
         )
 
@@ -343,7 +343,7 @@ class TestIntervalSolarTimeWindowConversion:
                 trigger,
                 latitude=None,
                 longitude=None,
-                years_ahead=0,
+                days_ahead=1,
                 from_date=date(2024, 6, 21),
             )
 
@@ -1577,12 +1577,11 @@ class TestCalculateExecutionTimes:
         from webui.backend.lib.cron_bridge import calculate_execution_times
 
         trigger = FixedTimeTrigger(time="21:00", days_of_week=None)
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         assert len(times) > 0
-        # Should have approximately 365 entries for 1 year (not ~1825 from old 5-year default).
-        # This validates the years_ahead=1 limit produces expected count.
-        assert 350 <= len(times) <= 366
+        # Should have approximately 60 entries for 60 days
+        assert 58 <= len(times) <= 62
         # All should be at 21:00
         assert all(t.hour == 21 and t.minute == 0 for t in times)
 
@@ -1592,11 +1591,11 @@ class TestCalculateExecutionTimes:
 
         # Only Monday (0) and Friday (4)
         trigger = FixedTimeTrigger(time="09:00", days_of_week=[0, 4])
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         assert len(times) > 0
-        # Should have ~104 entries (2 days/week * 52 weeks)
-        assert 100 <= len(times) <= 110
+        # Should have ~17 entries (2 days/week * 60/7 weeks)
+        assert 15 <= len(times) <= 20
         # All should be on Monday or Friday
         for t in times:
             assert t.weekday() in [0, 4]
@@ -1610,7 +1609,7 @@ class TestCalculateExecutionTimes:
             time_window=TimeWindow(start_time="09:00", end_time="12:00"),
         )
         # Use 1 day for easy counting
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         # Should have 4 entries per day (09:00, 10:00, 11:00, 12:00) * ~365 days
         assert len(times) > 100
@@ -1632,11 +1631,11 @@ class TestCalculateExecutionTimes:
 
         trigger = SolarTrigger(solar_event="sunset", offset_minutes=0)
         times = calculate_execution_times(
-            trigger, latitude=45.0, longitude=-93.0, years_ahead=1, from_date=date(2025, 1, 1)
+            trigger, latitude=45.0, longitude=-93.0, days_ahead=60, from_date=date(2025, 1, 1)
         )
 
         assert len(times) > 0
-        assert len(times) >= 300  # Most days should have a sunset
+        assert len(times) >= 55  # Most days should have a sunset (60 days)
 
     def test_sensor_trigger_raises(self):
         """Sensor trigger raises ValueError."""
@@ -1653,10 +1652,10 @@ class TestCalculateExecutionTimes:
         from webui.backend.lib.schedule_schema import RecurringDaysTrigger
 
         trigger = RecurringDaysTrigger(every_n_days=3, time="21:00", start_date="2025-01-01")
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
-        # Should have ~122 entries (365/3)
-        assert 120 <= len(times) <= 125
+        # Should have ~20 entries (60/3)
+        assert 18 <= len(times) <= 22
         # All should be at 21:00
         assert all(t.hour == 21 and t.minute == 0 for t in times)
         # Should be every 3 days
@@ -1670,7 +1669,7 @@ class TestCalculateExecutionTimes:
         from webui.backend.lib.schedule_schema import RecurringDaysTrigger
 
         trigger = RecurringDaysTrigger(every_n_days=7, time="09:00", start_date="2025-01-01")
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         # First execution should be Jan 1, then Jan 8, Jan 15, etc.
         assert times[0].date() == date(2025, 1, 1)
@@ -1684,10 +1683,10 @@ class TestCalculateExecutionTimes:
 
         # Every hour
         trigger = CronTrigger(cron_expression="0 * * * *")
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
-        # Should have ~8760 entries (24 * 365)
-        assert len(times) > 8000
+        # Should have ~1440 entries (24 * 60)
+        assert len(times) > 1400
         # All should be at minute 0
         assert all(t.minute == 0 for t in times)
 
@@ -1697,7 +1696,7 @@ class TestCalculateExecutionTimes:
         from webui.backend.lib.schedule_schema import CronTrigger
 
         trigger = CronTrigger(cron_expression="invalid")
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         assert times == []
 
@@ -1710,12 +1709,12 @@ class TestCalculateExecutionTimes:
             offset_days=0,
             time_window=TimeWindow(start_time="21:00", end_time="22:00"),
         )
-        times = calculate_execution_times(trigger, years_ahead=1, from_date=date(2025, 1, 1))
+        times = calculate_execution_times(trigger, days_ahead=60, from_date=date(2025, 1, 1))
 
         # Full moon phase spans ~3.7 days per lunar cycle (phase values 14.77-18.46)
-        # With ~12 lunar cycles per year, expect ~36-48 matching days
-        assert len(times) > 30
-        assert len(times) < 60
+        # With ~2 lunar cycles per 60 days, expect ~6-10 matching days
+        assert len(times) >= 6
+        assert len(times) <= 12
         # All should be at 21:00
         assert all(t.hour == 21 and t.minute == 0 for t in times)
 
@@ -1729,7 +1728,7 @@ class TestCalculateExecutionTimes:
             trigger,
             latitude=80.0,
             longitude=0.0,
-            years_ahead=1,
+            days_ahead=60,
             from_date=date(2025, 1, 1),
         )
 
@@ -1748,7 +1747,7 @@ class TestCalculateExecutionTimes:
             trigger,
             latitude=89.0,  # Near North Pole
             longitude=0.0,
-            years_ahead=1,
+            days_ahead=60,
             from_date=date(2025, 6, 1),  # Summer - polar day
         )
 
@@ -1769,7 +1768,7 @@ class TestRoutineToDatedCron:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         )
 
-        entries = routine_to_dated_cron(routine, years_ahead=1)
+        entries = routine_to_dated_cron(routine, days_ahead=60)
 
         assert len(entries) > 0
         # All entries should be date-specific
@@ -1792,10 +1791,11 @@ class TestRoutineToDatedCron:
             ],
         )
 
-        entries = routine_to_dated_cron(routine, years_ahead=1)
+        entries = routine_to_dated_cron(routine, days_ahead=60)
 
-        # Should have 2 entries per day * 365 days
-        assert len(entries) >= 700
+        # Should have 2 entries per day * 60 days = ~120 entries
+        assert len(entries) >= 110
+        assert len(entries) <= 130
 
     def test_routine_with_action_offset(self):
         """Action offsets are applied correctly."""
@@ -1807,7 +1807,7 @@ class TestRoutineToDatedCron:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=30)],
         )
 
-        entries = routine_to_dated_cron(routine, years_ahead=1)
+        entries = routine_to_dated_cron(routine, days_ahead=60)
 
         # All entries should be at 21:30, not 21:00
         for entry in entries:
@@ -1825,7 +1825,7 @@ class TestRoutineToDatedCron:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         )
 
-        entries = routine_to_dated_cron(routine, years_ahead=1)
+        entries = routine_to_dated_cron(routine, days_ahead=60)
 
         # All entries should have the routine_id set
         for entry in entries:
@@ -1843,7 +1843,7 @@ class TestRoutineToDatedCron:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=30)],
         )
 
-        entries = routine_to_dated_cron(routine, years_ahead=1)
+        entries = routine_to_dated_cron(routine, days_ahead=60)
 
         # All entries should have execution_time set
         for entry in entries:
@@ -1920,12 +1920,12 @@ class TestRoutineToCronDispatcher:
         )
 
         entries = routine_to_cron(
-            routine, latitude=35.96, longitude=-83.92, years_ahead=1
+            routine, latitude=35.96, longitude=-83.92, days_ahead=60
         )
 
-        # Should generate date-specific entries (~365 per year, may be 364-366)
-        assert len(entries) >= 360
-        assert len(entries) <= 370
+        # Should generate date-specific entries (~60 per 60 days)
+        assert len(entries) >= 58
+        assert len(entries) <= 62
         # All entries should have specific day and month (date-based)
         for entry in entries:
             parts = entry.expression.split()
@@ -1944,12 +1944,12 @@ class TestRoutineToCronDispatcher:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         )
 
-        entries = routine_to_cron(routine, years_ahead=1)
+        entries = routine_to_cron(routine, days_ahead=60)
 
         # Should have entries for moon phases (generates entries for days around each phase)
-        # About 12-13 full moons per year, ~3-4 days per phase = 36-52 entries
-        assert len(entries) >= 30
-        assert len(entries) <= 60
+        # About 2 full moons per 60 days, ~3-4 days per phase = 6-10 entries
+        assert len(entries) >= 6
+        assert len(entries) <= 12
 
     def test_recurring_days_trigger_uses_dated_cron(self):
         """RecurringDaysTrigger uses date-specific cron entries."""
@@ -1959,11 +1959,11 @@ class TestRoutineToCronDispatcher:
             actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
         )
 
-        entries = routine_to_cron(routine, years_ahead=1)
+        entries = routine_to_cron(routine, days_ahead=60)
 
-        # Should generate entries for about 52 weeks
-        assert len(entries) >= 50
-        assert len(entries) <= 55
+        # 60 days / 7 days per entry = ~8-9 entries
+        assert len(entries) >= 8
+        assert len(entries) <= 10
 
     def test_sensor_trigger_raises_error(self):
         """SensorTrigger raises ValueError (event-driven, not cron-based)."""
@@ -2027,13 +2027,13 @@ class TestRoutineToCronDispatcher:
         pattern_entries = routine_to_cron(routine)
 
         # Date-specific approach (old)
-        dated_entries = routine_to_dated_cron(routine, years_ahead=1)
+        dated_entries = routine_to_dated_cron(routine, days_ahead=60)
 
         # Pattern-based should be MUCH fewer entries
         # 15-min interval over 12 hours = 49 entries (pattern)
-        # vs 49 * 365 = ~17,885 entries (dated)
+        # vs 49 * 60 days = ~2,940 entries (dated)
         assert len(pattern_entries) <= 50
-        assert len(dated_entries) >= 17000
+        assert len(dated_entries) >= 2500
 
         # Both should cover the same times
         pattern_hours = {int(e.expression.split()[1]) for e in pattern_entries}
@@ -2062,7 +2062,7 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
         # 3 entries (21:00, 22:00, 23:00) * 1 action = 3
         assert estimate == 3
@@ -2081,7 +2081,7 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
         # 1 time * 1 action = 1
         assert estimate == 1
@@ -2100,7 +2100,7 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
         assert estimate == 1
 
@@ -2118,10 +2118,10 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
-        # 365 days * 1 action = 365
-        assert estimate == 365
+        # 60 days * 1 action = 60
+        assert estimate == 60
 
     def test_multiple_routines(self):
         """Multiple routines are summed."""
@@ -2142,7 +2142,7 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
         # 1 + 1 = 2
         assert estimate == 2
@@ -2164,7 +2164,7 @@ class TestEstimateCronEntries:
             ],
         )
 
-        estimate = estimate_cron_entries(schedule, years_ahead=1)
+        estimate = estimate_cron_entries(schedule, days_ahead=60)
 
         # 1 time * 2 actions = 2
         assert estimate == 2
