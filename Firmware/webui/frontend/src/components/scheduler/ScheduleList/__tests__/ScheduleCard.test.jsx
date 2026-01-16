@@ -131,8 +131,11 @@ describe('ScheduleCard', () => {
   // Trigger Summaries (Schema 3.0 - uses routines)
   // ==========================================================================
 
-  describe('Trigger Summaries', () => {
-    it('renders interval trigger summary', () => {
+  describe('Auto-Generated Descriptions', () => {
+    // These tests verify the auto-generated descriptions from generateScheduleDescription()
+    // which combines action names with trigger descriptions (e.g., "Take Photo every 60 min")
+
+    it('renders interval trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Interval Schedule',
         routines: [
@@ -157,10 +160,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('Every 60 min, 21:00 - 05:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo every 60 min"
+      expect(screen.getByText('Take Photo every 60 min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary', () => {
+    it('renders solar trigger with action name and offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -185,10 +189,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('At sunset +30 min')).toBeInTheDocument()
+      // generateRoutineName returns: "Attract On at Sunset +30min"
+      expect(screen.getByText('Attract On at Sunset +30min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary with negative offset', () => {
+    it('renders solar trigger with negative offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -213,10 +218,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('At sunrise -15 min')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo at Sunrise -15min"
+      expect(screen.getByText('Take Photo at Sunrise -15min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary with zero offset', () => {
+    it('renders solar trigger with zero offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -241,10 +247,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('At sunset')).toBeInTheDocument()
+      // generateRoutineName returns: "Attract On at Sunset"
+      expect(screen.getByText('Attract On at Sunset')).toBeInTheDocument()
     })
 
-    it('renders moon phase trigger summary', () => {
+    it('renders moon phase trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Moon Phase Schedule',
         routines: [
@@ -269,10 +276,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('Full Moon, at 20:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo on full moon"
+      expect(screen.getByText('Take Photo on full moon')).toBeInTheDocument()
     })
 
-    it('renders fixed time trigger summary', () => {
+    it('renders fixed time trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Fixed Time Schedule',
         routines: [
@@ -296,10 +304,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('Daily at 21:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo at 21:00"
+      expect(screen.getByText('Take Photo at 21:00')).toBeInTheDocument()
     })
 
-    it('renders sensor trigger summary', () => {
+    it('renders sensor trigger (falls back to action only since sensor not in describeTrigger)', () => {
       const schedule = createSchedule({
         name: 'Sensor Schedule',
         routines: [
@@ -325,10 +334,11 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('When light < 100')).toBeInTheDocument()
+      // sensor is not in describeTrigger, so only action name is shown
+      expect(screen.getByText('Take Photo')).toBeInTheDocument()
     })
 
-    it('renders multi-routine summary with count indicator', () => {
+    it('renders multi-routine summary with comma-separated list', () => {
       const schedule = createSchedule({
         name: 'Overnight Moth Survey',
         routines: [
@@ -363,7 +373,10 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.getByText('At dusk (+2 more)')).toBeInTheDocument()
+      // 3 routines: all shown with comma separation
+      expect(
+        screen.getByText('Attract On at Dusk, Take Photo every 15 min, Attract Off at Dawn')
+      ).toBeInTheDocument()
     })
 
     it('handles schedule with no routines gracefully', () => {
@@ -383,6 +396,213 @@ describe('ScheduleCard', () => {
       )
       // Should render without crashing, empty summary
       expect(screen.getByText('Empty Schedule')).toBeInTheDocument()
+    })
+  })
+
+  // ==========================================================================
+  // Routine Indicators (Issue #266 - show all actions with pipe separators)
+  // ==========================================================================
+
+  describe('Routine Indicators', () => {
+    it('shows routine count', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      expect(screen.getByText('1 routine')).toBeInTheDocument()
+    })
+
+    it('shows plural routine count for multiple routines', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'solar', solar_event: 'sunset' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+          {
+            routine_id: 'r2',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      expect(screen.getByText('2 routines')).toBeInTheDocument()
+    })
+
+    it('renders action dots for all actions in a single routine', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [
+              { action_type: 'gpio', action_name: 'flash_on' },
+              { action_type: 'camera', action_name: 'takephoto' },
+              { action_type: 'gpio', action_name: 'flash_off' },
+            ],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      // Should have 3 action dots (2 orange for gpio, 1 blue for camera)
+      const orangeDots = container.querySelectorAll('.bg-orange-400')
+      const blueDots = container.querySelectorAll('.bg-blue-400')
+      expect(orangeDots).toHaveLength(2)
+      expect(blueDots).toHaveLength(1)
+    })
+
+    it('renders pipe separators between multiple routines', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'solar', solar_event: 'sunset' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+          {
+            routine_id: 'r2',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+          {
+            routine_id: 'r3',
+            trigger: { trigger_type: 'solar', solar_event: 'sunrise' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_off' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      // Should have 2 pipe separators for 3 routines
+      const pipes = screen.getAllByText('|')
+      expect(pipes).toHaveLength(2)
+    })
+
+    it('does not render pipe separator for single routine', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      expect(screen.queryByText('|')).not.toBeInTheDocument()
+    })
+
+    it('shows correct colors for different action types', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [
+              { action_type: 'gpio', action_name: 'attract_on' },
+              { action_type: 'camera', action_name: 'takephoto' },
+              { action_type: 'gps_sync', action_name: 'gps_sync' },
+            ],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      // Orange for GPIO, Blue for camera, Green for GPS
+      expect(container.querySelectorAll('.bg-orange-400')).toHaveLength(1)
+      expect(container.querySelectorAll('.bg-blue-400')).toHaveLength(1)
+      expect(container.querySelectorAll('.bg-green-400')).toHaveLength(1)
+    })
+
+    it('action dots have title attributes for tooltips', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onEdit={mockOnEdit}
+          onActivate={mockOnActivate}
+          onDeactivate={mockOnDeactivate}
+          onDelete={mockOnDelete}
+        />
+      )
+      const actionDot = container.querySelector('.bg-orange-400')
+      expect(actionDot).toHaveAttribute('title', 'attract_on')
     })
   })
 

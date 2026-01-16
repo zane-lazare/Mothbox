@@ -18,7 +18,7 @@ import { PencilIcon, PlayIcon, StopIcon, TrashIcon } from '@heroicons/react/24/o
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import {
-  getPrimaryActionColor,
+  getActionColor,
   generateRoutineName,
   generateScheduleDescription,
 } from '../../../utils/routineUtils'
@@ -126,17 +126,30 @@ function ScheduleCard({
         </p>
       )}
 
-      {/* Routine Indicators */}
+      {/* Routine Indicators - shows all actions per routine, separated by pipes */}
       {schedule.routines?.length > 0 && (
-        <div className="flex items-center gap-2 mb-3">
-          {schedule.routines.map((routine, index) => (
+        <div className="flex items-center gap-1 mb-3 flex-wrap">
+          {schedule.routines.map((routine, routineIndex) => (
             <div
-              key={routine.routine_id || index}
-              className={`w-1.5 h-1.5 rounded-full ${getPrimaryActionColor(routine.actions)}`}
+              key={routine.routine_id || routineIndex}
+              className="flex items-center gap-1"
               title={generateRoutineName(routine)}
-            />
+            >
+              {/* Pipe separator between routines */}
+              {routineIndex > 0 && (
+                <span className="text-gray-300 dark:text-gray-600 mx-1 text-xs">|</span>
+              )}
+              {/* Action dots for this routine */}
+              {routine.actions?.map((action, actionIndex) => (
+                <div
+                  key={actionIndex}
+                  className={`w-1.5 h-1.5 rounded-full ${getActionColor(action)}`}
+                  title={action.action_name || action.name || 'Action'}
+                />
+              ))}
+            </div>
           ))}
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
             {schedule.routines.length} routine{schedule.routines.length !== 1 ? 's' : ''}
           </span>
         </div>
