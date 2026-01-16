@@ -108,9 +108,9 @@ def _schedule_to_summary(schedule: Schedule) -> dict:
     """
     Convert Schedule to summary dict for list endpoints.
 
-    Returns a lightweight summary suitable for list views, excluding
-    full routine definitions. Used by list_schedules() and
-    list_builtin_schedules() to avoid code duplication.
+    Returns schedule summary with routines for list views, enabling
+    frontend to display trigger icons, action dots, and auto-generated
+    descriptions. Used by list_schedules() and list_builtin_schedules().
 
     Note: trigger_type removed in Schema 3.0 (moved to routine level).
     """
@@ -120,6 +120,7 @@ def _schedule_to_summary(schedule: Schedule) -> dict:
         "description": schedule.description,
         "enabled": schedule.enabled,
         "is_active": schedule.is_active,
+        "routines": [r.to_dict() for r in schedule.routines],
         "routine_count": len(schedule.routines),
         "created_at": schedule.created_at,
         "modified_at": schedule.modified_at,

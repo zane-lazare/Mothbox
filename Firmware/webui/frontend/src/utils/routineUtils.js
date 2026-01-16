@@ -224,3 +224,22 @@ export function generateRoutineName(routine) {
 
   return 'New Routine'
 }
+
+/**
+ * Generate a human-readable description for a schedule from its routines
+ * Reuses generateRoutineName for each routine and joins them.
+ * @param {Array} routines - Array of routine objects
+ * @returns {string} Generated description like "Take Photo every 15 min, Attract On at Dusk"
+ */
+export function generateScheduleDescription(routines) {
+  if (!routines?.length) return ''
+
+  // Reuse generateRoutineName for each routine
+  const descriptions = routines.map(r => generateRoutineName(r)).filter(Boolean)
+
+  // Join with commas, limiting to first 2-3 for brevity
+  if (descriptions.length <= 3) {
+    return descriptions.join(', ')
+  }
+  return `${descriptions.slice(0, 2).join(', ')} (+${descriptions.length - 2} more)`
+}

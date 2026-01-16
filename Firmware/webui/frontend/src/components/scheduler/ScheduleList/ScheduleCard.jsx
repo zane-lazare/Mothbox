@@ -1,31 +1,27 @@
 /**
- * ScheduleCard - Display schedule with trigger info and action buttons (Issue #266)
+ * ScheduleCard - Display schedule with routine indicators and action buttons (Issue #266)
  *
  * Displays a schedule card with:
- * - Schedule name and description
+ * - Schedule name and auto-generated description
  * - Active status badge
- * - Trigger type icon and summary
+ * - Colored routine indicator dots (orange=GPIO, blue=camera, purple=HDR)
+ * - Routine count
  * - Action buttons (Edit, Activate/Deactivate, Delete)
  * - Loading states for async operations
  *
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import PropTypes from 'prop-types'
-import {
-  ClockIcon,
-  SunIcon,
-  MoonIcon,
-  BoltIcon,
-  PencilIcon,
-  PlayIcon,
-  StopIcon,
-  TrashIcon,
-} from '@heroicons/react/24/outline'
+import { PencilIcon, PlayIcon, StopIcon, TrashIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
-import { MOON_PHASES } from '../ScheduleEditor/constants'
+import {
+  getPrimaryActionColor,
+  generateRoutineName,
+  generateScheduleDescription,
+} from '../../../utils/routineUtils'
 
 /** Base button styles shared across all action buttons */
 const BUTTON_BASE = [
@@ -50,86 +46,6 @@ const BUTTON_DANGER = [
   'hover:bg-red-50 focus:ring-red-500',
   'dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20',
 ].join(' ')
-
-/** Icon component map for trigger types */
-const TRIGGER_ICON_MAP = {
-  interval: ClockIcon,
-  solar: SunIcon,
-  moon_phase: MoonIcon,
-  fixed_time: ClockIcon,
-  sensor: BoltIcon,
-}
-
-/**
- * Format trigger summary text
- * @param {Object} trigger - Trigger configuration
- * @returns {string} Summary text
- */
-function formatTriggerSummary(trigger) {
-  if (!trigger) return ''
-
-  switch (trigger.trigger_type) {
-    case 'interval': {
-      const startTime = trigger.time_window?.start_time || '00:00'
-      const endTime = trigger.time_window?.end_time || '23:59'
-      return `Every ${trigger.interval_minutes} min, ${startTime} - ${endTime}`
-    }
-
-    case 'solar': {
-      const event = trigger.solar_event || 'sunset'
-      const offset = trigger.offset_minutes || 0
-      if (offset === 0) {
-        return `At ${event}`
-      }
-      const sign = offset >= 0 ? '+' : ''
-      return `At ${event} ${sign}${offset} min`
-    }
-
-    case 'moon_phase': {
-      const phase = trigger.moon_phase || 'full'
-      // Find label from MOON_PHASES constant
-      const phaseLabel =
-        MOON_PHASES.find((p) => p.value === phase)?.label || phase.replace('_', ' ')
-      const time = trigger.time_of_day || '20:00'
-      return `${phaseLabel}, at ${time}`
-    }
-
-    case 'fixed_time': {
-      const time = trigger.time_of_day || '12:00'
-      return `Daily at ${time}`
-    }
-
-    case 'sensor': {
-      const sensorType = trigger.sensor_type || 'light'
-      const comparison = trigger.comparison || 'lt'
-      const threshold = trigger.threshold || 0
-      const compSymbol = {
-        gt: '>',
-        lt: '<',
-        eq: '=',
-        gte: '≥',
-        lte: '≤',
-      }[comparison]
-      return `When ${sensorType} ${compSymbol} ${threshold}`
-    }
-
-    default:
-      return ''
-  }
-}
-
-/**
- * Format schedule summary from routines (Schema 3.0)
- * Shows first routine's trigger with count indicator for multi-routine schedules
- * @param {Array} routines - Array of routine objects
- * @returns {string} Summary text (e.g., "At dusk (+2 more)")
- */
-function formatScheduleSummary(routines) {
-  if (!routines?.length) return ''
-  const firstTriggerSummary = formatTriggerSummary(routines[0]?.trigger)
-  if (routines.length === 1) return firstTriggerSummary
-  return `${firstTriggerSummary} (+${routines.length - 1} more)`
-}
 
 /**
  * ScheduleCard component
@@ -171,21 +87,6 @@ function ScheduleCard({
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
 
-  // Schema 3.0: Get first routine's trigger type for icon
-  const firstTriggerType = schedule.routines?.[0]?.trigger?.trigger_type
-
-  // Memoize schedule summary to avoid recalculating on every render
-  const triggerSummary = useMemo(
-    () => formatScheduleSummary(schedule.routines),
-    [schedule.routines]
-  )
-
-  // Memoize icon to avoid recreating on every render
-  const triggerIcon = useMemo(() => {
-    const Icon = TRIGGER_ICON_MAP[firstTriggerType] || ClockIcon
-    return <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
-  }, [firstTriggerType])
-
   const handleEdit = () => {
     onEdit(schedule)
   }
@@ -218,16 +119,28 @@ function ScheduleCard({
         <ActiveScheduleBadge isActive={isActive} />
       </div>
 
-      {/* Description */}
-      {schedule.description && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{schedule.description}</p>
+      {/* Description - manual or auto-generated */}
+      {(schedule.description || schedule.routines?.length > 0) && (
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          {schedule.description || generateScheduleDescription(schedule.routines)}
+        </p>
       )}
 
-      {/* Trigger Info */}
-      <div className="flex items-center gap-2 mb-4">
-        {triggerIcon}
-        <span className="text-sm text-gray-700 dark:text-gray-300">{triggerSummary}</span>
-      </div>
+      {/* Routine Indicators */}
+      {schedule.routines?.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          {schedule.routines.map((routine, index) => (
+            <div
+              key={routine.routine_id || index}
+              className={`w-1.5 h-1.5 rounded-full ${getPrimaryActionColor(routine.actions)}`}
+              title={generateRoutineName(routine)}
+            />
+          ))}
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+            {schedule.routines.length} routine{schedule.routines.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2 flex-wrap">
