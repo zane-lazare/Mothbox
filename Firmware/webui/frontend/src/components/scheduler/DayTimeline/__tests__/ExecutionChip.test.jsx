@@ -33,14 +33,15 @@ describe('ExecutionChip', () => {
       expect(screen.getByTestId('execution-routine-1-1830')).toBeInTheDocument()
     })
 
-    it('displays time and action name', () => {
+    it('displays only time (not action name)', () => {
       render(<ExecutionChip execution={chipExecution} />)
       const chip = screen.getByRole('button')
       expect(chip).toHaveTextContent('18:30')
-      expect(chip).toHaveTextContent('Take Photo')
+      // Action name should be in title/aria-label, not visible text
+      expect(chip).not.toHaveTextContent('Take Photo')
     })
 
-    it('displays pattern name when no actions', () => {
+    it('displays time when no actions', () => {
       const execution = createExecution({
         pattern_id: 'routine-1',
         pattern_name: 'Photo Capture',
@@ -50,7 +51,8 @@ describe('ExecutionChip', () => {
       render(<ExecutionChip execution={execution} />)
       const chip = screen.getByRole('button')
       expect(chip).toHaveTextContent('18:30')
-      expect(chip).toHaveTextContent('Photo Capture')
+      // Pattern name should be in title/aria-label, not visible text
+      expect(chip).not.toHaveTextContent('Photo Capture')
     })
 
     it('has correct aria-label', () => {

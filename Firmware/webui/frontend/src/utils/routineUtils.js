@@ -3,6 +3,11 @@
  * @module utils/routineUtils
  */
 
+import {
+  ACTION_TYPE_COLORS,
+  isHdrAction,
+} from '@/components/scheduler/constants'
+
 /**
  * Trigger type labels for display
  */
@@ -17,14 +22,11 @@ export const TRIGGER_LABELS = {
 
 /**
  * Action type color classes for display dots
+ * Derived from shared constants for single source of truth
  */
-export const ACTION_COLORS = {
-  gpio: 'bg-orange-400',
-  camera: 'bg-blue-400',
-  hdr: 'bg-purple-400',
-  gps_sync: 'bg-green-400',
-  service: 'bg-gray-400',
-}
+export const ACTION_COLORS = Object.fromEntries(
+  Object.entries(ACTION_TYPE_COLORS).map(([key, val]) => [key, val.solid])
+)
 
 /**
  * Action name mappings for readable display
@@ -88,14 +90,15 @@ export function getTriggerLabel(trigger) {
 
 /**
  * Get the action color class based on action type
+ * Uses shared constants for single source of truth
  * @param {Object} action - Action object
  * @returns {string} Tailwind color class
  */
 export function getActionColor(action) {
   if (!action?.action_type) return ACTION_COLORS.service
 
-  // Check for HDR-specific camera actions
-  if (action.action_type === 'camera' && action.action_name?.toLowerCase().includes('hdr')) {
+  // Check for HDR-specific camera actions using shared utility
+  if (isHdrAction(action.action_name)) {
     return ACTION_COLORS.hdr
   }
 
