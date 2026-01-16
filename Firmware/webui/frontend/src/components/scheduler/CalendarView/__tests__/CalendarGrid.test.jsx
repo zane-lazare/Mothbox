@@ -50,24 +50,25 @@ describe('CalendarGrid', () => {
   const mockOnCellClick = vi.fn()
   const mockOnExecutionClick = vi.fn()
 
+  // Use local time strings (no Z suffix) for predictable behavior across timezones
   const mockExecutions = [
     {
       id: 'exec1',
       pattern_id: 'pattern1',
       pattern_name: 'Morning Capture',
-      start_time: '2025-01-15T08:30:00Z',
+      start_time: '2025-01-15T08:30:00',
     },
     {
       id: 'exec2',
       pattern_id: 'pattern2',
       pattern_name: 'Evening Capture',
-      start_time: '2025-01-15T18:00:00Z',
+      start_time: '2025-01-15T18:00:00',
     },
     {
       id: 'exec3',
       pattern_id: 'pattern1',
       pattern_name: 'Afternoon Capture',
-      start_time: '2025-01-20T14:00:00Z',
+      start_time: '2025-01-20T14:00:00',
     },
   ]
 
@@ -287,7 +288,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const executionButton = screen.getByTestId('execution-2025-01-15T08:30:00Z')
+      const executionButton = screen.getByTestId('execution-2025-01-15T08:30:00')
       await user.click(executionButton)
 
       expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)

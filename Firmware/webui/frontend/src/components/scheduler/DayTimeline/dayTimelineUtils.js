@@ -9,11 +9,10 @@
  *
  * @module components/scheduler/DayTimeline/dayTimelineUtils
  *
- * @note TIMEZONE HANDLING: All times in this module are treated as UTC to avoid
- * timezone inconsistencies. The backend API returns times in ISO 8601 format
- * (e.g., "2025-12-17T18:30:00Z") and this module extracts hours/minutes directly
- * from the string format to avoid browser timezone conversion. Ensure your
- * backend returns UTC times for consistent display across timezones.
+ * @note TIMEZONE HANDLING: All times in this module are converted to the user's
+ * local timezone for display. The backend API returns times in ISO 8601 UTC format
+ * (e.g., "2025-12-17T18:30:00Z") and this module uses JavaScript's Date object to
+ * convert them to local time before extracting hours/minutes/dates.
  */
 
 import {
@@ -21,12 +20,6 @@ import {
   DEFAULT_ACTION_COLORS,
   isHdrAction,
 } from './dayTimelineConstants'
-
-/**
- * Regex for validating ISO 8601 datetime format.
- * Matches: YYYY-MM-DDTHH:MM:SS with optional milliseconds and Z suffix.
- */
-const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/
 
 /**
  * Logs a warning in development mode for invalid time strings.
@@ -40,75 +33,47 @@ function warnInvalidTime(isoString, context) {
 }
 
 /**
- * Extracts the hour (0-23) from an ISO datetime string.
- * Uses regex extraction from ISO format for consistency.
- * Note: All times are treated as UTC to avoid timezone inconsistencies.
+ * Extracts the hour (0-23) from an ISO datetime string in local timezone.
  *
- * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T18:30:00")
- * @returns {number|null} Hour number (0-23), or null if invalid
+ * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T18:30:00Z")
+ * @returns {number|null} Hour number (0-23) in local timezone, or null if invalid
  */
 export function getHourFromIsoTime(isoString) {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }
 
-  // Extract time directly from ISO string format (HH:MM:SS)
-  // This avoids timezone conversion issues
-  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
-  if (timeMatch) {
-    return parseInt(timeMatch[1], 10)
-  }
-
-  // Validate format before attempting Date parsing
-  if (!ISO_DATE_REGEX.test(isoString)) {
-    warnInvalidTime(isoString, 'getHourFromIsoTime')
-    return null
-  }
-
-  // Fallback to Date parsing for non-standard formats
-  // Use UTC to match the behavior of regex extraction
+  // Convert to Date and extract local hour
+  // This ensures times display correctly in the user's timezone
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     warnInvalidTime(isoString, 'getHourFromIsoTime')
     return null
   }
 
-  return date.getUTCHours()
+  return date.getHours()
 }
 
 /**
- * Extracts the minute (0-59) from an ISO datetime string.
- * Note: All times are treated as UTC to avoid timezone inconsistencies.
+ * Extracts the minute (0-59) from an ISO datetime string in local timezone.
  *
  * @param {string} isoString - ISO datetime string
- * @returns {number|null} Minute number (0-59), or null if invalid
+ * @returns {number|null} Minute number (0-59) in local timezone, or null if invalid
  */
 export function getMinuteFromIsoTime(isoString) {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }
 
-  // Extract time directly from ISO string format (HH:MM:SS)
-  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
-  if (timeMatch) {
-    return parseInt(timeMatch[2], 10)
-  }
-
-  // Validate format before attempting Date parsing
-  if (!ISO_DATE_REGEX.test(isoString)) {
-    warnInvalidTime(isoString, 'getMinuteFromIsoTime')
-    return null
-  }
-
-  // Fallback to Date parsing for non-standard formats
-  // Use UTC to match the behavior of regex extraction
+  // Convert to Date and extract local minute
+  // This ensures times display correctly in the user's timezone
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     warnInvalidTime(isoString, 'getMinuteFromIsoTime')
     return null
   }
 
-  return date.getUTCMinutes()
+  return date.getMinutes()
 }
 
 /**
@@ -125,48 +90,52 @@ export function formatHourLabel(hour) {
 }
 
 /**
- * Formats an ISO datetime string to a short time string (e.g., "18:30").
+ * Formats an ISO datetime string to a short time string in local timezone (e.g., "18:30").
  *
  * @param {string} isoString - ISO datetime string
- * @returns {string} Formatted time string (HH:MM)
+ * @returns {string} Formatted time string (HH:MM) in local timezone
  */
 export function formatTimeShort(isoString) {
   if (!isoString || typeof isoString !== 'string') {
     return ''
   }
 
-  // Extract time directly from ISO string format to avoid timezone issues
-  const timeMatch = isoString.match(/T(\d{2}):(\d{2})/)
-  if (timeMatch) {
-    const hours = parseInt(timeMatch[1], 10)
-    const minutes = timeMatch[2]
-    return `${hours}:${minutes}`
-  }
-
-  // Validate format before attempting Date parsing
-  if (!ISO_DATE_REGEX.test(isoString)) {
-    warnInvalidTime(isoString, 'formatTimeShort')
-    return ''
-  }
-
-  // Fallback to Date parsing for non-standard formats
-  // Use UTC to match the behavior of regex extraction
+  // Convert to Date and extract local time
+  // This ensures times display correctly in the user's timezone
   const date = new Date(isoString)
   if (isNaN(date.getTime())) {
     warnInvalidTime(isoString, 'formatTimeShort')
     return ''
   }
 
-  const hours = date.getUTCHours()
-  const minutes = date.getUTCMinutes()
+  const hours = date.getHours()
+  const minutes = date.getMinutes()
   return `${hours}:${minutes.toString().padStart(2, '0')}`
 }
 
 /**
- * Groups executions by hour (0-23) for a given date.
+ * Extracts local date (YYYY-MM-DD) from an ISO datetime string.
+ * Converts UTC time to local timezone before extracting date.
+ *
+ * @param {string} isoString - ISO datetime string
+ * @returns {string|null} Local date in YYYY-MM-DD format, or null if invalid
+ */
+function getLocalDateFromIso(isoString) {
+  if (!isoString || typeof isoString !== 'string') {
+    return null
+  }
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) {
+    return null
+  }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Groups executions by hour (0-23) for a given local date.
  *
  * @param {Array} executions - Array of execution objects with start_time
- * @param {string} date - ISO date string (YYYY-MM-DD) to filter by
+ * @param {string} date - Local date string (YYYY-MM-DD) to filter by
  * @returns {Object} Map of hour (0-23) -> array of executions
  */
 export function groupExecutionsByHour(executions, date) {
@@ -179,8 +148,8 @@ export function groupExecutionsByHour(executions, date) {
   executions.forEach((execution) => {
     if (!execution.start_time) return
 
-    // Check if execution is on the target date
-    const executionDate = execution.start_time.split('T')[0]
+    // Check if execution is on the target local date
+    const executionDate = getLocalDateFromIso(execution.start_time)
     if (date && executionDate !== date) return
 
     const hour = getHourFromIsoTime(execution.start_time)
@@ -200,8 +169,8 @@ export function groupExecutionsByHour(executions, date) {
  * Finds the most severe conflict affecting a specific hour.
  *
  * @param {Array} conflicts - Array of conflict objects with start_time/end_time
- * @param {number} hour - Hour to check (0-23)
- * @param {string} date - ISO date string (YYYY-MM-DD)
+ * @param {number} hour - Hour to check (0-23) in local timezone
+ * @param {string} date - Local date string (YYYY-MM-DD)
  * @returns {Object|null} Most severe conflict for this hour, or null
  */
 export function getConflictForHour(conflicts, hour, date) {
@@ -217,8 +186,8 @@ export function getConflictForHour(conflicts, hour, date) {
   const matchingConflicts = conflicts.filter((conflict) => {
     if (!conflict.start_time) return false
 
-    // Check if conflict is on the target date
-    const conflictDate = conflict.start_time.split('T')[0]
+    // Check if conflict is on the target local date
+    const conflictDate = getLocalDateFromIso(conflict.start_time)
     if (date && conflictDate !== date) return false
 
     const conflictHour = getHourFromIsoTime(conflict.start_time)

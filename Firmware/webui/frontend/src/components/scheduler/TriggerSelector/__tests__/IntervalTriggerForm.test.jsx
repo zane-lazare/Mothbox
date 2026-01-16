@@ -20,7 +20,7 @@ describe('IntervalTriggerForm', () => {
       render(<IntervalTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
 
       expect(screen.getByTestId('interval-trigger-form')).toBeInTheDocument()
-      expect(screen.getByTestId('interval-value')).toHaveValue(15)
+      expect(screen.getByTestId('interval-minutes')).toHaveValue(15)
       expect(screen.getByTestId('interval-unit')).toHaveValue('minutes')
     })
 
@@ -32,7 +32,7 @@ describe('IntervalTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('interval-value')).toHaveValue(2)
+      expect(screen.getByTestId('interval-minutes')).toHaveValue(2)
       expect(screen.getByTestId('interval-unit')).toHaveValue('hours')
     })
 
@@ -66,7 +66,7 @@ describe('IntervalTriggerForm', () => {
       const user = userEvent.setup()
       render(<IntervalTriggerForm trigger={defaultTrigger} onChange={mockOnChange} />)
 
-      const input = screen.getByTestId('interval-value')
+      const input = screen.getByTestId('interval-minutes')
       await user.clear(input)
       await user.type(input, '30')
 
@@ -103,6 +103,8 @@ describe('IntervalTriggerForm', () => {
         time_window: {
           start_time: '18:00',
           end_time: '06:00',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
         },
       })
     })
@@ -183,7 +185,7 @@ describe('IntervalTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('interval-value')).toBeDisabled()
+      expect(screen.getByTestId('interval-minutes')).toBeDisabled()
       expect(screen.getByTestId('interval-unit')).toBeDisabled()
       expect(screen.getByTestId('time-window-toggle')).toBeDisabled()
       expect(screen.getByTestId('time-window-start')).toBeDisabled()
@@ -209,7 +211,7 @@ describe('IntervalTriggerForm', () => {
         />
       )
 
-      expect(screen.getByTestId('interval-value')).toBeInTheDocument()
+      expect(screen.getByTestId('interval-minutes')).toBeInTheDocument()
       expect(screen.getByTestId('interval-unit')).toBeInTheDocument()
       expect(screen.getByTestId('time-window-toggle')).toBeInTheDocument()
       expect(screen.getByTestId('time-window-start')).toBeInTheDocument()

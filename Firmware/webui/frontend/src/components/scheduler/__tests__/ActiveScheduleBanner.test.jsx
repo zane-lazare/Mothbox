@@ -7,10 +7,12 @@ import ActiveScheduleBanner from '../ActiveScheduleBanner'
 vi.mock('../../../hooks/useSchedules', () => ({
   useActiveSchedule: vi.fn(),
   useDeactivateSchedule: vi.fn(),
+  useSchedulePreview: vi.fn(),
+  useSchedules: vi.fn(),
 }))
 
 // Import after mock to get mocked versions
-import { useActiveSchedule, useDeactivateSchedule } from '../../../hooks/useSchedules'
+import { useActiveSchedule, useDeactivateSchedule, useSchedulePreview } from '../../../hooks/useSchedules'
 
 describe('ActiveScheduleBanner', () => {
   beforeEach(() => {
@@ -25,6 +27,10 @@ describe('ActiveScheduleBanner', () => {
     useDeactivateSchedule.mockReturnValue({
       mutate: vi.fn(),
       isPending: false
+    })
+    useSchedulePreview.mockReturnValue({
+      data: null,
+      isLoading: false
     })
   })
 

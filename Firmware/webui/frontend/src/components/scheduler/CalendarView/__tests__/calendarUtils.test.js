@@ -140,14 +140,15 @@ describe('calendarUtils', () => {
   })
 
   describe('groupExecutionsByDate', () => {
+    // Use local time strings (no Z suffix) for predictable behavior across timezones
     const mockExecutions = [
-      { id: '1', start_time: '2025-12-17T08:00:00Z', pattern_name: 'Morning' },
-      { id: '2', start_time: '2025-12-17T12:00:00Z', pattern_name: 'Noon' },
-      { id: '3', start_time: '2025-12-18T08:00:00Z', pattern_name: 'Next Day' },
-      { id: '4', start_time: '2025-12-17T20:00:00Z', pattern_name: 'Evening' },
+      { id: '1', start_time: '2025-12-17T08:00:00', pattern_name: 'Morning' },
+      { id: '2', start_time: '2025-12-17T12:00:00', pattern_name: 'Noon' },
+      { id: '3', start_time: '2025-12-18T08:00:00', pattern_name: 'Next Day' },
+      { id: '4', start_time: '2025-12-17T20:00:00', pattern_name: 'Evening' },
     ]
 
-    it('groups executions by ISO date', () => {
+    it('groups executions by local date', () => {
       const grouped = groupExecutionsByDate(mockExecutions)
       expect(Object.keys(grouped)).toHaveLength(2)
       expect(grouped['2025-12-17']).toHaveLength(3)
@@ -172,12 +173,24 @@ describe('calendarUtils', () => {
       expect(groupExecutionsByDate(undefined)).toEqual({})
     })
 
-    it('extracts date from ISO datetime string', () => {
+    it('extracts local date from ISO datetime string', () => {
+      // Use local time (no Z suffix) for predictable date grouping
       const executions = [
-        { id: '1', start_time: '2025-01-15T23:59:59Z' },
+        { id: '1', start_time: '2025-01-15T23:59:59' },
       ]
       const grouped = groupExecutionsByDate(executions)
       expect(grouped['2025-01-15']).toBeDefined()
+    })
+
+    it('converts UTC time to local date for grouping', () => {
+      // Just verify UTC times produce valid grouping (actual date depends on timezone)
+      const executions = [
+        { id: '1', start_time: '2025-01-15T12:00:00Z' },
+      ]
+      const grouped = groupExecutionsByDate(executions)
+      const keys = Object.keys(grouped)
+      expect(keys).toHaveLength(1)
+      expect(keys[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     })
   })
 

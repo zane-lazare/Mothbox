@@ -81,11 +81,11 @@ export function getDayHours() {
 }
 
 /**
- * Groups execution objects by ISO date (YYYY-MM-DD)
- * Extracts date from start_time field
+ * Groups execution objects by local date (YYYY-MM-DD)
+ * Converts ISO UTC time to local date before grouping
  *
  * @param {Array} executions - Array of execution objects with start_time field
- * @returns {Object} Object keyed by ISO date (YYYY-MM-DD), values are arrays of executions
+ * @returns {Object} Object keyed by local date (YYYY-MM-DD), values are arrays of executions
  */
 export function groupExecutionsByDate(executions) {
   if (!executions || !Array.isArray(executions)) {
@@ -97,8 +97,12 @@ export function groupExecutionsByDate(executions) {
   executions.forEach(execution => {
     if (!execution.start_time) return
 
-    // Extract YYYY-MM-DD from ISO datetime string
-    const isoDate = execution.start_time.split('T')[0]
+    // Convert ISO string to Date and extract local date
+    // This ensures executions appear on the correct calendar day for the user's timezone
+    const date = new Date(execution.start_time)
+    if (isNaN(date.getTime())) return
+
+    const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
     if (!grouped[isoDate]) {
       grouped[isoDate] = []
