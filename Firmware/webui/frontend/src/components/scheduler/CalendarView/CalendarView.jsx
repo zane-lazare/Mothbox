@@ -34,11 +34,12 @@ const VALID_VIEW_MODES = ['month', 'week', 'day']
 /**
  * Number of days to fetch for each view mode.
  * Month: 42 days covers full 6-week grid (7 days × 6 weeks)
+ * Day: 2 days to capture overnight schedules that span midnight
  */
 const PREVIEW_DAYS = {
   month: 42,
   week: 7,
-  day: 1,
+  day: 2,
 }
 
 /**
@@ -239,6 +240,7 @@ export function CalendarView() {
           executions={previewData?.executions || []}
           conflicts={previewData?.conflicts || []}
           moonPhases={previewData?.moon_phases || {}}
+          cycleInfo={previewData?.cycle_info || null}
           onCellClick={handleCellClick}
           onExecutionClick={handleExecutionClick}
         />

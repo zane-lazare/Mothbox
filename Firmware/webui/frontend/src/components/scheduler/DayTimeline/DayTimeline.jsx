@@ -1,12 +1,13 @@
 /**
- * DayTimeline - Hourly timeline for day view with conflict highlighting (Issue #326)
+ * DayTimeline - Hourly timeline for day view with cycle-aware rendering (Issue #326)
  *
- * Main container component that displays a 24-hour timeline for a single day.
+ * Main container component that displays a timeline for a schedule cycle.
  * Shows scheduled executions as chips within hourly rows, with visual indicators
  * for time collisions (blocking errors) and GPIO state warnings (non-blocking).
  *
  * Features:
- * - 24 hourly rows (0-23)
+ * - Cycle-aware hour display (e.g., 17-23, 0-6 for overnight schedules)
+ * - Automatic collapsing of repetitive consecutive hours
  * - Execution chips color-coded by action type
  * - Red highlighting for time collisions
  * - Yellow highlighting for GPIO warnings
@@ -21,9 +22,11 @@ import HourRow from './HourRow'
 import ConflictSummary from './ConflictSummary'
 import { LEGEND_ITEMS } from './dayTimelineConstants'
 import {
-  groupExecutionsByHour,
+  groupExecutionsByHourCycleAware,
   getConflictForHour,
   getConflictForExecution,
+  getCycleHours,
+  collapseRepetitiveHours,
 } from './dayTimelineUtils'
 
 /**
@@ -44,12 +47,32 @@ const TimelineLegend = memo(function TimelineLegend() {
 })
 
 /**
+ * Collapsed hours indicator row
+ * Shows "... continues" when repetitive hours are collapsed
+ */
+const CollapsedIndicator = memo(function CollapsedIndicator({ count }) {
+  return (
+    <div className="flex p-3 text-gray-600 dark:text-gray-500">
+      <span className="w-14 text-xs">...</span>
+      <span className="text-xs">
+        continues ({count} similar hour{count > 1 ? 's' : ''})
+      </span>
+    </div>
+  )
+})
+
+CollapsedIndicator.propTypes = {
+  count: PropTypes.number.isRequired,
+}
+
+/**
  * DayTimeline component
  *
  * @param {Object} props - Component props
  * @param {string} props.date - ISO date string (YYYY-MM-DD) for the day to display
  * @param {Array} [props.executions] - Array of execution objects from preview API
  * @param {Array} [props.conflicts] - Array of conflict objects from preview API
+ * @param {Object} [props.cycleInfo] - Cycle info from preview API for cycle-aware rendering
  * @param {Function} [props.onExecutionClick] - Callback when an execution chip is clicked
  * @returns {JSX.Element} Day timeline component
  *
@@ -58,6 +81,7 @@ const TimelineLegend = memo(function TimelineLegend() {
  *   date="2025-12-17"
  *   executions={previewData.executions}
  *   conflicts={previewData.conflicts}
+ *   cycleInfo={previewData.cycle_info}
  *   onExecutionClick={handleExecutionClick}
  * />
  */
@@ -65,15 +89,25 @@ function DayTimeline({
   date,
   executions = [],
   conflicts = [],
+  cycleInfo = null,
   onExecutionClick,
 }) {
-  // Generate array of hours [0, 1, 2, ..., 23]
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), [])
+  // Get cycle-aware hours array (e.g., [17, 18, ..., 23, 0, 1, ..., 6] for overnight)
+  const cycleHours = useMemo(
+    () => getCycleHours(cycleInfo),
+    [cycleInfo]
+  )
 
-  // Group executions by hour
+  // Group executions by hour (cycle-aware, ignores date)
   const executionsByHour = useMemo(
-    () => groupExecutionsByHour(executions, date),
-    [executions, date]
+    () => groupExecutionsByHourCycleAware(executions),
+    [executions]
+  )
+
+  // Collapse repetitive consecutive hours (>3 identical patterns)
+  const displayHours = useMemo(
+    () => collapseRepetitiveHours(cycleHours, executionsByHour),
+    [cycleHours, executionsByHour]
   )
 
   // Build map of execution pattern_id to conflict for chip highlighting
@@ -123,7 +157,14 @@ function DayTimeline({
 
       {/* Timeline Grid */}
       <div className="border border-gray-800 rounded-lg divide-y divide-gray-800">
-        {hours.map((hour) => {
+        {displayHours.map((item, index) => {
+          // Collapsed indicator
+          if (item.type === 'collapsed') {
+            return <CollapsedIndicator key={`collapsed-${index}`} count={item.count} />
+          }
+
+          // Regular hour row
+          const hour = item.hour
           const hourExecutions = executionsByHour[hour] || []
           const hourConflict = getConflictForHour(conflicts, hour, date)
 
@@ -186,6 +227,13 @@ DayTimeline.propTypes = {
       message: PropTypes.string,
     })
   ),
+  /** Cycle info from preview API for cycle-aware rendering */
+  cycleInfo: PropTypes.shape({
+    start_hour: PropTypes.number,
+    end_hour: PropTypes.number,
+    spans_midnight: PropTypes.bool,
+    suggested_preview_days: PropTypes.number,
+  }),
   /** Callback when an execution chip is clicked */
   onExecutionClick: PropTypes.func,
 }

@@ -51,6 +51,7 @@ function CalendarGrid({
   executions = [],
   conflicts = [],
   moonPhases = {},
+  cycleInfo = null,
   onCellClick,
   onExecutionClick,
 }) {
@@ -166,15 +167,16 @@ function CalendarGrid({
   }
 
   // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
+  // Pass all executions and cycleInfo - DayTimeline handles cycle-aware filtering
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
-    const dayExecutions = executionsByDate[currentDateKey] || []
 
     return (
       <DayTimeline
         date={currentDateKey}
-        executions={dayExecutions}
+        executions={executions}
         conflicts={conflicts}
+        cycleInfo={cycleInfo}
         onExecutionClick={onExecutionClick}
       />
     )
@@ -211,6 +213,13 @@ CalendarGrid.propTypes = {
       illumination: PropTypes.number,
     })
   ),
+  /** Cycle info from preview API for day view cycle-aware rendering */
+  cycleInfo: PropTypes.shape({
+    start_hour: PropTypes.number,
+    end_hour: PropTypes.number,
+    spans_midnight: PropTypes.bool,
+    suggested_preview_days: PropTypes.number,
+  }),
   onCellClick: PropTypes.func.isRequired,
   onExecutionClick: PropTypes.func.isRequired,
 }

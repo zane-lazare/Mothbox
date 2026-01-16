@@ -303,3 +303,171 @@ export function getExecutionTestId(execution) {
   const time = formatTimeShort(execution.start_time).replace(':', '')
   return `execution-${routineId}-${time}`
 }
+
+// =============================================================================
+// Cycle-Aware Functions (for overnight schedules)
+// =============================================================================
+
+/**
+ * Generates an array of hours based on cycle info.
+ *
+ * For overnight schedules (spans_midnight=true), returns hours in cycle order:
+ * e.g., [17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 6]
+ *
+ * For daytime schedules (spans_midnight=false), returns hours in normal order:
+ * e.g., [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+ *
+ * If no cycleInfo provided, returns all 24 hours [0, 1, ..., 23].
+ *
+ * @param {Object|null} cycleInfo - Cycle info from preview API
+ * @param {number} cycleInfo.start_hour - Hour when cycle begins (0-23)
+ * @param {number} cycleInfo.end_hour - Hour when cycle ends (0-23)
+ * @param {boolean} cycleInfo.spans_midnight - True if cycle crosses midnight
+ * @returns {Array<number>} Array of hours in cycle order
+ */
+export function getCycleHours(cycleInfo) {
+  // Default to all 24 hours if no cycle info
+  if (!cycleInfo) {
+    return Array.from({ length: 24 }, (_, i) => i)
+  }
+
+  const { start_hour, end_hour, spans_midnight } = cycleInfo
+  const hours = []
+
+  if (spans_midnight) {
+    // Overnight: start_hour -> 23, then 0 -> end_hour
+    for (let h = start_hour; h <= 23; h++) {
+      hours.push(h)
+    }
+    for (let h = 0; h <= end_hour; h++) {
+      hours.push(h)
+    }
+  } else {
+    // Daytime: start_hour -> end_hour
+    for (let h = start_hour; h <= end_hour; h++) {
+      hours.push(h)
+    }
+  }
+
+  return hours
+}
+
+/**
+ * Groups executions by hour, ignoring date (cycle-aware).
+ *
+ * Unlike groupExecutionsByHour which filters to a specific date,
+ * this function groups all executions by their hour regardless of date.
+ * This is needed for overnight schedules that span two calendar days.
+ *
+ * @param {Array} executions - Array of execution objects with start_time
+ * @returns {Object} Map of hour (0-23) -> array of executions
+ */
+export function groupExecutionsByHourCycleAware(executions) {
+  if (!executions || !Array.isArray(executions)) {
+    return {}
+  }
+
+  const grouped = {}
+
+  executions.forEach((execution) => {
+    if (!execution.start_time) return
+
+    const hour = getHourFromIsoTime(execution.start_time)
+    if (hour === null) return
+
+    if (!grouped[hour]) {
+      grouped[hour] = []
+    }
+
+    grouped[hour].push(execution)
+  })
+
+  return grouped
+}
+
+/**
+ * Gets a "pattern fingerprint" for an hour's executions.
+ *
+ * Used to compare hours for collapse logic - two hours are "identical"
+ * if they have the same number of executions and the same routine types.
+ *
+ * @param {Array} executions - Array of executions for an hour
+ * @returns {string} Fingerprint string for comparison
+ */
+function getHourFingerprint(executions) {
+  if (!executions || executions.length === 0) {
+    return 'empty'
+  }
+
+  // Count executions per pattern
+  const patternCounts = {}
+  executions.forEach((exec) => {
+    const patternId = exec.pattern_id || 'unknown'
+    patternCounts[patternId] = (patternCounts[patternId] || 0) + 1
+  })
+
+  // Create sorted fingerprint
+  const sorted = Object.entries(patternCounts)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, count]) => `${id}:${count}`)
+    .join(',')
+
+  return sorted
+}
+
+/**
+ * Collapses consecutive hours with identical execution patterns.
+ *
+ * When more than 3 consecutive hours have the same pattern (same number
+ * of executions from the same routines), collapses them into a single
+ * "continues" indicator.
+ *
+ * @param {Array<number>} hours - Array of hours in cycle order
+ * @param {Object} executionsByHour - Map of hour -> executions
+ * @returns {Array} Array of {type: 'hour', hour} or {type: 'collapsed', count}
+ */
+export function collapseRepetitiveHours(hours, executionsByHour) {
+  if (!hours || hours.length === 0) {
+    return []
+  }
+
+  const result = []
+  let i = 0
+
+  while (i < hours.length) {
+    const hour = hours[i]
+    const fingerprint = getHourFingerprint(executionsByHour[hour])
+
+    // Count consecutive hours with same fingerprint
+    let runLength = 1
+    while (
+      i + runLength < hours.length &&
+      getHourFingerprint(executionsByHour[hours[i + runLength]]) === fingerprint
+    ) {
+      runLength++
+    }
+
+    // If more than 3 consecutive identical hours, collapse the middle
+    if (runLength > 3) {
+      // Show first 2 hours
+      result.push({ type: 'hour', hour: hours[i] })
+      result.push({ type: 'hour', hour: hours[i + 1] })
+
+      // Collapsed indicator for middle hours
+      result.push({ type: 'collapsed', count: runLength - 3 })
+
+      // Show last hour
+      result.push({ type: 'hour', hour: hours[i + runLength - 1] })
+
+      i += runLength
+    } else {
+      // Show all hours normally
+      for (let j = 0; j < runLength; j++) {
+        result.push({ type: 'hour', hour: hours[i + j] })
+      }
+      i += runLength
+    }
+  }
+
+  return result
+}
