@@ -23,7 +23,7 @@
       "trigger": {
         "trigger_type": "interval",
         "interval_minutes": 15,
-        "time_window": {"start_time": "sunset", "end_time": "sunrise"}
+        "time_window": {"start_time": "dusk", "end_time": "dawn"}
       },
       "actions": [
         {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 0},

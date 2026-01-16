@@ -65,8 +65,8 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
   // Get conflict ring class if applicable
   const conflictRing = conflictSeverity ? CHIP_CONFLICT_RINGS[conflictSeverity] : ''
 
-  // Build chip display text
-  const displayText = actionName ? `${timeStr} ${actionName}` : timeStr
+  // Build chip display text - show only time (color indicates action type)
+  const displayText = timeStr
 
   // Build class string
   const chipClasses = [
