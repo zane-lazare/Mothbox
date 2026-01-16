@@ -139,12 +139,12 @@ class PreviewExecution:
     actions: list[ActionExecution] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        """Serialize to dictionary."""
+        """Serialize to dictionary matching API schema (pattern_id/pattern_name)."""
         return {
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
-            "routine_id": self.routine_id,
-            "routine_name": self.routine_name,
+            "pattern_id": self.routine_id,
+            "pattern_name": self.routine_name,
             "trigger_info": self.trigger_info,
             "actions": [a.to_dict() for a in self.actions],
         }
