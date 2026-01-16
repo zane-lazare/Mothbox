@@ -462,7 +462,10 @@ def _get_moon_phases_dict(start_date: date, end_date: date) -> dict[str, dict]:
     return {phase["date"]: phase for phase in phases_list}
 
 
-def _detect_cycle(executions: list[PreviewExecution]) -> CycleInfo | None:
+def _detect_cycle(
+    executions: list[PreviewExecution],
+    timezone_name: str = "UTC",
+) -> CycleInfo | None:
     """
     Detect schedule cycle boundaries from executions.
 
@@ -471,12 +474,13 @@ def _detect_cycle(executions: list[PreviewExecution]) -> CycleInfo | None:
     For daytime schedules (e.g., sunrise-to-sunset), it doesn't.
 
     Algorithm:
-    1. Extract unique hours that have executions
+    1. Extract unique hours that have executions (in local timezone)
     2. Find the largest gap between consecutive hours
     3. Cycle starts after the largest gap, ends before it
 
     Args:
         executions: List of PreviewExecution objects
+        timezone_name: IANA timezone name for hour conversion
 
     Returns:
         CycleInfo with cycle boundaries, or None if no executions
@@ -484,10 +488,23 @@ def _detect_cycle(executions: list[PreviewExecution]) -> CycleInfo | None:
     if not executions:
         return None
 
-    # Extract unique hours from all executions
+    # Get timezone for conversion
+    try:
+        import pytz
+
+        tz = pytz.timezone(timezone_name)
+    except (ImportError, Exception):
+        tz = None
+
+    # Extract unique hours from all executions (in local timezone)
     hours = set()
     for execution in executions:
-        hours.add(execution.start_time.hour)
+        if tz:
+            # Convert UTC to local timezone before extracting hour
+            local_time = execution.start_time.astimezone(tz)
+            hours.add(local_time.hour)
+        else:
+            hours.add(execution.start_time.hour)
 
     if not hours:
         return None
@@ -650,7 +667,7 @@ def generate_preview(
     total_executions = len(executions)
 
     # Detect schedule cycle (e.g., dusk-to-dawn for overnight schedules)
-    cycle_info = _detect_cycle(executions)
+    cycle_info = _detect_cycle(executions, timezone_name)
 
     # Build preview start/end as datetimes in the user's timezone, then convert to UTC
     # This ensures consistency when execution times span timezone boundaries

@@ -70,6 +70,9 @@ export function CalendarView() {
     return PREVIEW_DAYS[viewMode] || PREVIEW_DAYS.month
   }, [viewMode])
 
+  // Get browser timezone for cycle detection
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
   // Fetch schedule preview (only when schedule is selected)
   const {
     data: previewData,
@@ -79,7 +82,7 @@ export function CalendarView() {
     refetch: refetchPreview,
   } = useSchedulePreview(
     selectedScheduleId,
-    { days: previewDays },
+    { days: previewDays, tz: browserTimezone },
     { enabled: !!selectedScheduleId }
   )
 
