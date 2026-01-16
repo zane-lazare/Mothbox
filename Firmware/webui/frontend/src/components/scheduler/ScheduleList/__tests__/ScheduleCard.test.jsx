@@ -404,59 +404,6 @@ describe('ScheduleCard', () => {
   // ==========================================================================
 
   describe('Routine Indicators', () => {
-    it('shows routine count', () => {
-      const schedule = createSchedule({
-        name: 'Test Schedule',
-        routines: [
-          {
-            routine_id: 'r1',
-            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
-          },
-        ],
-      })
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-        />
-      )
-      expect(screen.getByText('1 routine')).toBeInTheDocument()
-    })
-
-    it('shows plural routine count for multiple routines', () => {
-      const schedule = createSchedule({
-        name: 'Test Schedule',
-        routines: [
-          {
-            routine_id: 'r1',
-            trigger: { trigger_type: 'solar', solar_event: 'sunset' },
-            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
-          },
-          {
-            routine_id: 'r2',
-            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
-            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
-          },
-        ],
-      })
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-        />
-      )
-      expect(screen.getByText('2 routines')).toBeInTheDocument()
-    })
-
     it('renders action dots for all actions in a single routine', () => {
       const schedule = createSchedule({
         name: 'Test Schedule',
@@ -489,7 +436,7 @@ describe('ScheduleCard', () => {
       expect(blueDots).toHaveLength(1)
     })
 
-    it('renders pipe separators between multiple routines', () => {
+    it('renders pipe separators between multiple routines with opening and closing pipes', () => {
       const schedule = createSchedule({
         name: 'Test Schedule',
         routines: [
@@ -520,12 +467,12 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      // Should have 2 pipe separators for 3 routines
+      // Should have 4 pipes: opening + 2 between routines + closing
       const pipes = screen.getAllByText('|')
-      expect(pipes).toHaveLength(2)
+      expect(pipes).toHaveLength(4)
     })
 
-    it('does not render pipe separator for single routine', () => {
+    it('renders opening and closing pipes for single routine', () => {
       const schedule = createSchedule({
         name: 'Test Schedule',
         routines: [
@@ -546,7 +493,9 @@ describe('ScheduleCard', () => {
           onDelete={mockOnDelete}
         />
       )
-      expect(screen.queryByText('|')).not.toBeInTheDocument()
+      // Should have 2 pipes: opening + closing
+      const pipes = screen.getAllByText('|')
+      expect(pipes).toHaveLength(2)
     })
 
     it('shows correct colors for different action types', () => {

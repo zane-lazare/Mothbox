@@ -60,8 +60,8 @@ export function CalendarView() {
   const [selectedExecution, setSelectedExecution] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Fetch schedules list
-  const { data: schedulesData, isLoading: schedulesLoading } = useSchedules()
+  // Fetch schedules list (include built-in schedules for dropdown)
+  const { data: schedulesData, isLoading: schedulesLoading } = useSchedules({ include_builtin: true })
   const schedules = schedulesData?.schedules || []
 
   // Calculate preview days based on view mode

@@ -126,9 +126,11 @@ function ScheduleCard({
         </p>
       )}
 
-      {/* Routine Indicators - shows all actions per routine, separated by pipes */}
+      {/* Routine Indicators - shows all actions per routine, enclosed in pipes */}
       {schedule.routines?.length > 0 && (
         <div className="flex items-center gap-1 mb-3 flex-wrap">
+          {/* Opening pipe */}
+          <span className="text-gray-300 dark:text-gray-600 text-xs">|</span>
           {schedule.routines.map((routine, routineIndex) => (
             <div
               key={routine.routine_id || routineIndex}
@@ -149,9 +151,8 @@ function ScheduleCard({
               ))}
             </div>
           ))}
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-            {schedule.routines.length} routine{schedule.routines.length !== 1 ? 's' : ''}
-          </span>
+          {/* Closing pipe */}
+          <span className="text-gray-300 dark:text-gray-600 ml-1 text-xs">|</span>
         </div>
       )}
 
