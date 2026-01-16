@@ -353,11 +353,11 @@ export function getCycleHours(cycleInfo) {
 }
 
 /**
- * Groups executions by hour, ignoring date (cycle-aware).
+ * Groups executions by hour, taking only the first occurrence of each time.
  *
- * Unlike groupExecutionsByHour which filters to a specific date,
- * this function groups all executions by their hour regardless of date.
- * This is needed for overnight schedules that span two calendar days.
+ * For overnight schedules spanning 2 days, this filters to show only
+ * one cycle's worth of executions (avoiding duplicates from day 2's
+ * evening hours that would start another cycle).
  *
  * @param {Array} executions - Array of execution objects with start_time
  * @returns {Object} Map of hour (0-23) -> array of executions
@@ -367,13 +367,28 @@ export function groupExecutionsByHourCycleAware(executions) {
     return {}
   }
 
+  // Sort executions by time to get chronological order
+  const sorted = [...executions].sort((a, b) => {
+    return new Date(a.start_time) - new Date(b.start_time)
+  })
+
+  // Track which time strings we've seen to dedupe
+  const seenTimes = new Set()
   const grouped = {}
 
-  executions.forEach((execution) => {
+  sorted.forEach((execution) => {
     if (!execution.start_time) return
 
+    // Create a time key (HH:MM) to dedupe executions at same time
+    const timeKey = formatTimeShort(execution.start_time)
     const hour = getHourFromIsoTime(execution.start_time)
     if (hour === null) return
+
+    // Skip if we've already seen an execution at this exact time
+    // This filters out the "second cycle" executions from day 2
+    const dedupeKey = `${hour}-${timeKey}-${execution.pattern_id}`
+    if (seenTimes.has(dedupeKey)) return
+    seenTimes.add(dedupeKey)
 
     if (!grouped[hour]) {
       grouped[hour] = []
