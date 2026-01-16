@@ -46,8 +46,8 @@ vi.mock('../CalendarCell', () => ({
   }),
 }))
 
-// Mock WeekTimeline component (used for week view)
-vi.mock('../WeekTimeline', () => ({
+// Mock WeekHourlyTimeline component (used for week view)
+vi.mock('../../WeekHourlyTimeline', () => ({
   default: vi.fn(({ currentDate, executions, moonPhases, onCellClick, onExecutionClick }) => {
     // Helper function to get date key
     const getDateKey = (d) => {
@@ -74,7 +74,7 @@ vi.mock('../WeekTimeline', () => ({
     const weekDates = getWeekDates(currentDate)
 
     return (
-      <div data-testid="week-timeline">
+      <div data-testid="week-hourly-timeline">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
           <span key={day}>{day}</span>
         ))}
@@ -91,7 +91,7 @@ vi.mock('../WeekTimeline', () => ({
           return (
             <div
               key={dateKey}
-              data-testid="week-timeline-day"
+              data-testid="week-hourly-day"
               data-date={dateKey}
               data-executions-count={dayExecutions.length}
               data-has-moon-phase={!!moonPhases[dateKey]}
@@ -374,7 +374,7 @@ describe('CalendarGrid', () => {
   })
 
   describe('Week View', () => {
-    it('renders WeekTimeline component', () => {
+    it('renders WeekHourlyTimeline component', () => {
       render(
         <CalendarGrid
           viewMode="week"
@@ -386,8 +386,8 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Should render the WeekTimeline component
-      expect(screen.getByTestId('week-timeline')).toBeInTheDocument()
+      // Should render the WeekHourlyTimeline component
+      expect(screen.getByTestId('week-hourly-timeline')).toBeInTheDocument()
 
       // Should show day names
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -414,7 +414,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('week-timeline-day')
+      const cells = screen.getAllByTestId('week-hourly-day')
       expect(cells).toHaveLength(7)
     })
 
@@ -447,7 +447,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('week-timeline-day')
+      const cells = screen.getAllByTestId('week-hourly-day')
 
       // Find cell with moon phase (Jan 15)
       const cellsWithMoonPhase = cells.filter(
@@ -471,7 +471,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const firstCell = screen.getAllByTestId('week-timeline-day')[0]
+      const firstCell = screen.getAllByTestId('week-hourly-day')[0]
       await user.click(firstCell)
 
       expect(mockOnCellClick).toHaveBeenCalledTimes(1)

@@ -12,7 +12,7 @@ import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import CalendarCell from './CalendarCell'
 import DayTimeline from '../DayTimeline'
-import WeekTimeline from './WeekTimeline'
+import WeekHourlyTimeline from '../WeekHourlyTimeline'
 import {
   getMonthGridDates,
   groupExecutionsByDate,
@@ -114,13 +114,15 @@ function CalendarGrid({
     )
   }
 
-  // Week View: Time-slot based timeline (Morning/Midday/Evening/Night)
+  // Week View: Cycle-aware hourly timeline (Issue #XXX)
   if (viewMode === 'week') {
     return (
-      <WeekTimeline
+      <WeekHourlyTimeline
         currentDate={currentDate}
         executions={executions}
+        conflicts={conflicts}
         moonPhases={moonPhases}
+        cycleInfo={cycleInfo}
         onCellClick={onCellClick}
         onExecutionClick={onExecutionClick}
       />
