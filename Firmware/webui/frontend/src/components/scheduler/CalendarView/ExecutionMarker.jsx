@@ -11,6 +11,7 @@
 import { memo } from 'react'
 import PropTypes from 'prop-types'
 import { getPatternColor, formatTime } from './calendarUtils'
+import { ACTION_TYPE_COLORS } from '../constants'
 
 /**
  * Static color class mappings for Tailwind JIT compatibility.
@@ -37,15 +38,22 @@ const CONFLICT_RING_CLASSES = {
 }
 
 /**
- * Truncate text with ellipsis if longer than maxLength
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length before truncation
- * @returns {string} Truncated text with ellipsis if needed
+ * Get the primary action type from execution's actions array
+ * @param {Object} execution - Execution with actions array
+ * @returns {string} Action type key (camera, gpio, etc.) or 'camera' as default
  */
-function truncateText(text, maxLength) {
-  if (!text) return ''
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '...'
+function getPrimaryActionType(execution) {
+  const firstAction = execution.actions?.[0]
+  if (!firstAction?.action_type) return 'camera'
+
+  // Check for HDR in action name
+  if (
+    firstAction.action_type === 'camera' &&
+    firstAction.action_name?.toLowerCase().includes('hdr')
+  ) {
+    return 'hdr'
+  }
+  return firstAction.action_type
 }
 
 /**
@@ -102,10 +110,12 @@ function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity
   // Format time from start_time
   const timeStr = formatTime(start_time)
 
-  // Prepare display text - truncate in both modes to prevent layout breaks
-  const displayName = compact
-    ? truncateText(pattern_name, 10)
-    : truncateText(pattern_name, 30)
+  // Get action type color for indicator dot
+  const actionType = getPrimaryActionType(execution)
+  const actionColor = ACTION_TYPE_COLORS[actionType]?.solid || 'bg-blue-400'
+
+  // Use full name - CSS truncation handles overflow
+  const displayName = pattern_name
 
   // Get conflict ring classes if there's a conflict (Issue #229)
   const conflictRingClass = conflictSeverity ? CONFLICT_RING_CLASSES[conflictSeverity] : ''
@@ -125,8 +135,8 @@ function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity
   ].filter(Boolean).join(' ')
 
   const textClasses = compact
-    ? 'text-xs font-medium truncate max-w-[80px]'
-    : 'text-sm font-medium truncate max-w-[200px]'
+    ? 'text-[10px] font-medium truncate max-w-[60px]'
+    : 'text-sm font-medium truncate max-w-[180px]'
 
   const handleClick = (e) => {
     e.stopPropagation()
@@ -159,12 +169,24 @@ function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity
       title={title}
       aria-label={ariaLabel}
     >
-      {/* Time display (hidden in compact mode) */}
-      {!compact && (
-        <span className="text-xs font-semibold whitespace-nowrap">{timeStr}</span>
-      )}
+      {/* Action type indicator dot */}
+      <span
+        className={`w-2 h-2 rounded-full flex-shrink-0 ${actionColor}`}
+        aria-hidden="true"
+      />
 
-      {/* Pattern name */}
+      {/* Time display - always show but smaller in compact mode */}
+      <span
+        className={
+          compact
+            ? 'text-[10px] font-medium text-white/80 whitespace-nowrap'
+            : 'text-xs font-semibold whitespace-nowrap'
+        }
+      >
+        {timeStr}
+      </span>
+
+      {/* Pattern name with CSS truncation */}
       <span className={textClasses}>{displayName}</span>
     </button>
   )

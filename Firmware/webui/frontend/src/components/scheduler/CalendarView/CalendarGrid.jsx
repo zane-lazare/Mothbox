@@ -12,11 +12,10 @@ import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import CalendarCell from './CalendarCell'
 import DayTimeline from '../DayTimeline'
+import WeekTimeline from './WeekTimeline'
 import {
   getMonthGridDates,
-  getWeekDates,
   groupExecutionsByDate,
-  isToday,
   getDateKey,
 } from './calendarUtils'
 
@@ -115,54 +114,16 @@ function CalendarGrid({
     )
   }
 
-  // Week View: 7 columns with date headers
+  // Week View: Time-slot based timeline (Morning/Midday/Evening/Night)
   if (viewMode === 'week') {
-    const weekDates = getWeekDates(currentDate)
-
     return (
-      <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700">
-        {/* Day-of-week headers with dates */}
-        {weekDates.map((date) => {
-          const isTodayDate = isToday(date)
-
-          return (
-            <div
-              key={getDateKey(date)}
-              className="py-2 text-center border-r border-b border-gray-200 dark:border-gray-700"
-            >
-              <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                {DAYS[date.getDay()]}
-              </div>
-              <div
-                className={
-                  isTodayDate
-                    ? 'bg-blue-500 text-white rounded-full w-8 h-8 mx-auto flex items-center justify-center font-semibold'
-                    : 'text-lg dark:text-gray-200'
-                }
-              >
-                {date.getDate()}
-              </div>
-            </div>
-          )
-        })}
-
-        {/* Week cells */}
-        {weekDates.map((date) => {
-          const dateKey = getDateKey(date)
-
-          return (
-            <CalendarCell
-              key={dateKey}
-              date={date}
-              isCurrentMonth={true}
-              executions={executionsByDate[dateKey] || []}
-              moonPhase={moonPhases[dateKey] || null}
-              onClick={onCellClick}
-              onExecutionClick={onExecutionClick}
-            />
-          )
-        })}
-      </div>
+      <WeekTimeline
+        currentDate={currentDate}
+        executions={executions}
+        moonPhases={moonPhases}
+        onCellClick={onCellClick}
+        onExecutionClick={onExecutionClick}
+      />
     )
   }
 

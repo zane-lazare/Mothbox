@@ -269,7 +269,7 @@ describe('CalendarCell', () => {
       expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
     })
 
-    it('shows "+N more" indicator for >3 executions', () => {
+    it('shows "+N more" indicator for >5 executions', () => {
       const date = new Date(2025, 11, 17)
       const executions = [
         {
@@ -282,25 +282,37 @@ describe('CalendarCell', () => {
           id: '2',
           pattern_id: 'pattern2',
           pattern_name: 'Pattern 2',
-          start_time: '2025-12-17T12:00:00Z',
+          start_time: '2025-12-17T10:00:00Z',
         },
         {
           id: '3',
           pattern_id: 'pattern3',
           pattern_name: 'Pattern 3',
-          start_time: '2025-12-17T14:00:00Z',
+          start_time: '2025-12-17T12:00:00Z',
         },
         {
           id: '4',
           pattern_id: 'pattern4',
           pattern_name: 'Pattern 4',
-          start_time: '2025-12-17T16:00:00Z',
+          start_time: '2025-12-17T14:00:00Z',
         },
         {
           id: '5',
           pattern_id: 'pattern5',
           pattern_name: 'Pattern 5',
+          start_time: '2025-12-17T16:00:00Z',
+        },
+        {
+          id: '6',
+          pattern_id: 'pattern6',
+          pattern_name: 'Pattern 6',
           start_time: '2025-12-17T18:00:00Z',
+        },
+        {
+          id: '7',
+          pattern_id: 'pattern7',
+          pattern_name: 'Pattern 7',
+          start_time: '2025-12-17T20:00:00Z',
         },
       ]
 
@@ -314,17 +326,19 @@ describe('CalendarCell', () => {
         />
       )
 
-      // First 3 executions should be visible
+      // First 5 executions should be visible (MAX_VISIBLE = 5)
       expect(screen.getByTestId('execution-marker-pattern1')).toBeInTheDocument()
       expect(screen.getByTestId('execution-marker-pattern2')).toBeInTheDocument()
       expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-marker-pattern4')).toBeInTheDocument()
+      expect(screen.getByTestId('execution-marker-pattern5')).toBeInTheDocument()
 
       // Next 2 should be hidden
-      expect(screen.queryByTestId('execution-marker-pattern4')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('execution-marker-pattern5')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('execution-marker-pattern6')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('execution-marker-pattern7')).not.toBeInTheDocument()
 
-      // "+2 more" indicator should be shown
-      expect(screen.getByText('+2 more')).toBeInTheDocument()
+      // "+2 more" indicator should be shown with time summary
+      expect(screen.getByText(/\+2 more/)).toBeInTheDocument()
     })
 
     it('does not show "+N more" for ≤3 executions', () => {
@@ -877,10 +891,10 @@ describe('CalendarCell', () => {
         />
       )
 
-      const executionsContainer = container.querySelector('.space-y-1')
+      // Updated to use space-y-0.5 and max-h-24 for denser cell layout
+      const executionsContainer = container.querySelector('.space-y-0\\.5')
       expect(executionsContainer).toHaveClass('mt-1')
       expect(executionsContainer).toHaveClass('overflow-y-auto')
-      expect(executionsContainer).toHaveClass('max-h-16')
     })
   })
 })

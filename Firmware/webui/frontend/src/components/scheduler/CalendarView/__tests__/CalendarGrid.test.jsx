@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CalendarGrid from '../CalendarGrid'
 
-// Mock child components (only used for month/week views)
+// Mock child components (only used for month views)
 vi.mock('../CalendarCell', () => ({
   default: vi.fn(({ date, isCurrentMonth, executions, moonPhase, onClick, onExecutionClick }) => {
     // Helper function to get date key (must match component implementation)
@@ -41,6 +41,78 @@ vi.mock('../CalendarCell', () => ({
             {exec.pattern_name}
           </button>
         ))}
+      </div>
+    )
+  }),
+}))
+
+// Mock WeekTimeline component (used for week view)
+vi.mock('../WeekTimeline', () => ({
+  default: vi.fn(({ currentDate, executions, moonPhases, onCellClick, onExecutionClick }) => {
+    // Helper function to get date key
+    const getDateKey = (d) => {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    // Get week dates (Sunday to Saturday)
+    const getWeekDates = (centerDate) => {
+      const dates = []
+      const dayOfWeek = centerDate.getDay()
+      const sunday = new Date(centerDate)
+      sunday.setDate(centerDate.getDate() - dayOfWeek)
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(sunday)
+        date.setDate(sunday.getDate() + i)
+        dates.push(date)
+      }
+      return dates
+    }
+
+    const weekDates = getWeekDates(currentDate)
+
+    return (
+      <div data-testid="week-timeline">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          <span key={day}>{day}</span>
+        ))}
+        {weekDates.map((date) => {
+          const dateKey = getDateKey(date)
+          const dayExecutions = executions.filter((exec) => {
+            const execDate = new Date(exec.start_time)
+            return (
+              execDate.getDate() === date.getDate() &&
+              execDate.getMonth() === date.getMonth() &&
+              execDate.getFullYear() === date.getFullYear()
+            )
+          })
+          return (
+            <div
+              key={dateKey}
+              data-testid="week-timeline-day"
+              data-date={dateKey}
+              data-executions-count={dayExecutions.length}
+              data-has-moon-phase={!!moonPhases[dateKey]}
+              onClick={() => onCellClick(date)}
+            >
+              {date.getDate()}
+              {dayExecutions.map((exec) => (
+                <button
+                  key={exec.start_time}
+                  data-testid={`week-execution-${exec.start_time}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onExecutionClick(exec)
+                  }}
+                >
+                  {exec.pattern_name}
+                </button>
+              ))}
+            </div>
+          )
+        })}
       </div>
     )
   }),
@@ -302,7 +374,7 @@ describe('CalendarGrid', () => {
   })
 
   describe('Week View', () => {
-    it('renders 7 day column headers with dates', () => {
+    it('renders WeekTimeline component', () => {
       render(
         <CalendarGrid
           viewMode="week"
@@ -314,6 +386,9 @@ describe('CalendarGrid', () => {
         />
       )
 
+      // Should render the WeekTimeline component
+      expect(screen.getByTestId('week-timeline')).toBeInTheDocument()
+
       // Should show day names
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       days.forEach((day) => {
@@ -321,14 +396,13 @@ describe('CalendarGrid', () => {
       })
 
       // Should show dates (12-18 for the week containing Jan 15)
-      // Note: dates appear both in headers and cells, so use getAllByText
       for (let day = 12; day <= 18; day++) {
         const elements = screen.getAllByText(day.toString())
         expect(elements.length).toBeGreaterThanOrEqual(1)
       }
     })
 
-    it('renders 7 calendar cells for the week', () => {
+    it('renders 7 day slots for the week', () => {
       render(
         <CalendarGrid
           viewMode="week"
@@ -340,7 +414,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('calendar-cell')
+      const cells = screen.getAllByTestId('week-timeline-day')
       expect(cells).toHaveLength(7)
     })
 
@@ -373,7 +447,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('calendar-cell')
+      const cells = screen.getAllByTestId('week-timeline-day')
 
       // Find cell with moon phase (Jan 15)
       const cellsWithMoonPhase = cells.filter(
@@ -397,7 +471,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const firstCell = screen.getAllByTestId('calendar-cell')[0]
+      const firstCell = screen.getAllByTestId('week-timeline-day')[0]
       await user.click(firstCell)
 
       expect(mockOnCellClick).toHaveBeenCalledTimes(1)

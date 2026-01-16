@@ -7,11 +7,26 @@
  * @module components/scheduler/CalendarView/CalendarCell
  */
 
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import PropTypes from 'prop-types'
 import MoonPhaseIcon from './MoonPhaseIcon'
 import ExecutionMarker from './ExecutionMarker'
-import { isToday } from './calendarUtils'
+import { isToday, formatTime } from './calendarUtils'
+
+/**
+ * Get summary of hidden execution times
+ * @param {Array} hiddenExecutions - Array of hidden executions
+ * @returns {string} Comma-separated time summary (max 3)
+ */
+function getHiddenTimesSummary(hiddenExecutions) {
+  const times = hiddenExecutions
+    .slice(0, 3)
+    .map((exec) => formatTime(exec.start_time))
+    .filter(Boolean)
+
+  const suffix = hiddenExecutions.length > 3 ? '...' : ''
+  return times.join(', ') + suffix
+}
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -50,9 +65,16 @@ function CalendarCell({
   // Check if this date is today
   const isTodayDate = isToday(date)
 
-  // Calculate how many executions are hidden
-  const visibleExecutions = executions.slice(0, 3)
+  // Hover expansion state
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Show more executions in cells (5 instead of 3)
+  const MAX_VISIBLE = 5
+  const visibleExecutions = executions.slice(0, MAX_VISIBLE)
   const hiddenCount = executions.length - visibleExecutions.length
+
+  // Only expand if there are hidden executions
+  const shouldExpand = isHovered && hiddenCount > 0
 
   // Use stable primitive for date dependency (Date objects create new instances on each render)
   const dateTime = date.getTime()
@@ -62,9 +84,9 @@ function CalendarCell({
     onClick(date)
   }, [onClick, dateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build cell classes
+  // Build cell classes (responsive: smaller on mobile, larger on desktop)
   const cellClasses = [
-    'min-h-24 p-1',
+    'min-h-20 sm:min-h-24 p-0.5 sm:p-1',
     'border-r border-b',
     'border-gray-200 dark:border-gray-700',
     'relative cursor-pointer',
@@ -91,11 +113,13 @@ function CalendarCell({
     <div
       className={cellClasses}
       onClick={handleCellClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       role="button"
       tabIndex={0}
       aria-label={`${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}${
-  moonPhase ? `, ${moonPhase.phase_name}` : ''
-}${executions.length > 0 ? `, ${executions.length} scheduled execution${executions.length > 1 ? 's' : ''}` : ''}`}
+        moonPhase ? `, ${moonPhase.phase_name}` : ''
+      }${executions.length > 0 ? `, ${executions.length} scheduled execution${executions.length > 1 ? 's' : ''}` : ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
@@ -109,9 +133,19 @@ function CalendarCell({
         {moonPhase && <MoonPhaseIcon phase={moonPhase} size="sm" />}
       </div>
 
-      {/* Executions container */}
-      <div className="space-y-1 mt-1 overflow-y-auto max-h-16">
-        {visibleExecutions.map((exec, index) => (
+      {/* Executions container with hover expansion */}
+      <div
+        className={`
+          space-y-0.5 mt-1 overflow-y-auto transition-all duration-200
+          ${
+            shouldExpand
+              ? 'absolute left-0 right-0 top-8 z-20 bg-white dark:bg-gray-800 shadow-lg rounded-b-lg p-2 max-h-48 border border-gray-200 dark:border-gray-700'
+              : 'max-h-24'
+          }
+        `}
+      >
+        {/* Show all executions when expanded, limited when not */}
+        {(shouldExpand ? executions : visibleExecutions).map((exec, index) => (
           <ExecutionMarker
             key={exec.id || `${exec.pattern_id}-${exec.start_time}-${index}`}
             execution={exec}
@@ -120,11 +154,19 @@ function CalendarCell({
           />
         ))}
 
-        {/* "+N more" indicator */}
-        {hiddenCount > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            +{hiddenCount} more
-          </span>
+        {/* "+N more" only shows when not expanded */}
+        {!shouldExpand && hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onClick(date) // Switch to day view to see all
+            }}
+            className="text-[10px] text-blue-500 dark:text-blue-400 hover:underline"
+            title={`${hiddenCount} more executions - click to view all`}
+          >
+            +{hiddenCount} more ({getHiddenTimesSummary(executions.slice(MAX_VISIBLE))})
+          </button>
         )}
       </div>
     </div>

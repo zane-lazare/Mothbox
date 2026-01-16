@@ -53,10 +53,12 @@ describe('ExecutionMarker', () => {
       expect(timeElement).toBeInTheDocument()
     })
 
-    it('does not display time in compact mode', () => {
+    it('displays time in compact mode (smaller size)', () => {
       render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} compact />)
-      // In compact mode, only pattern name should be visible
-      expect(screen.getByText(/Night/)).toBeInTheDocument()
+      // In compact mode, time is displayed with smaller text
+      const timeElement = screen.getByText(/\d{1,2}:\d{2}/)
+      expect(timeElement).toBeInTheDocument()
+      expect(timeElement).toHaveClass('text-[10px]')
     })
 
     it('assigns consistent color based on pattern_id', () => {
@@ -96,16 +98,17 @@ describe('ExecutionMarker', () => {
       expect(nameElement).toBeInTheDocument()
     })
 
-    it('handles compact mode with max 10 characters', () => {
+    it('uses CSS truncation in compact mode', () => {
       const longExecution = {
         ...mockExecution,
         pattern_name: 'Very Long Pattern Name',
       }
 
       render(<ExecutionMarker execution={longExecution} onClick={mockOnClick} compact />)
-      // In compact mode, should show max 10 chars + ellipsis
-      const text = screen.getByText(/Very Long/)
-      expect(text.textContent.length).toBeLessThanOrEqual(13) // 10 + '...'
+      // In compact mode, CSS handles truncation via max-width and truncate class
+      const text = screen.getByText('Very Long Pattern Name')
+      expect(text).toHaveClass('truncate')
+      expect(text).toHaveClass('max-w-[60px]')
     })
   })
 
@@ -223,12 +226,14 @@ describe('ExecutionMarker', () => {
   describe('Compact Mode Tests', () => {
     it('applies compact-specific text sizing', () => {
       const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} compact />)
-      const textElement = container.querySelector('.text-xs')
+      // Compact mode uses text-[10px] for both time and name
+      const textElement = container.querySelector('.text-\\[10px\\]')
       expect(textElement).toBeInTheDocument()
     })
 
     it('applies full mode text sizing when not compact', () => {
       const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      // Full mode uses text-sm for name and text-xs for time
       const textElement = container.querySelector('.text-sm')
       expect(textElement).toBeInTheDocument()
     })
@@ -241,8 +246,9 @@ describe('ExecutionMarker', () => {
         <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
       )
 
-      const compactText = compactContainer.querySelector('.max-w-\\[80px\\]')
-      const fullText = fullContainer.querySelector('.max-w-\\[200px\\]')
+      // Compact: max-w-[60px], Full: max-w-[180px]
+      const compactText = compactContainer.querySelector('.max-w-\\[60px\\]')
+      const fullText = fullContainer.querySelector('.max-w-\\[180px\\]')
 
       expect(compactText).toBeInTheDocument()
       expect(fullText).toBeInTheDocument()
