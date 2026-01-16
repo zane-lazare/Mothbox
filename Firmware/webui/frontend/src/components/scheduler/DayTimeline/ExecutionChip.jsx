@@ -49,9 +49,15 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
   // Format the time display
   const timeStr = formatTimeShort(start_time)
 
-  // Determine action type from first action, or default to camera
-  const actionType = actions?.[0]?.action_type || 'camera'
-  const actionName = actions?.[0]?.action_name || pattern_name
+  // Find the "primary" action - prefer camera/gps_sync over flash_on/flash_off/attract_on/attract_off
+  const auxiliaryActions = ['flash_on', 'flash_off', 'attract_on', 'attract_off']
+  const primaryAction = actions?.find(
+    (a) => !auxiliaryActions.includes(a.action_name)
+  ) || actions?.[0]
+
+  // Determine action type from primary action, or default to camera
+  const actionType = primaryAction?.action_type || 'camera'
+  const actionName = primaryAction?.action_name || pattern_name
 
   // Get color classes for this action type
   const colorClasses = getActionTypeDisplay(actionType, actionName)
