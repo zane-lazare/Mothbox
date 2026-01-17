@@ -12,7 +12,7 @@ import PropTypes from 'prop-types'
 import MoonPhaseIcon from '../CalendarView/MoonPhaseIcon'
 import WeekHourRow from './WeekHourRow'
 import { DAY_HEADER_STYLES } from './weekTimelineConstants'
-import { formatWeekDayHeader, getConflictForHour, getDateKey } from './weekTimelineUtils'
+import { getConflictForHour, getDateKey } from './weekTimelineUtils'
 
 /**
  * DayColumn component
@@ -42,11 +42,6 @@ function DayColumn({
   onDayClick,
   onExecutionClick,
 }) {
-  // Format header info (pattern mode when patternOffset is provided)
-  const headerInfo = useMemo(
-    () => formatWeekDayHeader(date, dayIndex, patternOffset),
-    [date, dayIndex, patternOffset]
-  )
   const dateKey = useMemo(() => getDateKey(date), [date])
 
   // Handle day header click
@@ -70,18 +65,13 @@ function DayColumn({
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
-        aria-label={`${headerInfo.dayName}${patternOffset === null ? ` ${date.getDate()}` : ''}, click to view day details`}
+        aria-label={`Day ${dayIndex + 1}, click to view day details`}
       >
         <div className="flex items-center justify-center gap-1">
-          <span className="text-xs font-medium text-gray-400">
-            {headerInfo.dayName}
-          </span>
           {moonPhase && <MoonPhaseIcon phase={moonPhase} size="xs" />}
         </div>
-        <div
-          className={headerInfo.isToday ? DAY_HEADER_STYLES.today : DAY_HEADER_STYLES.normal}
-        >
-          {headerInfo.dayNumber}
+        <div className={DAY_HEADER_STYLES.normal}>
+          {dayIndex + 1}
         </div>
       </div>
 
