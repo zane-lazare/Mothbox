@@ -106,7 +106,6 @@ function CalendarGrid({
               executions={executionsByDate[dateKey] || []}
               moonPhase={moonPhases[dateKey] || null}
               onClick={onCellClick}
-              onExecutionClick={onExecutionClick}
             />
           )
         })}
