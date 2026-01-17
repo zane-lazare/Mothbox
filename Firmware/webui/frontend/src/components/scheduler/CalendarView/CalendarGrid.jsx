@@ -132,14 +132,15 @@ function CalendarGrid({
   }
 
   // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
-  // Pass all executions and cycleInfo - DayTimeline handles cycle-aware filtering
+  // Filter executions to just the selected date to avoid showing multiple days' worth
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
+    const dayExecutions = executionsByDate[currentDateKey] || []
 
     return (
       <DayTimeline
         date={currentDateKey}
-        executions={executions}
+        executions={dayExecutions}
         conflicts={conflicts}
         cycleInfo={cycleInfo}
         onExecutionClick={onExecutionClick}
