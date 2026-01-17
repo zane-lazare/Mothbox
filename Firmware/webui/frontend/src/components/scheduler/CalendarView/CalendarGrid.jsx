@@ -138,12 +138,11 @@ function CalendarGrid({
 
     // Extract first complete cycle from executions
     // A cycle runs from start_hour to end_hour (may span midnight)
-    // Note: cycleInfo hours are in UTC, convert to local for comparison
+    // cycleInfo hours are already in local time (backend converts based on tz param)
     let firstCycleExecutions = executions
     if (executions.length > 0 && cycleInfo?.end_hour != null) {
-      // Convert UTC end_hour to local time
-      const tzOffsetHours = -new Date().getTimezoneOffset() / 60
-      const localEndHour = (cycleInfo.end_hour + tzOffsetHours + 24) % 24
+      // Hours are already in local time from the API
+      const endHour = cycleInfo.end_hour
 
       // Find the first execution's timestamp as cycle start reference
       const sortedExecs = [...executions].sort(
@@ -151,9 +150,9 @@ function CalendarGrid({
       )
       const firstExecTime = new Date(sortedExecs[0].start_time)
 
-      // Calculate when the first cycle ends (next occurrence of localEndHour after first exec)
+      // Calculate when the first cycle ends (next occurrence of endHour after first exec)
       let cycleEnd = new Date(firstExecTime)
-      cycleEnd.setHours(localEndHour, 0, 0, 0)
+      cycleEnd.setHours(endHour, 0, 0, 0)
 
       // If cycle end is before first exec, it's the next day
       if (cycleEnd <= firstExecTime) {

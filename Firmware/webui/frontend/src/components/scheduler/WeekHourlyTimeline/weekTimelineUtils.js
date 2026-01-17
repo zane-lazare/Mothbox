@@ -86,21 +86,16 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
   }
 
   // Determine if this is an overnight schedule
-  // cycleInfo hours are in UTC, but we display in local time
-  // Convert UTC hours to local hours to check if it spans midnight locally
+  // cycleInfo hours are already in local time (backend converts based on tz param)
   let isOvernight = false
-  let localEndHour = null
+  let endHour = null
 
   if (cycleInfo && typeof cycleInfo.start_hour === 'number' && typeof cycleInfo.end_hour === 'number') {
-    // Get timezone offset in hours (e.g., NZDT is +13)
-    const tzOffsetHours = -new Date().getTimezoneOffset() / 60
+    // Hours are already in local time from the API
+    endHour = cycleInfo.end_hour
 
-    // Convert UTC hours to local hours
-    const localStartHour = (cycleInfo.start_hour + tzOffsetHours + 24) % 24
-    localEndHour = (cycleInfo.end_hour + tzOffsetHours + 24) % 24
-
-    // Overnight if local start > local end (e.g., 21:00 start, 05:00 end)
-    isOvernight = localStartHour > localEndHour
+    // Overnight if start > end (e.g., 21:00 start, 05:00 end)
+    isOvernight = cycleInfo.start_hour > cycleInfo.end_hour
   }
 
   // Create set of valid date keys from weekDates
@@ -134,7 +129,7 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
 
     // For overnight schedules, shift post-midnight hours to previous day
     // This keeps complete cycles (dusk-to-dawn) in the same day column
-    if (isOvernight && hour < localEndHour) {
+    if (isOvernight && hour < endHour) {
       const dateIndex = dateKeyList.indexOf(dateKey)
       if (dateIndex > 0) {
         // Shift to previous day
