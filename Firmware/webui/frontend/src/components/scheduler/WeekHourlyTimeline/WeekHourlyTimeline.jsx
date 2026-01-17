@@ -36,7 +36,6 @@ import {
   buildExecutionConflictsMap,
   formatHourLabel,
   getConflictForHour,
-  formatWeekDayHeader,
   getExecutionKey,
 } from './weekTimelineUtils'
 
@@ -61,19 +60,12 @@ const TimelineLegend = memo(function TimelineLegend() {
  * Day header cell for CSS Grid layout
  */
 const DayHeaderCell = memo(function DayHeaderCell({
-  date,
   dayIndex,
-  patternOffset,
   moonPhase,
   onDayClick,
 }) {
-  const headerInfo = useMemo(
-    () => formatWeekDayHeader(date, dayIndex, patternOffset),
-    [date, dayIndex, patternOffset]
-  )
-
   const handleClick = () => {
-    if (onDayClick) onDayClick(date)
+    if (onDayClick) onDayClick()
   }
 
   const handleKeyDown = (e) => {
@@ -90,25 +82,20 @@ const DayHeaderCell = memo(function DayHeaderCell({
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      aria-label={`${headerInfo.dayName}${patternOffset === null ? ` ${date.getDate()}` : ''}, click to view day details`}
+      aria-label={`Day ${dayIndex + 1}, click to view day details`}
     >
       <div className="flex items-center justify-center gap-1">
-        <span className="text-xs font-medium text-gray-400">
-          {headerInfo.dayName}
-        </span>
         {moonPhase && <MoonPhaseIcon phase={moonPhase} size="xs" />}
       </div>
-      <div className={headerInfo.isToday ? DAY_HEADER_STYLES.today : DAY_HEADER_STYLES.normal}>
-        {headerInfo.dayNumber}
+      <div className={DAY_HEADER_STYLES.normal}>
+        {dayIndex + 1}
       </div>
     </div>
   )
 })
 
 DayHeaderCell.propTypes = {
-  date: PropTypes.instanceOf(Date).isRequired,
   dayIndex: PropTypes.number.isRequired,
-  patternOffset: PropTypes.number,
   moonPhase: PropTypes.object,
   onDayClick: PropTypes.func.isRequired,
 }
@@ -224,11 +211,9 @@ const DesktopWeekView = memo(function DesktopWeekView({
           return (
             <DayHeaderCell
               key={dateKey}
-              date={date}
               dayIndex={index}
-              patternOffset={patternOffset}
               moonPhase={moonPhase}
-              onDayClick={onDayClick}
+              onDayClick={() => onDayClick && onDayClick(date)}
             />
           )
         })}
