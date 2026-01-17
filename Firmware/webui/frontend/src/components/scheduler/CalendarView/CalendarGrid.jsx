@@ -132,25 +132,40 @@ function CalendarGrid({
   }
 
   // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
-  // For overnight schedules (spans_midnight), include executions from current AND next date
-  // to show the complete cycle (e.g., dusk on day 1 through dawn on day 2)
+  // Show only the first complete cycle of the schedule (from start_hour to end_hour)
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
-    let dayExecutions = executionsByDate[currentDateKey] || []
 
-    // For overnight schedules, also include next day's executions (post-midnight portion)
-    if (cycleInfo?.spans_midnight) {
-      const nextDate = new Date(currentDate)
-      nextDate.setDate(nextDate.getDate() + 1)
-      const nextDateKey = getDateKey(nextDate)
-      const nextDayExecutions = executionsByDate[nextDateKey] || []
-      dayExecutions = [...dayExecutions, ...nextDayExecutions]
+    // Extract first complete cycle from executions
+    // A cycle runs from start_hour to end_hour (may span midnight)
+    let firstCycleExecutions = executions
+    if (executions.length > 0) {
+      // Find the first execution's timestamp as cycle start reference
+      const sortedExecs = [...executions].sort(
+        (a, b) => new Date(a.start_time) - new Date(b.start_time)
+      )
+      const firstExecTime = new Date(sortedExecs[0].start_time)
+
+      // Calculate when the first cycle ends (next occurrence of end_hour after first exec)
+      const cycleEndHour = cycleInfo?.end_hour ?? 24
+      let cycleEnd = new Date(firstExecTime)
+      cycleEnd.setHours(cycleEndHour, 0, 0, 0)
+
+      // If cycle end is before first exec, it's the next day
+      if (cycleEnd <= firstExecTime) {
+        cycleEnd.setDate(cycleEnd.getDate() + 1)
+      }
+
+      // Filter to only executions within the first cycle
+      firstCycleExecutions = sortedExecs.filter(
+        (exec) => new Date(exec.start_time) < cycleEnd
+      )
     }
 
     return (
       <DayTimeline
         date={currentDateKey}
-        executions={dayExecutions}
+        executions={firstCycleExecutions}
         conflicts={conflicts}
         cycleInfo={cycleInfo}
         onExecutionClick={onExecutionClick}
