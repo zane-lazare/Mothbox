@@ -650,13 +650,17 @@ def generate_preview(
     # Convert to preview executions with expanded actions
     executions = [_convert_execution(exec, trigger_info, routine_cache) for exec in raw_executions]
 
-    # Detect conflicts
+    # Detect conflicts using the same executions to avoid regeneration
+    # (regeneration would produce slightly different times for solar-based schedules)
     conflict_report = detect_conflicts(
         schedule=schedule,
         preview_days=days,
         latitude=latitude,
         longitude=longitude,
         timezone_name=timezone_name,
+        executions=raw_executions,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     # Get moon phases for the period

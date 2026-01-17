@@ -788,6 +788,9 @@ def detect_conflicts(
     latitude: float = 0.0,
     longitude: float = 0.0,
     timezone_name: str = "UTC",
+    executions: list[RoutineExecution] | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> ConflictReport:
     """
     Detect all conflicts in a schedule over a preview period.
@@ -801,19 +804,27 @@ def detect_conflicts(
         latitude: Location latitude for solar calculations
         longitude: Location longitude for solar calculations
         timezone_name: Timezone for time resolution
+        executions: Pre-generated executions (optional). If provided along with
+            start_date and end_date, skips regeneration for consistency.
+        start_date: Start date for preview window (required if executions provided)
+        end_date: End date for preview window (required if executions provided)
 
     Returns:
         ConflictReport with all detected conflicts
     """
     logger.debug(f"Analyzing schedule {schedule.schedule_id} for conflicts...")
 
-    start_date = date.today()
-    end_date = start_date + timedelta(days=preview_days - 1)
-
-    # Generate all routine executions
-    executions = generate_routine_executions(
-        schedule, start_date, end_date, latitude, longitude, timezone_name
-    )
+    # Use provided executions or generate new ones
+    if executions is not None and start_date is not None and end_date is not None:
+        # Use pre-generated executions for consistency
+        pass
+    else:
+        # Generate executions from scratch
+        start_date = date.today()
+        end_date = start_date + timedelta(days=preview_days - 1)
+        executions = generate_routine_executions(
+            schedule, start_date, end_date, latitude, longitude, timezone_name
+        )
 
     conflicts: list[Conflict] = []
 
