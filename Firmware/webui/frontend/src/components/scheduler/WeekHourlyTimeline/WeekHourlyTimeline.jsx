@@ -325,8 +325,25 @@ function WeekHourlyTimeline({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Get week dates (Sunday to Saturday)
-  const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate])
+  // Get week dates
+  // Pattern mode: 7 sequential days starting from today (for pattern display)
+  // Calendar mode: Sunday to Saturday of current week
+  const weekDates = useMemo(() => {
+    if (patternOffset !== null) {
+      // Pattern mode: return 7 sequential days starting from today
+      const dates = []
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today)
+        date.setDate(today.getDate() + i)
+        dates.push(date)
+      }
+      return dates
+    }
+    // Calendar mode: Sunday to Saturday
+    return getWeekDates(currentDate)
+  }, [currentDate, patternOffset])
 
   // Get cycle-aware hours
   const cycleHours = useMemo(() => getCycleHours(cycleInfo), [cycleInfo])
