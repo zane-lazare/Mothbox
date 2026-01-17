@@ -1,8 +1,8 @@
 /**
  * ExecutionChip - Execution marker within DayTimeline (Issue #326)
  *
- * Displays individual scheduled execution as a small chip/pill.
- * Shows time and action name with color-coding by action type.
+ * Displays individual scheduled execution as a small colored dot.
+ * Color indicates action type; details shown in tooltip on hover.
  * Supports conflict highlighting with ring indicators.
  *
  * @module components/scheduler/DayTimeline/ExecutionChip
@@ -11,11 +11,8 @@
 import { memo } from 'react'
 import PropTypes from 'prop-types'
 import { CHIP_CONFLICT_RINGS } from './dayTimelineConstants'
-import {
-  formatTimeShort,
-  getActionTypeDisplay,
-  getExecutionTestId,
-} from './dayTimelineUtils'
+import { formatTimeShort, getExecutionTestId } from './dayTimelineUtils'
+import { getActionColor } from '@/utils/routineUtils'
 
 /**
  * ExecutionChip component
@@ -46,33 +43,27 @@ import {
 function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
   const { pattern_name, start_time, actions } = execution
 
-  // Format the time display
+  // Format the time for tooltip/aria-label
   const timeStr = formatTimeShort(start_time)
 
   // Find the "primary" action - prefer camera/gps_sync over flash_on/flash_off/attract_on/attract_off
   const auxiliaryActions = ['flash_on', 'flash_off', 'attract_on', 'attract_off']
-  const primaryAction = actions?.find(
-    (a) => !auxiliaryActions.includes(a.action_name)
-  ) || actions?.[0]
+  const primaryAction =
+    actions?.find((a) => !auxiliaryActions.includes(a.action_name)) ||
+    actions?.[0]
 
-  // Determine action type from primary action, or default to camera
-  const actionType = primaryAction?.action_type || 'camera'
-  const actionName = primaryAction?.action_name || pattern_name
-
-  // Get color classes for this action type
-  const colorClasses = getActionTypeDisplay(actionType, actionName)
+  // Get solid color class for the dot (matches ScheduleCard style)
+  const dotColor = getActionColor(primaryAction)
 
   // Get conflict ring class if applicable
-  const conflictRing = conflictSeverity ? CHIP_CONFLICT_RINGS[conflictSeverity] : ''
+  const conflictRing = conflictSeverity
+    ? CHIP_CONFLICT_RINGS[conflictSeverity]
+    : ''
 
-  // Build chip display text - show only time (color indicates action type)
-  const displayText = timeStr
-
-  // Build class string
+  // Build class string for small colored dot
   const chipClasses = [
-    'text-xs px-2 py-0.5 rounded',
-    colorClasses.bg,
-    colorClasses.text,
+    'w-1.5 h-1.5 rounded-full',
+    dotColor,
     conflictRing,
     onClick ? 'cursor-pointer hover:brightness-110 transition-all' : '',
     'focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400',
@@ -111,9 +102,7 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
       onKeyDown={handleKeyDown}
       title={`${pattern_name} at ${timeStr}`}
       aria-label={ariaLabel}
-    >
-      {displayText}
-    </button>
+    />
   )
 }
 

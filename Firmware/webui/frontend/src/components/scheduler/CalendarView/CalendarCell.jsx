@@ -150,7 +150,6 @@ function CalendarCell({
             key={exec.id || `${exec.pattern_id}-${exec.start_time}-${index}`}
             execution={exec}
             onClick={() => onExecutionClick(exec)}
-            compact
           />
         ))}
 

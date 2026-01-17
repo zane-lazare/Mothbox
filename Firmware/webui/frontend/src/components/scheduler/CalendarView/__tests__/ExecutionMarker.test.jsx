@@ -3,24 +3,6 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ExecutionMarker from '../ExecutionMarker'
 
-// Mock the calendarUtils module
-vi.mock('../calendarUtils', async () => {
-  const actual = await vi.importActual('../calendarUtils')
-  return {
-    ...actual,
-    getPatternColor: vi.fn((patternId) => {
-      // Return consistent colors for testing
-      const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
-      let hash = 0
-      for (let i = 0; i < patternId.length; i++) {
-        hash = ((hash << 5) - hash) + patternId.charCodeAt(i)
-        hash = hash & hash
-      }
-      return colors[Math.abs(hash) % colors.length]
-    }),
-  }
-})
-
 describe('ExecutionMarker', () => {
   const mockExecution = {
     pattern_id: 'test-pattern-1',
@@ -29,8 +11,8 @@ describe('ExecutionMarker', () => {
     end_time: '2025-12-17T21:30:00Z',
     trigger_info: 'Solar: sunset',
     actions: [
-      { action_type: 'camera.capture', offset_minutes: 0 },
-      { action_type: 'gpio.on', offset_minutes: 5 },
+      { action_type: 'camera', action_name: 'capture', offset_minutes: 0 },
+      { action_type: 'gpio', action_name: 'flash_on', offset_minutes: 5 },
     ],
   }
 
@@ -41,74 +23,62 @@ describe('ExecutionMarker', () => {
   })
 
   describe('Rendering Tests', () => {
-    it('displays pattern name', () => {
-      render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      expect(screen.getByText('Night Photography Session')).toBeInTheDocument()
-    })
-
-    it('displays execution time when not compact', () => {
-      render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      // formatTime should convert to local time format
-      const timeElement = screen.getByText(/\d{1,2}:\d{2}/)
-      expect(timeElement).toBeInTheDocument()
-    })
-
-    it('displays time in compact mode (smaller size)', () => {
-      render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} compact />)
-      // In compact mode, time is displayed with smaller text
-      const timeElement = screen.getByText(/\d{1,2}:\d{2}/)
-      expect(timeElement).toBeInTheDocument()
-      expect(timeElement).toHaveClass('text-[10px]')
-    })
-
-    it('assigns consistent color based on pattern_id', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+    it('renders as a small colored dot (no visible text)', () => {
+      const { container } = render(
+        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      )
       const button = container.querySelector('button')
-
-      // Should have a bg-color class
-      expect(button.className).toMatch(/bg-(blue|green|purple|orange|pink|cyan)-500/)
+      // Should be a small dot with no text content
+      expect(button).toBeEmptyDOMElement()
+      expect(button).toHaveClass('w-1.5')
+      expect(button).toHaveClass('h-1.5')
+      expect(button).toHaveClass('rounded-full')
     })
 
-    it('assigns same color for same pattern_id', () => {
-      const { container: container1 } = render(
+    it('has pattern name in title attribute', () => {
+      render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const button = screen.getByRole('button')
+      expect(button.getAttribute('title')).toContain('Night Photography Session')
+    })
+
+    it('has time in title attribute', () => {
+      render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const button = screen.getByRole('button')
+      // formatTime should convert to local time format
+      expect(button.getAttribute('title')).toMatch(/\d{1,2}:\d{2}/)
+    })
+
+    it('applies camera color (blue) for camera action type', () => {
+      const { container } = render(
         <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
       )
-      const { container: container2 } = render(
-        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      const button = container.querySelector('button')
+      expect(button).toHaveClass('bg-blue-400')
+    })
+
+    it('applies gpio color (orange) for gpio action type', () => {
+      const gpioExecution = {
+        ...mockExecution,
+        actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+      }
+      const { container } = render(
+        <ExecutionMarker execution={gpioExecution} onClick={mockOnClick} />
       )
-
-      const button1 = container1.querySelector('button')
-      const button2 = container2.querySelector('button')
-
-      // Extract color classes
-      const colorClass1 = button1.className.match(/bg-\w+-\d+/)[0]
-      const colorClass2 = button2.className.match(/bg-\w+-\d+/)[0]
-
-      expect(colorClass1).toBe(colorClass2)
+      const button = container.querySelector('button')
+      expect(button).toHaveClass('bg-orange-400')
     })
 
-    it('truncates long pattern names', () => {
-      const longExecution = {
+    it('applies default color when no actions', () => {
+      const noActionsExecution = {
         ...mockExecution,
-        pattern_name: 'This is an extremely long pattern name that should definitely be truncated',
+        actions: undefined,
       }
-
-      render(<ExecutionMarker execution={longExecution} onClick={mockOnClick} />)
-      const nameElement = screen.getByText(/This is an extremely/)
-      expect(nameElement).toBeInTheDocument()
-    })
-
-    it('uses CSS truncation in compact mode', () => {
-      const longExecution = {
-        ...mockExecution,
-        pattern_name: 'Very Long Pattern Name',
-      }
-
-      render(<ExecutionMarker execution={longExecution} onClick={mockOnClick} compact />)
-      // In compact mode, CSS handles truncation via max-width and truncate class
-      const text = screen.getByText('Very Long Pattern Name')
-      expect(text).toHaveClass('truncate')
-      expect(text).toHaveClass('max-w-[60px]')
+      const { container } = render(
+        <ExecutionMarker execution={noActionsExecution} onClick={mockOnClick} />
+      )
+      const button = container.querySelector('button')
+      // Default to gray when no actions
+      expect(button).toHaveClass('bg-gray-400')
     })
   })
 
@@ -155,41 +125,27 @@ describe('ExecutionMarker', () => {
 
   describe('Visual State Tests', () => {
     it('has hover state classes', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const { container } = render(
+        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      )
       const button = container.querySelector('button')
       expect(button).toHaveClass('hover:brightness-110')
-      expect(button).toHaveClass('hover:scale-105')
     })
 
     it('has cursor-pointer class', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const { container } = render(
+        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      )
       const button = container.querySelector('button')
       expect(button).toHaveClass('cursor-pointer')
     })
 
     it('has transition classes for smooth animations', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const { container } = render(
+        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      )
       const button = container.querySelector('button')
       expect(button).toHaveClass('transition-all')
-    })
-
-    it('has dark mode classes', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      const button = container.querySelector('button')
-      // Should have dark mode variant
-      expect(button.className).toMatch(/dark:bg-\w+-\d+/)
-    })
-
-    it('has white text for contrast', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      const button = container.querySelector('button')
-      expect(button).toHaveClass('text-white')
-    })
-
-    it('has rounded-full class for pill shape', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      const button = container.querySelector('button')
-      expect(button).toHaveClass('rounded-full')
     })
   })
 
@@ -209,7 +165,9 @@ describe('ExecutionMarker', () => {
     })
 
     it('has focus ring classes', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
+      const { container } = render(
+        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
+      )
       const button = container.querySelector('button')
       expect(button).toHaveClass('focus:outline-none')
       expect(button).toHaveClass('focus:ring-2')
@@ -220,72 +178,6 @@ describe('ExecutionMarker', () => {
       const button = screen.getByRole('button')
       expect(button.tagName).toBe('BUTTON')
       expect(button).toHaveAttribute('type', 'button')
-    })
-  })
-
-  describe('Compact Mode Tests', () => {
-    it('applies compact-specific text sizing', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} compact />)
-      // Compact mode uses text-[10px] for both time and name
-      const textElement = container.querySelector('.text-\\[10px\\]')
-      expect(textElement).toBeInTheDocument()
-    })
-
-    it('applies full mode text sizing when not compact', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      // Full mode uses text-sm for name and text-xs for time
-      const textElement = container.querySelector('.text-sm')
-      expect(textElement).toBeInTheDocument()
-    })
-
-    it('has different max-width in compact mode', () => {
-      const { container: compactContainer } = render(
-        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} compact />
-      )
-      const { container: fullContainer } = render(
-        <ExecutionMarker execution={mockExecution} onClick={mockOnClick} />
-      )
-
-      // Compact: max-w-[60px], Full: max-w-[180px]
-      const compactText = compactContainer.querySelector('.max-w-\\[60px\\]')
-      const fullText = fullContainer.querySelector('.max-w-\\[180px\\]')
-
-      expect(compactText).toBeInTheDocument()
-      expect(fullText).toBeInTheDocument()
-    })
-  })
-
-  describe('Static Color Class Mapping', () => {
-    it('uses static dark mode classes (Tailwind JIT compatible)', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      const button = container.querySelector('button')
-      // Should have one of the static dark mode classes from COLOR_CLASS_MAP
-      const validDarkClasses = [
-        'dark:bg-blue-600',
-        'dark:bg-green-600',
-        'dark:bg-purple-600',
-        'dark:bg-orange-600',
-        'dark:bg-pink-600',
-        'dark:bg-cyan-600',
-      ]
-      const hasDarkClass = validDarkClasses.some((cls) => button.classList.contains(cls))
-      expect(hasDarkClass).toBe(true)
-    })
-
-    it('uses static focus ring classes (Tailwind JIT compatible)', () => {
-      const { container } = render(<ExecutionMarker execution={mockExecution} onClick={mockOnClick} />)
-      const button = container.querySelector('button')
-      // Should have one of the static focus ring classes from COLOR_CLASS_MAP
-      const validRingClasses = [
-        'focus:ring-blue-400',
-        'focus:ring-green-400',
-        'focus:ring-purple-400',
-        'focus:ring-orange-400',
-        'focus:ring-pink-400',
-        'focus:ring-cyan-400',
-      ]
-      const hasRingClass = validRingClasses.some((cls) => button.classList.contains(cls))
-      expect(hasRingClass).toBe(true)
     })
   })
 
@@ -375,8 +267,13 @@ describe('ExecutionMarker', () => {
         start_time: '2025-12-17T12:00:00Z',
       }
 
-      render(<ExecutionMarker execution={minimalExecution} onClick={mockOnClick} />)
-      expect(screen.getByText('Minimal')).toBeInTheDocument()
+      const { container } = render(
+        <ExecutionMarker execution={minimalExecution} onClick={mockOnClick} />
+      )
+      const button = container.querySelector('button')
+      expect(button).toHaveClass('w-1.5')
+      expect(button).toHaveClass('h-1.5')
+      expect(button).toHaveClass('rounded-full')
     })
 
     it('handles very short pattern names', () => {
@@ -386,7 +283,8 @@ describe('ExecutionMarker', () => {
       }
 
       render(<ExecutionMarker execution={shortExecution} onClick={mockOnClick} />)
-      expect(screen.getByText('A')).toBeInTheDocument()
+      const button = screen.getByRole('button')
+      expect(button.getAttribute('title')).toContain('A')
     })
 
     it('handles pattern names with special characters', () => {
@@ -396,7 +294,8 @@ describe('ExecutionMarker', () => {
       }
 
       render(<ExecutionMarker execution={specialExecution} onClick={mockOnClick} />)
-      expect(screen.getByText('Test & Debug [2024]')).toBeInTheDocument()
+      const button = screen.getByRole('button')
+      expect(button.getAttribute('title')).toContain('Test & Debug [2024]')
     })
   })
 })

@@ -33,15 +33,17 @@ describe('ExecutionChip', () => {
       expect(screen.getByTestId('execution-routine-1-1830')).toBeInTheDocument()
     })
 
-    it('displays only time (not action name)', () => {
+    it('renders as a small colored dot (no visible text)', () => {
       render(<ExecutionChip execution={chipExecution} />)
       const chip = screen.getByRole('button')
-      expect(chip).toHaveTextContent('18:30')
-      // Action name should be in title/aria-label, not visible text
-      expect(chip).not.toHaveTextContent('Take Photo')
+      // Should be a small dot with no text content
+      expect(chip).toBeEmptyDOMElement()
+      expect(chip).toHaveClass('w-1.5')
+      expect(chip).toHaveClass('h-1.5')
+      expect(chip).toHaveClass('rounded-full')
     })
 
-    it('displays time when no actions', () => {
+    it('renders dot when no actions', () => {
       const execution = createExecution({
         pattern_id: 'routine-1',
         pattern_name: 'Photo Capture',
@@ -50,18 +52,19 @@ describe('ExecutionChip', () => {
       })
       render(<ExecutionChip execution={execution} />)
       const chip = screen.getByRole('button')
-      expect(chip).toHaveTextContent('18:30')
-      // Pattern name should be in title/aria-label, not visible text
-      expect(chip).not.toHaveTextContent('Photo Capture')
+      expect(chip).toBeEmptyDOMElement()
+      expect(chip).toHaveClass('w-1.5')
+      expect(chip).toHaveClass('h-1.5')
+      expect(chip).toHaveClass('rounded-full')
     })
 
-    it('has correct aria-label', () => {
+    it('has correct aria-label with time and name', () => {
       render(<ExecutionChip execution={chipExecution} />)
       const chip = screen.getByRole('button')
       expect(chip).toHaveAttribute('aria-label', 'Photo Capture at 18:30')
     })
 
-    it('has correct title attribute', () => {
+    it('has correct title attribute with time and name', () => {
       render(<ExecutionChip execution={chipExecution} />)
       const chip = screen.getByRole('button')
       expect(chip).toHaveAttribute('title', 'Photo Capture at 18:30')
@@ -69,25 +72,22 @@ describe('ExecutionChip', () => {
   })
 
   describe('Action Type Colors', () => {
-    it('applies camera colors for camera type', () => {
+    it('applies camera color (blue) for camera type', () => {
       render(<ExecutionChip execution={chipExecution} />)
       const chip = screen.getByRole('button')
-      expect(chip).toHaveClass('bg-blue-500/20')
-      expect(chip).toHaveClass('text-blue-400')
+      expect(chip).toHaveClass('bg-blue-400')
     })
 
-    it('applies gpio colors for gpio type', () => {
+    it('applies gpio color (orange) for gpio type', () => {
       render(<ExecutionChip execution={mockGpioExecution} />)
       const chip = screen.getByRole('button')
-      expect(chip).toHaveClass('bg-orange-500/20')
-      expect(chip).toHaveClass('text-orange-400')
+      expect(chip).toHaveClass('bg-orange-400')
     })
 
-    it('applies hdr colors for HDR action names', () => {
+    it('applies hdr color (purple) for HDR action names', () => {
       render(<ExecutionChip execution={mockHdrExecution} />)
       const chip = screen.getByRole('button')
-      expect(chip).toHaveClass('bg-purple-500/20')
-      expect(chip).toHaveClass('text-purple-400')
+      expect(chip).toHaveClass('bg-purple-400')
     })
   })
 
