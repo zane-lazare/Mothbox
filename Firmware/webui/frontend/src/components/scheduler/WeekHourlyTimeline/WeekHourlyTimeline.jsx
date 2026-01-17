@@ -77,14 +77,14 @@ const DayHeaderCell = memo(function DayHeaderCell({
 
   return (
     <div
-      className={`${DAY_HEADER_STYLES.base} border-l border-gray-700 first:border-l-0`}
+      className={`${DAY_HEADER_STYLES.base} border-l border-gray-700 first:border-l-0 overflow-hidden`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-label={`Day ${dayIndex + 1}, click to view day details`}
     >
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-center gap-1 overflow-hidden">
         {moonPhase && <MoonPhaseIcon phase={moonPhase} size="xs" />}
       </div>
       <div className={DAY_HEADER_STYLES.normal}>
