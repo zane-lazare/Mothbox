@@ -203,7 +203,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
         }}
       >
         {/* Row 1: Empty corner cell + 7 day headers */}
-        <div className="h-10 border-b border-gray-700" />
+        <div className="border-b border-gray-700" />
         {weekDates.map((date, index) => {
           const dateKey = getDateKey(date)
           const moonPhase = moonPhases?.[dateKey] || null
