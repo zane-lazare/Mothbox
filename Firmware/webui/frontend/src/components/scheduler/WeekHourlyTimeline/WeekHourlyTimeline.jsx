@@ -506,9 +506,10 @@ function WeekHourlyTimeline({
   const cycleHours = useMemo(() => getCycleHours(cycleInfo), [cycleInfo])
 
   // Group executions by day and hour
+  // Pass cycleInfo to handle overnight schedules (shift post-midnight to previous day)
   const executionsByDayAndHour = useMemo(
-    () => groupExecutionsByDayAndHour(executions, weekDates),
-    [executions, weekDates]
+    () => groupExecutionsByDayAndHour(executions, weekDates, cycleInfo),
+    [executions, weekDates, cycleInfo]
   )
 
   // Build a combined executions-by-hour for collapse calculation

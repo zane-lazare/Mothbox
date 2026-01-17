@@ -68,21 +68,34 @@ function getHourFromIso(isoString) {
  *
  * Returns a nested structure: { 'YYYY-MM-DD': { hour: [executions] } }
  *
+ * For overnight schedules (where start_hour > end_hour), post-midnight executions
+ * are grouped with the previous day to show complete cycles per day column.
+ *
  * @param {Array} executions - Array of execution objects with start_time
  * @param {Date[]} weekDates - Array of 7 Date objects for the week
+ * @param {Object} [cycleInfo] - Cycle info with start_hour, end_hour for overnight handling
  * @returns {Object} Nested map of date -> hour -> executions
  *
  * @example
- * const grouped = groupExecutionsByDayAndHour(executions, weekDates)
+ * const grouped = groupExecutionsByDayAndHour(executions, weekDates, cycleInfo)
  * // grouped['2025-01-15'][18] = [{ pattern_id: '...', ... }]
  */
-export function groupExecutionsByDayAndHour(executions, weekDates) {
+export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = null) {
   if (!executions || !Array.isArray(executions)) {
     return {}
   }
 
+  // Determine if this is an overnight schedule (start_hour > end_hour means spans midnight)
+  const isOvernight = cycleInfo &&
+    typeof cycleInfo.start_hour === 'number' &&
+    typeof cycleInfo.end_hour === 'number' &&
+    cycleInfo.start_hour > cycleInfo.end_hour
+
   // Create set of valid date keys from weekDates
   const validDateKeys = new Set(weekDates.map(d => getLocalDateKey(d)))
+
+  // Also track date key to index mapping for previous day lookup
+  const dateKeyList = weekDates.map(d => getLocalDateKey(d))
 
   // Initialize empty structure for all dates
   const grouped = {}
@@ -101,11 +114,26 @@ export function groupExecutionsByDayAndHour(executions, weekDates) {
   sorted.forEach(execution => {
     if (!execution.start_time) return
 
-    const dateKey = getDateKeyFromIso(execution.start_time)
-    if (!dateKey || !validDateKeys.has(dateKey)) return
+    let dateKey = getDateKeyFromIso(execution.start_time)
+    if (!dateKey) return
 
     const hour = getHourFromIso(execution.start_time)
     if (hour === null) return
+
+    // For overnight schedules, shift post-midnight hours to previous day
+    // This keeps complete cycles (dusk-to-dawn) in the same day column
+    if (isOvernight && hour < cycleInfo.end_hour) {
+      const dateIndex = dateKeyList.indexOf(dateKey)
+      if (dateIndex > 0) {
+        // Shift to previous day
+        dateKey = dateKeyList[dateIndex - 1]
+      } else if (dateIndex === 0) {
+        // First day - skip post-midnight executions (they belong to previous week)
+        return
+      }
+    }
+
+    if (!validDateKeys.has(dateKey)) return
 
     // Dedupe key: date + hour + pattern_id + formatted time
     const timeStr = new Date(execution.start_time).toTimeString().slice(0, 5)
