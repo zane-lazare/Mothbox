@@ -132,10 +132,20 @@ function CalendarGrid({
   }
 
   // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
-  // Filter executions to just the selected date to avoid showing multiple days' worth
+  // For overnight schedules (spans_midnight), include executions from current AND next date
+  // to show the complete cycle (e.g., dusk on day 1 through dawn on day 2)
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
-    const dayExecutions = executionsByDate[currentDateKey] || []
+    let dayExecutions = executionsByDate[currentDateKey] || []
+
+    // For overnight schedules, also include next day's executions (post-midnight portion)
+    if (cycleInfo?.spans_midnight) {
+      const nextDate = new Date(currentDate)
+      nextDate.setDate(nextDate.getDate() + 1)
+      const nextDateKey = getDateKey(nextDate)
+      const nextDayExecutions = executionsByDate[nextDateKey] || []
+      dayExecutions = [...dayExecutions, ...nextDayExecutions]
+    }
 
     return (
       <DayTimeline
