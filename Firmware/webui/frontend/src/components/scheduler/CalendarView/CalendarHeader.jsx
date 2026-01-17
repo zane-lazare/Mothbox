@@ -31,7 +31,14 @@ export default function CalendarHeader({
   schedules,
   selectedScheduleId,
   onScheduleSelect,
+  patternOffset = null,
+  maxPatternDays = 7,
 }) {
+  // In week view, navigation is pattern-based
+  const isWeekView = viewMode === 'week'
+  const isPrevDisabled = isWeekView && patternOffset !== null && patternOffset <= 0
+  const isNextDisabled = isWeekView && patternOffset !== null && patternOffset + 7 >= maxPatternDays
+
   return (
     <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -54,28 +61,41 @@ export default function CalendarHeader({
         <div className="flex items-center gap-1">
           <button
             onClick={() => onNavigate('prev')}
-            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+            className={`p-1 rounded-md text-gray-700 dark:text-gray-200 ${
+              isPrevDisabled
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
             aria-label="Previous"
             data-testid="calendar-nav-previous"
             type="button"
+            disabled={isPrevDisabled}
           >
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
 
-          <button
-            onClick={() => onNavigate('today')}
-            className="px-2 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200"
-            type="button"
-          >
-            Today
-          </button>
+          {/* Hide Today button in week view (pattern mode doesn't have a "today" concept) */}
+          {!isWeekView && (
+            <button
+              onClick={() => onNavigate('today')}
+              className="px-2 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200"
+              type="button"
+            >
+              Today
+            </button>
+          )}
 
           <button
             onClick={() => onNavigate('next')}
-            className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+            className={`p-1 rounded-md text-gray-700 dark:text-gray-200 ${
+              isNextDisabled
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
             aria-label="Next"
             data-testid="calendar-nav-next"
             type="button"
+            disabled={isNextDisabled}
           >
             <ChevronRightIcon className="h-5 w-5" />
           </button>
@@ -86,7 +106,7 @@ export default function CalendarHeader({
           className="text-base font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap"
           data-testid="calendar-date-display"
         >
-          {formatDateRange(viewMode, currentDate)}
+          {formatDateRange(viewMode, currentDate, isWeekView ? patternOffset : null)}
         </span>
 
         {/* Spacer to push view toggle right */}
@@ -147,4 +167,10 @@ CalendarHeader.propTypes = {
 
   /** Callback when schedule is selected/changed */
   onScheduleSelect: PropTypes.func.isRequired,
+
+  /** Pattern offset for week view pattern mode (0, 7, 14, etc.) */
+  patternOffset: PropTypes.number,
+
+  /** Maximum pattern days for navigation bounds (disables next when offset + 7 >= max) */
+  maxPatternDays: PropTypes.number,
 }

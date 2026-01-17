@@ -519,11 +519,13 @@ describe('CalendarGrid', () => {
     })
 
     it('shows empty state when no executions for day', () => {
+      // DayTimeline uses cycle-aware grouping (ignores date, groups by hour)
+      // To get empty state, we need to pass an empty executions array
       render(
         <CalendarGrid
           viewMode="day"
-          currentDate={new Date(2025, 0, 10)} // Day with no executions
-          executions={mockExecutions}
+          currentDate={new Date(2025, 0, 10)}
+          executions={[]} // Empty executions array for empty state
           moonPhases={{}}
           onCellClick={mockOnCellClick}
           onExecutionClick={mockOnExecutionClick}
@@ -560,7 +562,9 @@ describe('CalendarGrid', () => {
       )
     })
 
-    it('renders 24 hour rows', () => {
+    it('renders hour rows with cycle-aware collapsing', () => {
+      // DayTimeline uses cycle-aware rendering with automatic collapsing
+      // of repetitive consecutive hours. It won't render all 24 rows.
       render(
         <CalendarGrid
           viewMode="day"
@@ -572,10 +576,13 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Should have 24 hour rows (0-23)
-      for (let hour = 0; hour < 24; hour++) {
-        expect(screen.getByTestId(`hour-row-${hour}`)).toBeInTheDocument()
-      }
+      // Should have the day-timeline container
+      expect(screen.getByTestId('day-timeline')).toBeInTheDocument()
+
+      // Should render rows for hours with executions (8 and 18)
+      // Note: DayTimeline may collapse repetitive empty hours
+      expect(screen.getByTestId('hour-row-8')).toBeInTheDocument()
+      expect(screen.getByTestId('hour-row-18')).toBeInTheDocument()
     })
 
     it('passes conflicts to DayTimeline', () => {

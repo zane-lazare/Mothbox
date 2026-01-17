@@ -102,6 +102,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
   moonPhases,
   onDayClick,
   onExecutionClick,
+  patternOffset = null,
 }) {
   return (
     <div className="border border-gray-700 rounded-lg overflow-hidden overflow-x-auto">
@@ -110,7 +111,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
         <HourLabels displayHours={displayHours} />
 
         {/* Day columns */}
-        {weekDates.map((date) => {
+        {weekDates.map((date, index) => {
           const dateKey = getDateKey(date)
           const dayExecutions = executionsByDayAndHour[dateKey] || {}
           const dayConflicts = getConflictsForDay(conflicts, dateKey)
@@ -120,6 +121,8 @@ const DesktopWeekView = memo(function DesktopWeekView({
             <div key={dateKey} className="flex-1 min-w-[80px]">
               <DayColumn
                 date={date}
+                dayIndex={index}
+                patternOffset={patternOffset}
                 displayHours={displayHours}
                 executionsByHour={dayExecutions}
                 conflicts={dayConflicts}
@@ -145,6 +148,7 @@ DesktopWeekView.propTypes = {
   moonPhases: PropTypes.object,
   onDayClick: PropTypes.func.isRequired,
   onExecutionClick: PropTypes.func,
+  patternOffset: PropTypes.number,
 }
 
 /**
@@ -159,9 +163,12 @@ const MobileWeekView = memo(function MobileWeekView({
   moonPhases,
   onDayClick,
   onExecutionClick,
+  patternOffset = null,
 }) {
   const [currentDayIndex, setCurrentDayIndex] = useState(() => {
-    // Default to today if it's in the week, otherwise Sunday
+    // In pattern mode, default to first day; in calendar mode, default to today
+    if (patternOffset !== null) return 0
+
     const today = new Date()
     const todayIndex = weekDates.findIndex(d =>
       d.getFullYear() === today.getFullYear() &&
@@ -211,6 +218,7 @@ const MobileWeekView = memo(function MobileWeekView({
         weekDates={weekDates}
         currentIndex={currentDayIndex}
         onDaySelect={setCurrentDayIndex}
+        patternOffset={patternOffset}
       />
 
       {/* Day content with swipe */}
@@ -234,7 +242,10 @@ const MobileWeekView = memo(function MobileWeekView({
           }}
         >
           <div className="flex items-center justify-center gap-2 text-lg font-semibold">
-            {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            {patternOffset !== null
+              ? `Day ${patternOffset + currentDayIndex + 1}`
+              : currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+            }
             {currentMoonPhase && <MoonPhaseIcon phase={currentMoonPhase} size="sm" />}
           </div>
         </div>
@@ -285,6 +296,7 @@ MobileWeekView.propTypes = {
   moonPhases: PropTypes.object,
   onDayClick: PropTypes.func.isRequired,
   onExecutionClick: PropTypes.func,
+  patternOffset: PropTypes.number,
 }
 
 /**
@@ -298,6 +310,7 @@ function WeekHourlyTimeline({
   cycleInfo = null,
   onCellClick,
   onExecutionClick,
+  patternOffset = null,
 }) {
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() =>
@@ -389,6 +402,7 @@ function WeekHourlyTimeline({
           moonPhases={moonPhases}
           onDayClick={handleDayClick}
           onExecutionClick={onExecutionClick}
+          patternOffset={patternOffset}
         />
       ) : (
         <DesktopWeekView
@@ -400,6 +414,7 @@ function WeekHourlyTimeline({
           moonPhases={moonPhases}
           onDayClick={handleDayClick}
           onExecutionClick={onExecutionClick}
+          patternOffset={patternOffset}
         />
       )}
     </div>
@@ -446,6 +461,8 @@ WeekHourlyTimeline.propTypes = {
   onCellClick: PropTypes.func.isRequired,
   /** Click handler for execution clicks (receives execution object) */
   onExecutionClick: PropTypes.func,
+  /** Pattern offset for pattern mode (null for calendar mode) */
+  patternOffset: PropTypes.number,
 }
 
 export default memo(WeekHourlyTimeline)

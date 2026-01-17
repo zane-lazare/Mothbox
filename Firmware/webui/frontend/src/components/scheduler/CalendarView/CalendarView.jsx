@@ -60,6 +60,8 @@ export function CalendarView() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null)
   const [selectedExecution, setSelectedExecution] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  // Pattern offset for week view (0, 7, 14, etc.) - tracks which 7-day window we're viewing
+  const [patternOffset, setPatternOffset] = useState(0)
 
   // Fetch schedules list (include built-in schedules for dropdown)
   const { data: schedulesData, isLoading: schedulesLoading } = useSchedules({ include_builtin: true })
@@ -91,6 +93,16 @@ export function CalendarView() {
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode)
   }, [viewMode])
 
+  // Compute max pattern days from cycle info (for week view navigation bounds)
+  const maxPatternDays = useMemo(() => {
+    return previewData?.cycle_info?.suggested_preview_days ?? 7
+  }, [previewData?.cycle_info])
+
+  // Reset pattern offset when schedule changes
+  useEffect(() => {
+    setPatternOffset(0)
+  }, [selectedScheduleId])
+
   // Handlers
   const handleViewModeChange = useCallback((mode) => {
     setViewMode(mode)
@@ -98,6 +110,18 @@ export function CalendarView() {
 
   const handleNavigate = useCallback(
     (direction) => {
+      // Week view uses pattern offset instead of date navigation
+      if (viewMode === 'week') {
+        if (direction === 'prev') {
+          setPatternOffset(prev => Math.max(0, prev - 7))
+        } else if (direction === 'next') {
+          setPatternOffset(prev => Math.min(maxPatternDays - 7, prev + 7))
+        }
+        // 'today' is not applicable in week view (no Today button shown)
+        return
+      }
+
+      // Month and day views use date navigation
       setCurrentDate((prev) => {
         const newDate = new Date(prev)
         switch (direction) {
@@ -112,8 +136,6 @@ export function CalendarView() {
               // Clamp to last day of month if original day exceeds it
               const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
               newDate.setDate(Math.min(originalDay, lastDayOfMonth))
-            } else if (viewMode === 'week') {
-              newDate.setDate(newDate.getDate() - 7)
             } else {
               newDate.setDate(newDate.getDate() - 1)
             }
@@ -127,8 +149,6 @@ export function CalendarView() {
               // Clamp to last day of month if original day exceeds it
               const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
               newDate.setDate(Math.min(originalDay, lastDayOfMonth))
-            } else if (viewMode === 'week') {
-              newDate.setDate(newDate.getDate() + 7)
             } else {
               newDate.setDate(newDate.getDate() + 1)
             }
@@ -138,7 +158,7 @@ export function CalendarView() {
         }
       })
     },
-    [viewMode]
+    [viewMode, maxPatternDays]
   )
 
   const handleScheduleSelect = useCallback((id) => {
@@ -197,6 +217,8 @@ export function CalendarView() {
         schedules={schedules}
         selectedScheduleId={selectedScheduleId}
         onScheduleSelect={handleScheduleSelect}
+        patternOffset={patternOffset}
+        maxPatternDays={maxPatternDays}
       />
 
       {!selectedScheduleId && (
@@ -246,6 +268,7 @@ export function CalendarView() {
           cycleInfo={previewData?.cycle_info || null}
           onCellClick={handleCellClick}
           onExecutionClick={handleExecutionClick}
+          patternOffset={patternOffset}
         />
       )}
 

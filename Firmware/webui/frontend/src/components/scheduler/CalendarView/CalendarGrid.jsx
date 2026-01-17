@@ -53,6 +53,7 @@ function CalendarGrid({
   cycleInfo = null,
   onCellClick,
   onExecutionClick,
+  patternOffset = null,
 }) {
   // Group executions by date (memoized for performance)
   const executionsByDate = useMemo(
@@ -125,6 +126,7 @@ function CalendarGrid({
         cycleInfo={cycleInfo}
         onCellClick={onCellClick}
         onExecutionClick={onExecutionClick}
+        patternOffset={patternOffset}
       />
     )
   }
@@ -185,6 +187,8 @@ CalendarGrid.propTypes = {
   }),
   onCellClick: PropTypes.func.isRequired,
   onExecutionClick: PropTypes.func.isRequired,
+  /** Pattern offset for week view pattern mode (null for calendar mode) */
+  patternOffset: PropTypes.number,
 }
 
 export default CalendarGrid

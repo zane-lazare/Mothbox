@@ -203,10 +203,26 @@ export function buildExecutionConflictsMap(executions, conflicts) {
 /**
  * Formats a date for the week header display.
  *
+ * In pattern mode (when patternOffset is provided), returns pattern-based labels
+ * like "Day 1", "Day 2", etc. In calendar mode, returns weekday names like "Sun", "Mon".
+ *
  * @param {Date} date - Date to format
+ * @param {number|null} [dayIndex=null] - Day index within the week (0-6), required for pattern mode
+ * @param {number|null} [patternOffset=null] - Pattern offset (0, 7, 14, etc.) for pattern mode
  * @returns {Object} { dayName, dayNumber, isToday }
  */
-export function formatWeekDayHeader(date) {
+export function formatWeekDayHeader(date, dayIndex = null, patternOffset = null) {
+  // Pattern mode: "Day 1", "Day 2", etc.
+  if (patternOffset !== null && dayIndex !== null) {
+    const patternDay = patternOffset + dayIndex + 1
+    return {
+      dayName: `Day ${patternDay}`,
+      dayNumber: patternDay,
+      isToday: false, // No "today" concept in pattern view
+    }
+  }
+
+  // Calendar mode: "Sun", "Mon", etc.
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const today = new Date()
   const isTodayDate =

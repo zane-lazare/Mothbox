@@ -19,6 +19,8 @@ import { formatWeekDayHeader, getConflictForHour, getDateKey } from './weekTimel
  *
  * @param {Object} props - Component props
  * @param {Date} props.date - The date for this column
+ * @param {number} props.dayIndex - Day index within the week (0-6)
+ * @param {number|null} [props.patternOffset=null] - Pattern offset for pattern mode (0, 7, 14, etc.)
  * @param {Array} props.displayHours - Array of hour objects to display (from collapseRepetitiveHours)
  * @param {Object} props.executionsByHour - Map of hour -> executions for this day
  * @param {Array} props.conflicts - Conflicts for this day
@@ -30,6 +32,8 @@ import { formatWeekDayHeader, getConflictForHour, getDateKey } from './weekTimel
  */
 function DayColumn({
   date,
+  dayIndex,
+  patternOffset = null,
   displayHours,
   executionsByHour,
   conflicts,
@@ -38,8 +42,11 @@ function DayColumn({
   onDayClick,
   onExecutionClick,
 }) {
-  // Format header info
-  const headerInfo = useMemo(() => formatWeekDayHeader(date), [date])
+  // Format header info (pattern mode when patternOffset is provided)
+  const headerInfo = useMemo(
+    () => formatWeekDayHeader(date, dayIndex, patternOffset),
+    [date, dayIndex, patternOffset]
+  )
   const dateKey = useMemo(() => getDateKey(date), [date])
 
   // Handle day header click
@@ -63,7 +70,7 @@ function DayColumn({
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
-        aria-label={`${headerInfo.dayName} ${date.getDate()}, click to view day details`}
+        aria-label={`${headerInfo.dayName}${patternOffset === null ? ` ${date.getDate()}` : ''}, click to view day details`}
       >
         <div className="flex items-center justify-center gap-1">
           <span className="text-xs font-medium text-gray-400">
@@ -118,6 +125,10 @@ function DayColumn({
 DayColumn.propTypes = {
   /** The date for this column */
   date: PropTypes.instanceOf(Date).isRequired,
+  /** Day index within the week (0-6) */
+  dayIndex: PropTypes.number.isRequired,
+  /** Pattern offset for pattern mode (null for calendar mode) */
+  patternOffset: PropTypes.number,
   /** Array of hour objects from collapseRepetitiveHours */
   displayHours: PropTypes.arrayOf(
     PropTypes.oneOfType([

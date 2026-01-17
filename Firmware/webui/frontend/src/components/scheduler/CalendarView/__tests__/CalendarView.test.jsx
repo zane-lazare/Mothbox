@@ -472,7 +472,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           'sched-1',
-          { days: 42 }, // Default is month view (42 days = 6 weeks)
+          { days: 42, tz: expect.any(String) }, // Default is month view (42 days = 6 weeks)
           { enabled: true }
         )
       })
@@ -484,7 +484,7 @@ describe('CalendarView', () => {
       // Verify useSchedulePreview was called with null and enabled: false
       expect(useSchedulePreview).toHaveBeenCalledWith(
         null,
-        { days: 42 },
+        { days: 42, tz: expect.any(String) },
         { enabled: false }
       )
     })
@@ -525,7 +525,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           null,
-          { days: 42 },
+          { days: 42, tz: expect.any(String) },
           { enabled: false }
         )
       })
@@ -540,7 +540,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           null,
-          { days: 7 },
+          { days: 7, tz: expect.any(String) },
           { enabled: false }
         )
       })
@@ -555,7 +555,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           null,
-          { days: 1 },
+          { days: 2, tz: expect.any(String) }, // 2 days to capture overnight schedules
           { enabled: false }
         )
       })
@@ -602,18 +602,18 @@ describe('CalendarView', () => {
       expect(screen.getByTestId('current-view-mode')).toHaveTextContent('week')
     })
 
-    it('falls back to month view days (35) for unknown view modes', () => {
+    it('falls back to month view days (42) for unknown view modes', () => {
       // Test the PREVIEW_DAYS constant fallback behavior
       // This ensures that if an invalid view mode somehow gets set,
-      // we default to month view's 35 days
+      // we default to month view's 42 days (6 weeks)
       localStorage.setItem('mothbox-calendar-view-mode', 'invalid-mode')
 
       render(<CalendarView />)
 
-      // Should use month's preview days (35) as fallback
+      // Should use month's preview days (42) as fallback
       expect(useSchedulePreview).toHaveBeenCalledWith(
         null,
-        { days: 42 },
+        { days: 42, tz: expect.any(String) },
         { enabled: false }
       )
     })
@@ -668,42 +668,38 @@ describe('CalendarView', () => {
       expect(newDate.getMonth()).toBe((initialDate.getMonth() + 1) % 12)
     })
 
-    it('handles "prev" navigation in week view', async () => {
+    it('handles "prev" navigation in week view (uses patternOffset, not date)', async () => {
       const user = userEvent.setup()
       render(<CalendarView />)
 
       await user.click(screen.getByText('Week'))
 
       const initialDateStr = screen.getByTestId('current-date').textContent
-      const initialDate = new Date(initialDateStr)
 
       await user.click(screen.getByText('Previous'))
 
       const newDateStr = screen.getByTestId('current-date').textContent
-      const newDate = new Date(newDateStr)
 
-      // Should go back one week (7 days)
-      const daysDiff = Math.floor((newDate - initialDate) / (1000 * 60 * 60 * 24))
-      expect(daysDiff).toBe(-7)
+      // In week view, navigation uses patternOffset instead of date
+      // Date should remain unchanged (patternOffset is internal state)
+      expect(newDateStr).toBe(initialDateStr)
     })
 
-    it('handles "next" navigation in week view', async () => {
+    it('handles "next" navigation in week view (uses patternOffset, not date)', async () => {
       const user = userEvent.setup()
       render(<CalendarView />)
 
       await user.click(screen.getByText('Week'))
 
       const initialDateStr = screen.getByTestId('current-date').textContent
-      const initialDate = new Date(initialDateStr)
 
       await user.click(screen.getByText('Next'))
 
       const newDateStr = screen.getByTestId('current-date').textContent
-      const newDate = new Date(newDateStr)
 
-      // Should go forward one week (7 days)
-      const daysDiff = Math.floor((newDate - initialDate) / (1000 * 60 * 60 * 24))
-      expect(daysDiff).toBe(7)
+      // In week view, navigation uses patternOffset instead of date
+      // Date should remain unchanged (patternOffset is internal state)
+      expect(newDateStr).toBe(initialDateStr)
     })
 
     it('handles "prev" navigation in day view', async () => {
@@ -1232,7 +1228,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           'sched-1',
-          { days: 42 },
+          { days: 42, tz: expect.any(String) },
           { enabled: true }
         )
       })
@@ -1243,7 +1239,7 @@ describe('CalendarView', () => {
       await waitFor(() => {
         expect(useSchedulePreview).toHaveBeenCalledWith(
           'sched-1',
-          { days: 7 },
+          { days: 7, tz: expect.any(String) },
           { enabled: true }
         )
       })

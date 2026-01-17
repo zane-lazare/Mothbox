@@ -119,9 +119,11 @@ export function groupExecutionsByDate(executions) {
  *
  * @param {string} viewMode - 'month', 'week', or 'day'
  * @param {Date} currentDate - The current date being displayed
+ * @param {number|null} [patternOffset=null] - Pattern offset for week view pattern mode (0, 7, 14, etc.)
+ *                                              When provided, returns "Days X-Y" format
  * @returns {string} Formatted date range string
  */
-export function formatDateRange(viewMode, currentDate) {
+export function formatDateRange(viewMode, currentDate, patternOffset = null) {
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -139,6 +141,14 @@ export function formatDateRange(viewMode, currentDate) {
   }
 
   if (viewMode === 'week') {
+    // Pattern mode: "Days 1-7", "Days 8-14", etc.
+    if (patternOffset !== null) {
+      const startDay = patternOffset + 1
+      const endDay = patternOffset + 7
+      return `Days ${startDay}-${endDay}`
+    }
+
+    // Calendar mode: "Dec 14-20, 2025"
     const weekDates = getWeekDates(currentDate)
     const startDate = weekDates[0]
     const endDate = weekDates[6]

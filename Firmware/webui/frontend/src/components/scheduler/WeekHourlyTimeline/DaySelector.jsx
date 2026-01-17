@@ -11,18 +11,22 @@ import { memo } from 'react'
 import PropTypes from 'prop-types'
 import { isToday } from './weekTimelineUtils'
 
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const CALENDAR_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 /**
  * DaySelector component
+ *
+ * In pattern mode (when patternOffset is provided), shows "1", "2", "3", etc.
+ * In calendar mode, shows "S", "M", "T", etc. with calendar dates.
  *
  * @param {Object} props - Component props
  * @param {Date[]} props.weekDates - Array of 7 dates for the week
  * @param {number} props.currentIndex - Currently selected day index (0-6)
  * @param {Function} props.onDaySelect - Handler when day is selected
+ * @param {number|null} [props.patternOffset=null] - Pattern offset for pattern mode (0, 7, 14, etc.)
  * @returns {JSX.Element} Day selector component
  */
-function DaySelector({ weekDates, currentIndex, onDaySelect }) {
+function DaySelector({ weekDates, currentIndex, onDaySelect, patternOffset = null }) {
   return (
     <div
       className="flex justify-center gap-2 py-3 bg-gray-900 border-b border-gray-700"
@@ -32,7 +36,16 @@ function DaySelector({ weekDates, currentIndex, onDaySelect }) {
     >
       {weekDates.map((date, index) => {
         const isActive = index === currentIndex
-        const isTodayDate = isToday(date)
+        // No "today" indicator in pattern mode
+        const isTodayDate = patternOffset === null && isToday(date)
+
+        // Pattern mode: show "1", "2", etc. / Calendar mode: show "S", "M", etc.
+        const isPatternMode = patternOffset !== null
+        const patternDay = isPatternMode ? patternOffset + index + 1 : null
+        const dayLabel = isPatternMode ? String(patternDay) : CALENDAR_DAYS[date.getDay()]
+        const ariaLabel = isPatternMode
+          ? `Day ${patternDay}`
+          : `${CALENDAR_DAYS[date.getDay()]} ${date.getDate()}`
 
         // Build button classes
         const buttonClasses = [
@@ -52,11 +65,21 @@ function DaySelector({ weekDates, currentIndex, onDaySelect }) {
             className={buttonClasses}
             role="tab"
             aria-selected={isActive}
-            aria-label={`${DAYS[date.getDay()]} ${date.getDate()}`}
+            aria-label={ariaLabel}
             data-testid={`day-selector-${index}`}
           >
-            <div className="text-[10px] text-gray-400">{DAYS[date.getDay()]}</div>
-            <div className="-mt-0.5">{date.getDate()}</div>
+            {isPatternMode ? (
+              // Pattern mode: single centered number
+              <div className="flex items-center justify-center h-full text-sm">
+                {patternDay}
+              </div>
+            ) : (
+              // Calendar mode: day letter + date number
+              <>
+                <div className="text-[10px] text-gray-400">{dayLabel}</div>
+                <div className="-mt-0.5">{date.getDate()}</div>
+              </>
+            )}
           </button>
         )
       })}
@@ -71,6 +94,8 @@ DaySelector.propTypes = {
   currentIndex: PropTypes.number.isRequired,
   /** Handler when a day button is clicked */
   onDaySelect: PropTypes.func.isRequired,
+  /** Pattern offset for pattern mode (null for calendar mode) */
+  patternOffset: PropTypes.number,
 }
 
 export default memo(DaySelector)
