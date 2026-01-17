@@ -12,16 +12,19 @@
  * @module components/scheduler/WeekHourlyTimeline
  */
 
-import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { memo, useMemo, useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import PropTypes from 'prop-types'
 import DayColumn from './DayColumn'
 import DaySelector from './DaySelector'
 import MoonPhaseIcon from '../CalendarView/MoonPhaseIcon'
 import ConflictSummary from '../DayTimeline/ConflictSummary'
+import ExecutionChip from '../DayTimeline/ExecutionChip'
 import HourRow from '../DayTimeline/HourRow'
 import {
   LEGEND_ITEMS,
   WEEK_VIEW_CONFIG,
+  DAY_HEADER_STYLES,
+  ROW_CONFLICT_STYLES,
 } from './weekTimelineConstants'
 import {
   getWeekDates,
@@ -33,6 +36,8 @@ import {
   buildExecutionConflictsMap,
   formatHourLabel,
   getConflictForHour,
+  formatWeekDayHeader,
+  getExecutionKey,
 } from './weekTimelineUtils'
 
 /**
@@ -53,45 +58,159 @@ const TimelineLegend = memo(function TimelineLegend() {
 })
 
 /**
- * Hour label column (left side of grid)
+ * Day header cell for CSS Grid layout
  */
-const HourLabels = memo(function HourLabels({ displayHours }) {
+const DayHeaderCell = memo(function DayHeaderCell({
+  date,
+  dayIndex,
+  patternOffset,
+  moonPhase,
+  onDayClick,
+}) {
+  const headerInfo = useMemo(
+    () => formatWeekDayHeader(date, dayIndex, patternOffset),
+    [date, dayIndex, patternOffset]
+  )
+
+  const handleClick = () => {
+    if (onDayClick) onDayClick(date)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
   return (
-    <div className="w-12 flex-shrink-0 border-r border-gray-700">
-      {/* Empty header cell to align with day headers */}
-      <div className="h-16 border-b border-gray-700" />
-
-      {/* Hour labels */}
-      <div className="divide-y divide-gray-800">
-        {displayHours.map((item, index) => {
-          if (item.type === 'collapsed') {
-            return (
-              <div key={`collapsed-${index}`} className="p-1 text-[10px] text-gray-600">
-                ...
-              </div>
-            )
-          }
-
-          return (
-            <div
-              key={item.hour}
-              className="p-1 min-h-8 text-[10px] text-gray-600 flex items-center"
-            >
-              {formatHourLabel(item.hour)}
-            </div>
-          )
-        })}
+    <div
+      className={`${DAY_HEADER_STYLES.base} border-l border-gray-700 first:border-l-0`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`${headerInfo.dayName}${patternOffset === null ? ` ${date.getDate()}` : ''}, click to view day details`}
+    >
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-xs font-medium text-gray-400">
+          {headerInfo.dayName}
+        </span>
+        {moonPhase && <MoonPhaseIcon phase={moonPhase} size="xs" />}
+      </div>
+      <div className={headerInfo.isToday ? DAY_HEADER_STYLES.today : DAY_HEADER_STYLES.normal}>
+        {headerInfo.dayNumber}
       </div>
     </div>
   )
 })
 
-HourLabels.propTypes = {
-  displayHours: PropTypes.array.isRequired,
+DayHeaderCell.propTypes = {
+  date: PropTypes.instanceOf(Date).isRequired,
+  dayIndex: PropTypes.number.isRequired,
+  patternOffset: PropTypes.number,
+  moonPhase: PropTypes.object,
+  onDayClick: PropTypes.func.isRequired,
 }
 
 /**
- * Desktop week view - 7 day columns
+ * Hour label cell for CSS Grid layout
+ */
+const HourLabelCell = memo(function HourLabelCell({ item, index }) {
+  if (item.type === 'collapsed') {
+    return (
+      <div className="p-1 border-b border-gray-800 text-[10px] text-gray-600 flex items-center">
+        ...
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-1 border-b border-gray-800 text-[10px] text-gray-600 flex items-center">
+      {formatHourLabel(item.hour)}
+    </div>
+  )
+})
+
+HourLabelCell.propTypes = {
+  item: PropTypes.oneOfType([
+    PropTypes.shape({ type: PropTypes.oneOf(['hour']), hour: PropTypes.number }),
+    PropTypes.shape({ type: PropTypes.oneOf(['collapsed']), count: PropTypes.number }),
+  ]).isRequired,
+  index: PropTypes.number.isRequired,
+}
+
+/**
+ * Week grid cell for CSS Grid layout (single hour/day intersection)
+ */
+const WeekGridCell = memo(function WeekGridCell({
+  hour,
+  executions,
+  conflict,
+  onExecutionClick,
+  executionConflicts,
+  onOverflowClick,
+}) {
+  const maxVisible = WEEK_VIEW_CONFIG.MAX_VISIBLE_CHIPS
+  const visibleExecutions = executions.slice(0, maxVisible)
+  const hiddenCount = executions.length - maxVisible
+
+  const conflictState = conflict?.severity || 'none'
+  const rowStyles = ROW_CONFLICT_STYLES[conflictState] || ROW_CONFLICT_STYLES.none
+
+  const cellClasses = [
+    'p-1 min-h-8 space-y-0.5 border-l border-b border-gray-800',
+    rowStyles.bg,
+  ].filter(Boolean).join(' ')
+
+  return (
+    <div className={cellClasses} data-testid={`week-hour-${hour}`}>
+      {visibleExecutions.map((execution, idx) => {
+        const execConflict = executionConflicts[execution.pattern_id]
+        const conflictSeverity = execConflict?.severity || null
+
+        return (
+          <ExecutionChip
+            key={getExecutionKey(execution, idx)}
+            execution={execution}
+            onClick={onExecutionClick ? () => onExecutionClick(execution) : undefined}
+            conflictSeverity={conflictSeverity}
+          />
+        )
+      })}
+
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (onOverflowClick) onOverflowClick()
+          }}
+          className="text-[10px] text-blue-400 hover:underline"
+          title={`${hiddenCount} more execution${hiddenCount > 1 ? 's' : ''}`}
+        >
+          +{hiddenCount} more
+        </button>
+      )}
+    </div>
+  )
+})
+
+WeekGridCell.propTypes = {
+  hour: PropTypes.number.isRequired,
+  executions: PropTypes.array.isRequired,
+  conflict: PropTypes.shape({
+    id: PropTypes.string,
+    severity: PropTypes.oneOf(['error', 'warning']).isRequired,
+    message: PropTypes.string,
+  }),
+  onExecutionClick: PropTypes.func,
+  executionConflicts: PropTypes.object.isRequired,
+  onOverflowClick: PropTypes.func,
+}
+
+/**
+ * Desktop week view - CSS Grid with aligned rows across all days
  */
 const DesktopWeekView = memo(function DesktopWeekView({
   weekDates,
@@ -106,32 +225,70 @@ const DesktopWeekView = memo(function DesktopWeekView({
 }) {
   return (
     <div className="border border-gray-700 rounded-lg overflow-hidden overflow-x-auto">
-      <div className="flex min-w-[700px]">
-        {/* Hour labels column */}
-        <HourLabels displayHours={displayHours} />
-
-        {/* Day columns */}
+      <div
+        className="grid min-w-[700px]"
+        style={{
+          gridTemplateColumns: '48px repeat(7, minmax(80px, 1fr))',
+          gridTemplateRows: `auto repeat(${displayHours.length}, minmax(32px, auto))`,
+        }}
+      >
+        {/* Row 1: Empty corner cell + 7 day headers */}
+        <div className="h-16 border-b border-gray-700" />
         {weekDates.map((date, index) => {
           const dateKey = getDateKey(date)
-          const dayExecutions = executionsByDayAndHour[dateKey] || {}
-          const dayConflicts = getConflictsForDay(conflicts, dateKey)
           const moonPhase = moonPhases?.[dateKey] || null
 
           return (
-            <div key={dateKey} className="flex-1 min-w-[80px]">
-              <DayColumn
-                date={date}
-                dayIndex={index}
-                patternOffset={patternOffset}
-                displayHours={displayHours}
-                executionsByHour={dayExecutions}
-                conflicts={dayConflicts}
-                executionConflicts={executionConflicts}
-                moonPhase={moonPhase}
-                onDayClick={onDayClick}
-                onExecutionClick={onExecutionClick}
-              />
-            </div>
+            <DayHeaderCell
+              key={dateKey}
+              date={date}
+              dayIndex={index}
+              patternOffset={patternOffset}
+              moonPhase={moonPhase}
+              onDayClick={onDayClick}
+            />
+          )
+        })}
+
+        {/* Remaining rows: Hour label + 7 day cells per row */}
+        {displayHours.map((item, rowIndex) => {
+          const isCollapsed = item.type === 'collapsed'
+          const hour = item.hour
+
+          return (
+            <Fragment key={isCollapsed ? `collapsed-${rowIndex}` : `hour-${hour}`}>
+              <HourLabelCell item={item} index={rowIndex} />
+              {weekDates.map((date) => {
+                const dateKey = getDateKey(date)
+                const dayExecutions = executionsByDayAndHour[dateKey] || {}
+                const dayConflicts = getConflictsForDay(conflicts, dateKey)
+                const hourExecutions = isCollapsed ? [] : (dayExecutions[hour] || [])
+                const hourConflict = isCollapsed ? null : getConflictForHour(dayConflicts, hour, dateKey)
+
+                if (isCollapsed) {
+                  return (
+                    <div
+                      key={`${dateKey}-collapsed`}
+                      className="p-1 border-l border-b border-gray-800 text-center text-[10px] text-gray-600"
+                    >
+                      ...
+                    </div>
+                  )
+                }
+
+                return (
+                  <WeekGridCell
+                    key={`${dateKey}-${hour}`}
+                    hour={hour}
+                    executions={hourExecutions}
+                    conflict={hourConflict}
+                    onExecutionClick={onExecutionClick}
+                    executionConflicts={executionConflicts}
+                    onOverflowClick={() => onDayClick && onDayClick(date)}
+                  />
+                )
+              })}
+            </Fragment>
           )
         })}
       </div>
