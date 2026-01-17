@@ -149,49 +149,33 @@ const WeekGridCell = memo(function WeekGridCell({
   conflict,
   onExecutionClick,
   executionConflicts,
-  onOverflowClick,
 }) {
-  const maxVisible = WEEK_VIEW_CONFIG.MAX_VISIBLE_CHIPS
-  const visibleExecutions = executions.slice(0, maxVisible)
-  const hiddenCount = executions.length - maxVisible
-
   const conflictState = conflict?.severity || 'none'
   const rowStyles = ROW_CONFLICT_STYLES[conflictState] || ROW_CONFLICT_STYLES.none
 
   const cellClasses = [
-    'p-1 min-h-8 space-y-0.5 border-l border-b border-gray-800',
+    'p-1 min-h-8 border-l border-b border-gray-800',
     rowStyles.bg,
   ].filter(Boolean).join(' ')
 
   return (
     <div className={cellClasses} data-testid={`week-hour-${hour}`}>
-      {visibleExecutions.map((execution, idx) => {
-        const execConflict = executionConflicts[execution.pattern_id]
-        const conflictSeverity = execConflict?.severity || null
+      {/* Horizontal flex layout for small dots - show all executions */}
+      <div className="flex flex-wrap gap-0.5 items-center">
+        {executions.map((execution, idx) => {
+          const execConflict = executionConflicts[execution.pattern_id]
+          const conflictSeverity = execConflict?.severity || null
 
-        return (
-          <ExecutionChip
-            key={getExecutionKey(execution, idx)}
-            execution={execution}
-            onClick={onExecutionClick ? () => onExecutionClick(execution) : undefined}
-            conflictSeverity={conflictSeverity}
-          />
-        )
-      })}
-
-      {hiddenCount > 0 && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (onOverflowClick) onOverflowClick()
-          }}
-          className="text-[10px] text-blue-400 hover:underline"
-          title={`${hiddenCount} more execution${hiddenCount > 1 ? 's' : ''}`}
-        >
-          +{hiddenCount} more
-        </button>
-      )}
+          return (
+            <ExecutionChip
+              key={getExecutionKey(execution, idx)}
+              execution={execution}
+              onClick={onExecutionClick ? () => onExecutionClick(execution) : undefined}
+              conflictSeverity={conflictSeverity}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 })
@@ -206,7 +190,6 @@ WeekGridCell.propTypes = {
   }),
   onExecutionClick: PropTypes.func,
   executionConflicts: PropTypes.object.isRequired,
-  onOverflowClick: PropTypes.func,
 }
 
 /**
@@ -284,7 +267,6 @@ const DesktopWeekView = memo(function DesktopWeekView({
                     conflict={hourConflict}
                     onExecutionClick={onExecutionClick}
                     executionConflicts={executionConflicts}
-                    onOverflowClick={() => onDayClick && onDayClick(date)}
                   />
                 )
               })}
