@@ -196,14 +196,14 @@ const DesktopWeekView = memo(function DesktopWeekView({
   return (
     <div className="border border-gray-700 rounded-lg overflow-hidden overflow-x-auto">
       <div
-        className="grid min-w-[700px]"
+        className="grid"
         style={{
-          gridTemplateColumns: '48px repeat(7, minmax(80px, 1fr))',
+          gridTemplateColumns: '40px repeat(7, minmax(36px, 1fr))',
           gridTemplateRows: `auto repeat(${displayHours.length}, minmax(32px, auto))`,
         }}
       >
         {/* Row 1: Empty corner cell + 7 day headers */}
-        <div className="h-16 border-b border-gray-700" />
+        <div className="h-10 border-b border-gray-700" />
         {weekDates.map((date, index) => {
           const dateKey = getDateKey(date)
           const moonPhase = moonPhases?.[dateKey] || null
