@@ -514,10 +514,15 @@ function WeekHourlyTimeline({
   }, [cycleHours, executionsByDayAndHour])
 
   // Calculate display hours with collapsing
-  const displayHours = useMemo(
-    () => collapseRepetitiveHours(cycleHours, combinedExecutionsByHour),
-    [cycleHours, combinedExecutionsByHour]
-  )
+  // In pattern mode: show all hours without collapsing for full visibility
+  // In calendar mode: collapse repetitive hours for compactness
+  const displayHours = useMemo(() => {
+    if (patternOffset !== null) {
+      // Pattern mode: no collapsing, show all 24 hours
+      return cycleHours.map(hour => ({ type: 'hour', hour }))
+    }
+    return collapseRepetitiveHours(cycleHours, combinedExecutionsByHour)
+  }, [cycleHours, combinedExecutionsByHour, patternOffset])
 
   // Build execution conflicts map
   const executionConflicts = useMemo(
