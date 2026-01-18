@@ -22,6 +22,7 @@ from uuid import uuid4
 from flask import Blueprint, Response, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
 
+from mothbox_paths import CONTROLS_FILE, get_control_values
 from webui.backend.lib.cron_bridge import (
     CronEntry,
     calculate_next_waketime,
@@ -44,6 +45,7 @@ from webui.backend.lib.schedule_schema import (
     ScheduleValidationError,
 )
 from webui.backend.lib.schedule_storage import is_builtin_schedule
+from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
 from webui.backend.services.scheduler_service import SchedulerService
 
 # Rate limiter import with fallback for testing
@@ -357,23 +359,27 @@ def get_active_schedule() -> tuple[Response, int]:
 
     Returns:
         200 OK: {
-            "active_schedule": {...} or null
+            "active_schedule": {...} or null,
+            "coordinates_source": "explicit" | "gps" | "timezone" | null
         }
     """
     try:
         service = get_scheduler_service()
         schedule = service.get_active_schedule()
+        coordinates_source = service.get_active_coordinates_source()
 
         if schedule is None:
             return jsonify(
                 {
                     "active_schedule": None,
+                    "coordinates_source": None,
                 }
             ), 200
 
         return jsonify(
             {
                 "active_schedule": schedule.to_dict(),
+                "coordinates_source": coordinates_source,
             }
         ), 200
 
@@ -845,16 +851,43 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 }
             ), 400
 
-        # Type validation for coordinates
-        try:
-            latitude = float(data["latitude"]) if lat_provided else 0.0
-            longitude = float(data["longitude"]) if lon_provided else 0.0
-        except (ValueError, TypeError):
-            return jsonify(
-                {
-                    "error": "Coordinates must be numeric",
-                }
-            ), 400
+        # Determine coordinates with fallback chain (Issue #331)
+        # Priority: 1) explicit request, 2) device GPS, 3) timezone approximation
+        coordinates_source = "explicit"  # "explicit", "gps", or "timezone"
+
+        if lat_provided:
+            # Coordinates explicitly provided in request
+            try:
+                latitude = float(data["latitude"])
+                longitude = float(data["longitude"])
+                coordinates_source = "explicit"
+            except (ValueError, TypeError):
+                return jsonify(
+                    {
+                        "error": "Coordinates must be numeric",
+                    }
+                ), 400
+        else:
+            # Try device GPS from controls.txt
+            control_values = get_control_values(CONTROLS_FILE)
+            device_lat = control_values.get("lat", "n/a")
+            device_lon = control_values.get("lon", "n/a")
+
+            if device_lat != "n/a" and device_lon != "n/a":
+                try:
+                    latitude = float(device_lat)
+                    longitude = float(device_lon)
+                    coordinates_source = "gps"
+                    logger.info(f"Using device GPS: {latitude}, {longitude}")
+                except (ValueError, TypeError):
+                    # GPS values invalid, fall back to timezone
+                    latitude, longitude, tz = get_fallback_coordinates()
+                    coordinates_source = "timezone"
+                    logger.info(f"GPS values invalid, using timezone '{tz}': {latitude}, {longitude}")
+            else:
+                # No GPS, fall back to timezone
+                latitude, longitude, tz = get_fallback_coordinates()
+                coordinates_source = "timezone"
 
         timezone_name = data.get("timezone", "UTC")
 
@@ -904,6 +937,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 longitude=longitude,
                 timezone_name=timezone_name,
                 progress_callback=emit_progress,
+                coordinates_source=coordinates_source,
             )
         except ScheduleConflictError as e:
             # Log conflict details, return generic message
@@ -923,10 +957,14 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 }
             ), 400
 
+        # Include coordinates_source in response for UI notification (Issue #331)
         return jsonify(
             {
                 "message": "Schedule activated",
                 "schedule_id": schedule_id,
+                "coordinates_source": coordinates_source,
+                "latitude": latitude,
+                "longitude": longitude,
             }
         ), 200
 
@@ -943,41 +981,46 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
 @limiter.limit("10 per minute")
 def deactivate_current_schedule() -> tuple[Response, int]:
     """
-    Deactivate the currently active schedule.
+    Deactivate the currently active schedule and clear system crontab.
+
+    Always clears crontab entries, even if no schedule is tracked as active.
+    This handles orphaned cron entries from crashes/restarts (Issue #331).
 
     POST /api/scheduler/ui/schedules/deactivate
 
     Returns:
         200 OK: {
-            "message": "Schedule deactivated" or "No active schedule",
+            "message": "Schedule deactivated" or "Cleared orphaned cron entries",
             "was_active": true/false,
             "schedule_id": "..." or null
         }
-        500 Internal Server Error: Unexpected error
+        500 Internal Server Error: Failed to clear crontab
     """
     try:
         service = get_scheduler_service()
 
-        # Check if there's an active schedule
+        # Check if there's an active schedule (before deactivation)
         active = service.get_active_schedule()
-        if active is None:
-            return jsonify(
-                {
-                    "message": "No active schedule to deactivate",
-                    "was_active": False,
-                    "schedule_id": None,
-                }
-            ), 200
 
-        # Deactivate
+        # ALWAYS call deactivate - clears orphaned cron entries too (Issue #331)
         success = service.deactivate_schedule()
 
         if not success:
             return jsonify(
                 {
-                    "error": "Failed to deactivate schedule",
+                    "error": "Failed to clear crontab",
+                    "message": "Cron entries may still be active",
                 }
             ), 500
+
+        if active is None:
+            return jsonify(
+                {
+                    "message": "Cleared orphaned cron entries",
+                    "was_active": False,
+                    "schedule_id": None,
+                }
+            ), 200
 
         return jsonify(
             {

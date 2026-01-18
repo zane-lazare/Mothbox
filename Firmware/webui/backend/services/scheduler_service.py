@@ -161,6 +161,9 @@ class SchedulerService:
 
         # Separate cache for active schedule (O(1) lookup)
         self._active_schedule_id: str | None = None
+        # Tracks how coordinates were determined for active schedule (Issue #331)
+        # Values: "explicit", "gps", "timezone", or None if no active schedule
+        self._active_coordinates_source: str | None = None
 
         # Thread safety (RLock allows recursive locking)
         self._cache_lock = RLock()
@@ -637,6 +640,18 @@ class SchedulerService:
             return active_schedules[0]
         return None
 
+    def get_active_coordinates_source(self) -> str | None:
+        """
+        Get how coordinates were determined for the active schedule (Issue #331).
+
+        Returns:
+            "explicit" if coordinates were provided in the request,
+            "gps" if coordinates came from device GPS (controls.txt),
+            "timezone" if coordinates came from timezone fallback,
+            or None if no active schedule.
+        """
+        return self._active_coordinates_source
+
     def activate_schedule(
         self,
         schedule_id: str,
@@ -645,6 +660,7 @@ class SchedulerService:
         longitude: float = 0.0,
         timezone_name: str = "UTC",
         progress_callback: Callable[[str, int], None] | None = None,
+        coordinates_source: str = "explicit",
     ) -> None:
         """
         Activate a schedule (deactivates any currently active first).
@@ -665,6 +681,8 @@ class SchedulerService:
                               "checking_conflicts" (10%), "generating_cron" (30%),
                               "applying_cron" (60%), "updating_state" (90%),
                               "complete" (100%)
+            coordinates_source: How coordinates were determined (Issue #331).
+                               Values: "explicit", "gps", "timezone"
 
         Returns:
             None on success
@@ -803,46 +821,54 @@ class SchedulerService:
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
 
-        # Set active schedule ID last
+        # Set active schedule ID and coordinates source last
         with self._cache_lock:
             self._active_schedule_id = schedule_id
+            self._active_coordinates_source = coordinates_source
 
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
-        logger.info(f"Activated schedule: {schedule_id}")
+        logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")
 
     def deactivate_schedule(self) -> bool:
         """
-        Deactivate the currently active schedule.
+        Deactivate the currently active schedule and clear system crontab.
+
+        Always clears crontab entries, even if no schedule is tracked as active.
+        This handles orphaned cron entries from crashes/restarts (Issue #331).
 
         Returns:
-            True always (no-op if no active schedule)
+            True if crontab was successfully cleared, False on failure.
         """
-        if self._active_schedule_id is None:
-            return True  # No-op
-
         schedule_id = self._active_schedule_id
 
-        # Update storage if not built-in
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": False})
-            else:
-                self._update_builtin_schedule_state(schedule_id, False)
-        except Exception:
-            logger.exception(f"Failed to deactivate schedule {schedule_id}")
+        # Update storage if there's an active schedule
+        if schedule_id is not None:
+            try:
+                if not is_builtin_schedule(schedule_id):
+                    self.update_schedule(schedule_id, {"is_active": False})
+                else:
+                    self._update_builtin_schedule_state(schedule_id, False)
+            except Exception:
+                logger.exception(f"Failed to deactivate schedule {schedule_id}")
 
-        # Clear active schedule ID
-        with self._cache_lock:
-            self._active_schedule_id = None
+            # Clear active schedule ID
+            with self._cache_lock:
+                self._active_schedule_id = None
+                self._active_coordinates_source = None
 
-        # Clear system cron (Issue #215)
+        # ALWAYS clear system cron - even if no active schedule tracked (Issue #331)
+        # This handles orphaned cron entries from crashes or restarts
         try:
             remove_from_system(clear_rtc=True)
+            logger.info("Cleared system crontab")
         except Exception as e:
             logger.error(f"Failed to remove cron jobs: {e}")
-            # Still proceed with deactivation - don't block on cron removal failure
+            return False  # Return failure so caller knows
 
-        logger.info(f"Deactivated schedule: {schedule_id}")
+        if schedule_id:
+            logger.info(f"Deactivated schedule: {schedule_id}")
+        else:
+            logger.info("Cleared orphaned cron entries (no active schedule)")
 
         return True
 
