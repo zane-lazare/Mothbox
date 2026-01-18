@@ -360,19 +360,27 @@ def get_active_schedule() -> tuple[Response, int]:
     Returns:
         200 OK: {
             "active_schedule": {...} or null,
-            "coordinates_source": "explicit" | "gps" | "timezone" | null
+            "coordinates_source": "explicit" | "gps" | "timezone" | null,
+            "latitude": number | null,
+            "longitude": number | null,
+            "timezone_name": string | null  // Only set when source="timezone"
         }
     """
     try:
         service = get_scheduler_service()
         schedule = service.get_active_schedule()
         coordinates_source = service.get_active_coordinates_source()
+        coordinates = service.get_active_coordinates()
+        timezone_name = service.get_active_timezone_name()
 
         if schedule is None:
             return jsonify(
                 {
                     "active_schedule": None,
                     "coordinates_source": None,
+                    "latitude": None,
+                    "longitude": None,
+                    "timezone_name": None,
                 }
             ), 200
 
@@ -380,6 +388,9 @@ def get_active_schedule() -> tuple[Response, int]:
             {
                 "active_schedule": schedule.to_dict(),
                 "coordinates_source": coordinates_source,
+                "latitude": coordinates[0] if coordinates else None,
+                "longitude": coordinates[1] if coordinates else None,
+                "timezone_name": timezone_name,
             }
         ), 200
 
@@ -873,6 +884,9 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             device_lat = control_values.get("lat", "n/a")
             device_lon = control_values.get("lon", "n/a")
 
+            # Initialize fallback timezone (set when using timezone fallback)
+            fallback_timezone = None
+
             if device_lat != "n/a" and device_lon != "n/a":
                 try:
                     latitude = float(device_lat)
@@ -881,15 +895,26 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                     logger.info(f"Using device GPS: {latitude}, {longitude}")
                 except (ValueError, TypeError):
                     # GPS values invalid, fall back to timezone
-                    latitude, longitude, tz = get_fallback_coordinates()
+                    latitude, longitude, fallback_timezone = get_fallback_coordinates()
                     coordinates_source = "timezone"
-                    logger.info(f"GPS values invalid, using timezone '{tz}': {latitude}, {longitude}")
+                    logger.info(
+                        f"GPS values invalid, using timezone '{fallback_timezone}': "
+                        f"{latitude}, {longitude}"
+                    )
             else:
                 # No GPS, fall back to timezone
-                latitude, longitude, tz = get_fallback_coordinates()
+                latitude, longitude, fallback_timezone = get_fallback_coordinates()
                 coordinates_source = "timezone"
+                logger.info(
+                    f"No GPS available, using timezone '{fallback_timezone}': "
+                    f"{latitude}, {longitude}"
+                )
 
-        timezone_name = data.get("timezone", "UTC")
+        # Use system timezone when coordinates came from timezone fallback
+        if coordinates_source == "timezone" and fallback_timezone:
+            timezone_name = fallback_timezone
+        else:
+            timezone_name = data.get("timezone", "UTC")
 
         # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
         # This ensures Null Island coordinates are validated rather than skipped

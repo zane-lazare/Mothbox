@@ -16,13 +16,13 @@ function formatTime(isoString) {
 
 /**
  * Get display name for an action
- * @param {Object} execution - Execution object with action info
+ * @param {Object} action - Action object from preview API
  * @returns {string} Human-readable action name
  */
-function getActionDisplayName(execution) {
-  if (!execution) return ''
-  // execution has: routine_name, action_type, action_name
-  const actionName = execution.action_name || execution.action_type || ''
+function getActionDisplayName(action) {
+  if (!action) return ''
+  // action has: time, action_name, action_type, offset_minutes, description
+  const actionName = action.action_name || action.action_type || ''
   // Convert snake_case to Title Case
   return actionName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
@@ -63,11 +63,16 @@ function ActiveScheduleBanner() {
 
   const { name } = data.active_schedule
   const coordinatesSource = data?.coordinates_source
+  const latitude = data?.latitude
+  const longitude = data?.longitude
+  const timezoneName = data?.timezone_name
 
-  // Get next execution from preview
-  const nextExecution = previewData?.executions?.[0]
-  const nextTime = nextExecution ? formatTime(nextExecution.scheduled_time) : null
-  const nextAction = nextExecution ? getActionDisplayName(nextExecution) : null
+  // Get next execution from preview - access nested actions array
+  // Preview API structure: { executions: [{ start_time, actions: [{ time, action_name }] }] }
+  const firstExecution = previewData?.executions?.[0]
+  const nextAction = firstExecution?.actions?.[0]
+  const nextTime = nextAction ? formatTime(nextAction.time) : null
+  const nextActionName = nextAction ? getActionDisplayName(nextAction) : null
 
   const handleDeactivate = () => {
     deactivate()
@@ -87,9 +92,16 @@ function ActiveScheduleBanner() {
               Active: <span className="font-normal">{name}</span>
             </span>
           </div>
-          {nextTime && nextAction && (
+          {nextTime && nextActionName && (
             <span className="text-gray-500 text-sm" data-testid="next-execution">
-              Next: {nextTime} {nextAction}
+              Next: {nextTime} {nextActionName}
+            </span>
+          )}
+          {coordinatesSource && (
+            <span className="text-gray-400 text-sm" data-testid="location-info">
+              {coordinatesSource === 'gps' &&
+                `GPS ${latitude?.toFixed(3)}, ${longitude?.toFixed(3)}`}
+              {coordinatesSource === 'timezone' && `System Locale: ${timezoneName}`}
             </span>
           )}
         </div>

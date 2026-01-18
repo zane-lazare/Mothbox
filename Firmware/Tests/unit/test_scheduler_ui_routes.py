@@ -438,25 +438,43 @@ class TestGetActiveScheduleEndpoint:
     def test_get_active_schedule_none(self, client, mock_scheduler_service):
         """Test when no schedule is active."""
         mock_scheduler_service.get_active_schedule.return_value = None
+        mock_scheduler_service.get_active_coordinates_source.return_value = None
+        mock_scheduler_service.get_active_coordinates.return_value = None
+        mock_scheduler_service.get_active_timezone_name.return_value = None
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert data["active"] is False
-        assert data["schedule"] is None
+        assert data["active_schedule"] is None
+        assert data["coordinates_source"] is None
+        assert data["latitude"] is None
+        assert data["longitude"] is None
+        assert data["timezone_name"] is None
 
     def test_get_active_schedule_exists(self, client, mock_scheduler_service, sample_schedule):
         """Test when a schedule is active."""
+        sample_schedule.to_dict.return_value = {
+            "schedule_id": "test-schedule",
+            "name": "Test Schedule",
+            "enabled": True,
+            "is_active": True,
+        }
         mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_active_coordinates_source.return_value = "gps"
+        mock_scheduler_service.get_active_coordinates.return_value = (-36.848, 174.763)
+        mock_scheduler_service.get_active_timezone_name.return_value = None
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert data["active"] is True
-        assert data["schedule"] is not None
-        assert data["schedule"]["schedule_id"] == "test-schedule"
+        assert data["active_schedule"] is not None
+        assert data["active_schedule"]["schedule_id"] == "test-schedule"
+        assert data["coordinates_source"] == "gps"
+        assert data["latitude"] == -36.848
+        assert data["longitude"] == 174.763
+        assert data["timezone_name"] is None
 
     def test_get_active_schedule_full_object(self, client, mock_scheduler_service, sample_schedule):
         """Test that full schedule object is returned."""
@@ -468,13 +486,18 @@ class TestGetActiveScheduleEndpoint:
             "is_active": True,
         }
         mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_active_coordinates_source.return_value = "timezone"
+        mock_scheduler_service.get_active_coordinates.return_value = (-41.286, 174.776)
+        mock_scheduler_service.get_active_timezone_name.return_value = "Pacific/Auckland"
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "routines" in data["schedule"]
-        assert "enabled" in data["schedule"]
+        assert "routines" in data["active_schedule"]
+        assert "enabled" in data["active_schedule"]
+        assert data["coordinates_source"] == "timezone"
+        assert data["timezone_name"] == "Pacific/Auckland"
 
     def test_get_active_schedule_error(self, client, mock_scheduler_service):
         """Test error handling."""

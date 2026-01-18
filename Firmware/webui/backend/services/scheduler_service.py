@@ -164,6 +164,10 @@ class SchedulerService:
         # Tracks how coordinates were determined for active schedule (Issue #331)
         # Values: "explicit", "gps", "timezone", or None if no active schedule
         self._active_coordinates_source: str | None = None
+        # Store actual coordinates and timezone used for solar calculations (Issue #331)
+        self._active_latitude: float | None = None
+        self._active_longitude: float | None = None
+        self._active_timezone_name: str | None = None  # Timezone name when source="timezone"
 
         # Thread safety (RLock allows recursive locking)
         self._cache_lock = RLock()
@@ -652,6 +656,29 @@ class SchedulerService:
         """
         return self._active_coordinates_source
 
+    def get_active_coordinates(self) -> tuple[float, float] | None:
+        """
+        Get the coordinates used for the active schedule (Issue #331).
+
+        Returns:
+            Tuple of (latitude, longitude) if a schedule is active, None otherwise.
+        """
+        if self._active_latitude is not None and self._active_longitude is not None:
+            return (self._active_latitude, self._active_longitude)
+        return None
+
+    def get_active_timezone_name(self) -> str | None:
+        """
+        Get the timezone name used for coordinates fallback (Issue #331).
+
+        Only set when coordinates_source is "timezone".
+
+        Returns:
+            Timezone name (e.g., "Pacific/Auckland") if using timezone fallback,
+            None otherwise.
+        """
+        return self._active_timezone_name
+
     def activate_schedule(
         self,
         schedule_id: str,
@@ -821,10 +848,14 @@ class SchedulerService:
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
 
-        # Set active schedule ID and coordinates source last
+        # Set active schedule ID, coordinates source, and location data last
         with self._cache_lock:
             self._active_schedule_id = schedule_id
             self._active_coordinates_source = coordinates_source
+            self._active_latitude = latitude
+            self._active_longitude = longitude
+            # Store timezone name when coordinates came from timezone fallback
+            self._active_timezone_name = timezone_name if coordinates_source == "timezone" else None
 
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")
@@ -851,10 +882,13 @@ class SchedulerService:
             except Exception:
                 logger.exception(f"Failed to deactivate schedule {schedule_id}")
 
-            # Clear active schedule ID
+            # Clear active schedule ID and location data
             with self._cache_lock:
                 self._active_schedule_id = None
                 self._active_coordinates_source = None
+                self._active_latitude = None
+                self._active_longitude = None
+                self._active_timezone_name = None
 
         # ALWAYS clear system cron - even if no active schedule tracked (Issue #331)
         # This handles orphaned cron entries from crashes or restarts
