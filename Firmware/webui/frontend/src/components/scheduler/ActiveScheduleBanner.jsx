@@ -84,26 +84,13 @@ function ActiveScheduleBanner() {
       data-testid="active-schedule-banner"
       className="bg-green-50 border border-green-200 rounded-lg p-4"
     >
+      {/* Top row: Active schedule name and Deactivate button */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            <span className="text-green-900 font-medium">
-              Active: <span className="font-normal">{name}</span>
-            </span>
-          </div>
-          {nextTime && nextActionName && (
-            <span className="text-gray-500 text-sm" data-testid="next-execution">
-              Next: {nextTime} {nextActionName}
-            </span>
-          )}
-          {coordinatesSource && (
-            <span className="text-gray-400 text-sm" data-testid="location-info">
-              {coordinatesSource === 'gps' &&
-                `GPS ${latitude?.toFixed(3)}, ${longitude?.toFixed(3)}`}
-              {coordinatesSource === 'timezone' && `System Locale: ${timezoneName}`}
-            </span>
-          )}
+        <div className="flex items-center gap-2">
+          <CheckCircleIcon className="h-5 w-5 text-green-600" />
+          <span className="text-green-900 font-medium">
+            Active: <span className="font-normal">{name}</span>
+          </span>
         </div>
 
         <button
@@ -113,6 +100,23 @@ function ActiveScheduleBanner() {
         >
           {isPending ? 'Deactivating...' : 'Deactivate'}
         </button>
+      </div>
+
+      {/* Second row: Next action and time/location info */}
+      <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
+        {nextTime && nextActionName && (
+          <span data-testid="next-execution">
+            Next: {nextTime} {nextActionName}
+          </span>
+        )}
+        {coordinatesSource && (
+          <span data-testid="location-info">
+            {coordinatesSource === 'gps' &&
+              `Time: Using GPS ${latitude?.toFixed(3)}, ${longitude?.toFixed(3)}`}
+            {coordinatesSource === 'timezone' &&
+              `Time: Using System Locale: ${timezoneName}`}
+          </span>
+        )}
       </div>
 
       {/* Warning when using timezone approximation for coordinates (Issue #331) */}
