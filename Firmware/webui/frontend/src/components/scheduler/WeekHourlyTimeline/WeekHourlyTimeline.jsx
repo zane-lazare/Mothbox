@@ -473,17 +473,8 @@ function WeekHourlyTimeline({
     return getWeekDates(currentDate)
   }, [currentDate, patternOffset])
 
-  // Get cycle-aware hours
-  // In pattern mode: show all 24 hours ordered from start_hour
-  // In calendar mode: use getCycleHours (filters to active hours)
-  const cycleHours = useMemo(() => {
-    if (patternOffset !== null && cycleInfo?.start_hour != null) {
-      // Pattern mode: show all 24 hours, ordered from start_hour
-      const startHour = cycleInfo.start_hour
-      return Array.from({ length: 24 }, (_, i) => (startHour + i) % 24)
-    }
-    return getCycleHours(cycleInfo)
-  }, [cycleInfo, patternOffset])
+  // Get cycle-aware hours (only active hours for the schedule)
+  const cycleHours = useMemo(() => getCycleHours(cycleInfo), [cycleInfo])
 
   // Group executions by day and hour
   // In pattern mode, use cycle-based grouping to handle overnight schedules correctly
@@ -514,15 +505,10 @@ function WeekHourlyTimeline({
   }, [cycleHours, executionsByDayAndHour])
 
   // Calculate display hours with collapsing
-  // In pattern mode: show all hours without collapsing for full visibility
-  // In calendar mode: collapse repetitive hours for compactness
-  const displayHours = useMemo(() => {
-    if (patternOffset !== null) {
-      // Pattern mode: no collapsing, show all 24 hours
-      return cycleHours.map(hour => ({ type: 'hour', hour }))
-    }
-    return collapseRepetitiveHours(cycleHours, combinedExecutionsByHour)
-  }, [cycleHours, combinedExecutionsByHour, patternOffset])
+  const displayHours = useMemo(
+    () => collapseRepetitiveHours(cycleHours, combinedExecutionsByHour),
+    [cycleHours, combinedExecutionsByHour]
+  )
 
   // Build execution conflicts map
   const executionConflicts = useMemo(
