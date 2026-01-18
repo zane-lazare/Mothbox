@@ -474,14 +474,26 @@ function WeekHourlyTimeline({
   }, [currentDate, patternOffset])
 
   // Get cycle-aware hours
-  const cycleHours = useMemo(() => getCycleHours(cycleInfo), [cycleInfo])
+  // In pattern mode: show all 24 hours ordered from start_hour
+  // In calendar mode: use getCycleHours (filters to active hours)
+  const cycleHours = useMemo(() => {
+    if (patternOffset !== null && cycleInfo?.start_hour != null) {
+      // Pattern mode: show all 24 hours, ordered from start_hour
+      const startHour = cycleInfo.start_hour
+      return Array.from({ length: 24 }, (_, i) => (startHour + i) % 24)
+    }
+    return getCycleHours(cycleInfo)
+  }, [cycleInfo, patternOffset])
 
   // Group executions by day and hour
   // In pattern mode, use cycle-based grouping to handle overnight schedules correctly
   // In calendar mode, use date-based grouping with post-midnight shifting
   const executionsByDayAndHour = useMemo(() => {
     if (patternOffset !== null && cycleInfo) {
-      return groupExecutionsByCycleDay(executions, cycleInfo, weekDates[0])
+      // Align reference with cycle start_hour so Day 1 shows a complete cycle
+      const reference = new Date(weekDates[0])
+      reference.setHours(cycleInfo.start_hour ?? 0, 0, 0, 0)
+      return groupExecutionsByCycleDay(executions, cycleInfo, reference)
     }
     return groupExecutionsByDayAndHour(executions, weekDates, cycleInfo)
   }, [executions, weekDates, cycleInfo, patternOffset])
