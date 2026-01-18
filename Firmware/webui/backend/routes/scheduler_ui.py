@@ -15,6 +15,7 @@ Issue #310 - API terminology update (Schema 3.0)
 """
 
 import logging
+import subprocess
 from datetime import datetime
 from functools import wraps
 from uuid import uuid4
@@ -61,6 +62,38 @@ except ImportError:
             return decorator
 
     limiter = _LimiterStub()
+
+
+def get_system_timezone() -> str:
+    """Get system timezone name from timedatectl or /etc/timezone.
+
+    Returns:
+        Timezone name (e.g., "Pacific/Auckland") or "UTC" as fallback.
+    """
+    # Try timedatectl first (most reliable on systemd systems)
+    try:
+        result = subprocess.run(
+            ["timedatectl", "show", "--property=Timezone", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except (subprocess.SubprocessError, OSError, FileNotFoundError):
+        pass
+
+    # Fallback: read /etc/timezone
+    try:
+        with open("/etc/timezone") as f:
+            tz = f.read().strip()
+            if tz:
+                return tz
+    except OSError:
+        pass
+
+    return "UTC"
+
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -910,11 +943,19 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                     f"{latitude}, {longitude}"
                 )
 
-        # Use system timezone when coordinates came from timezone fallback
+        # Determine timezone:
+        # 1. If using timezone fallback, use that timezone
+        # 2. If explicitly provided in request, use that
+        # 3. Otherwise, use system timezone (especially important for GPS coords)
         if coordinates_source == "timezone" and fallback_timezone:
             timezone_name = fallback_timezone
+        elif "timezone" in data and data["timezone"]:
+            timezone_name = data["timezone"]
         else:
-            timezone_name = data.get("timezone", "UTC")
+            # Use system timezone - critical for GPS-based activation
+            # Without this, solar times would be calculated in UTC!
+            timezone_name = get_system_timezone()
+            logger.info(f"Using system timezone: {timezone_name}")
 
         # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
         # This ensures Null Island coordinates are validated rather than skipped
