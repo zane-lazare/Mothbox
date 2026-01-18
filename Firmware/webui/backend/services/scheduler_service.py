@@ -669,13 +669,11 @@ class SchedulerService:
 
     def get_active_timezone_name(self) -> str | None:
         """
-        Get the timezone name used for coordinates fallback (Issue #331).
-
-        Only set when coordinates_source is "timezone".
+        Get the timezone name used for solar time calculations (Issue #331).
 
         Returns:
-            Timezone name (e.g., "Pacific/Auckland") if using timezone fallback,
-            None otherwise.
+            Timezone name (e.g., "Pacific/Auckland") used for the active schedule,
+            None if no schedule is active.
         """
         return self._active_timezone_name
 
@@ -854,8 +852,10 @@ class SchedulerService:
             self._active_coordinates_source = coordinates_source
             self._active_latitude = latitude
             self._active_longitude = longitude
-            # Store timezone name when coordinates came from timezone fallback
-            self._active_timezone_name = timezone_name if coordinates_source == "timezone" else None
+            # Store timezone name for all activation methods (Issue #331)
+            # Previously only stored when coordinates_source="timezone",
+            # but displaying it is useful for GPS-based activation too
+            self._active_timezone_name = timezone_name
 
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")
