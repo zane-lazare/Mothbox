@@ -14,7 +14,6 @@
 
 import { memo, useMemo, useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import PropTypes from 'prop-types'
-import DayColumn from './DayColumn'
 import DaySelector from './DaySelector'
 import MoonPhaseIcon from '../CalendarView/MoonPhaseIcon'
 import ConflictSummary from '../DayTimeline/ConflictSummary'
@@ -32,6 +31,7 @@ import {
   getCycleHours,
   collapseRepetitiveHours,
   groupExecutionsByDayAndHour,
+  groupExecutionsByCycleDay,
   getConflictsForDay,
   buildExecutionConflictsMap,
   formatHourLabel,
@@ -226,9 +226,11 @@ const DesktopWeekView = memo(function DesktopWeekView({
           return (
             <Fragment key={isCollapsed ? `collapsed-${rowIndex}` : `hour-${hour}`}>
               <HourLabelCell item={item} index={rowIndex} />
-              {weekDates.map((date) => {
+              {weekDates.map((date, dayIndex) => {
                 const dateKey = getDateKey(date)
-                const dayExecutions = executionsByDayAndHour[dateKey] || {}
+                // In pattern mode, use cycle-based keys; in calendar mode, use date keys
+                const dayKey = patternOffset !== null ? `day-${dayIndex}` : dateKey
+                const dayExecutions = executionsByDayAndHour[dayKey] || {}
                 const dayConflicts = getConflictsForDay(conflicts, dateKey)
                 const hourExecutions = isCollapsed ? [] : (dayExecutions[hour] || [])
                 const hourConflict = isCollapsed ? null : getConflictForHour(dayConflicts, hour, dateKey)
@@ -236,7 +238,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
                 if (isCollapsed) {
                   return (
                     <div
-                      key={`${dateKey}-collapsed`}
+                      key={`${dayKey}-collapsed`}
                       className="p-1 border-l border-b border-gray-800 text-center text-[10px] text-gray-600"
                     >
                       ...
@@ -246,7 +248,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
 
                 return (
                   <WeekGridCell
-                    key={`${dateKey}-${hour}`}
+                    key={`${dayKey}-${hour}`}
                     hour={hour}
                     executions={hourExecutions}
                     conflict={hourConflict}
@@ -331,7 +333,9 @@ const MobileWeekView = memo(function MobileWeekView({
 
   const currentDate = weekDates[currentDayIndex]
   const dateKey = getDateKey(currentDate)
-  const dayExecutions = executionsByDayAndHour[dateKey] || {}
+  // In pattern mode, use cycle-based keys; in calendar mode, use date keys
+  const dayKey = patternOffset !== null ? `day-${currentDayIndex}` : dateKey
+  const dayExecutions = executionsByDayAndHour[dayKey] || {}
   const dayConflicts = getConflictsForDay(conflicts, dateKey)
   const currentMoonPhase = moonPhases?.[dateKey] || null
 
@@ -473,11 +477,14 @@ function WeekHourlyTimeline({
   const cycleHours = useMemo(() => getCycleHours(cycleInfo), [cycleInfo])
 
   // Group executions by day and hour
-  // Pass cycleInfo to handle overnight schedules (shift post-midnight to previous day)
-  const executionsByDayAndHour = useMemo(
-    () => groupExecutionsByDayAndHour(executions, weekDates, cycleInfo),
-    [executions, weekDates, cycleInfo]
-  )
+  // In pattern mode, use cycle-based grouping to handle overnight schedules correctly
+  // In calendar mode, use date-based grouping with post-midnight shifting
+  const executionsByDayAndHour = useMemo(() => {
+    if (patternOffset !== null && cycleInfo) {
+      return groupExecutionsByCycleDay(executions, cycleInfo, weekDates[0])
+    }
+    return groupExecutionsByDayAndHour(executions, weekDates, cycleInfo)
+  }, [executions, weekDates, cycleInfo, patternOffset])
 
   // Build a combined executions-by-hour for collapse calculation
   // (collapse if ALL days have similar patterns)

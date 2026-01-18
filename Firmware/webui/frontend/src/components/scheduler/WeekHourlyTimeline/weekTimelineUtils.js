@@ -24,6 +24,9 @@ export {
 // Re-export from calendarUtils
 export { getWeekDates, isToday, getDateKey } from '../CalendarView/calendarUtils'
 
+// Re-export shared cycle utilities
+export { groupExecutionsByCycleDay } from '../utils/cycleGroupingUtils'
+
 /**
  * Gets a date key (YYYY-MM-DD) from a Date object in local timezone.
  *
@@ -176,40 +179,6 @@ export function getConflictsForDay(conflicts, dateKey) {
   })
 }
 
-/**
- * Counts conflicts for a specific date by severity.
- *
- * @param {Array} conflicts - Array of conflict objects
- * @param {string} dateKey - Date key in YYYY-MM-DD format
- * @returns {Object} { errors, warnings, total }
- */
-export function countConflictsForDay(conflicts, dateKey) {
-  const dayConflicts = getConflictsForDay(conflicts, dateKey)
-  const errors = dayConflicts.filter(c => c.severity === 'error').length
-  const warnings = dayConflicts.filter(c => c.severity === 'warning').length
-  return { errors, warnings, total: dayConflicts.length }
-}
-
-/**
- * Gets the maximum number of executions in any single hour cell across the week.
- * Useful for determining if columns need to accommodate many items.
- *
- * @param {Object} executionsByDayAndHour - Nested map from groupExecutionsByDayAndHour
- * @returns {number} Maximum execution count in any hour cell
- */
-export function getMaxExecutionsPerHour(executionsByDayAndHour) {
-  let max = 0
-
-  Object.values(executionsByDayAndHour).forEach(hourMap => {
-    Object.values(hourMap).forEach(executions => {
-      if (executions.length > max) {
-        max = executions.length
-      }
-    })
-  })
-
-  return max
-}
 
 /**
  * Creates a map of pattern_id to conflict for all executions.
@@ -235,39 +204,3 @@ export function buildExecutionConflictsMap(executions, conflicts) {
   return map
 }
 
-/**
- * Formats a date for the week header display.
- *
- * In pattern mode (when patternOffset is provided), returns pattern-based labels
- * like "Day 1", "Day 2", etc. In calendar mode, returns weekday names like "Sun", "Mon".
- *
- * @param {Date} date - Date to format
- * @param {number|null} [dayIndex=null] - Day index within the week (0-6), required for pattern mode
- * @param {number|null} [patternOffset=null] - Pattern offset (0, 7, 14, etc.) for pattern mode
- * @returns {Object} { dayName, dayNumber, isToday }
- */
-export function formatWeekDayHeader(date, dayIndex = null, patternOffset = null) {
-  // Pattern mode: "Day 1", "Day 2", etc.
-  if (patternOffset !== null && dayIndex !== null) {
-    const patternDay = patternOffset + dayIndex + 1
-    return {
-      dayName: `Day ${patternDay}`,
-      dayNumber: patternDay,
-      isToday: false, // No "today" concept in pattern view
-    }
-  }
-
-  // Calendar mode: "Sun", "Mon", etc.
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const today = new Date()
-  const isTodayDate =
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-
-  return {
-    dayName: DAYS[date.getDay()],
-    dayNumber: date.getDate(),
-    isToday: isTodayDate,
-  }
-}
