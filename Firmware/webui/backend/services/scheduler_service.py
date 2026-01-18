@@ -38,8 +38,13 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from copy import deepcopy
+from datetime import datetime
 from threading import RLock
 from typing import Any
+
+from filelock import FileLock
+
+from mothbox_paths import CONFIG_DIR
 
 # Cron bridge for system integration (Issue #215)
 from webui.backend.lib.cron_bridge import (
@@ -107,6 +112,14 @@ _ACTIVATION_PHASES = frozenset(
         ACTIVATION_PHASE_FAILED,
     }
 )
+
+
+# ============================================================================
+# Persistent Active State (Issue #331)
+# ============================================================================
+
+# File to persist active schedule state across service restarts
+ACTIVE_STATE_FILE = CONFIG_DIR / "active_state.json"
 
 
 # ============================================================================
@@ -194,6 +207,9 @@ class SchedulerService:
         self._builtin_cache: list[Schedule] | None = None
         self._builtin_cache_timestamp: float = 0.0
         self._builtin_cache_ttl = 3600  # 1 hour
+
+        # Load persisted active state on startup (Issue #331)
+        self._load_active_state()
 
     # ========================================================================
     # CRUD Read Operations
@@ -378,6 +394,78 @@ class SchedulerService:
             schedule_copy.is_active = is_active
             with self._cache_lock:
                 self._set_cache(schedule_id, schedule_copy)
+
+    # ========================================================================
+    # Persistent Active State Methods (Issue #331)
+    # ========================================================================
+
+    def _save_active_state(self) -> None:
+        """
+        Persist active schedule state to disk.
+
+        Saves schedule_id, coordinates_source, latitude, longitude, timezone_name,
+        and activation timestamp to active_state.json in CONFIG_DIR.
+
+        Called after successful activation to survive service restarts.
+        """
+        if self._active_schedule_id is None:
+            self._clear_active_state()
+            return
+
+        state = {
+            "schedule_id": self._active_schedule_id,
+            "coordinates_source": self._active_coordinates_source,
+            "latitude": self._active_latitude,
+            "longitude": self._active_longitude,
+            "timezone_name": self._active_timezone_name,
+            "activated_at": datetime.now().isoformat(),
+        }
+
+        try:
+            with FileLock(str(ACTIVE_STATE_FILE) + ".lock"), open(ACTIVE_STATE_FILE, "w") as f:
+                json.dump(state, f, indent=2)
+            logger.debug(f"Saved active state to disk: {self._active_schedule_id}")
+        except OSError as e:
+            logger.warning(f"Failed to save active state: {e}")
+
+    def _load_active_state(self) -> None:
+        """
+        Load active schedule state from disk on startup.
+
+        Restores schedule_id, coordinates_source, latitude, longitude, and
+        timezone_name from active_state.json if it exists.
+
+        Called during __init__ to recover state after service restart.
+        """
+        if not ACTIVE_STATE_FILE.exists():
+            return
+
+        try:
+            with FileLock(str(ACTIVE_STATE_FILE) + ".lock"), open(ACTIVE_STATE_FILE) as f:
+                state = json.load(f)
+
+            self._active_schedule_id = state.get("schedule_id")
+            self._active_coordinates_source = state.get("coordinates_source")
+            self._active_latitude = state.get("latitude")
+            self._active_longitude = state.get("longitude")
+            self._active_timezone_name = state.get("timezone_name")
+
+            logger.info(f"Restored active schedule state: {self._active_schedule_id}")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load active state: {e}")
+
+    def _clear_active_state(self) -> None:
+        """
+        Remove active state file from disk.
+
+        Called after deactivation to ensure no stale state remains.
+        """
+        try:
+            if ACTIVE_STATE_FILE.exists():
+                ACTIVE_STATE_FILE.unlink()
+                logger.debug("Cleared active state file")
+        except OSError as e:
+            logger.warning(f"Failed to clear active state file: {e}")
 
     # ========================================================================
     # Conflict Cache Methods
@@ -857,6 +945,9 @@ class SchedulerService:
             # but displaying it is useful for GPS-based activation too
             self._active_timezone_name = timezone_name
 
+        # Persist state to disk for recovery after restart (Issue #331)
+        self._save_active_state()
+
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")
 
@@ -889,6 +980,9 @@ class SchedulerService:
                 self._active_latitude = None
                 self._active_longitude = None
                 self._active_timezone_name = None
+
+            # Clear persisted state from disk (Issue #331)
+            self._clear_active_state()
 
         # ALWAYS clear system cron - even if no active schedule tracked (Issue #331)
         # This handles orphaned cron entries from crashes or restarts
