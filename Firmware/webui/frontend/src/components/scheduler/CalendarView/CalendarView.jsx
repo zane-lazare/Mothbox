@@ -20,7 +20,7 @@ import CalendarHeader from './CalendarHeader'
 import CalendarGrid from './CalendarGrid'
 import ExecutionDetailModal from './ExecutionDetailModal'
 import LoadingSpinner from '../../LoadingSpinner'
-import { useSchedules, useSchedulePreview } from '../../../hooks/useSchedules'
+import { useSchedules, useSchedulePreview, useActiveSchedule } from '../../../hooks/useSchedules'
 import { getDateKey } from './calendarUtils'
 
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
@@ -66,6 +66,16 @@ export function CalendarView() {
   // Fetch schedules list (include built-in schedules for dropdown)
   const { data: schedulesData, isLoading: schedulesLoading } = useSchedules({ include_builtin: true })
   const schedules = schedulesData?.schedules || []
+
+  // Fetch active schedule for auto-selection
+  const { data: activeData } = useActiveSchedule()
+
+  // Auto-select active schedule on mount (if one exists)
+  useEffect(() => {
+    if (activeData?.active_schedule?.schedule_id && !selectedScheduleId) {
+      setSelectedScheduleId(activeData.active_schedule.schedule_id)
+    }
+  }, [activeData?.active_schedule?.schedule_id, selectedScheduleId])
 
   // Calculate preview days based on view mode
   const previewDays = useMemo(() => {
