@@ -475,24 +475,28 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
         Updated Schedule object if successful, None if schedule doesn't exist
 
     Raises:
-        ValueError: If attempting to update built-in schedule
+        ValueError: If attempting to modify protected fields on built-in schedule
 
     Example:
         >>> update_schedule("nightly-survey", {"name": "Updated Name"})
         Schedule(schedule_id='nightly-survey', name='Updated Name', ...)
     """
-    # Protect built-in schedules
-    if is_builtin or is_builtin_schedule(schedule_id):
-        raise ValueError("Cannot modify built-in schedule")
-
     # Find the schedule file (supports human-readable filenames)
     result = find_schedule(schedule_id)
     if result is None:
         return None
 
     schedule_path, found_is_builtin = result
-    if found_is_builtin:
-        raise ValueError("Cannot modify built-in schedule")
+
+    # Protect built-in schedules - only allow 'enabled' and 'is_active' updates
+    ALLOWED_BUILTIN_UPDATES = {"enabled", "is_active"}
+    if is_builtin or found_is_builtin:
+        disallowed_keys = set(updates.keys()) - ALLOWED_BUILTIN_UPDATES
+        if disallowed_keys:
+            raise ValueError(
+                f"Cannot modify built-in schedule: {schedule_id} "
+                f"(disallowed fields: {', '.join(sorted(disallowed_keys))})"
+            )
 
     try:
         # Atomic read-modify-write with exclusive lock

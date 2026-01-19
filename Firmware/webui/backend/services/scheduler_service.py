@@ -629,12 +629,19 @@ class SchedulerService:
             Updated Schedule if successful, None if not found
 
         Raises:
-            ValueError: If attempting to modify built-in schedule
+            ValueError: If attempting to modify protected fields on built-in schedule
             ScheduleValidationError: If updated schedule fails validation
         """
-        # Check if built-in
+        # Built-in schedules only allow 'enabled' and 'is_active' updates
+        # Storage layer enforces this, but we check here too for clear error messages
+        ALLOWED_BUILTIN_UPDATES = {"enabled", "is_active"}
         if is_builtin_schedule(schedule_id):
-            raise ValueError(f"Cannot modify built-in schedule: {schedule_id}")
+            disallowed_keys = set(updates.keys()) - ALLOWED_BUILTIN_UPDATES
+            if disallowed_keys:
+                raise ValueError(
+                    f"Cannot modify built-in schedule: {schedule_id} "
+                    f"(disallowed fields: {', '.join(sorted(disallowed_keys))})"
+                )
 
         # Delegate to storage
         updated = storage_update(schedule_id, updates)

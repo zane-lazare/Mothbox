@@ -502,17 +502,52 @@ class TestBuiltinSchedules:
         builtin_file = temp_builtin_dir / f"{schedule_id}.json"
         assert builtin_file.exists()
 
-    def test_update_builtin_schedule_raises_error(self, temp_builtin_dir, sample_schedule_json):
-        """Updating a built-in schedule raises ValueError."""
+    def test_update_builtin_schedule_protected_fields_raises_error(
+        self, temp_builtin_dir, sample_schedule_json
+    ):
+        """Updating protected fields on built-in schedule raises ValueError."""
         # Create a built-in schedule
         schedule_id = "nightly-survey"
         (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
 
-        # Attempt to update should raise ValueError
+        # Attempt to update protected fields should raise ValueError
         with pytest.raises(ValueError) as exc_info:
             update_schedule(schedule_id, {"name": "Modified Name"}, is_builtin=True)
 
         assert "built-in" in str(exc_info.value).lower()
+        assert "name" in str(exc_info.value).lower()
+
+    def test_update_builtin_schedule_enabled_allowed(
+        self, temp_builtin_dir, sample_schedule_json
+    ):
+        """Updating 'enabled' field on built-in schedule is allowed."""
+        # Create a built-in schedule
+        schedule_id = "nightly-survey"
+        (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
+
+        # Update enabled should succeed
+        updated = update_schedule(schedule_id, {"enabled": False}, is_builtin=True)
+
+        assert updated is not None
+        assert updated.enabled is False
+
+        # Verify persisted to file
+        reloaded = read_schedule(schedule_id)
+        assert reloaded.enabled is False
+
+    def test_update_builtin_schedule_is_active_allowed(
+        self, temp_builtin_dir, sample_schedule_json
+    ):
+        """Updating 'is_active' field on built-in schedule is allowed."""
+        # Create a built-in schedule
+        schedule_id = "nightly-survey"
+        (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
+
+        # Update is_active should succeed
+        updated = update_schedule(schedule_id, {"is_active": True}, is_builtin=True)
+
+        assert updated is not None
+        assert updated.is_active is True
 
     def test_is_builtin_schedule_correctly_identifies(
         self,

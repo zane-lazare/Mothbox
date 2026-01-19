@@ -694,7 +694,7 @@ class TestUpdateSchedule:
         assert retrieved.name == "Updated Name"
 
     def test_update_schedule_builtin_protected(self, scheduler_service, temp_schedules_dir):
-        """update_schedule should raise ValueError for built-in schedule."""
+        """update_schedule should raise ValueError for protected fields on built-in schedule."""
         # This test assumes a built-in schedule exists
         # For now, we'll create a mock by patching is_builtin_schedule
         from unittest.mock import patch
@@ -707,6 +707,32 @@ class TestUpdateSchedule:
                 _test_uuid("builtin-schedule"),
                 {"name": "New Name"}
             )
+
+    def test_update_schedule_builtin_enabled_allowed(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """update_schedule should allow updating 'enabled' on built-in schedule."""
+        from unittest.mock import patch, MagicMock
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create a user schedule first (we'll mock it as built-in)
+        sample_schedule.schedule_id = _test_uuid("builtin-enabled")
+        sample_schedule.enabled = True
+        create_schedule(sample_schedule)
+
+        # Mock is_builtin_schedule to return True, but allow storage_update to proceed
+        with patch(
+            'webui.backend.services.scheduler_service.is_builtin_schedule',
+            return_value=True
+        ):
+            # Update enabled should succeed (only 'enabled' is allowed for built-in)
+            updated = scheduler_service.update_schedule(
+                sample_schedule.schedule_id,
+                {"enabled": False}
+            )
+
+            assert updated is not None
+            assert updated.enabled is False
 
 
 # ============================================================================
