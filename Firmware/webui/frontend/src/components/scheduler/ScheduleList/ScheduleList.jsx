@@ -51,6 +51,9 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
   const schedules = data?.schedules || []
   const activeScheduleId = activeData?.active_schedule?.schedule_id || null
 
+  // Find if any schedule is enabled (for controlling Enable/Disable button visibility)
+  const enabledScheduleId = schedules.find(s => s.enabled && s.schedule_id !== activeScheduleId)?.schedule_id || null
+
   const handleDeleteClick = (schedule) => {
     setDeleteConfirmation({
       isOpen: true,
@@ -134,18 +137,26 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
   return (
     <>
       <div role="list" className={gridClasses}>
-        {schedules.map((schedule) => (
-          <ScheduleCard
-            key={schedule.schedule_id}
-            schedule={schedule}
-            isActive={schedule.schedule_id === activeScheduleId}
-            isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
-            isTogglingEnabled={schedule.schedule_id === togglingEnabledId}
-            onEdit={onEditSchedule}
-            onDelete={handleDeleteClick}
-            onToggleEnabled={handleToggleEnabled}
-          />
-        ))}
+        {schedules.map((schedule) => {
+          // Only show Enable/Disable toggle when:
+          // - No schedule is active AND
+          // - Either no schedule is enabled (show Enable on all) OR this is the enabled schedule (show Disable)
+          const canToggleEnabled = !activeScheduleId &&
+            (!enabledScheduleId || schedule.schedule_id === enabledScheduleId)
+
+          return (
+            <ScheduleCard
+              key={schedule.schedule_id}
+              schedule={schedule}
+              isActive={schedule.schedule_id === activeScheduleId}
+              isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
+              isTogglingEnabled={schedule.schedule_id === togglingEnabledId}
+              onEdit={onEditSchedule}
+              onDelete={handleDeleteClick}
+              onToggleEnabled={canToggleEnabled ? handleToggleEnabled : undefined}
+            />
+          )
+        })}
       </div>
 
       <ConfirmDialog
