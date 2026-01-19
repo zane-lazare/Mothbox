@@ -81,6 +81,9 @@ class CronEntry:
         comment: Optional comment for the job
         enabled: Whether the entry is enabled
         routine_id: ID of the source routine (for tracking)
+        execution_time: Exact execution time (for date-specific entries)
+        action_name: Human-readable name of the action (e.g., "Attract On")
+        action_type: Type of the action (e.g., "attract_on", "takephoto")
     """
 
     expression: str  # e.g., "0 21 * * *"
@@ -89,6 +92,56 @@ class CronEntry:
     enabled: bool = True
     routine_id: str = ""  # Links back to source routine
     execution_time: datetime | None = None  # Exact execution time
+    action_name: str = ""  # Human-readable action name (Issue #331)
+    action_type: str = ""  # Action type identifier (Issue #331)
+
+    def to_dict(self) -> dict:
+        """Serialize entry to dictionary for JSON storage.
+
+        Converts datetime to ISO string for JSON compatibility.
+
+        Returns:
+            Dictionary with all entry fields.
+        """
+        return {
+            "expression": self.expression,
+            "command": self.command,
+            "comment": self.comment,
+            "enabled": self.enabled,
+            "routine_id": self.routine_id,
+            "execution_time": (
+                self.execution_time.isoformat() if self.execution_time else None
+            ),
+            "action_name": self.action_name,
+            "action_type": self.action_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CronEntry":
+        """Deserialize entry from dictionary.
+
+        Converts ISO string back to datetime.
+
+        Args:
+            data: Dictionary with entry fields.
+
+        Returns:
+            CronEntry instance.
+        """
+        execution_time = None
+        if data.get("execution_time"):
+            execution_time = datetime.fromisoformat(data["execution_time"])
+
+        return cls(
+            expression=data.get("expression", ""),
+            command=data.get("command", ""),
+            comment=data.get("comment", ""),
+            enabled=data.get("enabled", True),
+            routine_id=data.get("routine_id", ""),
+            execution_time=execution_time,
+            action_name=data.get("action_name", ""),
+            action_type=data.get("action_type", ""),
+        )
 
     def to_cron_line(self) -> str:
         """Convert entry to crontab line format.
@@ -906,6 +959,8 @@ def routine_to_dated_cron(
                     comment=f"{CRON_COMMENT_PREFIX} {routine_name} ({action_time.date().isoformat()})",
                     routine_id=routine.routine_id,
                     execution_time=action_time,
+                    action_name=action.action_name,
+                    action_type=action.action_type,
                 )
             )
 
@@ -1005,6 +1060,8 @@ def _routine_interval_to_cron(routine: Routine) -> list[CronEntry]:
                     command=build_action_command(action, routine.pre_condition),
                     comment=comment,
                     routine_id=routine.routine_id,
+                    action_name=action.action_name,
+                    action_type=action.action_type,
                 )
             )
 
@@ -1049,6 +1106,8 @@ def _routine_fixed_time_to_cron(routine: Routine) -> list[CronEntry]:
                 command=build_action_command(action, routine.pre_condition),
                 comment=comment,
                 routine_id=routine.routine_id,
+                action_name=action.action_name,
+                action_type=action.action_type,
             )
         )
 
@@ -1089,6 +1148,8 @@ def _routine_cron_trigger_to_cron(routine: Routine) -> list[CronEntry]:
                 command=build_action_command(action, routine.pre_condition),
                 comment=f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}",
                 routine_id=routine.routine_id,
+                action_name=action.action_name,
+                action_type=action.action_type,
             )
         )
 
@@ -1873,6 +1934,96 @@ def schedule_to_cron(
     # Calculate RTC waketime if we have entries
     if result.entries:
         result.rtc_waketime = calculate_next_from_entries(result.entries)
+
+    return result
+
+
+# =============================================================================
+# PATTERN EXPANSION FOR PERSISTENCE (Issue #331)
+# =============================================================================
+
+
+def expand_pattern_entries(
+    entries: list[CronEntry],
+    days_ahead: int = 60,
+    timezone_name: str = "UTC",
+) -> list[CronEntry]:
+    """Expand pattern-based cron entries to date-specific entries.
+
+    Takes a list of CronEntry objects which may be a mix of:
+    - Pattern entries: Have cron expression but no execution_time (e.g., "0 21 * * *")
+    - Date-specific entries: Already have execution_time set
+
+    Expands pattern entries to concrete datetimes using croniter, while
+    passing through date-specific entries unchanged.
+
+    This is used to persist expanded entries to active_state.json so the
+    frontend can read next actions directly without recalculating.
+
+    Args:
+        entries: List of CronEntry objects to expand
+        days_ahead: Number of days to expand patterns into (default 60)
+        timezone_name: Timezone for datetime calculations (default "UTC")
+
+    Returns:
+        List of CronEntry objects sorted by execution_time.
+        All entries will have execution_time set.
+
+    Example:
+        >>> entries = [
+        ...     CronEntry(expression="0 21 * * *", command="cmd", action_name="Test"),
+        ...     CronEntry(expression="0 6 15 1 *", command="cmd", action_name="Dated",
+        ...               execution_time=datetime(2025, 1, 15, 6, 0)),
+        ... ]
+        >>> expanded = expand_pattern_entries(entries, days_ahead=7)
+        >>> len(expanded)  # 7 from pattern + 1 dated = 8
+        8
+    """
+    if not entries:
+        return []
+
+    tz = pytz.timezone(timezone_name)
+    now = datetime.now(tz)
+    end_time = now + timedelta(days=days_ahead)
+
+    result = []
+
+    for entry in entries:
+        if entry.execution_time is not None:
+            # Date-specific entry - pass through unchanged
+            result.append(entry)
+        else:
+            # Pattern entry - expand using croniter
+            try:
+                cron = croniter(entry.expression, now)
+                while True:
+                    next_time = cron.get_next(datetime)
+                    # Localize to timezone if naive
+                    if next_time.tzinfo is None:
+                        next_time = tz.localize(next_time)
+
+                    if next_time > end_time:
+                        break
+
+                    # Create new entry with execution_time set
+                    expanded_entry = CronEntry(
+                        expression=entry.expression,
+                        command=entry.command,
+                        comment=entry.comment,
+                        enabled=entry.enabled,
+                        routine_id=entry.routine_id,
+                        execution_time=next_time,
+                        action_name=entry.action_name,
+                        action_type=entry.action_type,
+                    )
+                    result.append(expanded_entry)
+            except (KeyError, ValueError) as e:
+                # Invalid cron expression - log and skip
+                logger.warning(f"Failed to expand cron entry '{entry.expression}': {e}")
+                continue
+
+    # Sort by execution_time (entries without time go last, though shouldn't happen)
+    result.sort(key=lambda e: e.execution_time or datetime.max.replace(tzinfo=tz))
 
     return result
 

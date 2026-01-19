@@ -3,6 +3,7 @@
 from datetime import date, datetime, timedelta
 from unittest.mock import mock_open, patch
 
+import pytz
 import pytest
 
 from webui.backend.lib.cron_bridge import (
@@ -14,6 +15,7 @@ from webui.backend.lib.cron_bridge import (
     clear_rtc_wakealarm,
     cron_to_human_readable,
     estimate_cron_entries,
+    expand_pattern_entries,
     fixed_time_trigger_to_cron,
     get_solar_execution_time,
     interval_trigger_to_cron,
@@ -129,6 +131,116 @@ class TestCronEntryDataclass:
         assert CronEntry.is_valid_expression("60 24 * * *") is False  # Invalid minute/hour
         assert CronEntry.is_valid_expression("") is False
         assert CronEntry.is_valid_expression("* * *") is False  # Too few fields
+
+    # ========================================================================
+    # Serialization Tests (Issue #331)
+    # ========================================================================
+
+    def test_to_dict_minimal(self):
+        """CronEntry.to_dict() serializes minimal entry."""
+        entry = CronEntry(expression="0 21 * * *", command="cmd")
+        d = entry.to_dict()
+        assert d["expression"] == "0 21 * * *"
+        assert d["command"] == "cmd"
+        assert d["comment"] == ""
+        assert d["enabled"] is True
+        assert d["routine_id"] == ""
+        assert d["execution_time"] is None
+        assert d["action_name"] == ""
+        assert d["action_type"] == ""
+
+    def test_to_dict_full(self):
+        """CronEntry.to_dict() serializes all fields."""
+        exec_time = datetime(2025, 1, 15, 21, 0, 0)
+        entry = CronEntry(
+            expression="0 21 15 1 *",
+            command="/usr/bin/python3 /opt/mothbox/script.py",
+            comment="Test job",
+            enabled=False,
+            routine_id="routine-123",
+            execution_time=exec_time,
+            action_name="Attract On",
+            action_type="attract_on",
+        )
+        d = entry.to_dict()
+        assert d["expression"] == "0 21 15 1 *"
+        assert d["command"] == "/usr/bin/python3 /opt/mothbox/script.py"
+        assert d["comment"] == "Test job"
+        assert d["enabled"] is False
+        assert d["routine_id"] == "routine-123"
+        assert d["execution_time"] == "2025-01-15T21:00:00"
+        assert d["action_name"] == "Attract On"
+        assert d["action_type"] == "attract_on"
+
+    def test_from_dict_minimal(self):
+        """CronEntry.from_dict() deserializes minimal data."""
+        d = {"expression": "0 21 * * *", "command": "cmd"}
+        entry = CronEntry.from_dict(d)
+        assert entry.expression == "0 21 * * *"
+        assert entry.command == "cmd"
+        assert entry.comment == ""
+        assert entry.enabled is True
+        assert entry.routine_id == ""
+        assert entry.execution_time is None
+        assert entry.action_name == ""
+        assert entry.action_type == ""
+
+    def test_from_dict_full(self):
+        """CronEntry.from_dict() deserializes all fields."""
+        d = {
+            "expression": "0 21 15 1 *",
+            "command": "/usr/bin/python3 /opt/mothbox/script.py",
+            "comment": "Test job",
+            "enabled": False,
+            "routine_id": "routine-123",
+            "execution_time": "2025-01-15T21:00:00",
+            "action_name": "Attract On",
+            "action_type": "attract_on",
+        }
+        entry = CronEntry.from_dict(d)
+        assert entry.expression == "0 21 15 1 *"
+        assert entry.command == "/usr/bin/python3 /opt/mothbox/script.py"
+        assert entry.comment == "Test job"
+        assert entry.enabled is False
+        assert entry.routine_id == "routine-123"
+        assert entry.execution_time == datetime(2025, 1, 15, 21, 0, 0)
+        assert entry.action_name == "Attract On"
+        assert entry.action_type == "attract_on"
+
+    def test_from_dict_handles_timezone_aware_datetime(self):
+        """CronEntry.from_dict() handles timezone-aware ISO strings."""
+        d = {
+            "expression": "0 21 * * *",
+            "command": "cmd",
+            "execution_time": "2025-01-15T21:00:00+12:00",
+        }
+        entry = CronEntry.from_dict(d)
+        # Should parse timezone-aware datetime
+        assert entry.execution_time is not None
+        assert entry.execution_time.tzinfo is not None
+
+    def test_roundtrip_serialization(self):
+        """CronEntry survives to_dict/from_dict roundtrip."""
+        original = CronEntry(
+            expression="0 21 15 1 *",
+            command="cmd",
+            comment="Roundtrip test",
+            enabled=True,
+            routine_id="routine-456",
+            execution_time=datetime(2025, 6, 15, 21, 30, 0),
+            action_name="Take Photo",
+            action_type="takephoto",
+        )
+        d = original.to_dict()
+        restored = CronEntry.from_dict(d)
+        assert restored.expression == original.expression
+        assert restored.command == original.command
+        assert restored.comment == original.comment
+        assert restored.enabled == original.enabled
+        assert restored.routine_id == original.routine_id
+        assert restored.execution_time == original.execution_time
+        assert restored.action_name == original.action_name
+        assert restored.action_type == original.action_type
 
 
 class TestCronBridgeResult:
@@ -2616,3 +2728,139 @@ class TestEntryCountValidation:
 
         assert "exceeding" in str(exc_info.value).lower()
         assert "10,000" in str(exc_info.value)
+
+
+# ============================================================================
+# Pattern Expansion Tests (Issue #331)
+# ============================================================================
+
+
+class TestExpandPatternEntries:
+    """Test expand_pattern_entries function."""
+
+    def test_empty_list_returns_empty(self):
+        """Empty entries list returns empty list."""
+        result = expand_pattern_entries([])
+        assert result == []
+
+    def test_date_specific_entry_passed_through(self):
+        """Entries with execution_time are passed through unchanged."""
+        tz = pytz.timezone("UTC")
+        future_time = datetime.now(tz) + timedelta(days=1)
+        entry = CronEntry(
+            expression="0 21 15 1 *",
+            command="cmd",
+            action_name="Test",
+            action_type="test",
+            execution_time=future_time,
+        )
+        result = expand_pattern_entries([entry], days_ahead=7)
+        assert len(result) == 1
+        assert result[0].execution_time == future_time
+        assert result[0].action_name == "Test"
+
+    def test_pattern_entry_expanded(self):
+        """Pattern entries (without execution_time) are expanded."""
+        # Daily at 21:00 should expand to 7 entries for 7 days
+        entry = CronEntry(
+            expression="0 21 * * *",
+            command="cmd",
+            action_name="Daily Task",
+            action_type="daily",
+        )
+        result = expand_pattern_entries([entry], days_ahead=7, timezone_name="UTC")
+        # Should have ~7 entries (depends on time of day when test runs)
+        assert len(result) >= 6  # At least 6 days
+        assert len(result) <= 8  # At most 8 days
+        # All should have execution_time set
+        for e in result:
+            assert e.execution_time is not None
+            assert e.action_name == "Daily Task"
+            assert e.action_type == "daily"
+
+    def test_mixed_entries_handled(self):
+        """Mix of pattern and date-specific entries handled correctly."""
+        tz = pytz.timezone("UTC")
+        future_time = datetime.now(tz) + timedelta(hours=1)
+
+        # One date-specific, one pattern
+        entries = [
+            CronEntry(
+                expression="0 21 15 1 *",
+                command="cmd",
+                action_name="Dated",
+                execution_time=future_time,
+            ),
+            CronEntry(
+                expression="0 12 * * *",
+                command="cmd2",
+                action_name="Pattern",
+            ),
+        ]
+        result = expand_pattern_entries(entries, days_ahead=7)
+        # Should have the dated entry plus expanded pattern entries
+        assert len(result) > 1
+        # First (sorted) might not be the dated one, but dated should be present
+        names = [e.action_name for e in result]
+        assert "Dated" in names
+        assert "Pattern" in names
+
+    def test_result_sorted_by_execution_time(self):
+        """Result is sorted by execution_time."""
+        entry = CronEntry(
+            expression="0 12 * * *",
+            command="cmd",
+            action_name="Noon Task",
+        )
+        result = expand_pattern_entries([entry], days_ahead=14)
+        # Verify sorted
+        for i in range(1, len(result)):
+            assert result[i].execution_time >= result[i - 1].execution_time
+
+    def test_preserves_all_fields(self):
+        """All CronEntry fields are preserved in expanded entries."""
+        entry = CronEntry(
+            expression="0 21 * * *",
+            command="/path/to/script.py",
+            comment="Test comment",
+            enabled=False,
+            routine_id="routine-789",
+            action_name="Preserve Test",
+            action_type="preserve_type",
+        )
+        result = expand_pattern_entries([entry], days_ahead=3)
+        assert len(result) >= 1
+        first = result[0]
+        assert first.command == "/path/to/script.py"
+        assert first.comment == "Test comment"
+        assert first.enabled is False
+        assert first.routine_id == "routine-789"
+        assert first.action_name == "Preserve Test"
+        assert first.action_type == "preserve_type"
+
+    def test_invalid_cron_expression_skipped(self):
+        """Invalid cron expressions are logged and skipped."""
+        entries = [
+            CronEntry(expression="invalid", command="cmd", action_name="Invalid"),
+            CronEntry(expression="0 21 * * *", command="cmd", action_name="Valid"),
+        ]
+        result = expand_pattern_entries(entries, days_ahead=3)
+        # Invalid should be skipped, valid should be expanded
+        names = [e.action_name for e in result]
+        assert "Invalid" not in names
+        assert "Valid" in names
+
+    def test_timezone_respected(self):
+        """Timezone parameter affects expansion."""
+        entry = CronEntry(
+            expression="0 21 * * *",
+            command="cmd",
+        )
+        result = expand_pattern_entries(
+            [entry], days_ahead=1, timezone_name="Pacific/Auckland"
+        )
+        # Should have at least one entry
+        assert len(result) >= 1
+        # Entries should have timezone info
+        for e in result:
+            assert e.execution_time is not None

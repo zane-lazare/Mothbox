@@ -2819,3 +2819,263 @@ class TestBuiltinScheduleLoading:
         service = SchedulerService()
         assert service._builtin_cache is None
         assert service._builtin_cache_timestamp == 0.0
+
+
+# ============================================================================
+# Test Active Entries Persistence (Issue #331)
+# ============================================================================
+
+
+class TestActiveEntriesPersistence:
+    """Tests for persisting expanded cron entries in active_state.json."""
+
+    @pytest.fixture
+    def sample_entries(self):
+        """Create sample CronEntry objects for testing."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+
+        now = datetime.now()
+        return [
+            CronEntry(
+                expression="0 21 * * *",
+                command="/usr/bin/python3 /opt/mothbox/Attract_On.py",
+                comment="Attract On",
+                routine_id="routine-1",
+                execution_time=now + timedelta(hours=1),
+                action_name="Attract On",
+                action_type="attract_on",
+            ),
+            CronEntry(
+                expression="5 21 * * *",
+                command="/usr/bin/python3 /opt/mothbox/TakePhoto.py",
+                comment="Take Photo",
+                routine_id="routine-1",
+                execution_time=now + timedelta(hours=1, minutes=5),
+                action_name="Take Photo",
+                action_type="takephoto",
+            ),
+            CronEntry(
+                expression="15 21 * * *",
+                command="/usr/bin/python3 /opt/mothbox/Attract_Off.py",
+                comment="Attract Off",
+                routine_id="routine-1",
+                execution_time=now + timedelta(hours=1, minutes=15),
+                action_name="Attract Off",
+                action_type="attract_off",
+            ),
+        ]
+
+    def test_save_active_state_with_entries(self, temp_schedules_dir, sample_entries):
+        """_save_active_state() persists entries to JSON."""
+        import json
+        from webui.backend.services.scheduler_service import (
+            ACTIVE_STATE_FILE,
+            SchedulerService,
+        )
+
+        service = SchedulerService()
+        service._active_schedule_id = "test-schedule"
+        service._active_coordinates_source = "gps"
+        service._active_latitude = -41.3
+        service._active_longitude = 174.8
+        service._active_timezone_name = "Pacific/Auckland"
+
+        service._save_active_state(entries=sample_entries)
+
+        # Verify file contents
+        assert ACTIVE_STATE_FILE.exists()
+        with open(ACTIVE_STATE_FILE) as f:
+            state = json.load(f)
+
+        assert state["schedule_id"] == "test-schedule"
+        assert "entries" in state
+        assert len(state["entries"]) == 3
+        assert state["entries"][0]["action_name"] == "Attract On"
+
+    def test_load_active_state_with_entries(self, temp_schedules_dir, sample_entries):
+        """_load_active_state() restores entries from JSON."""
+        import json
+        from webui.backend.services.scheduler_service import (
+            ACTIVE_STATE_FILE,
+            SchedulerService,
+        )
+
+        # Write state with entries
+        state = {
+            "schedule_id": "test-schedule",
+            "coordinates_source": "gps",
+            "latitude": -41.3,
+            "longitude": 174.8,
+            "timezone_name": "Pacific/Auckland",
+            "entries": [e.to_dict() for e in sample_entries],
+        }
+        with open(ACTIVE_STATE_FILE, "w") as f:
+            json.dump(state, f)
+
+        # Load state
+        service = SchedulerService()
+
+        assert service._active_schedule_id == "test-schedule"
+        assert len(service._active_entries) == 3
+        assert service._active_entries[0].action_name == "Attract On"
+        assert service._active_entries[1].action_type == "takephoto"
+
+    def test_clear_active_state_clears_entries(self, temp_schedules_dir, sample_entries):
+        """_clear_active_state() clears in-memory entries."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        service._active_schedule_id = "test-schedule"
+        service._active_entries = sample_entries
+
+        service._clear_active_state()
+
+        assert service._active_entries == []
+
+    def test_get_active_entries(self, temp_schedules_dir, sample_entries):
+        """get_active_entries() returns stored entries."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        service._active_entries = sample_entries
+
+        result = service.get_active_entries()
+
+        assert len(result) == 3
+        assert result[0].action_name == "Attract On"
+
+    def test_get_next_actions_filters_future(self, temp_schedules_dir):
+        """get_next_actions() filters to future entries only."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        now = datetime.now()
+        entries = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now - timedelta(hours=1),  # Past
+                action_name="Past Action",
+                action_type="past",
+            ),
+            CronEntry(
+                expression="0 22 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),  # Future
+                action_name="Future Action 1",
+                action_type="future1",
+            ),
+            CronEntry(
+                expression="0 23 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=2),  # Future
+                action_name="Future Action 2",
+                action_type="future2",
+            ),
+        ]
+
+        service = SchedulerService()
+        service._active_entries = entries
+
+        result = service.get_next_actions(limit=5)
+
+        assert len(result) == 2
+        assert result[0].action_name == "Future Action 1"
+        assert result[1].action_name == "Future Action 2"
+
+    def test_get_next_actions_respects_limit(self, temp_schedules_dir):
+        """get_next_actions() respects limit parameter."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        now = datetime.now()
+        entries = [
+            CronEntry(
+                expression="0 * * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=i),
+                action_name=f"Action {i}",
+                action_type=f"action{i}",
+            )
+            for i in range(1, 11)  # 10 entries
+        ]
+
+        service = SchedulerService()
+        service._active_entries = entries
+
+        result = service.get_next_actions(limit=3)
+
+        assert len(result) == 3
+        assert result[0].action_name == "Action 1"
+
+    def test_get_next_actions_sorted(self, temp_schedules_dir):
+        """get_next_actions() returns sorted by execution time."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        now = datetime.now()
+        # Add in non-sorted order
+        entries = [
+            CronEntry(
+                expression="0 23 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=3),
+                action_name="Third",
+                action_type="third",
+            ),
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),
+                action_name="First",
+                action_type="first",
+            ),
+            CronEntry(
+                expression="0 22 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=2),
+                action_name="Second",
+                action_type="second",
+            ),
+        ]
+
+        service = SchedulerService()
+        service._active_entries = entries
+
+        result = service.get_next_actions(limit=3)
+
+        assert result[0].action_name == "First"
+        assert result[1].action_name == "Second"
+        assert result[2].action_name == "Third"
+
+    def test_get_next_actions_empty_when_no_active(self, temp_schedules_dir):
+        """get_next_actions() returns empty list when no active entries."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        service._active_entries = []
+
+        result = service.get_next_actions(limit=5)
+
+        assert result == []
+
+    def test_active_entries_initialized_empty(self, temp_schedules_dir):
+        """_active_entries should be initialized as empty list."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        assert service._active_entries == []
+
+    def test_get_active_schedule_id(self, temp_schedules_dir):
+        """get_active_schedule_id() returns the active schedule ID."""
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        service = SchedulerService()
+        assert service.get_active_schedule_id() is None
+
+        service._active_schedule_id = "test-schedule-id"
+        assert service.get_active_schedule_id() == "test-schedule-id"

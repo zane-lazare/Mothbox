@@ -437,6 +437,89 @@ def get_active_schedule() -> tuple[Response, int]:
         ), 500
 
 
+@scheduler_ui_bp.route("/active/next-actions", methods=["GET"])
+def get_next_actions() -> tuple[Response, int]:
+    """
+    Get upcoming actions for the active schedule.
+
+    Reads pre-expanded cron entries from persistent storage, filtering
+    to future actions only. This avoids recalculating solar times via
+    the preview API.
+
+    GET /api/scheduler/ui/active/next-actions
+
+    Query Parameters:
+        limit: Maximum number of actions to return (default: 5, max: 100)
+
+    Returns:
+        200 OK: {
+            "actions": [
+                {
+                    "time": "ISO 8601 datetime",
+                    "action_name": "Attract On",
+                    "action_type": "attract_on",
+                    "routine_id": "routine-123"
+                },
+                ...
+            ],
+            "schedule_id": "string" | null,
+            "coordinates_source": "gps" | "timezone" | "explicit" | null,
+            "total_stored": number
+        }
+        400 Bad Request: Invalid limit parameter
+
+    Issue #331: Store cron entries in active_state.json
+    """
+    try:
+        # Parse and validate limit parameter
+        limit_str = request.args.get("limit", "5")
+        try:
+            limit = int(limit_str)
+            if limit < 1:
+                limit = 1
+            elif limit > 100:
+                limit = 100
+        except ValueError:
+            return jsonify({"error": "Invalid limit parameter"}), 400
+
+        service = get_scheduler_service()
+        schedule_id = service.get_active_schedule_id()
+        coordinates_source = service.get_active_coordinates_source()
+
+        # Get next actions from persisted entries
+        next_actions = service.get_next_actions(limit=limit)
+        total_stored = len(service.get_active_entries())
+
+        # Format actions for response
+        actions = [
+            {
+                "time": entry.execution_time.isoformat() if entry.execution_time else None,
+                "action_name": entry.action_name,
+                "action_type": entry.action_type,
+                "routine_id": entry.routine_id,
+            }
+            for entry in next_actions
+        ]
+
+        return jsonify(
+            {
+                "actions": actions,
+                "schedule_id": schedule_id,
+                "coordinates_source": coordinates_source,
+                "total_stored": total_stored,
+            }
+        ), 200
+
+    except Exception as e:
+        logger.error(f"Error getting next actions: {e}", exc_info=True)
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "message": "Failed to get next actions",
+            }
+        ), 500
+
+
 @scheduler_ui_bp.route("/schedules/builtin", methods=["GET"])
 def list_builtin_schedules() -> tuple[Response, int]:
     """

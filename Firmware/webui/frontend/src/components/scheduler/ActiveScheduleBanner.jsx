@@ -5,7 +5,7 @@ import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIc
 import {
   useActiveSchedule,
   useDeactivateSchedule,
-  useSchedulePreview,
+  useNextActions,
   useSchedules,
   useActivateSchedule,
 } from '../../hooks/useSchedules'
@@ -66,21 +66,13 @@ function ActiveScheduleBanner() {
     ? schedules.find((s) => s.enabled)
     : null
 
-  // Fetch next execution for active schedule (only 1 day preview for efficiency)
-  // Pass coordinates and timezone from active schedule for accurate solar calculations
-  const scheduleId = activeSchedule?.schedule_id
-  const previewParams = {
-    days: 1,
-    lat: data?.latitude,
-    lon: data?.longitude,
-    tz: data?.timezone_name,
-  }
-  const { data: previewData } = useSchedulePreview(
-    scheduleId,
-    previewParams,
+  // Fetch next actions from persisted entries (Issue #331)
+  // Uses pre-expanded cron entries stored in active_state.json instead of preview API
+  const { data: nextActionsData } = useNextActions(
+    { limit: 5 },
     {
-      enabled: !!scheduleId && !!data?.timezone_name,
-      refetchInterval: 60 * 1000, // Refresh every 60 seconds to update "Next Action" display
+      enabled: !!activeSchedule,
+      refetchInterval: 60 * 1000, // Refresh every 60 seconds to filter past actions
     }
   )
 
@@ -113,14 +105,12 @@ function ActiveScheduleBanner() {
     const longitude = data?.longitude
     const timezoneName = data?.timezone_name
 
-    // Get next FUTURE action from preview - filter out past actions
-    // Preview API structure: { executions: [{ start_time, actions: [{ time, action_name }] }] }
+    // Get next FUTURE action from persisted entries - already filtered by API
+    // Next actions API structure: { actions: [{ time, action_name, action_type }] }
     const now = new Date()
-    const allActions = (previewData?.executions || [])
-      .flatMap((exec) => exec.actions || [])
+    const futureActions = (nextActionsData?.actions || [])
       .filter((action) => new Date(action.time) > now)
-      .sort((a, b) => new Date(a.time) - new Date(b.time))
-    const nextAction = allActions[0] || null
+    const nextAction = futureActions[0] || null
     const nextTime = nextAction ? formatTime(nextAction.time) : null
     const nextActionName = nextAction ? getActionDisplayName(nextAction) : null
 

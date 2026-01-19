@@ -46,7 +46,9 @@ from mothbox_paths import CONFIG_DIR
 
 # Cron bridge for system integration (Issue #215)
 from webui.backend.lib.cron_bridge import (
+    CronEntry,
     apply_to_system,
+    expand_pattern_entries,
     remove_from_system,
     schedule_to_cron,
 )
@@ -205,6 +207,10 @@ class SchedulerService:
         self._builtin_cache: list[Schedule] | None = None
         self._builtin_cache_timestamp: float = 0.0
         self._builtin_cache_ttl = 3600  # 1 hour
+
+        # Expanded cron entries for active schedule (Issue #331)
+        # Stored to allow frontend to read next actions without recalculating
+        self._active_entries: list[CronEntry] = []
 
         # Load persisted active state on startup (Issue #331)
         self._load_active_state()
@@ -397,12 +403,16 @@ class SchedulerService:
     # Persistent Active State Methods (Issue #331)
     # ========================================================================
 
-    def _save_active_state(self) -> None:
+    def _save_active_state(self, entries: list[CronEntry] | None = None) -> None:
         """
         Persist active schedule state to disk.
 
         Saves schedule_id, coordinates_source, latitude, longitude, timezone_name,
-        and activation timestamp to active_state.json in CONFIG_DIR.
+        activation timestamp, and optionally expanded cron entries to active_state.json.
+
+        Args:
+            entries: Optional list of expanded CronEntry objects to persist.
+                     If provided, entries are stored for frontend to read next actions.
 
         Called after successful activation to survive service restarts.
         """
@@ -419,10 +429,19 @@ class SchedulerService:
             "activated_at": datetime.now().isoformat(),
         }
 
+        # Store expanded entries if provided (Issue #331)
+        if entries is not None:
+            self._active_entries = entries
+            state["entries"] = [e.to_dict() for e in entries]
+
         try:
             with open(ACTIVE_STATE_FILE, "w") as f:
                 json.dump(state, f, indent=2)
-            logger.debug(f"Saved active state to disk: {self._active_schedule_id}")
+            entry_count = len(entries) if entries else 0
+            logger.debug(
+                f"Saved active state to disk: {self._active_schedule_id} "
+                f"({entry_count} entries)"
+            )
         except OSError as e:
             logger.warning(f"Failed to save active state: {e}")
 
@@ -430,8 +449,8 @@ class SchedulerService:
         """
         Load active schedule state from disk on startup.
 
-        Restores schedule_id, coordinates_source, latitude, longitude, and
-        timezone_name from active_state.json if it exists.
+        Restores schedule_id, coordinates_source, latitude, longitude,
+        timezone_name, and expanded cron entries from active_state.json.
 
         Called during __init__ to recover state after service restart.
         """
@@ -448,22 +467,69 @@ class SchedulerService:
             self._active_longitude = state.get("longitude")
             self._active_timezone_name = state.get("timezone_name")
 
-            logger.info(f"Restored active schedule state: {self._active_schedule_id}")
+            # Load expanded entries if present (Issue #331)
+            entries_data = state.get("entries", [])
+            self._active_entries = [CronEntry.from_dict(e) for e in entries_data]
+
+            logger.info(
+                f"Restored active schedule state: {self._active_schedule_id} "
+                f"({len(self._active_entries)} entries)"
+            )
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load active state: {e}")
 
     def _clear_active_state(self) -> None:
         """
-        Remove active state file from disk.
+        Remove active state file from disk and clear in-memory entries.
 
         Called after deactivation to ensure no stale state remains.
         """
+        # Clear in-memory entries (Issue #331)
+        self._active_entries = []
+
         try:
             if ACTIVE_STATE_FILE.exists():
                 ACTIVE_STATE_FILE.unlink()
                 logger.debug("Cleared active state file")
         except OSError as e:
             logger.warning(f"Failed to clear active state file: {e}")
+
+    def get_active_entries(self) -> list[CronEntry]:
+        """
+        Get all expanded cron entries for the active schedule.
+
+        Returns:
+            List of CronEntry objects with execution times.
+            Empty list if no schedule is active.
+        """
+        return self._active_entries
+
+    def get_next_actions(self, limit: int = 5) -> list[CronEntry]:
+        """
+        Get the next N upcoming actions from the active schedule.
+
+        Filters entries to only include future execution times,
+        sorts chronologically, and limits to the specified count.
+
+        Args:
+            limit: Maximum number of actions to return (default 5)
+
+        Returns:
+            List of CronEntry objects for upcoming actions.
+            Empty list if no schedule is active or no future actions.
+        """
+        if not self._active_entries:
+            return []
+
+        now = datetime.now()
+        # Filter to future entries and sort by execution time
+        future_entries = [
+            e for e in self._active_entries
+            if e.execution_time and e.execution_time > now
+        ]
+        future_entries.sort(key=lambda e: e.execution_time)
+
+        return future_entries[:limit]
 
     # ========================================================================
     # Conflict Cache Methods
@@ -737,6 +803,15 @@ class SchedulerService:
             return active_schedules[0]
         return None
 
+    def get_active_schedule_id(self) -> str | None:
+        """
+        Get the ID of the currently active schedule.
+
+        Returns:
+            Schedule ID if one is active, None otherwise.
+        """
+        return self._active_schedule_id
+
     def get_active_coordinates_source(self) -> str | None:
         """
         Get how coordinates were determined for the active schedule (Issue #331).
@@ -914,6 +989,16 @@ class SchedulerService:
             logger.info(
                 f"Applied cron entries for schedule: {schedule_id} ({len(result.entries)} entries)"
             )
+
+            # Expand pattern entries to concrete datetimes for persistence (Issue #331)
+            # This allows frontend to read next actions directly from disk
+            expanded_entries = expand_pattern_entries(
+                entries=result.entries,
+                days_ahead=60,  # Same as schedule_to_cron default
+                timezone_name=timezone_name,
+            )
+            logger.debug(f"Expanded {len(result.entries)} entries to {len(expanded_entries)}")
+
         except ScheduleActivationError:
             # Re-raise our own errors
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
@@ -950,8 +1035,8 @@ class SchedulerService:
             # but displaying it is useful for GPS-based activation too
             self._active_timezone_name = timezone_name
 
-        # Persist state to disk for recovery after restart (Issue #331)
-        self._save_active_state()
+        # Persist state to disk with expanded entries for recovery after restart (Issue #331)
+        self._save_active_state(entries=expanded_entries)
 
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")

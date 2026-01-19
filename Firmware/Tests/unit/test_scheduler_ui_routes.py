@@ -1452,3 +1452,147 @@ class TestCSRFProtection:
         response = client.delete("/api/scheduler/ui/schedules/test-id")
 
         assert response.status_code in (400, 403)
+
+
+# ============================================================================
+# Test Next Actions Endpoint (Issue #331)
+# ============================================================================
+
+
+class TestNextActionsEndpoint:
+    """Tests for GET /api/scheduler/ui/active/next-actions endpoint."""
+
+    @pytest.fixture
+    def mock_scheduler_with_entries(self):
+        """Create mock scheduler service with active entries."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+
+        now = datetime.now()
+        entries = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),
+                action_name="Attract On",
+                action_type="attract_on",
+                routine_id="routine-1",
+            ),
+            CronEntry(
+                expression="5 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1, minutes=5),
+                action_name="Take Photo",
+                action_type="takephoto",
+                routine_id="routine-1",
+            ),
+        ]
+
+        mock_service = MagicMock()
+        mock_service.get_active_schedule_id.return_value = "test-schedule"
+        mock_service.get_active_coordinates_source.return_value = "gps"
+        mock_service.get_active_entries.return_value = entries
+        mock_service.get_next_actions.return_value = entries
+
+        return mock_service
+
+    def test_next_actions_success(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions returns next actions."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "actions" in data
+        assert len(data["actions"]) == 2
+        assert data["actions"][0]["action_name"] == "Attract On"
+        assert data["actions"][1]["action_type"] == "takephoto"
+        assert data["schedule_id"] == "test-schedule"
+        assert data["coordinates_source"] == "gps"
+
+    def test_next_actions_with_limit(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions respects limit parameter."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+
+        now = datetime.now()
+        single_entry = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),
+                action_name="First",
+                action_type="first",
+                routine_id="routine-1",
+            ),
+        ]
+        mock_scheduler_with_entries.get_next_actions.return_value = single_entry
+
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=1")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # Verify limit was passed to service
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=1)
+
+    def test_next_actions_empty_when_no_active(self, client):
+        """GET /active/next-actions returns empty when no active schedule."""
+        mock_service = MagicMock()
+        mock_service.get_active_schedule_id.return_value = None
+        mock_service.get_active_coordinates_source.return_value = None
+        mock_service.get_active_entries.return_value = []
+        mock_service.get_next_actions.return_value = []
+
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_service
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["actions"] == []
+        assert data["schedule_id"] is None
+        assert data["total_stored"] == 0
+
+    def test_next_actions_invalid_limit(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions with invalid limit returns 400."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=invalid")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_next_actions_limit_clamped(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions clamps limit to valid range."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        # Test limit > 100 is clamped
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=200")
+        assert response.status_code == 200
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=100)
+
+        # Test limit < 1 is clamped
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=0")
+        assert response.status_code == 200
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=1)
+
+    def test_next_actions_includes_total_stored(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions includes total_stored count."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "total_stored" in data
+        assert data["total_stored"] == 2  # 2 entries in mock

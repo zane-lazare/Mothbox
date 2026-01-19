@@ -44,6 +44,7 @@ import {
   activateSchedule,
   deactivateSchedule,
   validateSchedule,
+  getNextActions,
 } from '../utils/schedulerApi'
 
 // =============================================================================
@@ -191,6 +192,48 @@ export function useActiveSchedule(queryOptions = {}) {
       return response.data
     },
     staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes
+    ...queryOptions,
+  })
+}
+
+/**
+ * Get next actions for the active schedule
+ *
+ * Reads pre-expanded cron entries from persistent storage, avoiding
+ * the need to recalculate solar times via the preview API.
+ *
+ * @param {Object} [params] - API parameters
+ * @param {number} [params.limit] - Maximum number of actions (default: 5, max: 100)
+ * @param {Object} [queryOptions] - React Query options (refetchInterval, onSuccess, etc.)
+ * @returns {Object} React Query result
+ * @returns {Object} data - { actions: [...], schedule_id, coordinates_source, total_stored }
+ * @returns {boolean} isLoading - Whether initial query is loading
+ * @returns {boolean} isError - Whether an error occurred
+ * @returns {Object} error - Error object if query failed
+ *
+ * @example
+ * const { data, isLoading } = useNextActions({ limit: 10 })
+ * if (data?.actions?.length > 0) {
+ *   const next = data.actions[0]
+ *   console.log(`Next: ${next.time} ${next.action_name}`)
+ * }
+ *
+ * Issue #331: Store cron entries in active_state.json
+ */
+export function useNextActions(params = {}, queryOptions = {}) {
+  const { limit } = params
+
+  // Build query key that includes params for proper cache separation
+  const queryKeyParams = {}
+  if (limit !== undefined) queryKeyParams.limit = limit
+
+  return useQuery({
+    queryKey: [...QUERY_KEYS.NEXT_ACTIONS, queryKeyParams],
+    queryFn: async () => {
+      const response = await getNextActions(queryKeyParams)
+      return response.data
+    },
+    staleTime: 30 * 1000, // 30 seconds - shorter than default since actions change over time
     ...queryOptions,
   })
 }

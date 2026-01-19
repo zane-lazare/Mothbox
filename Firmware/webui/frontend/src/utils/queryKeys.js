@@ -77,6 +77,7 @@ export const QUERY_KEYS = {
   SCHEDULES: ['schedules'],
   SCHEDULE: (id) => ['schedules', id],
   ACTIVE_SCHEDULE: ['schedules', 'active'],
+  NEXT_ACTIONS: ['schedules', 'active', 'next-actions'],  // Issue #331
   SCHEDULE_PREVIEW: (id) => ['schedules', id, 'preview'],
   BUILTIN_SCHEDULES: ['schedules', 'builtin'],
   BUILTIN_ROUTINES: ['schedules', 'routines', 'builtin'],
