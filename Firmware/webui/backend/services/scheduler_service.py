@@ -42,8 +42,6 @@ from datetime import datetime
 from threading import RLock
 from typing import Any
 
-from filelock import FileLock
-
 from mothbox_paths import CONFIG_DIR
 
 # Cron bridge for system integration (Issue #215)
@@ -422,7 +420,7 @@ class SchedulerService:
         }
 
         try:
-            with FileLock(str(ACTIVE_STATE_FILE) + ".lock"), open(ACTIVE_STATE_FILE, "w") as f:
+            with open(ACTIVE_STATE_FILE, "w") as f:
                 json.dump(state, f, indent=2)
             logger.debug(f"Saved active state to disk: {self._active_schedule_id}")
         except OSError as e:
@@ -441,7 +439,7 @@ class SchedulerService:
             return
 
         try:
-            with FileLock(str(ACTIVE_STATE_FILE) + ".lock"), open(ACTIVE_STATE_FILE) as f:
+            with open(ACTIVE_STATE_FILE) as f:
                 state = json.load(f)
 
             self._active_schedule_id = state.get("schedule_id")
