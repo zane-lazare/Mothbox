@@ -71,7 +71,10 @@ function ActiveScheduleBanner() {
   const { data: previewData } = useSchedulePreview(
     scheduleId,
     { days: 1 },
-    { enabled: !!scheduleId }
+    {
+      enabled: !!scheduleId,
+      refetchInterval: 60 * 1000, // Refresh every 60 seconds to update "Next Action" display
+    }
   )
 
   const handleDeactivate = () => {
