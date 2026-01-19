@@ -106,10 +106,14 @@ function ActiveScheduleBanner() {
     const longitude = data?.longitude
     const timezoneName = data?.timezone_name
 
-    // Get next execution from preview - access nested actions array
+    // Get next FUTURE action from preview - filter out past actions
     // Preview API structure: { executions: [{ start_time, actions: [{ time, action_name }] }] }
-    const firstExecution = previewData?.executions?.[0]
-    const nextAction = firstExecution?.actions?.[0]
+    const now = new Date()
+    const allActions = (previewData?.executions || [])
+      .flatMap((exec) => exec.actions || [])
+      .filter((action) => new Date(action.time) > now)
+      .sort((a, b) => new Date(a.time) - new Date(b.time))
+    const nextAction = allActions[0] || null
     const nextTime = nextAction ? formatTime(nextAction.time) : null
     const nextActionName = nextAction ? getActionDisplayName(nextAction) : null
 

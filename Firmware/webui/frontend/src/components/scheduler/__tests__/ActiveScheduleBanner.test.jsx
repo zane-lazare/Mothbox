@@ -9,10 +9,11 @@ vi.mock('../../../hooks/useSchedules', () => ({
   useDeactivateSchedule: vi.fn(),
   useSchedulePreview: vi.fn(),
   useSchedules: vi.fn(),
+  useActivateSchedule: vi.fn(),
 }))
 
 // Import after mock to get mocked versions
-import { useActiveSchedule, useDeactivateSchedule, useSchedulePreview } from '../../../hooks/useSchedules'
+import { useActiveSchedule, useDeactivateSchedule, useSchedulePreview, useSchedules, useActivateSchedule } from '../../../hooks/useSchedules'
 
 describe('ActiveScheduleBanner', () => {
   beforeEach(() => {
@@ -32,26 +33,35 @@ describe('ActiveScheduleBanner', () => {
       data: null,
       isLoading: false
     })
+    useSchedules.mockReturnValue({
+      data: { schedules: [] },
+      isLoading: false
+    })
+    useActivateSchedule.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false
+    })
   })
 
-  it('renders nothing when no active schedule', () => {
+  it('renders "no enabled schedule" banner when no active schedule', () => {
     useActiveSchedule.mockReturnValue({
       data: null,
       isLoading: false
     })
 
-    const { container } = render(<ActiveScheduleBanner />)
-    expect(container.firstChild).toBeNull()
+    render(<ActiveScheduleBanner />)
+    expect(screen.getByTestId('no-enabled-schedule-banner')).toBeInTheDocument()
+    expect(screen.getByText('No schedule is enabled')).toBeInTheDocument()
   })
 
-  it('renders nothing when active_schedule is undefined', () => {
+  it('renders "no enabled schedule" banner when active_schedule is undefined', () => {
     useActiveSchedule.mockReturnValue({
       data: {},
       isLoading: false
     })
 
-    const { container } = render(<ActiveScheduleBanner />)
-    expect(container.firstChild).toBeNull()
+    render(<ActiveScheduleBanner />)
+    expect(screen.getByTestId('no-enabled-schedule-banner')).toBeInTheDocument()
   })
 
   it('renders banner with schedule name when active', () => {
