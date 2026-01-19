@@ -14,7 +14,7 @@
 
 import { memo } from 'react'
 import PropTypes from 'prop-types'
-import { PencilIcon, PlayIcon, StopIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { PencilIcon, PlayIcon, StopIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import {
@@ -45,6 +45,14 @@ const BUTTON_DANGER = [
   'text-red-700 bg-white border border-red-300',
   'hover:bg-red-50 focus:ring-red-500',
   'dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20',
+].join(' ')
+
+/** Success button style for Enable */
+const BUTTON_SUCCESS = [
+  BUTTON_BASE,
+  'text-green-700 bg-white border border-green-300',
+  'hover:bg-green-50 focus:ring-green-500',
+  'dark:bg-gray-700 dark:text-green-400 dark:border-green-900 dark:hover:bg-green-900/20',
 ].join(' ')
 
 /**
@@ -80,12 +88,15 @@ function ScheduleCard({
   onActivate,
   onDeactivate,
   onDelete,
+  onToggleEnabled,
   isEditing = false,
   isActivating = false,
   isDeactivating = false,
   isDeleting = false,
+  isTogglingEnabled = false,
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
+  const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
 
   const handleEdit = () => {
     onEdit(schedule)
@@ -103,20 +114,33 @@ function ScheduleCard({
     onDelete(schedule)
   }
 
+  const handleToggleEnabled = () => {
+    if (onToggleEnabled) {
+      onToggleEnabled(schedule)
+    }
+  }
+
   return (
     <article
       role="article"
       aria-labelledby={nameId}
       className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
     >
-      {/* Header: Name and Active Badge */}
+      {/* Header: Name and Badges */}
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex-1 min-w-0">
           <h3 id={nameId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {schedule.name}
           </h3>
         </div>
-        <ActiveScheduleBadge isActive={isActive} />
+        <div className="flex items-center gap-2">
+          {!isEnabled && (
+            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full dark:bg-gray-700 dark:text-gray-400">
+              Disabled
+            </span>
+          )}
+          <ActiveScheduleBadge isActive={isActive} />
+        </div>
       </div>
 
       {/* Description - manual or auto-generated */}
@@ -161,7 +185,7 @@ function ScheduleCard({
         <button
           type="button"
           onClick={handleEdit}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting}
+          disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
           className={BUTTON_PRIMARY}
         >
           <PencilIcon className="h-4 w-4" aria-hidden="true" />
@@ -172,7 +196,7 @@ function ScheduleCard({
           <button
             type="button"
             onClick={handleDeactivate}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting}
+            disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
             className={BUTTON_PRIMARY}
           >
             <StopIcon className="h-4 w-4" aria-hidden="true" />
@@ -182,18 +206,41 @@ function ScheduleCard({
           <button
             type="button"
             onClick={handleActivate}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting}
+            disabled={!isEnabled || isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
             className={BUTTON_PRIMARY}
+            title={!isEnabled ? 'Enable schedule first' : undefined}
           >
             <PlayIcon className="h-4 w-4" aria-hidden="true" />
             {isActivating ? 'Activating...' : 'Activate'}
           </button>
         )}
 
+        {/* Enable/Disable toggle - only show when not active */}
+        {!isActive && onToggleEnabled && (
+          <button
+            type="button"
+            onClick={handleToggleEnabled}
+            disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
+            className={isEnabled ? BUTTON_PRIMARY : BUTTON_SUCCESS}
+          >
+            {isEnabled ? (
+              <>
+                <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                {isTogglingEnabled ? 'Disabling...' : 'Disable'}
+              </>
+            ) : (
+              <>
+                <CheckIcon className="h-4 w-4" aria-hidden="true" />
+                {isTogglingEnabled ? 'Enabling...' : 'Enable'}
+              </>
+            )}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleDelete}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting}
+          disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
           className={BUTTON_DANGER}
         >
           <TrashIcon className="h-4 w-4" aria-hidden="true" />
@@ -211,10 +258,12 @@ ScheduleCard.propTypes = {
   onActivate: PropTypes.func.isRequired,
   onDeactivate: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
+  onToggleEnabled: PropTypes.func,
   isEditing: PropTypes.bool,
   isActivating: PropTypes.bool,
   isDeactivating: PropTypes.bool,
   isDeleting: PropTypes.bool,
+  isTogglingEnabled: PropTypes.bool,
 }
 
 export default memo(ScheduleCard)

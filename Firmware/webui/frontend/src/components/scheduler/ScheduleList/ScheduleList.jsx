@@ -18,6 +18,7 @@ import {
   useActivateSchedule,
   useDeactivateSchedule,
   useDeleteSchedule,
+  useUpdateSchedule,
 } from '../../../hooks/useSchedules'
 import ScheduleCard from './ScheduleCard'
 import ConfirmDialog from '../../common/ConfirmDialog'
@@ -32,6 +33,9 @@ const TOAST_MESSAGES = {
   DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
   DELETE_SUCCESS: 'Schedule deleted successfully',
   DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
+  ENABLE_SUCCESS: 'Schedule enabled',
+  DISABLE_SUCCESS: 'Schedule disabled',
+  TOGGLE_ENABLED_ERROR: (msg) => `Failed to update schedule: ${msg}`,
 }
 
 export function ScheduleList({ onEditSchedule, variant = 'default' }) {
@@ -44,8 +48,10 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
   const { mutate: activate } = useActivateSchedule()
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
   const { mutate: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
+  const { mutate: updateSchedule } = useUpdateSchedule()
 
   const [activatingId, setActivatingId] = useState(null)
+  const [togglingEnabledId, setTogglingEnabledId] = useState(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     isOpen: false,
     schedule: null,
@@ -108,6 +114,24 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
     setDeleteConfirmation({ isOpen: false, schedule: null })
   }
 
+  const handleToggleEnabled = (schedule) => {
+    const newEnabled = schedule.enabled === false ? true : false
+    setTogglingEnabledId(schedule.schedule_id)
+    updateSchedule(
+      { id: schedule.schedule_id, data: { enabled: newEnabled } },
+      {
+        onSuccess: () => {
+          toast.success(newEnabled ? TOAST_MESSAGES.ENABLE_SUCCESS : TOAST_MESSAGES.DISABLE_SUCCESS)
+          setTogglingEnabledId(null)
+        },
+        onError: (error) => {
+          toast.error(TOAST_MESSAGES.TOGGLE_ENABLED_ERROR(error.message))
+          setTogglingEnabledId(null)
+        },
+      }
+    )
+  }
+
   // Loading state
   if (isLoading) {
     return (
@@ -155,10 +179,12 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
             isActivating={schedule.schedule_id === activatingId}
             isDeactivating={isDeactivating && schedule.schedule_id === activeScheduleId}
             isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
+            isTogglingEnabled={schedule.schedule_id === togglingEnabledId}
             onActivate={handleActivate}
             onDeactivate={handleDeactivate}
             onEdit={onEditSchedule}
             onDelete={handleDeleteClick}
+            onToggleEnabled={handleToggleEnabled}
           />
         ))}
       </div>
