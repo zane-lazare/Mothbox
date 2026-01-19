@@ -15,8 +15,6 @@ import toast from 'react-hot-toast'
 import {
   useSchedules,
   useActiveSchedule,
-  useActivateSchedule,
-  useDeactivateSchedule,
   useDeleteSchedule,
   useUpdateSchedule,
 } from '../../../hooks/useSchedules'
@@ -27,10 +25,6 @@ import { SCHEDULER_LAYOUT_CONFIG } from '../../../constants/config'
 
 /** Toast message constants for i18n and consistency */
 const TOAST_MESSAGES = {
-  ACTIVATE_SUCCESS: 'Schedule activated successfully',
-  ACTIVATE_ERROR: (msg) => `Failed to activate schedule: ${msg}`,
-  DEACTIVATE_SUCCESS: 'Schedule deactivated successfully',
-  DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
   DELETE_SUCCESS: 'Schedule deleted successfully',
   DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
   ENABLE_SUCCESS: 'Schedule enabled',
@@ -45,12 +39,9 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
     : SCHEDULER_LAYOUT_CONFIG.DEFAULT_GRID
   const { data, isLoading, error, refetch } = useSchedules({ include_builtin: true })
   const { data: activeData } = useActiveSchedule()
-  const { mutate: activate } = useActivateSchedule()
-  const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
   const { mutate: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
   const { mutate: updateSchedule } = useUpdateSchedule()
 
-  const [activatingId, setActivatingId] = useState(null)
   const [togglingEnabledId, setTogglingEnabledId] = useState(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     isOpen: false,
@@ -59,34 +50,6 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
 
   const schedules = data?.schedules || []
   const activeScheduleId = activeData?.active_schedule?.schedule_id || null
-
-  const handleActivate = (schedule) => {
-    setActivatingId(schedule.schedule_id)
-    activate(
-      { id: schedule.schedule_id },
-      {
-        onSuccess: () => {
-          toast.success(TOAST_MESSAGES.ACTIVATE_SUCCESS)
-          setActivatingId(null)
-        },
-        onError: (error) => {
-          toast.error(TOAST_MESSAGES.ACTIVATE_ERROR(error.message))
-          setActivatingId(null)
-        },
-      }
-    )
-  }
-
-  const handleDeactivate = () => {
-    deactivate(undefined, {
-      onSuccess: () => {
-        toast.success(TOAST_MESSAGES.DEACTIVATE_SUCCESS)
-      },
-      onError: (error) => {
-        toast.error(TOAST_MESSAGES.DEACTIVATE_ERROR(error.message))
-      },
-    })
-  }
 
   const handleDeleteClick = (schedule) => {
     setDeleteConfirmation({
@@ -176,12 +139,8 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
             key={schedule.schedule_id}
             schedule={schedule}
             isActive={schedule.schedule_id === activeScheduleId}
-            isActivating={schedule.schedule_id === activatingId}
-            isDeactivating={isDeactivating && schedule.schedule_id === activeScheduleId}
             isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
             isTogglingEnabled={schedule.schedule_id === togglingEnabledId}
-            onActivate={handleActivate}
-            onDeactivate={handleDeactivate}
             onEdit={onEditSchedule}
             onDelete={handleDeleteClick}
             onToggleEnabled={handleToggleEnabled}

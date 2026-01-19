@@ -14,7 +14,7 @@
 
 import { memo } from 'react'
 import PropTypes from 'prop-types'
-import { PencilIcon, PlayIcon, StopIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PencilIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import {
@@ -85,13 +85,9 @@ function ScheduleCard({
   schedule,
   isActive,
   onEdit,
-  onActivate,
-  onDeactivate,
   onDelete,
   onToggleEnabled,
   isEditing = false,
-  isActivating = false,
-  isDeactivating = false,
   isDeleting = false,
   isTogglingEnabled = false,
 }) {
@@ -100,14 +96,6 @@ function ScheduleCard({
 
   const handleEdit = () => {
     onEdit(schedule)
-  }
-
-  const handleActivate = () => {
-    onActivate(schedule)
-  }
-
-  const handleDeactivate = () => {
-    onDeactivate(schedule)
   }
 
   const handleDelete = () => {
@@ -185,42 +173,19 @@ function ScheduleCard({
         <button
           type="button"
           onClick={handleEdit}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
+          disabled={isEditing || isDeleting || isTogglingEnabled}
           className={BUTTON_PRIMARY}
         >
           <PencilIcon className="h-4 w-4" aria-hidden="true" />
           {isEditing ? 'Editing...' : 'Edit'}
         </button>
 
-        {isActive ? (
-          <button
-            type="button"
-            onClick={handleDeactivate}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
-            className={BUTTON_PRIMARY}
-          >
-            <StopIcon className="h-4 w-4" aria-hidden="true" />
-            {isDeactivating ? 'Deactivating...' : 'Deactivate'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleActivate}
-            disabled={!isEnabled || isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
-            className={BUTTON_PRIMARY}
-            title={!isEnabled ? 'Enable schedule first' : undefined}
-          >
-            <PlayIcon className="h-4 w-4" aria-hidden="true" />
-            {isActivating ? 'Activating...' : 'Activate'}
-          </button>
-        )}
-
         {/* Enable/Disable toggle - only show when not active */}
         {!isActive && onToggleEnabled && (
           <button
             type="button"
             onClick={handleToggleEnabled}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
+            disabled={isEditing || isDeleting || isTogglingEnabled}
             className={isEnabled ? BUTTON_PRIMARY : BUTTON_SUCCESS}
           >
             {isEnabled ? (
@@ -240,7 +205,7 @@ function ScheduleCard({
         <button
           type="button"
           onClick={handleDelete}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting || isTogglingEnabled}
+          disabled={isEditing || isDeleting || isTogglingEnabled}
           className={BUTTON_DANGER}
         >
           <TrashIcon className="h-4 w-4" aria-hidden="true" />
@@ -255,13 +220,9 @@ ScheduleCard.propTypes = {
   schedule: SchedulePropType.isRequired,
   isActive: PropTypes.bool,
   onEdit: PropTypes.func.isRequired,
-  onActivate: PropTypes.func.isRequired,
-  onDeactivate: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
   onToggleEnabled: PropTypes.func,
   isEditing: PropTypes.bool,
-  isActivating: PropTypes.bool,
-  isDeactivating: PropTypes.bool,
   isDeleting: PropTypes.bool,
   isTogglingEnabled: PropTypes.bool,
 }
