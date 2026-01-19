@@ -906,7 +906,7 @@ class Schedule:
     create_deployment: bool = False
 
     # State
-    enabled: bool = True
+    enabled: bool = False  # Default disabled - user must explicitly enable
     is_active: bool = False
 
     # Metadata
@@ -988,7 +988,7 @@ class Schedule:
             routines=[Routine.from_dict(r) for r in data.get("routines", [])],
             deployment_id=data.get("deployment_id"),
             create_deployment=data.get("create_deployment", False),
-            enabled=data.get("enabled", True),
+            enabled=data.get("enabled", False),
             is_active=data.get("is_active", False),
             created_at=data.get("created_at", ""),
             modified_at=data.get("modified_at", ""),
