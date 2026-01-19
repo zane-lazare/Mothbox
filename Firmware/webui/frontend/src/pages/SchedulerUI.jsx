@@ -7,7 +7,7 @@ import { ScheduleList } from '../components/scheduler/ScheduleList'
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
 import CalendarView from '../components/scheduler/CalendarView'
 import ErrorBoundary from '../components/ErrorBoundary'
-import { useCreateSchedule, useUpdateSchedule } from '../hooks/useSchedules'
+import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule } from '../hooks/useSchedules'
 import { ACTION_COLORS } from '../utils/routineUtils'
 import toast from 'react-hot-toast'
 
@@ -17,12 +17,13 @@ function SchedulerUIContent() {
 
   const { mutateAsync: createSchedule, isPending: isCreating } = useCreateSchedule()
   const { mutateAsync: updateSchedule, isPending: isUpdating } = useUpdateSchedule()
+  const { mutateAsync: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
 
   /**
-   * Handle editing an existing schedule
-   * Opens ScheduleEditor with the schedule data
+   * Handle viewing an existing schedule
+   * Opens ScheduleEditor in view mode with the schedule data
    */
-  const handleEditSchedule = useCallback((schedule) => {
+  const handleViewSchedule = useCallback((schedule) => {
     setEditingSchedule(schedule)
     setEditorOpen(true)
   }, [])
@@ -70,6 +71,21 @@ function SchedulerUIContent() {
     setEditingSchedule(null)
   }, [])
 
+  /**
+   * Handle deleting a schedule from the editor
+   */
+  const handleDeleteSchedule = useCallback(async (scheduleId) => {
+    try {
+      await deleteSchedule(scheduleId)
+      toast.success('Schedule deleted successfully')
+      setEditorOpen(false)
+      setEditingSchedule(null)
+    } catch (error) {
+      toast.error(`Failed to delete schedule: ${error.message}`)
+      // Keep editor open so user can retry or cancel
+    }
+  }, [deleteSchedule])
+
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 py-2">
       <SchedulerHeader>
@@ -110,7 +126,7 @@ function SchedulerUIContent() {
             errorMessage="Failed to load the schedule list"
             onReset={() => window.location.reload()}
           >
-            <ScheduleList onEditSchedule={handleEditSchedule} variant="sidebar" />
+            <ScheduleList onViewSchedule={handleViewSchedule} variant="sidebar" />
           </ErrorBoundary>
         </div>
         {/* Right column: Calendar/Timeline (2/3 width) */}
@@ -130,7 +146,9 @@ function SchedulerUIContent() {
         schedule={editingSchedule}
         onSave={handleSaveSchedule}
         onCancel={handleCancelEditor}
+        onDelete={handleDeleteSchedule}
         isSaving={isCreating || isUpdating}
+        isDeleting={isDeleting}
       />
     </div>
   )

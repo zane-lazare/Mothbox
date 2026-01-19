@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
 import ActivationPanel from './ActivationPanel';
+import ConfirmDialog from '../../common/ConfirmDialog';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
@@ -58,7 +60,8 @@ const sanitizeErrorMessage = (error) => {
 /**
  * ScheduleEditor Component
  *
- * A drawer/panel component for creating and editing schedules.
+ * A drawer/panel component for viewing, creating, and editing schedules.
+ * Opens in read-only view mode by default for existing schedules.
  * Combines trigger configuration, event pattern selection, date range,
  * and preview sections into a unified editing experience.
  *
@@ -68,6 +71,7 @@ const sanitizeErrorMessage = (error) => {
  *   isOpen={true}
  *   onSave={(schedule) => console.log('Save:', schedule)}
  *   onCancel={() => console.log('Cancel')}
+ *   onDelete={(scheduleId) => console.log('Delete:', scheduleId)}
  * />
  */
 const ScheduleEditor = ({
@@ -75,6 +79,8 @@ const ScheduleEditor = ({
   schedule = null,
   onSave,
   onCancel,
+  onDelete,
+  isDeleting = false,
 }) => {
   // Refs
   const nameInputRef = useRef(null);
@@ -88,6 +94,8 @@ const ScheduleEditor = ({
   // UI state
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Determine if editing existing schedule (memoized to prevent recalculation on every render)
   const isEditMode = useMemo(() => Boolean(schedule?.schedule_id), [schedule?.schedule_id]);
@@ -129,10 +137,23 @@ const ScheduleEditor = ({
       setRoutines([]);
       setIsAddingRoutine(false);
       setErrors({});
+      setIsViewMode(true); // Existing schedules open in view mode
+      setShowDeleteConfirm(false);
       resetValidation();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on schedule_id change, not drawer open/close
   }, [schedule?.schedule_id]);
+
+  /**
+   * Set view mode based on whether editing existing or creating new
+   * - Existing schedules: Open in view mode (read-only)
+   * - New schedules: Open directly in edit mode
+   */
+  useEffect(() => {
+    if (isOpen) {
+      setIsViewMode(isEditMode); // View mode for existing, edit mode for new
+    }
+  }, [isOpen, isEditMode]);
 
   /**
    * Initialize form from schedule data
@@ -385,6 +406,56 @@ const ScheduleEditor = ({
     setIsAddingRoutine(false);
   }, []);
 
+  /**
+   * Handle switching to edit mode
+   */
+  const handleEnterEditMode = useCallback(() => {
+    setIsViewMode(false);
+  }, []);
+
+  /**
+   * Handle cancel in edit mode
+   * - For existing schedules: Return to view mode and reset form to original data
+   * - For new schedules: Close the editor
+   */
+  const handleCancelEdit = useCallback(() => {
+    if (isEditMode && fullSchedule) {
+      // Return to view mode and reset form to original values
+      setName(fullSchedule.name || '');
+      setDescription(fullSchedule.description || '');
+      setRoutines(fullSchedule.routines || []);
+      setErrors({});
+      setIsViewMode(true);
+    } else {
+      // New schedule: just close
+      onCancel();
+    }
+  }, [isEditMode, fullSchedule, onCancel]);
+
+  /**
+   * Handle delete button click - show confirmation dialog
+   */
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
+
+  /**
+   * Handle delete confirmation
+   */
+  const handleDeleteConfirm = useCallback(() => {
+    if (onDelete && schedule?.schedule_id) {
+      onDelete(schedule.schedule_id);
+    }
+    setShowDeleteConfirm(false);
+  }, [onDelete, schedule?.schedule_id]);
+
+  /**
+   * Handle delete cancel
+   */
+  const handleDeleteCancel = useCallback(() => {
+    setShowDeleteConfirm(false);
+  }, []);
+
   // Don't render if not open
   if (!isOpen) {
     return null;
@@ -413,29 +484,48 @@ const ScheduleEditor = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {isEditMode ? 'Edit Schedule' : 'Create Schedule'}
+            {isEditMode
+              ? (isViewMode ? 'View Schedule' : 'Edit Schedule')
+              : 'Create Schedule'}
           </h2>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200
-                       rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Close"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-2">
+            {/* Edit button - only shown in view mode for existing schedules */}
+            {isEditMode && isViewMode && !isLoadingSchedule && (
+              <button
+                type="button"
+                onClick={handleEnterEditMode}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5
+                           text-sm font-medium rounded-md
+                           text-gray-700 bg-white border border-gray-300
+                           hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                           dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+              >
+                <PencilIcon className="h-4 w-4" aria-hidden="true" />
+                Edit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onCancel}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200
+                         rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Close"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Two-column content area */}
@@ -468,7 +558,7 @@ const ScheduleEditor = ({
                   value={name}
                   onChange={handleNameChange}
                   maxLength={SCHEDULE_LIMITS.NAME_MAX_LENGTH}
-                  disabled={isSaving}
+                  disabled={isSaving || isViewMode}
                   className="w-full rounded-md border border-gray-300 dark:border-gray-600
                              bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -494,7 +584,7 @@ const ScheduleEditor = ({
                   onChange={handleDescriptionChange}
                   maxLength={SCHEDULE_LIMITS.DESCRIPTION_MAX_LENGTH}
                   rows={3}
-                  disabled={isSaving}
+                  disabled={isSaving || isViewMode}
                   className="w-full rounded-md border border-gray-300 dark:border-gray-600
                              bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y
@@ -521,7 +611,7 @@ const ScheduleEditor = ({
                 isAddingRoutine={isAddingRoutine}
                 onStartAddRoutine={handleStartAddRoutine}
                 onCancelAddRoutine={handleCancelAddRoutine}
-                disabled={isSaving}
+                disabled={isSaving || isViewMode}
               />
               {errors.routines && (
                 <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
@@ -571,29 +661,76 @@ const ScheduleEditor = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isSaving}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600
-                       text-gray-700 dark:text-gray-300 rounded-md
-                       hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving || (isEditMode && isLoadingSchedule)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md
-                       hover:bg-blue-700 transition-colors
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSaving ? 'Saving...' : 'Save'}
-          </button>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          {/* Left side - Delete button (only for existing schedules) */}
+          <div>
+            {isEditMode && onDelete && (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                disabled={isSaving || isDeleting || isLoadingSchedule}
+                className="inline-flex items-center gap-1.5 px-4 py-2
+                           text-red-700 bg-white border border-red-300 rounded-md
+                           hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
+                           dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
+          </div>
+
+          {/* Right side - Close/Cancel/Save buttons */}
+          <div className="flex items-center gap-3">
+            {isViewMode ? (
+              /* View mode: just a Close button */
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600
+                           text-gray-700 dark:text-gray-300 rounded-md
+                           hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Close
+              </button>
+            ) : (
+              /* Edit mode: Cancel and Save buttons */
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600
+                             text-gray-700 dark:text-gray-300 rounded-md
+                             hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving || (isEditMode && isLoadingSchedule)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md
+                             hover:bg-blue-700 transition-colors
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={showDeleteConfirm}
+          title="Delete Schedule"
+          message={`Are you sure you want to delete "${schedule?.name || 'this schedule'}"? This action cannot be undone.`}
+          onConfirm={handleDeleteConfirm}
+          onClose={handleDeleteCancel}
+        />
       </div>
     </>
   );
@@ -613,6 +750,10 @@ ScheduleEditor.propTypes = {
   onSave: PropTypes.func.isRequired,
   /** Callback when editor is cancelled/closed */
   onCancel: PropTypes.func.isRequired,
+  /** Callback when schedule is deleted. Receives schedule_id. */
+  onDelete: PropTypes.func,
+  /** Loading state for deletion */
+  isDeleting: PropTypes.bool,
 };
 
 export default ScheduleEditor;

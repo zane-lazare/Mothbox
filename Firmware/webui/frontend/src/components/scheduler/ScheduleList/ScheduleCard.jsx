@@ -6,15 +6,17 @@
  * - Active status badge
  * - Colored routine indicator dots (orange=GPIO, blue=camera, purple=HDR)
  * - Routine count
- * - Action buttons (Edit, Activate/Deactivate, Delete)
+ * - Action buttons (View, Enable/Disable)
  * - Loading states for async operations
+ *
+ * Note: Delete functionality moved to ScheduleEditor (view-first paradigm)
  *
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
 import { memo } from 'react'
 import PropTypes from 'prop-types'
-import { PencilIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import {
@@ -39,14 +41,6 @@ const BUTTON_PRIMARY = [
   'dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600',
 ].join(' ')
 
-/** Danger button style for Delete */
-const BUTTON_DANGER = [
-  BUTTON_BASE,
-  'text-red-700 bg-white border border-red-300',
-  'hover:bg-red-50 focus:ring-red-500',
-  'dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20',
-].join(' ')
-
 /** Success button style for Enable */
 const BUTTON_SUCCESS = [
   BUTTON_BASE,
@@ -61,45 +55,31 @@ const BUTTON_SUCCESS = [
  * @param {Object} props - Component props
  * @param {Object} props.schedule - Schedule object
  * @param {boolean} props.isActive - Whether this schedule is active
- * @param {Function} props.onEdit - Callback when Edit button clicked
- * @param {Function} props.onActivate - Callback when Activate button clicked
- * @param {Function} props.onDeactivate - Callback when Deactivate button clicked
- * @param {Function} props.onDelete - Callback when Delete button clicked
- * @param {boolean} [props.isEditing] - Loading state for edit
- * @param {boolean} [props.isActivating] - Loading state for activation
- * @param {boolean} [props.isDeactivating] - Loading state for deactivation
- * @param {boolean} [props.isDeleting] - Loading state for deletion
+ * @param {Function} props.onView - Callback when View button clicked
+ * @param {Function} props.onToggleEnabled - Callback when Enable/Disable button clicked
+ * @param {boolean} [props.isTogglingEnabled] - Loading state for enable/disable toggle
  * @returns {JSX.Element} Schedule card component
  *
  * @example
  * <ScheduleCard
  *   schedule={schedule}
  *   isActive={false}
- *   onEdit={handleEdit}
- *   onActivate={handleActivate}
- *   onDeactivate={handleDeactivate}
- *   onDelete={handleDelete}
+ *   onView={handleView}
+ *   onToggleEnabled={handleToggleEnabled}
  * />
  */
 function ScheduleCard({
   schedule,
   isActive,
-  onEdit,
-  onDelete,
+  onView,
   onToggleEnabled,
-  isEditing = false,
-  isDeleting = false,
   isTogglingEnabled = false,
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
   const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
 
-  const handleEdit = () => {
-    onEdit(schedule)
-  }
-
-  const handleDelete = () => {
-    onDelete(schedule)
+  const handleView = () => {
+    onView(schedule)
   }
 
   const handleToggleEnabled = () => {
@@ -172,12 +152,12 @@ function ScheduleCard({
       <div className="flex items-center gap-2 flex-wrap">
         <button
           type="button"
-          onClick={handleEdit}
-          disabled={isEditing || isDeleting || isTogglingEnabled}
+          onClick={handleView}
+          disabled={isTogglingEnabled}
           className={BUTTON_PRIMARY}
         >
-          <PencilIcon className="h-4 w-4" aria-hidden="true" />
-          {isEditing ? 'Editing...' : 'Edit'}
+          <EyeIcon className="h-4 w-4" aria-hidden="true" />
+          View
         </button>
 
         {/* Enable/Disable toggle - only show when not active */}
@@ -185,7 +165,7 @@ function ScheduleCard({
           <button
             type="button"
             onClick={handleToggleEnabled}
-            disabled={isEditing || isDeleting || isTogglingEnabled}
+            disabled={isTogglingEnabled}
             className={isEnabled ? BUTTON_PRIMARY : BUTTON_SUCCESS}
           >
             {isEnabled ? (
@@ -201,16 +181,6 @@ function ScheduleCard({
             )}
           </button>
         )}
-
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={isEditing || isDeleting || isTogglingEnabled}
-          className={BUTTON_DANGER}
-        >
-          <TrashIcon className="h-4 w-4" aria-hidden="true" />
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </button>
       </div>
     </article>
   )
@@ -219,11 +189,8 @@ function ScheduleCard({
 ScheduleCard.propTypes = {
   schedule: SchedulePropType.isRequired,
   isActive: PropTypes.bool,
-  onEdit: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
+  onView: PropTypes.func.isRequired,
   onToggleEnabled: PropTypes.func,
-  isEditing: PropTypes.bool,
-  isDeleting: PropTypes.bool,
   isTogglingEnabled: PropTypes.bool,
 }
 

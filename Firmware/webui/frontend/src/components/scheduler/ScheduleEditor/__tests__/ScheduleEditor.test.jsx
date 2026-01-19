@@ -104,7 +104,7 @@ describe('ScheduleEditor', () => {
       expect(screen.getByText(/create schedule/i)).toBeInTheDocument();
     });
 
-    it('shows "Edit Schedule" title when editing existing schedule', () => {
+    it('shows "View Schedule" title when opening existing schedule (view-first paradigm)', () => {
       const schedule = {
         schedule_id: 'sched-1',
         name: 'Existing Schedule',
@@ -121,7 +121,8 @@ describe('ScheduleEditor', () => {
         />
       );
 
-      expect(screen.getByText(/edit schedule/i)).toBeInTheDocument();
+      // Opens in view mode first
+      expect(screen.getByText(/view schedule/i)).toBeInTheDocument();
     });
   });
 
