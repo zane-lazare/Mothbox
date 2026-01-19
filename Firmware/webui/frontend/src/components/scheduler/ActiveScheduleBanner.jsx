@@ -67,12 +67,19 @@ function ActiveScheduleBanner() {
     : null
 
   // Fetch next execution for active schedule (only 1 day preview for efficiency)
+  // Pass coordinates and timezone from active schedule for accurate solar calculations
   const scheduleId = activeSchedule?.schedule_id
+  const previewParams = {
+    days: 1,
+    lat: data?.latitude,
+    lon: data?.longitude,
+    tz: data?.timezone_name,
+  }
   const { data: previewData } = useSchedulePreview(
     scheduleId,
-    { days: 1 },
+    previewParams,
     {
-      enabled: !!scheduleId,
+      enabled: !!scheduleId && !!data?.timezone_name,
       refetchInterval: 60 * 1000, // Refresh every 60 seconds to update "Next Action" display
     }
   )
