@@ -7,8 +7,8 @@ Follows the same pattern as DeploymentService for consistency.
 Coverage Target: 85%+
 """
 
-
 import uuid
+from datetime import UTC
 
 import pytest
 
@@ -22,6 +22,7 @@ def _test_uuid(name: str) -> str:
 try:
     from webui.backend.lib.schedule_schema import Schedule
     from webui.backend.services.scheduler_service import SchedulerService
+
     IMPLEMENTATION_EXISTS = True
 except ImportError:
     IMPLEMENTATION_EXISTS = False
@@ -29,15 +30,13 @@ except ImportError:
     Schedule = None
 
 # Skip all tests if implementation doesn't exist
-pytestmark = pytest.mark.skipif(
-    not IMPLEMENTATION_EXISTS,
-    reason="Implementation not yet created"
-)
+pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not yet created")
 
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_schedules_dir(tmp_path, monkeypatch):
@@ -45,8 +44,8 @@ def temp_schedules_dir(tmp_path, monkeypatch):
     schedules = tmp_path / "schedules"
     schedules.mkdir()
     # Mock SCHEDULES_DIR in both mothbox_paths (for get_schedule_path) and storage module
-    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', schedules)
-    monkeypatch.setattr('webui.backend.lib.schedule_storage.SCHEDULES_DIR', schedules)
+    monkeypatch.setattr("mothbox_paths.SCHEDULES_DIR", schedules)
+    monkeypatch.setattr("webui.backend.lib.schedule_storage.SCHEDULES_DIR", schedules)
     return schedules
 
 
@@ -67,19 +66,19 @@ def sample_schedule():
             action_type="gpio",
             action_name="attract_on",
             offset_minutes=0,
-            description="Turn on UV attract lights"
+            description="Turn on UV attract lights",
         ),
         Action(
             action_type="camera",
             action_name="takephoto",
             offset_minutes=5,
-            description="Capture photo"
+            description="Capture photo",
         ),
         Action(
             action_type="gpio",
             action_name="attract_off",
             offset_minutes=15,
-            description="Turn off UV lights"
+            description="Turn off UV lights",
         ),
     ]
 
@@ -173,6 +172,7 @@ def multiple_schedules(temp_schedules_dir, sample_schedule):
 # Test Service Initialization
 # ============================================================================
 
+
 class TestSchedulerServiceInit:
     """Tests for SchedulerService initialization."""
 
@@ -194,23 +194,23 @@ class TestSchedulerServiceInit:
     def test_statistics_initialized(self, scheduler_service):
         """SchedulerService should initialize statistics to zero."""
         stats = scheduler_service.get_statistics()
-        assert stats['cache_hits'] == 0
-        assert stats['cache_misses'] == 0
-        assert stats['cache_evictions'] == 0
-        assert stats['total_reads'] == 0
-        assert stats['total_writes'] == 0
-        assert stats['total_deletes'] == 0
+        assert stats["cache_hits"] == 0
+        assert stats["cache_misses"] == 0
+        assert stats["cache_evictions"] == 0
+        assert stats["total_reads"] == 0
+        assert stats["total_writes"] == 0
+        assert stats["total_deletes"] == 0
 
     def test_cache_starts_empty(self, scheduler_service):
         """Cache should start with no entries."""
         stats = scheduler_service.get_statistics()
-        assert stats['cache_size'] == 0
+        assert stats["cache_size"] == 0
 
     def test_locks_initialized(self, scheduler_service):
         """RLock instances should be created for thread safety."""
         # Verify locks exist (RLock objects)
-        assert hasattr(scheduler_service, '_cache_lock')
-        assert hasattr(scheduler_service, '_stats_lock')
+        assert hasattr(scheduler_service, "_cache_lock")
+        assert hasattr(scheduler_service, "_stats_lock")
         # RLock objects are callable for context manager
         assert callable(scheduler_service._cache_lock.__enter__)
         assert callable(scheduler_service._stats_lock.__enter__)
@@ -220,17 +220,20 @@ class TestSchedulerServiceInit:
 # Test Service Imports
 # ============================================================================
 
+
 class TestServiceImports:
     """Tests for required imports and availability."""
 
     def test_scheduler_service_importable(self):
         """SchedulerService should be importable."""
         from webui.backend.services.scheduler_service import SchedulerService
+
         assert SchedulerService is not None
 
     def test_schedule_schema_available(self):
         """Schedule dataclass should be available."""
         from webui.backend.lib.schedule_schema import Schedule
+
         assert Schedule is not None
 
     def test_schedule_storage_available(self):
@@ -242,6 +245,7 @@ class TestServiceImports:
             read_schedule,
             update_schedule,
         )
+
         assert create_schedule is not None
         assert read_schedule is not None
         assert update_schedule is not None
@@ -251,22 +255,26 @@ class TestServiceImports:
     def test_routine_available(self):
         """Routine dataclass should be available."""
         from webui.backend.lib.schedule_schema import Routine
+
         assert Routine is not None
 
     def test_pattern_action_available(self):
         """Action dataclass should be available."""
         from webui.backend.lib.schedule_schema import Action
+
         assert Action is not None
 
     def test_interval_trigger_available(self):
         """IntervalTrigger dataclass should be available."""
         from webui.backend.lib.schedule_schema import IntervalTrigger
+
         assert IntervalTrigger is not None
 
 
 # ============================================================================
 # Test Get Schedule
 # ============================================================================
+
 
 class TestGetSchedule:
     """Tests for get_schedule() method."""
@@ -300,16 +308,18 @@ class TestGetSchedule:
         # First call - cache miss
         scheduler_service.get_schedule(_test_uuid("cache-hit"))
         stats_after_first = scheduler_service.get_statistics()
-        assert stats_after_first['cache_misses'] == 1
-        assert stats_after_first['cache_hits'] == 0
+        assert stats_after_first["cache_misses"] == 1
+        assert stats_after_first["cache_hits"] == 0
 
         # Second call - cache hit
         scheduler_service.get_schedule(_test_uuid("cache-hit"))
         stats_after_second = scheduler_service.get_statistics()
-        assert stats_after_second['cache_hits'] == 1
-        assert stats_after_second['cache_misses'] == 1  # Still 1
+        assert stats_after_second["cache_hits"] == 1
+        assert stats_after_second["cache_misses"] == 1  # Still 1
 
-    def test_get_schedule_cache_miss_tracked(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_get_schedule_cache_miss_tracked(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Miss increments counter."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -317,14 +327,16 @@ class TestGetSchedule:
         create_schedule(sample_schedule)
 
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_misses'] == 0
+        assert stats_before["cache_misses"] == 0
 
         scheduler_service.get_schedule(_test_uuid("miss"))
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_misses'] == 1
+        assert stats_after["cache_misses"] == 1
 
-    def test_get_schedule_cache_hit_tracked(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_get_schedule_cache_hit_tracked(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Hit increments counter."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -334,14 +346,16 @@ class TestGetSchedule:
         # First call - cache miss
         scheduler_service.get_schedule(_test_uuid("hit-tracked"))
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_hits'] == 0
+        assert stats_before["cache_hits"] == 0
 
         # Second call - cache hit
         scheduler_service.get_schedule(_test_uuid("hit-tracked"))
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_hits'] == 1
+        assert stats_after["cache_hits"] == 1
 
-    def test_get_schedule_reads_tracked(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_get_schedule_reads_tracked(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Total reads incremented."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -349,14 +363,14 @@ class TestGetSchedule:
         create_schedule(sample_schedule)
 
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['total_reads'] == 0
+        assert stats_before["total_reads"] == 0
 
         # Call twice
         scheduler_service.get_schedule(_test_uuid("reads"))
         scheduler_service.get_schedule(_test_uuid("reads"))
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['total_reads'] == 2
+        assert stats_after["total_reads"] == 2
 
     def test_cache_ttl_expiration(self, temp_schedules_dir, sample_schedule):
         """Entry expires after TTL (use time.sleep)."""
@@ -373,8 +387,8 @@ class TestGetSchedule:
         # First call - cache miss
         service.get_schedule(_test_uuid("ttl"))
         stats_after_first = service.get_statistics()
-        assert stats_after_first['cache_misses'] == 1
-        assert stats_after_first['cache_size'] == 1
+        assert stats_after_first["cache_misses"] == 1
+        assert stats_after_first["cache_size"] == 1
 
         # Wait for TTL to expire
         time.sleep(0.15)
@@ -382,13 +396,14 @@ class TestGetSchedule:
         # Second call - cache miss (TTL expired)
         service.get_schedule(_test_uuid("ttl"))
         stats_after_second = service.get_statistics()
-        assert stats_after_second['cache_misses'] == 2
-        assert stats_after_second['cache_hits'] == 0
+        assert stats_after_second["cache_misses"] == 2
+        assert stats_after_second["cache_hits"] == 0
 
 
 # ============================================================================
 # Test List Schedules
 # ============================================================================
+
 
 class TestListSchedules:
     """Tests for list_schedules() method."""
@@ -398,7 +413,9 @@ class TestListSchedules:
         schedules = scheduler_service.list_schedules(include_builtin=False)
         assert schedules == []
 
-    def test_list_schedules_returns_all(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_list_schedules_returns_all(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """Returns all schedules."""
         schedules = scheduler_service.list_schedules(include_builtin=False)
         assert len(schedules) == 5
@@ -415,37 +432,42 @@ class TestListSchedules:
         schedules = scheduler_service.list_schedules()
         assert isinstance(schedules, list)
 
-    def test_list_schedules_from_storage(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_list_schedules_from_storage(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """Delegates to storage layer."""
         # Verify that list_schedules returns schedules created in storage
         schedules = scheduler_service.list_schedules(include_builtin=False)
         assert len(schedules) == 5
         # Verify schedule objects are valid
         for schedule in schedules:
-            assert hasattr(schedule, 'schedule_id')
-            assert hasattr(schedule, 'name')
-            assert hasattr(schedule, 'routines')
+            assert hasattr(schedule, "schedule_id")
+            assert hasattr(schedule, "name")
+            assert hasattr(schedule, "routines")
 
-    def test_list_schedules_caches_individual(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_list_schedules_caches_individual(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """Individual schedules cached after listing."""
         # List schedules
         scheduler_service.list_schedules(include_builtin=False)
 
         # Check cache statistics
         stats = scheduler_service.get_statistics()
-        assert stats['cache_size'] == 5  # All 5 schedules should be cached
+        assert stats["cache_size"] == 5  # All 5 schedules should be cached
 
         # Now get_schedule should be a cache hit
         schedule = scheduler_service.get_schedule(_test_uuid("schedule-0"))
         assert schedule is not None
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_hits'] == 1  # Cache hit from get_schedule
+        assert stats_after["cache_hits"] == 1  # Cache hit from get_schedule
 
 
 # ============================================================================
 # Test Cache Behavior
 # ============================================================================
+
 
 class TestCacheBehavior:
     """Tests for LRU cache behavior."""
@@ -474,39 +496,39 @@ class TestCacheBehavior:
         service.get_schedule(_test_uuid("evict-2"))
 
         stats = service.get_statistics()
-        assert stats['cache_size'] == 3
-        assert stats['cache_evictions'] == 0
+        assert stats["cache_size"] == 3
+        assert stats["cache_evictions"] == 0
 
         # Get 4th schedule - triggers eviction
         service.get_schedule(_test_uuid("evict-3"))
 
         stats_after = service.get_statistics()
-        assert stats_after['cache_size'] == 3  # Still 3 (max)
-        assert stats_after['cache_evictions'] == 1  # One eviction
+        assert stats_after["cache_size"] == 3  # Still 3 (max)
+        assert stats_after["cache_evictions"] == 1  # One eviction
 
         # Verify LRU was evicted (evict-test-0)
         # Next get_schedule for evict-test-0 should be cache miss
         service.get_schedule(_test_uuid("evict-0"))
         stats_final = service.get_statistics()
         # Total misses: 4 (initial loads) + 1 (evicted item) = 5
-        assert stats_final['cache_misses'] == 5
+        assert stats_final["cache_misses"] == 5
 
     def test_cache_size_tracked(self, scheduler_service, temp_schedules_dir, multiple_schedules):
         """Statistics track cache size."""
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_size'] == 0
+        assert stats_before["cache_size"] == 0
 
         # Get a schedule
         scheduler_service.get_schedule(_test_uuid("schedule-0"))
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_size'] == 1
+        assert stats_after["cache_size"] == 1
 
         # Get another schedule
         scheduler_service.get_schedule(_test_uuid("schedule-1"))
 
         stats_final = scheduler_service.get_statistics()
-        assert stats_final['cache_size'] == 2
+        assert stats_final["cache_size"] == 2
 
     def test_cache_evictions_tracked(self, temp_schedules_dir, sample_schedule):
         """Evictions counter increments."""
@@ -527,25 +549,26 @@ class TestCacheBehavior:
             create_schedule(schedule)
 
         stats_before = service.get_statistics()
-        assert stats_before['cache_evictions'] == 0
+        assert stats_before["cache_evictions"] == 0
 
         # Fill cache
         service.get_schedule(_test_uuid("track-evict-0"))
         service.get_schedule(_test_uuid("track-evict-1"))
 
         stats_after_fill = service.get_statistics()
-        assert stats_after_fill['cache_evictions'] == 0
+        assert stats_after_fill["cache_evictions"] == 0
 
         # Trigger eviction
         service.get_schedule(_test_uuid("track-evict-2"))
 
         stats_after_evict = service.get_statistics()
-        assert stats_after_evict['cache_evictions'] == 1
+        assert stats_after_evict["cache_evictions"] == 1
 
 
 # ============================================================================
 # Test Create Schedule
 # ============================================================================
+
 
 class TestCreateSchedule:
     """Tests for create_schedule() method."""
@@ -565,7 +588,7 @@ class TestCreateSchedule:
 
         # Verify schedule is in cache
         stats = scheduler_service.get_statistics()
-        assert stats['cache_size'] == 1
+        assert stats["cache_size"] == 1
 
     def test_create_schedule_validation_error(self, scheduler_service, sample_schedule):
         """create_schedule should raise on invalid schedule."""
@@ -578,7 +601,9 @@ class TestCreateSchedule:
         with pytest.raises(ScheduleValidationError):
             scheduler_service.create_schedule(sample_schedule)
 
-    def test_create_schedule_updates_cache(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_create_schedule_updates_cache(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """New schedule should be in cache after creation."""
         sample_schedule.schedule_id = _test_uuid("create-cache")
 
@@ -591,21 +616,25 @@ class TestCreateSchedule:
 
         assert retrieved is not None
         assert retrieved.schedule_id == _test_uuid("create-cache")
-        assert stats_after['cache_hits'] == stats_before['cache_hits'] + 1
+        assert stats_after["cache_hits"] == stats_before["cache_hits"] + 1
 
-    def test_create_schedule_writes_tracked(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_create_schedule_writes_tracked(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Total writes should be incremented."""
         sample_schedule.schedule_id = _test_uuid("create-writes")
 
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['total_writes'] == 0
+        assert stats_before["total_writes"] == 0
 
         scheduler_service.create_schedule(sample_schedule)
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['total_writes'] == 1
+        assert stats_after["total_writes"] == 1
 
-    def test_create_schedule_returns_bool(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_create_schedule_returns_bool(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """create_schedule should return True on success."""
         sample_schedule.schedule_id = _test_uuid("create-bool")
 
@@ -618,6 +647,7 @@ class TestCreateSchedule:
 # ============================================================================
 # Test Update Schedule
 # ============================================================================
+
 
 class TestUpdateSchedule:
     """Tests for update_schedule() method."""
@@ -632,8 +662,7 @@ class TestUpdateSchedule:
 
         # Update it
         updated = scheduler_service.update_schedule(
-            _test_uuid("update-success"),
-            {"name": "Updated Name"}
+            _test_uuid("update-success"), {"name": "Updated Name"}
         )
 
         assert updated is not None
@@ -643,14 +672,13 @@ class TestUpdateSchedule:
 
     def test_update_schedule_nonexistent(self, scheduler_service, temp_schedules_dir):
         """update_schedule should return None for missing schedule."""
-        result = scheduler_service.update_schedule(
-            _test_uuid("nonexistent"),
-            {"name": "New Name"}
-        )
+        result = scheduler_service.update_schedule(_test_uuid("nonexistent"), {"name": "New Name"})
 
         assert result is None
 
-    def test_update_schedule_partial_fields(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_update_schedule_partial_fields(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """update_schedule should only update specified fields."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -662,15 +690,16 @@ class TestUpdateSchedule:
 
         # Update only name
         updated = scheduler_service.update_schedule(
-            _test_uuid("update-partial"),
-            {"name": "Updated Name"}
+            _test_uuid("update-partial"), {"name": "Updated Name"}
         )
 
         assert updated is not None
         assert updated.name == "Updated Name"
         assert updated.description == "Original Description"
 
-    def test_update_schedule_cache_updated(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_update_schedule_cache_updated(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Cache should reflect changes after update."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -683,10 +712,7 @@ class TestUpdateSchedule:
         scheduler_service.get_schedule(_test_uuid("update-cache"))
 
         # Update it
-        scheduler_service.update_schedule(
-            _test_uuid("update-cache"),
-            {"name": "Updated Name"}
-        )
+        scheduler_service.update_schedule(_test_uuid("update-cache"), {"name": "Updated Name"})
 
         # Get from cache (should be cache hit with updated value)
         retrieved = scheduler_service.get_schedule(_test_uuid("update-cache"))
@@ -701,13 +727,12 @@ class TestUpdateSchedule:
         from unittest.mock import patch
 
         with (
-            patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True),
+            patch(
+                "webui.backend.services.scheduler_service.is_builtin_schedule", return_value=True
+            ),
             pytest.raises(ValueError, match="Cannot modify built-in schedule"),
         ):
-            scheduler_service.update_schedule(
-                _test_uuid("builtin-schedule"),
-                {"name": "New Name"}
-            )
+            scheduler_service.update_schedule(_test_uuid("builtin-schedule"), {"name": "New Name"})
 
     def test_update_schedule_builtin_enabled_not_allowed(
         self, scheduler_service, temp_schedules_dir, sample_schedule
@@ -722,20 +747,17 @@ class TestUpdateSchedule:
         # Mock is_builtin_schedule to return True
         with (
             patch(
-                'webui.backend.services.scheduler_service.is_builtin_schedule',
-                return_value=True
+                "webui.backend.services.scheduler_service.is_builtin_schedule", return_value=True
             ),
             pytest.raises(ValueError, match="Cannot modify built-in schedule"),
         ):
-            scheduler_service.update_schedule(
-                _test_uuid("builtin-enabled"),
-                {"enabled": False}
-            )
+            scheduler_service.update_schedule(_test_uuid("builtin-enabled"), {"enabled": False})
 
 
 # ============================================================================
 # Test Delete Schedule
 # ============================================================================
+
 
 class TestDeleteSchedule:
     """Tests for delete_schedule() method."""
@@ -765,7 +787,9 @@ class TestDeleteSchedule:
 
         assert result is False
 
-    def test_delete_schedule_cache_invalidated(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_delete_schedule_cache_invalidated(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Cache entry should be removed after delete."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -776,26 +800,30 @@ class TestDeleteSchedule:
         # Get it to populate cache
         scheduler_service.get_schedule(_test_uuid("delete-cache"))
         stats_after_get = scheduler_service.get_statistics()
-        assert stats_after_get['cache_size'] == 1
+        assert stats_after_get["cache_size"] == 1
 
         # Delete it
         scheduler_service.delete_schedule(_test_uuid("delete-cache"))
 
         # Cache should be empty
         stats_after_delete = scheduler_service.get_statistics()
-        assert stats_after_delete['cache_size'] == 0
+        assert stats_after_delete["cache_size"] == 0
 
     def test_delete_schedule_builtin_protected(self, scheduler_service, temp_schedules_dir):
         """delete_schedule should raise ValueError for built-in schedule."""
         from unittest.mock import patch
 
         with (
-            patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True),
+            patch(
+                "webui.backend.services.scheduler_service.is_builtin_schedule", return_value=True
+            ),
             pytest.raises(ValueError, match="Cannot delete built-in schedule"),
         ):
             scheduler_service.delete_schedule(_test_uuid("builtin-schedule"))
 
-    def test_delete_schedule_clears_active(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_delete_schedule_clears_active(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """delete_schedule should clear active schedule ID if deleted."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -818,6 +846,7 @@ class TestDeleteSchedule:
 # Test Set Enabled Schedule (Issue #331 fix)
 # ============================================================================
 
+
 class TestSetEnabledSchedule:
     """Tests for set_enabled_schedule() method.
 
@@ -826,7 +855,9 @@ class TestSetEnabledSchedule:
     state like showing both "Disabled" and "Active" badges.
     """
 
-    def test_set_enabled_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_set_enabled_schedule_success(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """set_enabled_schedule should set the enabled schedule ID."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -839,7 +870,9 @@ class TestSetEnabledSchedule:
 
         assert scheduler_service._enabled_schedule_id == _test_uuid("enabled-test")
 
-    def test_set_enabled_schedule_none_disables(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_set_enabled_schedule_none_disables(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """set_enabled_schedule(None) should clear the enabled schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -853,10 +886,13 @@ class TestSetEnabledSchedule:
 
         assert scheduler_service._enabled_schedule_id is None
 
-    def test_set_enabled_schedule_replaces_previous(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_set_enabled_schedule_replaces_previous(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """Enabling a new schedule disables the previous one (only one enabled at a time)."""
-        from webui.backend.lib.schedule_storage import create_schedule
         from copy import deepcopy
+
+        from webui.backend.lib.schedule_storage import create_schedule
 
         # Create first schedule (with unique name)
         schedule1 = deepcopy(sample_schedule)
@@ -915,8 +951,9 @@ class TestSetEnabledSchedule:
         self, scheduler_service, temp_schedules_dir, sample_schedule
     ):
         """list_schedules should derive enabled from _enabled_schedule_id, not from JSON files."""
-        from webui.backend.lib.schedule_storage import create_schedule
         from copy import deepcopy
+
+        from webui.backend.lib.schedule_storage import create_schedule
 
         # Create two schedules with enabled=True in JSON (but we'll control via service)
         # Use unique names to avoid filename collision
@@ -951,6 +988,7 @@ class TestSetEnabledSchedule:
 # Test Get Active Schedule
 # ============================================================================
 
+
 class TestGetActiveSchedule:
     """Tests for get_active_schedule() method."""
 
@@ -959,7 +997,9 @@ class TestGetActiveSchedule:
         active = scheduler_service.get_active_schedule()
         assert active is None
 
-    def test_get_active_schedule_returns_active(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_get_active_schedule_returns_active(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """get_active_schedule should return active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -976,7 +1016,9 @@ class TestGetActiveSchedule:
         assert active is not None
         assert active.schedule_id == _test_uuid("active-schedule")
 
-    def test_get_active_schedule_from_cache(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_get_active_schedule_from_cache(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """get_active_schedule should use _active_schedule_id for O(1) lookup."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1030,10 +1072,13 @@ class TestGetActiveSchedule:
 # Test Activate Schedule
 # ============================================================================
 
+
 class TestActivateSchedule:
     """Tests for activate_schedule() method."""
 
-    def test_activate_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_activate_schedule_success(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """activate_schedule should activate and return None on success."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1056,7 +1101,9 @@ class TestActivateSchedule:
         with pytest.raises(ScheduleActivationError, match="not found"):
             scheduler_service.activate_schedule(_test_uuid("nonexistent"))
 
-    def test_activate_schedule_disabled(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_activate_schedule_disabled(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """activate_schedule should raise ScheduleActivationError for disabled schedule."""
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
@@ -1070,7 +1117,9 @@ class TestActivateSchedule:
         with pytest.raises(ScheduleActivationError, match="disabled"):
             scheduler_service.activate_schedule(_test_uuid("activate-disabled"))
 
-    def test_activate_deactivates_previous(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_activate_deactivates_previous(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """activate_schedule should deactivate previous active schedule."""
         from webui.backend.lib.schedule_schema import Schedule
         from webui.backend.lib.schedule_storage import create_schedule
@@ -1102,7 +1151,9 @@ class TestActivateSchedule:
         assert first is not None
         assert first.is_active is False
 
-    def test_activate_updates_is_active_flag(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_activate_updates_is_active_flag(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """activate_schedule should set is_active=True (derived from service state)."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1119,7 +1170,9 @@ class TestActivateSchedule:
         assert schedule is not None
         assert schedule.is_active is True
 
-    def test_activate_same_schedule_idempotent(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_activate_same_schedule_idempotent(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """activate_schedule should be idempotent for already active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1150,7 +1203,9 @@ class TestActivateSchedule:
         scheduler_service.set_enabled_schedule(_test_uuid("builtin-schedule"))
 
         # Mock is_builtin_schedule to return True
-        with patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True):
+        with patch(
+            "webui.backend.services.scheduler_service.is_builtin_schedule", return_value=True
+        ):
             # Should not raise
             scheduler_service.activate_schedule(_test_uuid("builtin-schedule"))
 
@@ -1288,10 +1343,13 @@ class TestActivationProgressCallback:
 # Test Deactivate Schedule
 # ============================================================================
 
+
 class TestDeactivateSchedule:
     """Tests for deactivate_schedule() method."""
 
-    def test_deactivate_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_deactivate_schedule_success(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """deactivate_schedule should deactivate current active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1333,6 +1391,7 @@ class TestDeactivateSchedule:
 # Test Cache Invalidation
 # ============================================================================
 
+
 class TestInvalidateCache:
     """Tests for invalidate_cache() method."""
 
@@ -1343,15 +1402,17 @@ class TestInvalidateCache:
             scheduler_service.get_schedule(_test_uuid(f"schedule-{i}"))
 
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_size'] == 5
+        assert stats_before["cache_size"] == 5
 
         # Invalidate entire cache
         scheduler_service.invalidate_cache()
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_size'] == 0
+        assert stats_after["cache_size"] == 0
 
-    def test_invalidate_cache_specific(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_invalidate_cache_specific(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """invalidate_cache should clear single entry when schedule_id is provided."""
         # Populate cache with 3 schedules
         scheduler_service.get_schedule(_test_uuid("schedule-0"))
@@ -1359,64 +1420,68 @@ class TestInvalidateCache:
         scheduler_service.get_schedule(_test_uuid("schedule-2"))
 
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_size'] == 3
+        assert stats_before["cache_size"] == 3
 
         # Invalidate only test-schedule-1
         scheduler_service.invalidate_cache(_test_uuid("schedule-1"))
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_size'] == 2
+        assert stats_after["cache_size"] == 2
 
         # Verify test-schedule-0 and test-schedule-2 still in cache
         # (cache hits should increment)
-        stats_before_hits = stats_after['cache_hits']
+        stats_before_hits = stats_after["cache_hits"]
         scheduler_service.get_schedule(_test_uuid("schedule-0"))
         scheduler_service.get_schedule(_test_uuid("schedule-2"))
         stats_final = scheduler_service.get_statistics()
-        assert stats_final['cache_hits'] == stats_before_hits + 2
+        assert stats_final["cache_hits"] == stats_before_hits + 2
 
         # Verify test-schedule-1 is cache miss
-        stats_before_misses = stats_final['cache_misses']
+        stats_before_misses = stats_final["cache_misses"]
         scheduler_service.get_schedule(_test_uuid("schedule-1"))
         stats_after_miss = scheduler_service.get_statistics()
-        assert stats_after_miss['cache_misses'] == stats_before_misses + 1
+        assert stats_after_miss["cache_misses"] == stats_before_misses + 1
 
     def test_invalidate_cache_nonexistent(self, scheduler_service, temp_schedules_dir):
         """invalidate_cache should not error for missing key."""
         # Cache is empty
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['cache_size'] == 0
+        assert stats_before["cache_size"] == 0
 
         # Invalidate nonexistent entry (should not raise)
         scheduler_service.invalidate_cache(_test_uuid("nonexistent"))
 
         # No change in cache size
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_size'] == 0
+        assert stats_after["cache_size"] == 0
 
-    def test_invalidate_updates_size(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_invalidate_updates_size(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """invalidate_cache should correctly decrement cache size."""
         # Populate cache with 5 schedules
         for i in range(5):
             scheduler_service.get_schedule(_test_uuid(f"schedule-{i}"))
 
         stats_initial = scheduler_service.get_statistics()
-        assert stats_initial['cache_size'] == 5
+        assert stats_initial["cache_size"] == 5
 
         # Invalidate 3 schedules one by one
         scheduler_service.invalidate_cache(_test_uuid("schedule-0"))
         stats_after_1 = scheduler_service.get_statistics()
-        assert stats_after_1['cache_size'] == 4
+        assert stats_after_1["cache_size"] == 4
 
         scheduler_service.invalidate_cache(_test_uuid("schedule-1"))
         stats_after_2 = scheduler_service.get_statistics()
-        assert stats_after_2['cache_size'] == 3
+        assert stats_after_2["cache_size"] == 3
 
         scheduler_service.invalidate_cache(_test_uuid("schedule-2"))
         stats_after_3 = scheduler_service.get_statistics()
-        assert stats_after_3['cache_size'] == 2
+        assert stats_after_3["cache_size"] == 2
 
-    def test_invalidate_cache_preserves_stats(self, scheduler_service, temp_schedules_dir, multiple_schedules):
+    def test_invalidate_cache_preserves_stats(
+        self, scheduler_service, temp_schedules_dir, multiple_schedules
+    ):
         """invalidate_cache should preserve statistics counters."""
         # Perform some operations
         scheduler_service.get_schedule(_test_uuid("schedule-0"))  # Miss
@@ -1424,22 +1489,23 @@ class TestInvalidateCache:
         scheduler_service.get_schedule(_test_uuid("schedule-1"))  # Miss
 
         stats_before = scheduler_service.get_statistics()
-        cache_hits_before = stats_before['cache_hits']
-        cache_misses_before = stats_before['cache_misses']
-        total_reads_before = stats_before['total_reads']
+        cache_hits_before = stats_before["cache_hits"]
+        cache_misses_before = stats_before["cache_misses"]
+        total_reads_before = stats_before["total_reads"]
 
         # Invalidate cache
         scheduler_service.invalidate_cache()
 
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['cache_hits'] == cache_hits_before
-        assert stats_after['cache_misses'] == cache_misses_before
-        assert stats_after['total_reads'] == total_reads_before
+        assert stats_after["cache_hits"] == cache_hits_before
+        assert stats_after["cache_misses"] == cache_misses_before
+        assert stats_after["total_reads"] == total_reads_before
 
 
 # ============================================================================
 # Test Statistics
 # ============================================================================
+
 
 class TestGetStatistics:
     """Tests for get_statistics() method."""
@@ -1496,19 +1562,21 @@ class TestGetStatistics:
         scheduler_service.get_schedule(_test_uuid("hit-ratio"))  # Hit
 
         stats = scheduler_service.get_statistics()
-        assert stats['cache_hits'] == 2
-        assert stats['cache_misses'] == 1
+        assert stats["cache_hits"] == 2
+        assert stats["cache_misses"] == 1
 
         # Hit ratio = 2 / (2 + 1) = 2/3 = 0.666...
         expected_ratio = 2.0 / 3.0
-        assert abs(stats['hit_ratio'] - expected_ratio) < 0.0001
+        assert abs(stats["hit_ratio"] - expected_ratio) < 0.0001
 
     def test_hit_ratio_zero_requests(self, scheduler_service):
         """get_statistics should return 0.0 hit ratio when no requests."""
         stats = scheduler_service.get_statistics()
-        assert stats['hit_ratio'] == 0.0
+        assert stats["hit_ratio"] == 0.0
 
-    def test_statistics_after_operations(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_statistics_after_operations(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """get_statistics should reflect actual operations correctly."""
         from webui.backend.lib.schedule_schema import Schedule
         from webui.backend.lib.schedule_storage import create_schedule
@@ -1539,19 +1607,21 @@ class TestGetStatistics:
 
         # Verify statistics
         stats = scheduler_service.get_statistics()
-        assert stats['total_reads'] == 2  # 2 get_schedule calls
-        assert stats['total_writes'] == 1  # 1 update
-        assert stats['total_deletes'] == 1  # 1 delete
-        assert stats['cache_misses'] == 1  # First read
-        assert stats['cache_hits'] == 1  # Second read
+        assert stats["total_reads"] == 2  # 2 get_schedule calls
+        assert stats["total_writes"] == 1  # 1 update
+        assert stats["total_deletes"] == 1  # 1 delete
+        assert stats["cache_misses"] == 1  # First read
+        assert stats["cache_hits"] == 1  # Second read
 
-    def test_statistics_includes_active_schedule(self, scheduler_service, temp_schedules_dir, sample_schedule):
+    def test_statistics_includes_active_schedule(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
         """get_statistics should include active_schedule_id field."""
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Initially, no active schedule
         stats_before = scheduler_service.get_statistics()
-        assert stats_before['active_schedule_id'] is None
+        assert stats_before["active_schedule_id"] is None
 
         # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("active-in-stats")
@@ -1563,12 +1633,13 @@ class TestGetStatistics:
 
         # Verify active_schedule_id in statistics
         stats_after = scheduler_service.get_statistics()
-        assert stats_after['active_schedule_id'] == _test_uuid("active-in-stats")
+        assert stats_after["active_schedule_id"] == _test_uuid("active-in-stats")
 
 
 # ============================================================================
 # Test Thread Safety
 # ============================================================================
+
 
 def _create_test_schedule(schedule_id: str, sample_schedule) -> Schedule:
     """Helper to create test schedules for concurrent tests."""
@@ -1635,7 +1706,9 @@ class TestThreadSafety:
         threads = []
         for i in range(5):
             schedule_id = _test_uuid(f"concurrent-write-{i}")
-            t = threading.Thread(target=lambda sid=schedule_id: results.append(create_schedule(sid)))
+            t = threading.Thread(
+                target=lambda sid=schedule_id: results.append(create_schedule(sid))
+            )
             threads.append(t)
 
         for t in threads:
@@ -1653,7 +1726,9 @@ class TestThreadSafety:
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 5
 
-    def test_concurrent_mixed_operations(self, scheduler_service, sample_schedule, temp_schedules_dir):
+    def test_concurrent_mixed_operations(
+        self, scheduler_service, sample_schedule, temp_schedules_dir
+    ):
         """Read/write/delete mix across threads should work correctly."""
         import threading
 
@@ -1741,9 +1816,14 @@ class TestThreadSafety:
         mock_cron_result.errors = []
         mock_cron_result.entries = []
 
-        with patch('webui.backend.services.scheduler_service.apply_to_system'), \
-             patch('webui.backend.services.scheduler_service.remove_from_system'), \
-             patch('webui.backend.services.scheduler_service.schedule_to_cron', return_value=mock_cron_result):
+        with (
+            patch("webui.backend.services.scheduler_service.apply_to_system"),
+            patch("webui.backend.services.scheduler_service.remove_from_system"),
+            patch(
+                "webui.backend.services.scheduler_service.schedule_to_cron",
+                return_value=mock_cron_result,
+            ),
+        ):
             threads = []
             for schedule in schedules:
                 t = threading.Thread(target=lambda s=schedule: activate(s.schedule_id))
@@ -1756,7 +1836,9 @@ class TestThreadSafety:
 
             # Check for deadlock
             alive = [t for t in threads if t.is_alive()]
-            assert not alive, f"{len(alive)} threads still running after timeout - possible deadlock"
+            assert not alive, (
+                f"{len(alive)} threads still running after timeout - possible deadlock"
+            )
 
         # Verify only race-condition errors occurred (Issue #331)
         # "disabled" is expected due to race (only one schedule can be enabled at a time)
@@ -1769,7 +1851,9 @@ class TestThreadSafety:
         assert active is not None, "One schedule should be active"
         assert scheduler_service._active_schedule_id is not None, "Active schedule ID should be set"
 
-    def test_concurrent_cache_invalidation(self, scheduler_service, sample_schedule, temp_schedules_dir):
+    def test_concurrent_cache_invalidation(
+        self, scheduler_service, sample_schedule, temp_schedules_dir
+    ):
         """Invalidation during concurrent reads should not cause errors."""
         import threading
         import time
@@ -1818,7 +1902,9 @@ class TestThreadSafety:
 
         assert len(errors) == 0, f"Errors occurred: {errors}"
 
-    def test_no_deadlock_nested_operations(self, scheduler_service, sample_schedule, temp_schedules_dir):
+    def test_no_deadlock_nested_operations(
+        self, scheduler_service, sample_schedule, temp_schedules_dir
+    ):
         """Complex operation chains should not deadlock.
 
         This test verifies that lock ordering is correct. The get_statistics() method
@@ -1896,10 +1982,16 @@ class TestThreadSafety:
         # Verify total reads matches operations
         # 5 threads * 10 iterations * 5 schedules = 250 operations
         expected_total = 250
-        assert stats['total_reads'] >= expected_total, f"Expected at least {expected_total} reads, got {stats['total_reads']}"
-        assert operation_count[0] == expected_total, f"Expected {expected_total} operations, got {operation_count[0]}"
+        assert stats["total_reads"] >= expected_total, (
+            f"Expected at least {expected_total} reads, got {stats['total_reads']}"
+        )
+        assert operation_count[0] == expected_total, (
+            f"Expected {expected_total} operations, got {operation_count[0]}"
+        )
 
-    def test_cache_eviction_thread_safe(self, scheduler_service, sample_schedule, temp_schedules_dir):
+    def test_cache_eviction_thread_safe(
+        self, scheduler_service, sample_schedule, temp_schedules_dir
+    ):
         """LRU eviction under contention should not corrupt cache."""
         import threading
 
@@ -1934,8 +2026,8 @@ class TestThreadSafety:
 
         # Verify cache size is at max (not corrupted)
         stats = service.get_statistics()
-        assert stats['cache_size'] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
-        assert stats['cache_evictions'] > 0, "Evictions should have occurred"
+        assert stats["cache_size"] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
+        assert stats["cache_evictions"] > 0, "Evictions should have occurred"
 
 
 # ============================================================================
@@ -1998,8 +2090,10 @@ class TestConcurrentModifications:
 
         # Verify cache evictions occurred (created 10 items, max 5)
         stats = service.get_statistics()
-        assert stats['cache_size'] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
-        assert stats['cache_evictions'] >= 5, f"Should have at least 5 evictions, got {stats['cache_evictions']}"
+        assert stats["cache_size"] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
+        assert stats["cache_evictions"] >= 5, (
+            f"Should have at least 5 evictions, got {stats['cache_evictions']}"
+        )
 
         # Verify all schedules exist on disk (filenames are slugified names)
         for i in range(10):
@@ -2048,9 +2142,14 @@ class TestConcurrentModifications:
         mock_cron_result.errors = []
         mock_cron_result.entries = []
 
-        with patch('webui.backend.services.scheduler_service.apply_to_system'), \
-             patch('webui.backend.services.scheduler_service.remove_from_system'), \
-             patch('webui.backend.services.scheduler_service.schedule_to_cron', return_value=mock_cron_result):
+        with (
+            patch("webui.backend.services.scheduler_service.apply_to_system"),
+            patch("webui.backend.services.scheduler_service.remove_from_system"),
+            patch(
+                "webui.backend.services.scheduler_service.schedule_to_cron",
+                return_value=mock_cron_result,
+            ),
+        ):
             # Launch 10 threads to activate different schedules concurrently
             threads = []
             for schedule_id in schedule_ids:
@@ -2064,7 +2163,9 @@ class TestConcurrentModifications:
 
             # Check for deadlock
             alive = [t for t in threads if t.is_alive()]
-            assert not alive, f"{len(alive)} threads still running after timeout - possible deadlock"
+            assert not alive, (
+                f"{len(alive)} threads still running after timeout - possible deadlock"
+            )
 
         # Verify: Exactly one schedule should be active
         active = service.get_active_schedule()
@@ -2110,10 +2211,13 @@ class TestConcurrentModifications:
         def do_creates():
             """Thread that creates new schedules."""
             import contextlib
+
             idx = 100
             try:
                 while not stop_flag[0]:
-                    schedule = _create_test_schedule(_test_uuid(f"inv-create-{idx}"), sample_schedule)
+                    schedule = _create_test_schedule(
+                        _test_uuid(f"inv-create-{idx}"), sample_schedule
+                    )
                     with contextlib.suppress(Exception):
                         service.create_schedule(schedule)  # May fail if file already exists
                     idx += 1
@@ -2124,6 +2228,7 @@ class TestConcurrentModifications:
         def do_updates():
             """Thread that updates existing schedules."""
             import contextlib
+
             try:
                 while not stop_flag[0]:
                     for i in range(5):
@@ -2171,8 +2276,8 @@ class TestConcurrentModifications:
         # Service should still be functional
         stats = service.get_statistics()
         assert stats is not None
-        assert isinstance(stats['cache_size'], int)
-        assert isinstance(stats['total_writes'], int)
+        assert isinstance(stats["cache_size"], int)
+        assert isinstance(stats["total_writes"], int)
 
     def test_concurrent_get_statistics_during_operations(self, temp_schedules_dir, sample_schedule):
         """get_statistics() should return consistent snapshots during concurrent operations.
@@ -2241,20 +2346,22 @@ class TestConcurrentModifications:
         # Verify each snapshot is internally consistent:
         # hits + misses should equal total_reads (for cache operations)
         for i, stats in enumerate(stats_snapshots):
-            hits = stats['cache_hits']
-            misses = stats['cache_misses']
-            total_reads = stats['total_reads']
+            hits = stats["cache_hits"]
+            misses = stats["cache_misses"]
+            total_reads = stats["total_reads"]
 
             # total_reads should match hits + misses (all reads counted)
-            assert total_reads == hits + misses, \
+            assert total_reads == hits + misses, (
                 f"Snapshot {i}: total_reads ({total_reads}) != hits ({hits}) + misses ({misses})"
+            )
 
             # hit_ratio should be consistent with hits and total requests
             if hits + misses > 0:
                 expected_ratio = hits / (hits + misses)
-                actual_ratio = stats['hit_ratio']
-                assert abs(expected_ratio - actual_ratio) < 0.0001, \
+                actual_ratio = stats["hit_ratio"]
+                assert abs(expected_ratio - actual_ratio) < 0.0001, (
                     f"Snapshot {i}: hit_ratio inconsistent"
+                )
 
     def test_concurrent_activation_deactivation(self, temp_schedules_dir, sample_schedule):
         """Concurrent activate and deactivate operations should not corrupt state.
@@ -2281,6 +2388,7 @@ class TestConcurrentModifications:
         def activate_random():
             """Thread that activates random schedules."""
             import random
+
             try:
                 while not stop_flag[0]:
                     schedule_id = _test_uuid(f"act-deact-{random.randint(0, 4)}")
@@ -2307,7 +2415,7 @@ class TestConcurrentModifications:
                     active = service.get_active_schedule()
                     # Active can be None or a valid schedule
                     if active is not None:
-                        assert hasattr(active, 'schedule_id')
+                        assert hasattr(active, "schedule_id")
                     time.sleep(0.001)
             except Exception as e:
                 errors.append(f"check: {str(e)}")
@@ -2338,7 +2446,7 @@ class TestConcurrentModifications:
 
         # Final state should be consistent
         stats = service.get_statistics()
-        active_id = stats['active_schedule_id']
+        active_id = stats["active_schedule_id"]
 
         if active_id is not None:
             # If there's an active schedule, we should be able to get it
@@ -2349,6 +2457,7 @@ class TestConcurrentModifications:
 # ============================================================================
 # Test Conflict Detection Integration (Issue #213 - Phase 6)
 # ============================================================================
+
 
 class TestActivateScheduleConflictDetection:
     """Tests for conflict detection in activate_schedule()."""
@@ -2501,9 +2610,7 @@ class TestActivateScheduleConflictDetection:
         # Should succeed (no conflicts)
         assert scheduler_service._active_schedule_id == _test_uuid("non-conflicting-schedule")
 
-    def test_activate_conflict_check_with_location(
-        self, scheduler_service, temp_schedules_dir
-    ):
+    def test_activate_conflict_check_with_location(self, scheduler_service, temp_schedules_dir):
         """activate_schedule should pass location parameters to conflict detection."""
         # Create schedule with solar trigger (Schema 3.0)
         from webui.backend.lib.schedule_schema import (
@@ -2555,9 +2662,7 @@ class TestActivateScheduleConflictDetection:
 class TestConflictCache:
     """Tests for conflict detection caching in SchedulerService."""
 
-    def test_conflict_cache_hit(
-        self, scheduler_service, temp_schedules_dir, sample_schedule
-    ):
+    def test_conflict_cache_hit(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """Same params should return cached result (cache hit)."""
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -2661,8 +2766,7 @@ class TestConflictCache:
 
         # Update schedule
         scheduler_service.update_schedule(
-            _test_uuid("cache-invalidate-schedule"),
-            {"name": "Updated Name"}
+            _test_uuid("cache-invalidate-schedule"), {"name": "Updated Name"}
         )
 
         # Get fresh schedule after update
@@ -2785,27 +2889,21 @@ class TestConflictCache:
         schedule = scheduler_service.get_schedule(_test_uuid("content-hash-schedule"))
 
         # Get cache key for original schedule
-        key1 = scheduler_service._conflict_cache_key(
-            schedule, 7, 0.0, 0.0, "UTC"
-        )
+        key1 = scheduler_service._conflict_cache_key(schedule, 7, 0.0, 0.0, "UTC")
 
         # Modify schedule content (simulating an in-memory change)
         modified_schedule = deepcopy(schedule)
         modified_schedule.name = "Modified Name For Hash Test"
 
         # Get cache key for modified schedule
-        key2 = scheduler_service._conflict_cache_key(
-            modified_schedule, 7, 0.0, 0.0, "UTC"
-        )
+        key2 = scheduler_service._conflict_cache_key(modified_schedule, 7, 0.0, 0.0, "UTC")
 
         # Keys should be different because content hash changed
         assert key1 != key2
         assert _test_uuid("content-hash-schedule") in key1
         assert _test_uuid("content-hash-schedule") in key2
 
-    def test_schedule_content_hash_consistent(
-        self, scheduler_service, sample_schedule
-    ):
+    def test_schedule_content_hash_consistent(self, scheduler_service, sample_schedule):
         """Content hash should be consistent for same schedule content."""
         sample_schedule.schedule_id = _test_uuid("hash-consistency-test")
 
@@ -2835,6 +2933,7 @@ class TestBuiltinScheduleLoading:
         # Should have at least the two schema 3.0 schedules from issues #317/#318
         if schedules:
             from webui.backend.lib.schedule_schema import Schedule
+
             assert all(isinstance(s, Schedule) for s in schedules)
 
     def test_get_builtin_schedules_caches_result(self, scheduler_service):
@@ -2854,7 +2953,9 @@ class TestBuiltinScheduleLoading:
         # Simulate time passing beyond TTL
         original_time = time_module.time
         monkeypatch.setattr(
-            time_module, "time", lambda: original_time() + 3700  # > 1 hour TTL
+            time_module,
+            "time",
+            lambda: original_time() + 3700,  # > 1 hour TTL
         )
 
         # Force cache check by accessing private state
@@ -3008,6 +3109,7 @@ class TestActiveEntriesPersistence:
     def sample_entries(self):
         """Create sample CronEntry objects for testing."""
         from datetime import datetime, timedelta
+
         from webui.backend.lib.cron_bridge import CronEntry
 
         now = datetime.now()
@@ -3044,6 +3146,7 @@ class TestActiveEntriesPersistence:
     def test_save_active_state_with_entries(self, temp_schedules_dir, sample_entries):
         """_save_active_state() persists entries to JSON."""
         import json
+
         from webui.backend.services.scheduler_service import (
             ACTIVE_STATE_FILE,
             SchedulerService,
@@ -3071,6 +3174,7 @@ class TestActiveEntriesPersistence:
     def test_load_active_state_with_entries(self, temp_schedules_dir, sample_entries):
         """_load_active_state() restores entries from JSON."""
         import json
+
         from webui.backend.services.scheduler_service import (
             ACTIVE_STATE_FILE,
             SchedulerService,
@@ -3123,10 +3227,12 @@ class TestActiveEntriesPersistence:
     def test_get_next_actions_filters_future(self, temp_schedules_dir):
         """get_next_actions() filters to future entries only."""
         from datetime import datetime, timedelta
+
         from webui.backend.lib.cron_bridge import CronEntry
         from webui.backend.services.scheduler_service import SchedulerService
 
-        now = datetime.now()
+        # Use timezone-aware datetime (matches real expand_pattern_entries behavior)
+        now = datetime.now(UTC)
         entries = [
             CronEntry(
                 expression="0 21 * * *",
@@ -3163,10 +3269,12 @@ class TestActiveEntriesPersistence:
     def test_get_next_actions_respects_limit(self, temp_schedules_dir):
         """get_next_actions() respects limit parameter."""
         from datetime import datetime, timedelta
+
         from webui.backend.lib.cron_bridge import CronEntry
         from webui.backend.services.scheduler_service import SchedulerService
 
-        now = datetime.now()
+        # Use timezone-aware datetime (matches real expand_pattern_entries behavior)
+        now = datetime.now(UTC)
         entries = [
             CronEntry(
                 expression="0 * * * *",
@@ -3189,10 +3297,12 @@ class TestActiveEntriesPersistence:
     def test_get_next_actions_sorted(self, temp_schedules_dir):
         """get_next_actions() returns sorted by execution time."""
         from datetime import datetime, timedelta
+
         from webui.backend.lib.cron_bridge import CronEntry
         from webui.backend.services.scheduler_service import SchedulerService
 
-        now = datetime.now()
+        # Use timezone-aware datetime (matches real expand_pattern_entries behavior)
+        now = datetime.now(UTC)
         # Add in non-sorted order
         entries = [
             CronEntry(
@@ -3237,6 +3347,46 @@ class TestActiveEntriesPersistence:
         result = service.get_next_actions(limit=5)
 
         assert result == []
+
+    def test_get_next_actions_with_timezone_aware_entries(self, temp_schedules_dir):
+        """get_next_actions() works with timezone-aware datetime entries.
+
+        Regression test for Issue #331: expand_pattern_entries() creates
+        timezone-aware execution_time values, so get_next_actions() must
+        use timezone-aware datetime.now() for comparison.
+        """
+        from datetime import datetime, timedelta
+
+        from webui.backend.lib.cron_bridge import CronEntry
+        from webui.backend.services.scheduler_service import SchedulerService
+
+        # Create timezone-aware times (like expand_pattern_entries does)
+        now_utc = datetime.now(UTC)
+        entries = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now_utc - timedelta(hours=1),  # Past (tz-aware)
+                action_name="Past Action",
+                action_type="past",
+            ),
+            CronEntry(
+                expression="0 22 * * *",
+                command="cmd",
+                execution_time=now_utc + timedelta(hours=1),  # Future (tz-aware)
+                action_name="Future Action",
+                action_type="future",
+            ),
+        ]
+
+        service = SchedulerService()
+        service._active_entries = entries
+
+        # Should not raise "can't compare offset-naive and offset-aware datetimes"
+        result = service.get_next_actions(limit=5)
+
+        assert len(result) == 1
+        assert result[0].action_name == "Future Action"
 
     def test_active_entries_initialized_empty(self, temp_schedules_dir):
         """_active_entries should be initialized as empty list."""

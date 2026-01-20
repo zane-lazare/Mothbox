@@ -36,7 +36,7 @@ import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 
@@ -406,7 +406,6 @@ class SchedulerService:
 
         self._cache[schedule_id] = (schedule, time.time())
 
-
     # ========================================================================
     # Persistent Active State Methods (Issue #331)
     # ========================================================================
@@ -452,8 +451,7 @@ class SchedulerService:
                 json.dump(state, f, indent=2)
             entry_count = len(entries) if entries else 0
             logger.debug(
-                f"Saved active state to disk: {self._active_schedule_id} "
-                f"({entry_count} entries)"
+                f"Saved active state to disk: {self._active_schedule_id} ({entry_count} entries)"
             )
         except OSError as e:
             logger.warning(f"Failed to save active state: {e}")
@@ -548,11 +546,11 @@ class SchedulerService:
         if not self._active_entries:
             return []
 
-        now = datetime.now()
+        # Use UTC for timezone-aware comparison with stored entries
+        now = datetime.now(UTC)
         # Filter to future entries and sort by execution time
         future_entries = [
-            e for e in self._active_entries
-            if e.execution_time and e.execution_time > now
+            e for e in self._active_entries if e.execution_time and e.execution_time > now
         ]
         future_entries.sort(key=lambda e: e.execution_time)
 
@@ -1050,8 +1048,9 @@ class SchedulerService:
 
         # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
         # We apply cron before updating is_active to avoid inconsistent state
-        # if cron application fails. This eliminates the need for rollback.
+        # if cron application fails. If post-cron steps fail, we rollback cron.
         _emit_progress(ACTIVATION_PHASE_GENERATING_CRON, ACTIVATION_PROGRESS_GENERATING_CRON)
+        cron_applied = False
         try:
             result = schedule_to_cron(
                 schedule,
@@ -1068,6 +1067,7 @@ class SchedulerService:
                 schedule_id=schedule_id,
                 set_rtc=True,
             )
+            cron_applied = True
             logger.info(
                 f"Applied cron entries for schedule: {schedule_id} ({len(result.entries)} entries)"
             )
@@ -1081,34 +1081,47 @@ class SchedulerService:
             )
             logger.debug(f"Expanded {len(result.entries)} entries to {len(expanded_entries)}")
 
+            # Update in-memory state AFTER cron succeeds (Issue #331 fix)
+            # We no longer write is_active to schedule JSON files - active_state.json
+            # is the single source of truth. This ensures firmware updates don't cause
+            # inconsistent state like showing both "Disabled" and "Active" badges.
+            _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
+
+            # Set active schedule ID, coordinates source, and location data
+            with self._cache_lock:
+                self._active_schedule_id = schedule_id
+                self._active_coordinates_source = coordinates_source
+                self._active_latitude = latitude
+                self._active_longitude = longitude
+                # Store timezone name for all activation methods (Issue #331)
+                # Previously only stored when coordinates_source="timezone",
+                # but displaying it is useful for GPS-based activation too
+                self._active_timezone_name = timezone_name
+
+            # Persist state to disk with expanded entries for recovery after restart (Issue #331)
+            self._save_active_state(entries=expanded_entries)
+
         except ScheduleActivationError:
-            # Re-raise our own errors
+            # Re-raise our own errors, but rollback cron if already applied
+            if cron_applied:
+                logger.warning("Rolling back cron entries due to activation failure")
+                try:
+                    remove_from_system(clear_rtc=True)
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback cron entries: {rollback_error}")
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise
         except Exception as e:
-            logger.error(f"Failed to apply cron entries: {e}")
+            # Rollback cron if already applied
+            if cron_applied:
+                logger.warning(f"Rolling back cron entries due to error: {e}")
+                try:
+                    remove_from_system(clear_rtc=True)
+                except Exception as rollback_error:
+                    logger.error(f"Failed to rollback cron entries: {rollback_error}")
+            logger.error(f"Failed to activate schedule: {e}")
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
-
-        # Update in-memory state AFTER cron succeeds (Issue #331 fix)
-        # We no longer write is_active to schedule JSON files - active_state.json
-        # is the single source of truth. This ensures firmware updates don't cause
-        # inconsistent state like showing both "Disabled" and "Active" badges.
-        _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
-
-        # Set active schedule ID, coordinates source, and location data
-        with self._cache_lock:
-            self._active_schedule_id = schedule_id
-            self._active_coordinates_source = coordinates_source
-            self._active_latitude = latitude
-            self._active_longitude = longitude
-            # Store timezone name for all activation methods (Issue #331)
-            # Previously only stored when coordinates_source="timezone",
-            # but displaying it is useful for GPS-based activation too
-            self._active_timezone_name = timezone_name
-
-        # Persist state to disk with expanded entries for recovery after restart (Issue #331)
-        self._save_active_state(entries=expanded_entries)
 
         _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
         logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")

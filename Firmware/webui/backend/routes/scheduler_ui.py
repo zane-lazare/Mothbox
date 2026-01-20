@@ -16,7 +16,7 @@ Issue #310 - API terminology update (Schema 3.0)
 
 import logging
 import subprocess
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import wraps
 from uuid import uuid4
 
@@ -1412,9 +1412,7 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify(
-                {"error": "Both latitude and longitude must be provided together"}
-            ), 400
+            return jsonify({"error": "Both latitude and longitude must be provided together"}), 400
 
         # Type validation for coordinates
         try:
@@ -1576,7 +1574,7 @@ def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
 
         # Calculate next execution times
         next_executions = []
-        current_time = datetime.now()
+        current_time = datetime.now(UTC)
 
         try:
             for _ in range(count):
