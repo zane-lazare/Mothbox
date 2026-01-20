@@ -40,6 +40,8 @@ from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 
+import pytz
+
 from mothbox_paths import CONFIG_DIR
 
 # Cron bridge for system integration (Issue #215)
@@ -495,6 +497,17 @@ class SchedulerService:
             # Load expanded entries if present (Issue #331)
             entries_data = state.get("entries", [])
             self._active_entries = [CronEntry.from_dict(e) for e in entries_data]
+
+            # Localize naive execution_times using stored timezone (Issue #331 fix)
+            # Entries stored before timezone-aware fix may have naive datetimes
+            if self._active_timezone_name and self._active_entries:
+                try:
+                    tz = pytz.timezone(self._active_timezone_name)
+                    for entry in self._active_entries:
+                        if entry.execution_time and entry.execution_time.tzinfo is None:
+                            entry.execution_time = tz.localize(entry.execution_time)
+                except Exception as e:
+                    logger.warning(f"Failed to localize entry times: {e}")
 
             logger.info(
                 f"Restored active schedule state: {self._active_schedule_id} "
