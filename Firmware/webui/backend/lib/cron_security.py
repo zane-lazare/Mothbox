@@ -16,7 +16,7 @@ Example usage:
     >>> if valid:
     ...     command = get_validated_command("takephoto")
     ...     print(command)
-    /usr/bin/python3 /opt/mothbox/TakePhoto.py
+    systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/TakePhoto.py
 
     >>> # Get script key for a scheduler action
     >>> key = get_script_key_for_action("gpio", "attract_on")
@@ -168,19 +168,23 @@ def get_validated_command(script_key: str) -> str:
     Get validated command string for a script key.
 
     Constructs a cron-compatible command using the Python 3 interpreter
-    and the validated script path.
+    and the validated script path. Commands are wrapped with systemd-cat
+    to capture stdout/stderr in journald.
+
+    View logs with: journalctl -t mothbox
 
     Args:
         script_key: The script key to validate and build command for
 
     Returns:
-        Full command string (e.g., "/usr/bin/python3 /opt/mothbox/TakePhoto.py")
+        Full command string wrapped with systemd-cat
+        (e.g., "systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/TakePhoto.py")
 
     Raises:
         ValueError: If script_key is not in whitelist
     """
     script_path = get_validated_script_path(script_key)
-    return f"/usr/bin/python3 {script_path}"
+    return f"systemd-cat -t mothbox /usr/bin/python3 {script_path}"
 
 
 def get_script_key_for_action(action_type: str, action_name: str) -> str | None:

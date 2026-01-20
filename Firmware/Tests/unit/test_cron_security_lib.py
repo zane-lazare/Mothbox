@@ -204,14 +204,14 @@ class TestGetValidatedScriptPath:
 class TestGetValidatedCommand:
     """Tests for get_validated_command function."""
 
-    def test_returns_python3_command_format(self):
-        """Should return proper /usr/bin/python3 command format."""
+    def test_returns_systemd_cat_wrapped_command_format(self):
+        """Should return command wrapped with systemd-cat for journald logging."""
         with patch("webui.backend.lib.cron_security.get_script_path") as mock_get_path:
             mock_get_path.return_value = Path("/opt/mothbox/TakePhoto.py")
 
             result = get_validated_command("takephoto")
 
-            assert result == "/usr/bin/python3 /opt/mothbox/TakePhoto.py"
+            assert result == "systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/TakePhoto.py"
 
     def test_raises_valueerror_for_invalid_key(self):
         """Should raise ValueError for invalid script key."""
