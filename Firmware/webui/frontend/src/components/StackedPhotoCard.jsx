@@ -61,7 +61,13 @@ function StackedPhotoCard({
   const stackedPhotos = photos.slice(0, 3)
 
   // Extract cover photo for stable useCallback dependency
-  const coverPhoto = stackedPhotos[0]
+  // Normalize to object format (series API returns strings, not objects)
+  const rawCoverPhoto = stackedPhotos[0]
+  const coverPhoto = rawCoverPhoto
+    ? (typeof rawCoverPhoto === 'string'
+        ? { path: rawCoverPhoto, filename: rawCoverPhoto.split('/').pop() }
+        : rawCoverPhoto)
+    : null
 
   // Selection mode state (with safe defaults)
   const isSelectMode = selectionState?.isSelectMode || false
