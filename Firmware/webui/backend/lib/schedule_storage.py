@@ -488,15 +488,14 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
 
     schedule_path, found_is_builtin = result
 
-    # Protect built-in schedules - only allow 'enabled' and 'is_active' updates
-    ALLOWED_BUILTIN_UPDATES = {"enabled", "is_active"}
+    # Built-in schedules are read-only (Issue #331 fix)
+    # enabled and is_active are now derived from active_state.json, not stored in files.
+    # This ensures firmware updates don't cause inconsistent state.
     if is_builtin or found_is_builtin:
-        disallowed_keys = set(updates.keys()) - ALLOWED_BUILTIN_UPDATES
-        if disallowed_keys:
-            raise ValueError(
-                f"Cannot modify built-in schedule: {schedule_id} "
-                f"(disallowed fields: {', '.join(sorted(disallowed_keys))})"
-            )
+        raise ValueError(
+            f"Cannot modify built-in schedule: {schedule_id}. "
+            "Use the service layer to enable/disable schedules."
+        )
 
     try:
         # Atomic read-modify-write with exclusive lock

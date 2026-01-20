@@ -505,49 +505,56 @@ class TestBuiltinSchedules:
     def test_update_builtin_schedule_protected_fields_raises_error(
         self, temp_builtin_dir, sample_schedule_json
     ):
-        """Updating protected fields on built-in schedule raises ValueError."""
+        """Updating ANY fields on built-in schedule raises ValueError (Issue #331 fix).
+
+        Built-in schedules are now fully read-only. All state (enabled, is_active)
+        is derived from active_state.json, not stored in schedule JSON files.
+        """
         # Create a built-in schedule
         schedule_id = "nightly-survey"
         (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
 
-        # Attempt to update protected fields should raise ValueError
+        # Attempt to update ANY fields should raise ValueError
         with pytest.raises(ValueError) as exc_info:
             update_schedule(schedule_id, {"name": "Modified Name"}, is_builtin=True)
 
         assert "built-in" in str(exc_info.value).lower()
-        assert "name" in str(exc_info.value).lower()
 
-    def test_update_builtin_schedule_enabled_allowed(
+    def test_update_builtin_schedule_enabled_not_allowed(
         self, temp_builtin_dir, sample_schedule_json
     ):
-        """Updating 'enabled' field on built-in schedule is allowed."""
+        """Updating 'enabled' field on built-in schedule is NOT allowed (Issue #331 fix).
+
+        enabled/is_active are now derived from active_state.json, not stored in
+        schedule JSON files. Use the service layer's set_enabled_schedule() instead.
+        """
         # Create a built-in schedule
         schedule_id = "nightly-survey"
         (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
 
-        # Update enabled should succeed
-        updated = update_schedule(schedule_id, {"enabled": False}, is_builtin=True)
+        # Update enabled should fail with ValueError
+        with pytest.raises(ValueError) as exc_info:
+            update_schedule(schedule_id, {"enabled": False}, is_builtin=True)
 
-        assert updated is not None
-        assert updated.enabled is False
+        assert "built-in" in str(exc_info.value).lower()
 
-        # Verify persisted to file
-        reloaded = read_schedule(schedule_id)
-        assert reloaded.enabled is False
-
-    def test_update_builtin_schedule_is_active_allowed(
+    def test_update_builtin_schedule_is_active_not_allowed(
         self, temp_builtin_dir, sample_schedule_json
     ):
-        """Updating 'is_active' field on built-in schedule is allowed."""
+        """Updating 'is_active' field on built-in schedule is NOT allowed (Issue #331 fix).
+
+        enabled/is_active are now derived from active_state.json, not stored in
+        schedule JSON files. Use the service layer's activate_schedule() instead.
+        """
         # Create a built-in schedule
         schedule_id = "nightly-survey"
         (temp_builtin_dir / f"{schedule_id}.json").write_text(sample_schedule_json)
 
-        # Update is_active should succeed
-        updated = update_schedule(schedule_id, {"is_active": True}, is_builtin=True)
+        # Update is_active should fail with ValueError
+        with pytest.raises(ValueError) as exc_info:
+            update_schedule(schedule_id, {"is_active": True}, is_builtin=True)
 
-        assert updated is not None
-        assert updated.is_active is True
+        assert "built-in" in str(exc_info.value).lower()
 
     def test_is_builtin_schedule_correctly_identifies(
         self,

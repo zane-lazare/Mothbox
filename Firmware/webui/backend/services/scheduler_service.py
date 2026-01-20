@@ -37,7 +37,6 @@ import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from copy import deepcopy
 from datetime import datetime
 from threading import RLock
 from typing import Any
@@ -174,6 +173,9 @@ class SchedulerService:
 
         # Separate cache for active schedule (O(1) lookup)
         self._active_schedule_id: str | None = None
+        # Track which schedule is enabled (single source of truth - Issue #331)
+        # Only one schedule can be enabled at a time
+        self._enabled_schedule_id: str | None = None
         # Tracks how coordinates were determined for active schedule (Issue #331)
         # Values: "explicit", "gps", "timezone", or None if no active schedule
         self._active_coordinates_source: str | None = None
@@ -223,11 +225,16 @@ class SchedulerService:
         """
         Get schedule by ID with caching.
 
+        Derives enabled/is_active from active_state.json (single source of truth)
+        rather than from the schedule JSON file. This ensures that firmware
+        updates (which may overwrite schedule files) don't cause inconsistent
+        state like showing both "Disabled" and "Active" badges.
+
         Args:
             schedule_id: Schedule identifier
 
         Returns:
-            Schedule if found, None otherwise
+            Schedule if found, None otherwise (with correct enabled/is_active state)
         """
         with self._cache_lock:
             # Check cache first
@@ -239,6 +246,9 @@ class SchedulerService:
                     with self._stats_lock:
                         self._cache_hits += 1
                         self._total_reads += 1
+                    # Derive enabled/is_active from state (Issue #331 fix)
+                    schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+                    schedule.is_active = schedule.schedule_id == self._active_schedule_id
                     return schedule
                 else:
                     # TTL expired - remove stale entry
@@ -252,6 +262,9 @@ class SchedulerService:
             # Read from storage
             schedule = storage_read(schedule_id)
             if schedule:
+                # Derive enabled/is_active from state (Issue #331 fix)
+                schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+                schedule.is_active = schedule.schedule_id == self._active_schedule_id
                 self._set_cache(schedule_id, schedule)
 
             return schedule
@@ -260,17 +273,27 @@ class SchedulerService:
         """
         List all schedules.
 
+        Derives enabled/is_active from active_state.json (single source of truth)
+        rather than from the schedule JSON files. This ensures that firmware
+        updates (which may overwrite schedule files) don't cause inconsistent
+        state like showing both "Disabled" and "Active" badges.
+
         Args:
             include_builtin: Include built-in schedules (default True)
 
         Returns:
-            List of Schedule objects
+            List of Schedule objects with correct enabled/is_active state
 
         Thread Safety:
             Acquires _cache_lock when populating cache. Uses overwrite=False
             to avoid overwriting fresher entries from concurrent operations.
         """
         schedules = storage_list(include_builtin=include_builtin)
+
+        # Derive enabled/is_active from state (single source of truth - Issue #331 fix)
+        for schedule in schedules:
+            schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+            schedule.is_active = schedule.schedule_id == self._active_schedule_id
 
         # Cache individual schedules (skip if already cached to avoid race)
         with self._cache_lock:
@@ -384,20 +407,6 @@ class SchedulerService:
 
         self._cache[schedule_id] = (schedule, time.time())
 
-    def _update_builtin_schedule_state(self, schedule_id: str, is_active: bool) -> None:
-        """
-        Update active state for built-in schedule (cache-only, no disk write).
-
-        Args:
-            schedule_id: Schedule identifier
-            is_active: New active state
-        """
-        schedule = self.get_schedule(schedule_id)
-        if schedule:
-            schedule_copy = deepcopy(schedule)
-            schedule_copy.is_active = is_active
-            with self._cache_lock:
-                self._set_cache(schedule_id, schedule_copy)
 
     # ========================================================================
     # Persistent Active State Methods (Issue #331)
@@ -407,8 +416,15 @@ class SchedulerService:
         """
         Persist active schedule state to disk.
 
-        Saves schedule_id, coordinates_source, latitude, longitude, timezone_name,
-        activation timestamp, and optionally expanded cron entries to active_state.json.
+        Saves schedule_id, enabled_schedule_id, coordinates_source, latitude,
+        longitude, timezone_name, activation timestamp, and optionally expanded
+        cron entries to active_state.json.
+
+        This file is the single source of truth for which schedule is enabled
+        and active. The enabled/is_active fields in schedule JSON files are
+        derived from this state, not the other way around. This ensures that
+        firmware updates (which may overwrite schedule files) don't cause
+        inconsistent state like showing both "Disabled" and "Active" badges.
 
         Args:
             entries: Optional list of expanded CronEntry objects to persist.
@@ -416,17 +432,15 @@ class SchedulerService:
 
         Called after successful activation to survive service restarts.
         """
-        if self._active_schedule_id is None:
-            self._clear_active_state()
-            return
-
+        # Always save enabled_schedule_id even if nothing is active
         state = {
             "schedule_id": self._active_schedule_id,
+            "enabled_schedule_id": self._enabled_schedule_id,
             "coordinates_source": self._active_coordinates_source,
             "latitude": self._active_latitude,
             "longitude": self._active_longitude,
             "timezone_name": self._active_timezone_name,
-            "activated_at": datetime.now().isoformat(),
+            "activated_at": datetime.now().isoformat() if self._active_schedule_id else None,
         }
 
         # Store expanded entries if provided (Issue #331)
@@ -449,8 +463,11 @@ class SchedulerService:
         """
         Load active schedule state from disk on startup.
 
-        Restores schedule_id, coordinates_source, latitude, longitude,
-        timezone_name, and expanded cron entries from active_state.json.
+        Restores schedule_id, enabled_schedule_id, coordinates_source, latitude,
+        longitude, timezone_name, and expanded cron entries from active_state.json.
+
+        Migration: If enabled_schedule_id is not present (old state file),
+        derive it from schedule_id (active implies enabled).
 
         Called during __init__ to recover state after service restart.
         """
@@ -467,13 +484,24 @@ class SchedulerService:
             self._active_longitude = state.get("longitude")
             self._active_timezone_name = state.get("timezone_name")
 
+            # Load enabled_schedule_id (Issue #331 fix)
+            self._enabled_schedule_id = state.get("enabled_schedule_id")
+
+            # Migration: if enabled_schedule_id not present, derive from active
+            # (active schedule must have been enabled to be activated)
+            if self._enabled_schedule_id is None and self._active_schedule_id:
+                self._enabled_schedule_id = self._active_schedule_id
+                logger.info(
+                    f"Migrated enabled_schedule_id from active: {self._enabled_schedule_id}"
+                )
+
             # Load expanded entries if present (Issue #331)
             entries_data = state.get("entries", [])
             self._active_entries = [CronEntry.from_dict(e) for e in entries_data]
 
             logger.info(
                 f"Restored active schedule state: {self._active_schedule_id} "
-                f"({len(self._active_entries)} entries)"
+                f"(enabled: {self._enabled_schedule_id}, {len(self._active_entries)} entries)"
             )
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to load active state: {e}")
@@ -698,16 +726,14 @@ class SchedulerService:
             ValueError: If attempting to modify protected fields on built-in schedule
             ScheduleValidationError: If updated schedule fails validation
         """
-        # Built-in schedules only allow 'enabled' and 'is_active' updates
-        # Storage layer enforces this, but we check here too for clear error messages
-        ALLOWED_BUILTIN_UPDATES = {"enabled", "is_active"}
+        # Built-in schedules are read-only (Issue #331 fix)
+        # enabled and is_active are now derived from active_state.json, not stored in files.
+        # This ensures firmware updates don't cause inconsistent state.
         if is_builtin_schedule(schedule_id):
-            disallowed_keys = set(updates.keys()) - ALLOWED_BUILTIN_UPDATES
-            if disallowed_keys:
-                raise ValueError(
-                    f"Cannot modify built-in schedule: {schedule_id} "
-                    f"(disallowed fields: {', '.join(sorted(disallowed_keys))})"
-                )
+            raise ValueError(
+                f"Cannot modify built-in schedule: {schedule_id}. "
+                "Use set_enabled_schedule() to enable/disable schedules."
+            )
 
         # Delegate to storage
         updated = storage_update(schedule_id, updates)
@@ -759,10 +785,19 @@ class SchedulerService:
                     del self._cache[schedule_id]
                 # Invalidate conflict cache since schedule is deleted
                 self._invalidate_conflict_cache(schedule_id)
+                # Clear enabled/active state if deleted schedule was enabled/active
+                if self._enabled_schedule_id == schedule_id:
+                    self._enabled_schedule_id = None
                 if self._active_schedule_id == schedule_id:
                     self._active_schedule_id = None
                 with self._stats_lock:
                     self._total_deletes += 1
+
+            # Persist cleared state
+            if self._enabled_schedule_id is None and self._active_schedule_id is None:
+                self._clear_active_state()
+            else:
+                self._save_active_state()
 
         return success
 
@@ -844,6 +879,54 @@ class SchedulerService:
             None if no schedule is active.
         """
         return self._active_timezone_name
+
+    def get_enabled_schedule_id(self) -> str | None:
+        """
+        Get the ID of the currently enabled schedule.
+
+        Returns:
+            Schedule ID if one is enabled, None otherwise.
+        """
+        return self._enabled_schedule_id
+
+    def set_enabled_schedule(self, schedule_id: str | None) -> None:
+        """
+        Set which schedule is enabled (only one at a time).
+
+        This is the single source of truth for schedule enabled state.
+        The enabled field in schedule JSON files is derived from this,
+        not the other way around.
+
+        Args:
+            schedule_id: Schedule to enable, or None to disable all
+
+        Raises:
+            ValueError: If schedule_id is provided but schedule not found
+        """
+        if schedule_id is not None:
+            # Verify schedule exists
+            schedule = storage_read(schedule_id)
+            if schedule is None:
+                raise ValueError(f"Schedule not found: {schedule_id}")
+
+        with self._cache_lock:
+            old_enabled = self._enabled_schedule_id
+            self._enabled_schedule_id = schedule_id
+
+            # Invalidate cache for both old and new enabled schedules
+            # so they get refreshed with correct enabled state
+            if old_enabled and old_enabled in self._cache:
+                del self._cache[old_enabled]
+            if schedule_id and schedule_id in self._cache:
+                del self._cache[schedule_id]
+
+        # Persist state to disk
+        self._save_active_state()
+
+        if schedule_id:
+            logger.info(f"Enabled schedule: {schedule_id}")
+        else:
+            logger.info("Disabled all schedules")
 
     def activate_schedule(
         self,
@@ -1008,23 +1091,13 @@ class SchedulerService:
             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
             raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
-        # Update is_active flag in storage AFTER cron succeeds
-        # For built-in schedules, we only update the in-memory state
+        # Update in-memory state AFTER cron succeeds (Issue #331 fix)
+        # We no longer write is_active to schedule JSON files - active_state.json
+        # is the single source of truth. This ensures firmware updates don't cause
+        # inconsistent state like showing both "Disabled" and "Active" badges.
         _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": True})
-            else:
-                self._update_builtin_schedule_state(schedule_id, True)
-        except Exception as e:
-            # Cron was applied but storage update failed - rollback cron
-            logger.exception(f"Failed to update schedule, rolling back cron: {e}")
-            with contextlib.suppress(Exception):
-                remove_from_system(clear_rtc=True)
-            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
 
-        # Set active schedule ID, coordinates source, and location data last
+        # Set active schedule ID, coordinates source, and location data
         with self._cache_lock:
             self._active_schedule_id = schedule_id
             self._active_coordinates_source = coordinates_source
@@ -1048,21 +1121,18 @@ class SchedulerService:
         Always clears crontab entries, even if no schedule is tracked as active.
         This handles orphaned cron entries from crashes/restarts (Issue #331).
 
+        We no longer write is_active to schedule JSON files - active_state.json
+        is the single source of truth. This ensures firmware updates don't cause
+        inconsistent state like showing both "Disabled" and "Active" badges.
+
         Returns:
             True if crontab was successfully cleared, False on failure.
         """
         schedule_id = self._active_schedule_id
 
-        # Update storage if there's an active schedule
+        # Clear in-memory state (Issue #331 fix)
+        # We no longer call update_schedule to write is_active=False to JSON files
         if schedule_id is not None:
-            try:
-                if not is_builtin_schedule(schedule_id):
-                    self.update_schedule(schedule_id, {"is_active": False})
-                else:
-                    self._update_builtin_schedule_state(schedule_id, False)
-            except Exception:
-                logger.exception(f"Failed to deactivate schedule {schedule_id}")
-
             # Clear active schedule ID and location data
             with self._cache_lock:
                 self._active_schedule_id = None
@@ -1070,6 +1140,10 @@ class SchedulerService:
                 self._active_latitude = None
                 self._active_longitude = None
                 self._active_timezone_name = None
+
+                # Invalidate cache so schedule gets refreshed with correct is_active state
+                if schedule_id in self._cache:
+                    del self._cache[schedule_id]
 
             # Clear persisted state from disk (Issue #331)
             self._clear_active_state()

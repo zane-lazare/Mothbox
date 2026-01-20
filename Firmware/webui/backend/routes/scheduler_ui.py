@@ -659,6 +659,12 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
     Request Body:
         Partial or complete schedule update data.
 
+    Special handling for 'enabled' field:
+        The 'enabled' state is stored in active_state.json (single source of truth),
+        not in schedule JSON files. This ensures firmware updates don't cause
+        inconsistent state. When 'enabled' is in the request, we call
+        set_enabled_schedule() instead of passing it to storage.
+
     Returns:
         200 OK: {
             "message": "Schedule updated",
@@ -681,7 +687,31 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
                 }
             ), 404
 
-        # Update via service (handles built-in check)
+        # Handle 'enabled' field separately (Issue #331 fix)
+        # enabled/is_active are stored in active_state.json, not schedule JSON files
+        if "enabled" in json_data:
+            enabled_value = json_data.pop("enabled")
+            try:
+                if enabled_value:
+                    service.set_enabled_schedule(schedule_id)
+                elif service.get_enabled_schedule_id() == schedule_id:
+                    service.set_enabled_schedule(None)
+            except ValueError as e:
+                logger.warning(f"Failed to set enabled state: {e}")
+                return jsonify({"error": str(e)}), 400
+
+        # If only 'enabled' was being updated, we're done
+        if not json_data:
+            # Re-fetch to get updated enabled state
+            updated = service.get_schedule(schedule_id)
+            return jsonify(
+                {
+                    "message": "Schedule updated",
+                    "schedule": updated.to_dict(),
+                }
+            ), 200
+
+        # Update remaining fields via service (handles built-in check)
         try:
             updated = service.update_schedule(schedule_id, json_data)
         except ValueError as e:

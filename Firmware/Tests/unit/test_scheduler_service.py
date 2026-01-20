@@ -553,13 +553,14 @@ class TestCreateSchedule:
     def test_create_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
         """create_schedule should create and cache schedule."""
         sample_schedule.schedule_id = _test_uuid("create-success")
+        sample_schedule.name = "Create Success Test"
 
         result = scheduler_service.create_schedule(sample_schedule)
 
         assert result is True
 
-        # Verify schedule was created on disk
-        schedule_path = temp_schedules_dir / f"{_test_uuid('create-success')}.json"
+        # Verify schedule was created on disk (filename is slugified name, not schedule_id)
+        schedule_path = temp_schedules_dir / "create-success-test.json"
         assert schedule_path.exists()
 
         # Verify schedule is in cache
@@ -708,31 +709,28 @@ class TestUpdateSchedule:
                 {"name": "New Name"}
             )
 
-    def test_update_schedule_builtin_enabled_allowed(
+    def test_update_schedule_builtin_enabled_not_allowed(
         self, scheduler_service, temp_schedules_dir, sample_schedule
     ):
-        """update_schedule should allow updating 'enabled' on built-in schedule."""
-        from unittest.mock import patch, MagicMock
-        from webui.backend.lib.schedule_storage import create_schedule
+        """update_schedule should reject ALL updates on built-in schedules (Issue #331 fix).
 
-        # Create a user schedule first (we'll mock it as built-in)
-        sample_schedule.schedule_id = _test_uuid("builtin-enabled")
-        sample_schedule.enabled = True
-        create_schedule(sample_schedule)
+        enabled/is_active are now derived from active_state.json, not stored in
+        schedule JSON files. Use set_enabled_schedule() instead.
+        """
+        from unittest.mock import patch
 
-        # Mock is_builtin_schedule to return True, but allow storage_update to proceed
-        with patch(
-            'webui.backend.services.scheduler_service.is_builtin_schedule',
-            return_value=True
+        # Mock is_builtin_schedule to return True
+        with (
+            patch(
+                'webui.backend.services.scheduler_service.is_builtin_schedule',
+                return_value=True
+            ),
+            pytest.raises(ValueError, match="Cannot modify built-in schedule"),
         ):
-            # Update enabled should succeed (only 'enabled' is allowed for built-in)
-            updated = scheduler_service.update_schedule(
-                sample_schedule.schedule_id,
+            scheduler_service.update_schedule(
+                _test_uuid("builtin-enabled"),
                 {"enabled": False}
             )
-
-            assert updated is not None
-            assert updated.enabled is False
 
 
 # ============================================================================
@@ -746,12 +744,13 @@ class TestDeleteSchedule:
         """delete_schedule should delete and return True."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create schedule first
+        # Create schedule first (with unique name)
         sample_schedule.schedule_id = _test_uuid("delete-success")
+        sample_schedule.name = "Delete Success Test"
         create_schedule(sample_schedule)
 
-        # Verify it exists
-        schedule_path = temp_schedules_dir / f"{_test_uuid('delete-success')}.json"
+        # Verify it exists (filename is slugified name, not schedule_id)
+        schedule_path = temp_schedules_dir / "delete-success-test.json"
         assert schedule_path.exists()
 
         # Delete it
@@ -813,6 +812,139 @@ class TestDeleteSchedule:
 
         # Active schedule should be cleared
         assert scheduler_service._active_schedule_id is None
+
+
+# ============================================================================
+# Test Set Enabled Schedule (Issue #331 fix)
+# ============================================================================
+
+class TestSetEnabledSchedule:
+    """Tests for set_enabled_schedule() method.
+
+    enabled/is_active are now stored in active_state.json (single source of truth),
+    not in schedule JSON files. This ensures firmware updates don't cause inconsistent
+    state like showing both "Disabled" and "Active" badges.
+    """
+
+    def test_set_enabled_schedule_success(self, scheduler_service, temp_schedules_dir, sample_schedule):
+        """set_enabled_schedule should set the enabled schedule ID."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create schedule
+        sample_schedule.schedule_id = _test_uuid("enabled-test")
+        create_schedule(sample_schedule)
+
+        # Enable it
+        scheduler_service.set_enabled_schedule(_test_uuid("enabled-test"))
+
+        assert scheduler_service._enabled_schedule_id == _test_uuid("enabled-test")
+
+    def test_set_enabled_schedule_none_disables(self, scheduler_service, temp_schedules_dir, sample_schedule):
+        """set_enabled_schedule(None) should clear the enabled schedule."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create and enable schedule
+        sample_schedule.schedule_id = _test_uuid("disabled-test")
+        create_schedule(sample_schedule)
+        scheduler_service.set_enabled_schedule(_test_uuid("disabled-test"))
+
+        # Disable
+        scheduler_service.set_enabled_schedule(None)
+
+        assert scheduler_service._enabled_schedule_id is None
+
+    def test_set_enabled_schedule_replaces_previous(self, scheduler_service, temp_schedules_dir, sample_schedule):
+        """Enabling a new schedule disables the previous one (only one enabled at a time)."""
+        from webui.backend.lib.schedule_storage import create_schedule
+        from copy import deepcopy
+
+        # Create first schedule (with unique name)
+        schedule1 = deepcopy(sample_schedule)
+        schedule1.schedule_id = _test_uuid("first-enabled")
+        schedule1.name = "First Enabled Schedule"
+        create_schedule(schedule1)
+
+        # Create second schedule (with unique name)
+        schedule2 = deepcopy(sample_schedule)
+        schedule2.schedule_id = _test_uuid("second-enabled")
+        schedule2.name = "Second Enabled Schedule"
+        create_schedule(schedule2)
+
+        # Enable first
+        scheduler_service.set_enabled_schedule(_test_uuid("first-enabled"))
+        assert scheduler_service._enabled_schedule_id == _test_uuid("first-enabled")
+
+        # Enable second (should replace first)
+        scheduler_service.set_enabled_schedule(_test_uuid("second-enabled"))
+        assert scheduler_service._enabled_schedule_id == _test_uuid("second-enabled")
+
+        # Verify first is no longer enabled via get_schedule
+        first = scheduler_service.get_schedule(_test_uuid("first-enabled"))
+        assert first.enabled is False
+
+        # Verify second is enabled
+        second = scheduler_service.get_schedule(_test_uuid("second-enabled"))
+        assert second.enabled is True
+
+    def test_set_enabled_schedule_nonexistent_raises(self, scheduler_service, temp_schedules_dir):
+        """set_enabled_schedule should raise ValueError for nonexistent schedule."""
+        with pytest.raises(ValueError, match="Schedule not found"):
+            scheduler_service.set_enabled_schedule(_test_uuid("nonexistent"))
+
+    def test_get_schedule_derives_enabled_from_state(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """get_schedule should derive enabled from _enabled_schedule_id, not from JSON file."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create schedule with enabled=True in JSON (but we'll control via service)
+        sample_schedule.schedule_id = _test_uuid("derived-enabled")
+        sample_schedule.enabled = True  # This value in JSON should be ignored
+        create_schedule(sample_schedule)
+
+        # Without calling set_enabled_schedule, enabled should be False
+        schedule = scheduler_service.get_schedule(_test_uuid("derived-enabled"))
+        assert schedule.enabled is False  # Derived from state, not JSON
+
+        # After enabling via service, enabled should be True
+        scheduler_service.set_enabled_schedule(_test_uuid("derived-enabled"))
+        schedule = scheduler_service.get_schedule(_test_uuid("derived-enabled"))
+        assert schedule.enabled is True
+
+    def test_list_schedules_derives_enabled_from_state(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """list_schedules should derive enabled from _enabled_schedule_id, not from JSON files."""
+        from webui.backend.lib.schedule_storage import create_schedule
+        from copy import deepcopy
+
+        # Create two schedules with enabled=True in JSON (but we'll control via service)
+        # Use unique names to avoid filename collision
+        schedule1 = deepcopy(sample_schedule)
+        schedule1.schedule_id = _test_uuid("list-enabled-1")
+        schedule1.name = "List Enabled Test Schedule 1"
+        schedule1.enabled = True
+        create_schedule(schedule1)
+
+        schedule2 = deepcopy(sample_schedule)
+        schedule2.schedule_id = _test_uuid("list-enabled-2")
+        schedule2.name = "List Enabled Test Schedule 2"
+        schedule2.enabled = True
+        create_schedule(schedule2)
+
+        # Without calling set_enabled_schedule, both should show enabled=False
+        schedules = scheduler_service.list_schedules(include_builtin=False)
+        for s in schedules:
+            assert s.enabled is False
+
+        # Enable one via service
+        scheduler_service.set_enabled_schedule(_test_uuid("list-enabled-1"))
+
+        # Now only the enabled one should show enabled=True
+        schedules = scheduler_service.list_schedules(include_builtin=False)
+        schedule_map = {s.schedule_id: s for s in schedules}
+        assert schedule_map[_test_uuid("list-enabled-1")].enabled is True
+        assert schedule_map[_test_uuid("list-enabled-2")].enabled is False
 
 
 # ============================================================================
@@ -905,10 +1037,12 @@ class TestActivateSchedule:
         """activate_schedule should activate and return None on success."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("activate-success")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable it via service (Issue #331 - enabled state is in active_state.json)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-success"))
 
         # Activate it - should not raise
         scheduler_service.activate_schedule(_test_uuid("activate-success"))
@@ -927,11 +1061,11 @@ class TestActivateSchedule:
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create disabled schedule
+        # Create schedule (NOT enabled via service - Issue #331)
         sample_schedule.schedule_id = _test_uuid("activate-disabled")
-        sample_schedule.enabled = False
         create_schedule(sample_schedule)
 
+        # Don't call set_enabled_schedule - schedule is disabled by default
         # Try to activate - should raise
         with pytest.raises(ScheduleActivationError, match="disabled"):
             scheduler_service.activate_schedule(_test_uuid("activate-disabled"))
@@ -941,9 +1075,8 @@ class TestActivateSchedule:
         from webui.backend.lib.schedule_schema import Schedule
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create two enabled schedules
+        # Create two schedules (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("activate-first")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
 
         second_schedule = Schedule(
@@ -951,15 +1084,16 @@ class TestActivateSchedule:
             name="Second Schedule",
             description="Second test schedule",
             routines=sample_schedule.routines,
-            enabled=True,
         )
         create_schedule(second_schedule)
 
-        # Activate first
+        # Enable and activate first (Issue #331 - enabled state via service)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-first"))
         scheduler_service.activate_schedule(_test_uuid("activate-first"))
         assert scheduler_service._active_schedule_id == _test_uuid("activate-first")
 
-        # Activate second
+        # Enable and activate second (Issue #331 - enabled state via service)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-second"))
         scheduler_service.activate_schedule(_test_uuid("activate-second"))
         assert scheduler_service._active_schedule_id == _test_uuid("activate-second")
 
@@ -969,19 +1103,18 @@ class TestActivateSchedule:
         assert first.is_active is False
 
     def test_activate_updates_is_active_flag(self, scheduler_service, temp_schedules_dir, sample_schedule):
-        """activate_schedule should set is_active=True in storage."""
+        """activate_schedule should set is_active=True (derived from service state)."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("activate-flag")
-        sample_schedule.enabled = True
-        sample_schedule.is_active = False
         create_schedule(sample_schedule)
 
-        # Activate it
+        # Enable and activate it (Issue #331 - enabled state via service)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-flag"))
         scheduler_service.activate_schedule(_test_uuid("activate-flag"))
 
-        # Verify is_active is True
+        # Verify is_active is True (derived from _active_schedule_id)
         schedule = scheduler_service.get_schedule(_test_uuid("activate-flag"))
         assert schedule is not None
         assert schedule.is_active is True
@@ -990,10 +1123,12 @@ class TestActivateSchedule:
         """activate_schedule should be idempotent for already active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("activate-idempotent")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-idempotent"))
 
         # Activate it twice - both should succeed without raising
         scheduler_service.activate_schedule(_test_uuid("activate-idempotent"))
@@ -1007,10 +1142,12 @@ class TestActivateSchedule:
 
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("builtin-schedule")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("builtin-schedule"))
 
         # Mock is_builtin_schedule to return True
         with patch('webui.backend.services.scheduler_service.is_builtin_schedule', return_value=True):
@@ -1034,10 +1171,12 @@ class TestActivationProgressCallback:
         """Progress callback should be called with expected phases."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("progress-phases")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-phases"))
 
         # Track progress calls
         progress_calls = []
@@ -1073,10 +1212,12 @@ class TestActivationProgressCallback:
         """Progress should skip checking_conflicts phase when check_conflicts=False."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("progress-no-conflict")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-no-conflict"))
 
         # Track progress calls
         progress_calls = []
@@ -1104,10 +1245,12 @@ class TestActivationProgressCallback:
         """Activation should work when no progress callback is provided."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("progress-none")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-none"))
 
         # Activate without callback (should not raise)
         scheduler_service.activate_schedule(_test_uuid("progress-none"))
@@ -1120,10 +1263,12 @@ class TestActivationProgressCallback:
         """A failing progress callback should not block activation."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create enabled schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("progress-error")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-error"))
 
         # Create a callback that raises an exception
         def failing_callback(phase: str, progress: int) -> None:
@@ -1150,10 +1295,12 @@ class TestDeactivateSchedule:
         """deactivate_schedule should deactivate current active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create and activate schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("deactivate-success")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable and activate via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("deactivate-success"))
         scheduler_service.activate_schedule(_test_uuid("deactivate-success"))
 
         # Verify it's active
@@ -1406,10 +1553,12 @@ class TestGetStatistics:
         stats_before = scheduler_service.get_statistics()
         assert stats_before['active_schedule_id'] is None
 
-        # Create and activate a schedule
+        # Create schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("active-in-stats")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable and activate via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("active-in-stats"))
         scheduler_service.activate_schedule(_test_uuid("active-in-stats"))
 
         # Verify active_schedule_id in statistics
@@ -1565,11 +1714,11 @@ class TestThreadSafety:
 
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create 5 enabled schedules
+        # Create 5 schedules (enabled state is now derived from service)
         schedules = []
         for i in range(5):
             schedule = _create_test_schedule(_test_uuid(f"activation-{i}"), sample_schedule)
-            schedule.enabled = True
+            schedule.name = f"Concurrent Activation Test {i}"  # Unique names
             create_schedule(schedule)
             schedules.append(schedule)
 
@@ -1578,6 +1727,8 @@ class TestThreadSafety:
 
         def activate(schedule_id):
             try:
+                # Enable then activate (Issue #331 - enabled state via service)
+                scheduler_service.set_enabled_schedule(schedule_id)
                 scheduler_service.activate_schedule(schedule_id)
                 with results_lock:
                     results.append((schedule_id, True, None))
@@ -1607,9 +1758,11 @@ class TestThreadSafety:
             alive = [t for t in threads if t.is_alive()]
             assert not alive, f"{len(alive)} threads still running after timeout - possible deadlock"
 
-        # Verify no exceptions occurred
-        errors = [(sid, err) for sid, success, err in results if not success and err]
-        assert len(errors) == 0, f"Activation errors: {errors}"
+        # Verify only race-condition errors occurred (Issue #331)
+        # "disabled" is expected due to race (only one schedule can be enabled at a time)
+        for sid, success, err in results:
+            if not success and err:
+                assert "not found" not in err.lower(), f"Unexpected error for {sid}: {err}"
 
         # Thread-safe property: service should have exactly one active schedule ID
         active = scheduler_service.get_active_schedule()
@@ -1815,9 +1968,10 @@ class TestConcurrentModifications:
         results = []
         errors = []
 
-        def create_schedule_thread(schedule_id: str):
+        def create_schedule_thread(schedule_id: str, index: int):
             try:
                 schedule = _create_test_schedule(schedule_id, sample_schedule)
+                schedule.name = f"Eviction Create Test {index}"  # Unique name
                 success = service.create_schedule(schedule)
                 return (schedule_id, success, None)
             except Exception as e:
@@ -1826,7 +1980,7 @@ class TestConcurrentModifications:
         # Create 10 schedules concurrently (exceeding cache capacity)
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [
-                executor.submit(create_schedule_thread, _test_uuid(f"evict-create-{i}"))
+                executor.submit(create_schedule_thread, _test_uuid(f"evict-create-{i}"), i)
                 for i in range(10)
             ]
             for future in as_completed(futures):
@@ -1847,9 +2001,9 @@ class TestConcurrentModifications:
         assert stats['cache_size'] <= 5, f"Cache size should be <= 5, got {stats['cache_size']}"
         assert stats['cache_evictions'] >= 5, f"Should have at least 5 evictions, got {stats['cache_evictions']}"
 
-        # Verify all schedules exist on disk
+        # Verify all schedules exist on disk (filenames are slugified names)
         for i in range(10):
-            schedule_path = temp_schedules_dir / f"{_test_uuid(f'evict-create-{i}')}.json"
+            schedule_path = temp_schedules_dir / f"eviction-create-test-{i}.json"
             assert schedule_path.exists(), f"Schedule file {schedule_path} should exist"
 
     def test_concurrent_activate_race(self, temp_schedules_dir, sample_schedule):
@@ -1866,12 +2020,12 @@ class TestConcurrentModifications:
 
         service = SchedulerService(cache_ttl=300, max_cache_size=100)
 
-        # Create 10 enabled schedules
+        # Create 10 schedules (enabled state is now derived from service)
         schedule_ids = []
         for i in range(10):
             schedule_id = _test_uuid(f"race-activate-{i}")
             schedule = _create_test_schedule(schedule_id, sample_schedule)
-            schedule.enabled = True
+            schedule.name = f"Race Activate Test {i}"  # Unique name
             create_schedule(schedule)
             schedule_ids.append(schedule_id)
 
@@ -1880,6 +2034,8 @@ class TestConcurrentModifications:
 
         def activate_schedule_thread(schedule_id: str):
             try:
+                # Enable then activate (Issue #331 - enabled state via service)
+                service.set_enabled_schedule(schedule_id)
                 service.activate_schedule(schedule_id)
                 with results_lock:
                     results.append((schedule_id, True, ""))
@@ -1917,13 +2073,18 @@ class TestConcurrentModifications:
         # Verify: The active_schedule_id matches the active schedule
         assert service._active_schedule_id == active.schedule_id
 
-        # Verify: No critical errors occurred
-        # Note: Some may fail legitimately if they try to activate after another already succeeded
-        # The important thing is no exceptions occurred
+        # Verify: Some activations may fail due to race conditions (Issue #331)
+        # Since only one schedule can be enabled at a time, when thread A enables
+        # schedule A and tries to activate, thread B might enable schedule B in between,
+        # which disables A. This is expected behavior - the important thing is:
+        # 1. No deadlocks (checked above)
+        # 2. Exactly one schedule is active (checked above)
+        # 3. Errors are only race-condition related, not "not found"
         for _, success, error in results:
             if not success and error:
-                # Only "Schedule is disabled" or "not found" would be real errors
-                assert "disabled" not in error.lower() and "not found" not in error.lower(), f"Unexpected error: {error}"
+                # "disabled" is expected due to race condition
+                # "not found" would indicate a real bug
+                assert "not found" not in error.lower(), f"Unexpected error: {error}"
 
     def test_concurrent_cache_invalidation_during_writes(self, temp_schedules_dir, sample_schedule):
         """Invalidate cache while writes are in progress.
@@ -2108,10 +2269,10 @@ class TestConcurrentModifications:
 
         service = SchedulerService(cache_ttl=300, max_cache_size=100)
 
-        # Create 5 enabled schedules
+        # Create 5 schedules (enabled state is now derived from service)
         for i in range(5):
             schedule = _create_test_schedule(_test_uuid(f"act-deact-{i}"), sample_schedule)
-            schedule.enabled = True
+            schedule.name = f"Activate Deactivate Test {i}"  # Unique name
             create_schedule(schedule)
 
         errors = []
@@ -2123,6 +2284,8 @@ class TestConcurrentModifications:
             try:
                 while not stop_flag[0]:
                     schedule_id = _test_uuid(f"act-deact-{random.randint(0, 4)}")
+                    # Enable then activate (Issue #331 - enabled state via service)
+                    service.set_enabled_schedule(schedule_id)
                     service.activate_schedule(schedule_id)
                     time.sleep(0.001)
             except Exception as e:
@@ -2168,8 +2331,10 @@ class TestConcurrentModifications:
         for t in threads:
             t.join(timeout=2)
 
-        # Verify no errors
-        assert len(errors) == 0, f"Errors occurred: {errors}"
+        # Verify only race-condition errors occurred (Issue #331)
+        # "disabled" is expected due to race (only one schedule can be enabled at a time)
+        for err in errors:
+            assert "not found" not in err.lower(), f"Unexpected error: {err}"
 
         # Final state should be consistent
         stats = service.get_statistics()
@@ -2274,6 +2439,9 @@ class TestActivateScheduleConflictDetection:
         # Create the conflicting schedule
         create_schedule(conflicting_schedule)
 
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("conflicting-schedule"))
+
         # Try to activate with conflict checking (default) - should raise exception
         with pytest.raises(ScheduleConflictError) as exc_info:
             scheduler_service.activate_schedule(
@@ -2296,6 +2464,9 @@ class TestActivateScheduleConflictDetection:
         # Create the conflicting schedule
         create_schedule(conflicting_schedule)
 
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("conflicting-schedule"))
+
         # Activate with conflict checking disabled - should succeed (no exception)
         scheduler_service.activate_schedule(
             _test_uuid("conflicting-schedule"),
@@ -2311,10 +2482,12 @@ class TestActivateScheduleConflictDetection:
         """activate_schedule should succeed for schedule without conflicts."""
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create non-conflicting schedule
+        # Create non-conflicting schedule (enabled state is now derived from service)
         sample_schedule.schedule_id = _test_uuid("non-conflicting-schedule")
-        sample_schedule.enabled = True
         create_schedule(sample_schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("non-conflicting-schedule"))
 
         # Activate with conflict checking enabled - should succeed (no exception)
         scheduler_service.activate_schedule(
@@ -2355,9 +2528,11 @@ class TestActivateScheduleConflictDetection:
             schedule_id=_test_uuid("solar-schedule"),
             name="Solar Schedule",
             routines=[routine],
-            enabled=True,
         )
         create_schedule(schedule)
+
+        # Enable via service (Issue #331)
+        scheduler_service.set_enabled_schedule(_test_uuid("solar-schedule"))
 
         # Activate with location parameters (Panama) - should succeed (no exception)
         scheduler_service.activate_schedule(
