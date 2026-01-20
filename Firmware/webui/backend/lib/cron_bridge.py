@@ -8,7 +8,6 @@ Issue: #215
 """
 
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Final
@@ -45,30 +44,6 @@ CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
 MAX_CRON_ENTRIES: Final[int] = 10000  # System crontab line limit
-
-# Pre-compiled regex patterns for cron field validation (performance optimization)
-_CRON_FIELD_PATTERNS: Final[tuple[re.Pattern, ...]] = (
-    re.compile(r"^(\*|([0-5]?\d)(,([0-5]?\d))*|([0-5]?\d)-([0-5]?\d)|\*/([1-5]?\d))$"),  # minute
-    re.compile(
-        r"^(\*|([01]?\d|2[0-3])(,([01]?\d|2[0-3]))*|([01]?\d|2[0-3])-([01]?\d|2[0-3])|\*/([01]?\d|2[0-3]))$"
-    ),  # hour
-    re.compile(
-        r"^(\*|([1-9]|[12]\d|3[01])(,([1-9]|[12]\d|3[01]))*|([1-9]|[12]\d|3[01])-([1-9]|[12]\d|3[01])|\*/([1-9]|[12]\d|3[01]))$"
-    ),  # day
-    re.compile(
-        r"^(\*|([1-9]|1[0-2])(,([1-9]|1[0-2]))*|([1-9]|1[0-2])-([1-9]|1[0-2])|\*/([1-9]|1[0-2]))$"
-    ),  # month
-    re.compile(r"^(\*|[0-7](,[0-7])*|[0-7]-[0-7]|\*/[0-7])$"),  # weekday
-)
-
-# Cron field range validation constants
-_CRON_FIELD_RANGES: Final[dict[str, tuple[int, int]]] = {
-    "minute": (0, 59),
-    "hour": (0, 23),
-    "day": (1, 31),
-    "month": (1, 12),
-    "weekday": (0, 7),  # 0 and 7 both represent Sunday
-}
 
 
 @dataclass
@@ -169,7 +144,7 @@ class CronEntry:
 
     @staticmethod
     def is_valid_expression(expr: str) -> bool:
-        """Validate cron expression syntax.
+        """Validate cron expression syntax using croniter.
 
         Args:
             expr: Cron expression string to validate
@@ -180,70 +155,12 @@ class CronEntry:
         if not expr or not isinstance(expr, str):
             return False
 
-        # Split expression into fields
-        fields = expr.split()
-
-        # Cron expression must have exactly 5 fields (minute hour day month weekday)
-        if len(fields) != 5:
-            return False
-
-        # Validate each field using pre-compiled patterns
-        for field_value, pattern in zip(fields, _CRON_FIELD_PATTERNS, strict=True):
-            # Handle range expressions (e.g., 9-17)
-            if "-" in field_value and not field_value.startswith("*/"):
-                parts = field_value.split("-")
-                if len(parts) == 2:
-                    try:
-                        start, end = int(parts[0]), int(parts[1])
-                        if start > end:
-                            return False
-                    except ValueError:
-                        return False
-
-            # Handle step expressions (e.g., */5)
-            if field_value.startswith("*/"):
-                try:
-                    step = int(field_value[2:])
-                    if step <= 0:
-                        return False
-                except ValueError:
-                    return False
-                continue
-
-            # Handle comma-separated lists (e.g., 0,30)
-            if "," in field_value:
-                values = field_value.split(",")
-                for val in values:
-                    if not val.strip():
-                        return False
-                continue
-
-            # Validate against pre-compiled pattern
-            if not pattern.match(field_value):
-                return False
-
-        # Additional validation: check numeric ranges using constants
+        # Use croniter's built-in validation
         try:
-            field_names = ("minute", "hour", "day", "month", "weekday")
-            for field_value, field_name in zip(fields, field_names, strict=True):
-                # Skip wildcards, steps, lists, and ranges
-                if (
-                    field_value == "*"
-                    or field_value.startswith("*/")
-                    or "," in field_value
-                    or "-" in field_value
-                ):
-                    continue
-
-                min_val, max_val = _CRON_FIELD_RANGES[field_name]
-                val = int(field_value)
-                if val < min_val or val > max_val:
-                    return False
-
-        except (ValueError, IndexError, KeyError):
+            croniter(expr)
+            return True
+        except (ValueError, KeyError):
             return False
-
-        return True
 
 
 @dataclass
@@ -1223,7 +1140,7 @@ def routine_to_cron(
     elif isinstance(trigger, SensorTrigger):
         # Sensor triggers are event-driven, not cron-based
         raise ValueError(
-            f"Sensor trigger is event-driven and cannot be converted to cron"
+            "Sensor trigger is event-driven and cannot be converted to cron"
         )
 
     logger.warning(f"Unknown trigger type: {type(trigger).__name__}")
@@ -1322,7 +1239,7 @@ def calculate_next_waketime(
 ) -> int:
     """Calculate next execution time as Unix epoch.
 
-    Uses python-crontab library (same pattern as Scheduler.py).
+    Uses croniter library for cron expression parsing.
 
     Args:
         cron_expression: Cron expression (e.g., "0 21 * * *")
@@ -1338,17 +1255,10 @@ def calculate_next_waketime(
         from_time = datetime.now()
 
     try:
-        # Create a temporary cron job to calculate schedule
-        cron = CronTab(tab="")  # In-memory crontab
-        job = cron.new(command="placeholder")
-        job.setall(cron_expression)
-
-        # Get next execution time
-        schedule = job.schedule(date_from=from_time)
-        next_scheduled = schedule.get_next()
-
+        cron = croniter(cron_expression, from_time)
+        next_scheduled = cron.get_next(datetime)
         return int(next_scheduled.timestamp())
-    except (KeyError, AttributeError, TypeError) as e:
+    except (ValueError, KeyError) as e:
         raise ValueError(f"Invalid cron expression '{cron_expression}': {e}") from e
 
 
