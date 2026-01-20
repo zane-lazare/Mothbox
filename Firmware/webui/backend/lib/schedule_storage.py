@@ -172,7 +172,7 @@ def schedule_filename_exists(filename: str, exclude_schedule_id: str | None = No
     # If we're excluding a schedule_id, check if this file belongs to it
     if exclude_schedule_id:
         try:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 data = json.load(f)
                 if data.get("schedule_id") == exclude_schedule_id:
                     return False  # Same schedule, not a collision
@@ -259,7 +259,7 @@ def _scan_directory_for_schedule_id(
         if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}.lock"):
             continue
         try:
-            with open(json_file, "r") as f:
+            with open(json_file) as f:
                 data = json.load(f)
                 if data.get("schedule_id") == schedule_id:
                     return json_file

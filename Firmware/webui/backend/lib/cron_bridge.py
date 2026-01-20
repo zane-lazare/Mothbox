@@ -1124,11 +1124,7 @@ def routine_to_cron(
         return _routine_cron_trigger_to_cron(routine)
 
     # Date-specific triggers - times vary daily or use specific dates
-    elif isinstance(trigger, SolarTrigger):
-        return routine_to_dated_cron(
-            routine, latitude, longitude, timezone_name, days_ahead
-        )
-    elif isinstance(trigger, MoonPhaseTrigger):
+    elif isinstance(trigger, SolarTrigger) or isinstance(trigger, MoonPhaseTrigger):
         return routine_to_dated_cron(
             routine, latitude, longitude, timezone_name, days_ahead
         )

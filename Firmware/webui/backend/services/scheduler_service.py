@@ -30,7 +30,6 @@ Usage:
     print(f"Hit ratio: {stats['hit_ratio']:.2%}")
 """
 
-import contextlib
 import hashlib
 import json
 import logging
