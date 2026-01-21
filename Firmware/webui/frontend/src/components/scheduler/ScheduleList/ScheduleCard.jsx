@@ -24,30 +24,7 @@ import {
   generateRoutineName,
   generateScheduleDescription,
 } from '../../../utils/routineUtils'
-
-/** Base button styles shared across all action buttons */
-const BUTTON_BASE = [
-  'inline-flex items-center gap-1.5 px-3 py-1.5',
-  'text-sm font-medium rounded-md',
-  'focus:outline-none focus:ring-2 focus:ring-offset-2',
-  'disabled:opacity-50 disabled:cursor-not-allowed',
-].join(' ')
-
-/** Primary button style for Edit, Activate, Deactivate */
-const BUTTON_PRIMARY = [
-  BUTTON_BASE,
-  'text-gray-700 bg-white border border-gray-300',
-  'hover:bg-gray-50 focus:ring-blue-500',
-  'dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600',
-].join(' ')
-
-/** Success button style for Enable */
-const BUTTON_SUCCESS = [
-  BUTTON_BASE,
-  'text-green-700 bg-white border border-green-300',
-  'hover:bg-green-50 focus:ring-green-500',
-  'dark:bg-gray-700 dark:text-green-400 dark:border-green-900 dark:hover:bg-green-900/20',
-].join(' ')
+import { CARD_STYLES, TEXT_STYLES, BUTTON_STYLES } from '../constants'
 
 /**
  * ScheduleCard component
@@ -88,24 +65,27 @@ function ScheduleCard({
     }
   }
 
+  // Build card classes based on state
+  const cardClasses = [
+    CARD_STYLES.base,
+    isActive && CARD_STYLES.active,
+    !isEnabled && CARD_STYLES.disabled,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <article
-      role="article"
-      aria-labelledby={nameId}
-      className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
-    >
+    <article role="article" aria-labelledby={nameId} className={cardClasses}>
       {/* Header: Name and Badges */}
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-start justify-between gap-3 mb-1">
         <div className="flex-1 min-w-0">
-          <h3 id={nameId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h3 id={nameId} className={TEXT_STYLES.title}>
             {schedule.name}
           </h3>
         </div>
         <div className="flex items-center gap-2">
           {!isEnabled && (
-            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full dark:bg-gray-700 dark:text-gray-400">
-              Disabled
-            </span>
+            <span className={TEXT_STYLES.meta}>Disabled</span>
           )}
           <ActiveScheduleBadge isActive={isActive} />
         </div>
@@ -113,7 +93,7 @@ function ScheduleCard({
 
       {/* Description - manual or auto-generated */}
       {(schedule.description || schedule.routines?.length > 0) && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        <p className={`${TEXT_STYLES.description} mb-3`}>
           {schedule.description || generateScheduleDescription(schedule.routines)}
         </p>
       )}
@@ -154,9 +134,9 @@ function ScheduleCard({
           type="button"
           onClick={handleView}
           disabled={isTogglingEnabled}
-          className={BUTTON_PRIMARY}
+          className={`${BUTTON_STYLES.base} ${BUTTON_STYLES.primary}`}
         >
-          <EyeIcon className="h-4 w-4" aria-hidden="true" />
+          <EyeIcon className="h-3.5 w-3.5" aria-hidden="true" />
           View
         </button>
 
@@ -166,16 +146,16 @@ function ScheduleCard({
             type="button"
             onClick={handleToggleEnabled}
             disabled={isTogglingEnabled}
-            className={isEnabled ? BUTTON_PRIMARY : BUTTON_SUCCESS}
+            className={`${BUTTON_STYLES.base} ${isEnabled ? BUTTON_STYLES.primary : BUTTON_STYLES.success}`}
           >
             {isEnabled ? (
               <>
-                <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 {isTogglingEnabled ? 'Disabling...' : 'Disable'}
               </>
             ) : (
               <>
-                <CheckIcon className="h-4 w-4" aria-hidden="true" />
+                <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 {isTogglingEnabled ? 'Enabling...' : 'Enable'}
               </>
             )}

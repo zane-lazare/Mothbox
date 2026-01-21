@@ -156,3 +156,52 @@ export function getActionTypeDisplay(actionType, actionName) {
     text: colors.text,
   }
 }
+
+// =============================================================================
+// Card & Panel Styles
+// =============================================================================
+
+/**
+ * Schedule card style variants
+ *
+ * Provides consistent styling for schedule cards across the scheduler UI.
+ * Uses minimalist design with subtle borders and no shadows.
+ */
+export const CARD_STYLES = {
+  /** Base card styling - rounded corners, subtle border */
+  base: 'rounded-lg border border-gray-200 dark:border-gray-800 p-4',
+  /** Active/selected card - highlighted border and subtle background */
+  active: 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50',
+  /** Hover state for interactive cards */
+  hover: 'hover:border-gray-300 dark:hover:border-gray-700 cursor-pointer',
+  /** Disabled/draft state - dashed border with reduced opacity */
+  disabled: 'border-dashed opacity-60',
+}
+
+/**
+ * Typography styles for scheduler components
+ *
+ * Compact text sizing for information-dense scheduler UI.
+ */
+export const TEXT_STYLES = {
+  /** Card/item title */
+  title: 'text-sm font-medium text-gray-900 dark:text-white',
+  /** Secondary description text */
+  description: 'text-xs text-gray-500 dark:text-gray-500',
+  /** Small metadata/label text */
+  meta: 'text-xs text-gray-400 dark:text-gray-600',
+}
+
+/**
+ * Button styles for scheduler components
+ */
+export const BUTTON_STYLES = {
+  /** Base button styling */
+  base: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
+  /** Primary button variant */
+  primary:
+    'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600',
+  /** Success/enable button variant */
+  success:
+    'text-green-700 bg-white border border-green-300 hover:bg-green-50 focus:ring-green-500 dark:bg-gray-700 dark:text-green-400 dark:border-green-900 dark:hover:bg-green-900/20',
+}
