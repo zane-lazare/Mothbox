@@ -190,6 +190,10 @@ export const TEXT_STYLES = {
   description: 'text-xs text-gray-500 dark:text-gray-500',
   /** Small metadata/label text */
   meta: 'text-xs text-gray-400 dark:text-gray-600',
+  /** Title size only (no color) - for use with semantic colors */
+  titleSize: 'text-sm font-medium',
+  /** Description size only (no color) */
+  descriptionSize: 'text-xs',
 }
 
 /**

@@ -124,8 +124,8 @@ function ActiveScheduleBanner() {
         {/* Top row: Active schedule name and Deactivate button */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            <span className="text-green-900 font-medium">
+            <CheckCircleIcon className="h-4 w-4 text-green-600" />
+            <span className={`${TEXT_STYLES.titleSize} text-green-900`}>
               Active: <span className="font-normal">{name}</span>
             </span>
           </div>
@@ -183,9 +183,9 @@ function ActiveScheduleBanner() {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />
-            <span className="text-red-900">
-              Ready: <span className="font-medium">{enabledSchedule.name}</span>
+            <ExclamationTriangleIcon className="h-4 w-4 text-red-600" />
+            <span className={`${TEXT_STYLES.titleSize} text-red-900`}>
+              Ready: <span className="font-normal">{enabledSchedule.name}</span>
             </span>
           </div>
 
@@ -210,8 +210,8 @@ function ActiveScheduleBanner() {
       className="bg-blue-50 border border-blue-200 rounded-lg p-4"
     >
       <div className="flex items-center gap-2">
-        <InformationCircleIcon className="h-5 w-5 text-blue-600" />
-        <span className="text-blue-900">No schedule is enabled</span>
+        <InformationCircleIcon className="h-4 w-4 text-blue-600" />
+        <span className={`${TEXT_STYLES.titleSize} text-blue-900`}>No schedule is enabled</span>
       </div>
     </div>
   )
