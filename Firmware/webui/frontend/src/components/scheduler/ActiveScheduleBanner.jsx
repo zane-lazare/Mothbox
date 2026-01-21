@@ -9,6 +9,7 @@ import {
   useSchedules,
   useActivateSchedule,
 } from '../../hooks/useSchedules'
+import { TEXT_STYLES, BUTTON_STYLES } from './constants'
 
 /**
  * Format time as HH:MM
@@ -132,14 +133,14 @@ function ActiveScheduleBanner() {
           <button
             onClick={handleDeactivate}
             disabled={isDeactivating}
-            className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`${BUTTON_STYLES.base} text-red-700 bg-red-50 border border-red-200 hover:bg-red-100`}
           >
             {isDeactivating ? 'Deactivating...' : 'Deactivate'}
           </button>
         </div>
 
         {/* Second row: Next action and time/location info */}
-        <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
+        <div className={`mt-2 flex items-center gap-4 ${TEXT_STYLES.description}`}>
           {nextTime && nextActionName && (
             <span data-testid="next-execution">
               Next: {nextTime} {nextActionName}
@@ -191,7 +192,7 @@ function ActiveScheduleBanner() {
           <button
             onClick={() => handleActivate(enabledSchedule)}
             disabled={isActivating}
-            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+            className={`${BUTTON_STYLES.base} text-white bg-green-600 hover:bg-green-700`}
           >
             <PlayIcon className="h-4 w-4" aria-hidden="true" />
             {isActivating ? 'Activating...' : 'Activate'}
