@@ -70,12 +70,23 @@ export function CalendarView() {
   // Fetch active schedule for auto-selection
   const { data: activeData } = useActiveSchedule()
 
-  // Auto-select active schedule on mount (if one exists)
+  // Auto-select schedule on mount: prefer active, fall back to enabled
   useEffect(() => {
-    if (activeData?.active_schedule?.schedule_id && !selectedScheduleId) {
+    // Don't override if user has already selected a schedule
+    if (selectedScheduleId) return
+
+    // Prefer active schedule
+    if (activeData?.active_schedule?.schedule_id) {
       setSelectedScheduleId(activeData.active_schedule.schedule_id)
+      return
     }
-  }, [activeData?.active_schedule?.schedule_id, selectedScheduleId])
+
+    // Fall back to first enabled schedule
+    const enabledSchedule = schedules.find((s) => s.enabled)
+    if (enabledSchedule?.schedule_id) {
+      setSelectedScheduleId(enabledSchedule.schedule_id)
+    }
+  }, [activeData?.active_schedule?.schedule_id, schedules, selectedScheduleId])
 
   // Calculate preview days based on view mode
   const previewDays = useMemo(() => {
