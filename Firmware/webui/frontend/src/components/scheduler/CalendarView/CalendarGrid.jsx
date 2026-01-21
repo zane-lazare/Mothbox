@@ -18,6 +18,7 @@ import {
   groupExecutionsByDate,
   getDateKey,
 } from './calendarUtils'
+import { PANEL_STYLES } from '../constants'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -79,13 +80,13 @@ function CalendarGrid({
         </a>
         <div
           id="calendar-grid-content"
-          className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700"
+          className={`grid grid-cols-7 border-t border-l ${PANEL_STYLES.grid}`}
         >
           {/* Day-of-week headers */}
           {DAYS.map((day) => (
             <div
               key={day}
-              className="py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b border-gray-200 dark:border-gray-700"
+              className={`py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b ${PANEL_STYLES.grid}`}
             >
               {day}
             </div>

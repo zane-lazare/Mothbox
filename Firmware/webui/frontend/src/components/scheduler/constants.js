@@ -205,3 +205,18 @@ export const BUTTON_STYLES = {
   success:
     'text-green-700 bg-white border border-green-300 hover:bg-green-50 focus:ring-green-500 dark:bg-gray-700 dark:text-green-400 dark:border-green-900 dark:hover:bg-green-900/20',
 }
+
+/**
+ * Panel/container styles for larger UI sections
+ *
+ * Used for calendar panels, timeline containers, and other major sections.
+ */
+export const PANEL_STYLES = {
+  /** Main panel container - no shadow, subtle border */
+  container: 'bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800',
+  /** Panel header with bottom border */
+  header:
+    'bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-3',
+  /** Grid/table borders */
+  grid: 'border-gray-200 dark:border-gray-800',
+}

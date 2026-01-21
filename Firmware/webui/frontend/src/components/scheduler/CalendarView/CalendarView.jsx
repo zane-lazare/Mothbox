@@ -22,6 +22,7 @@ import ExecutionDetailModal from './ExecutionDetailModal'
 import LoadingSpinner from '../../LoadingSpinner'
 import { useSchedules, useSchedulePreview, useActiveSchedule } from '../../../hooks/useSchedules'
 import { getDateKey } from './calendarUtils'
+import { PANEL_STYLES } from '../constants'
 
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
@@ -229,7 +230,7 @@ export function CalendarView() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow" aria-hidden={isModalOpen}>
+    <div className={PANEL_STYLES.container} aria-hidden={isModalOpen}>
       <CalendarHeader
         viewMode={viewMode}
         currentDate={currentDate}

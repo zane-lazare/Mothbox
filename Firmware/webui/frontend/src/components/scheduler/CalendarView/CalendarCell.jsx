@@ -12,6 +12,7 @@ import PropTypes from 'prop-types'
 import MoonPhaseIcon from './MoonPhaseIcon'
 import { isToday } from './calendarUtils'
 import { getActionColor } from '@/utils/routineUtils'
+import { PANEL_STYLES } from '../constants'
 
 /**
  * Extract unique action types from all executions.
@@ -86,7 +87,7 @@ function CalendarCell({
   const cellClasses = [
     'min-h-20 sm:min-h-24 p-0.5 sm:p-1',
     'border-r border-b',
-    'border-gray-200 dark:border-gray-700',
+    PANEL_STYLES.grid,
     'relative cursor-pointer',
     'transition-colors duration-150',
     'hover:bg-gray-50 dark:hover:bg-gray-800',

@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { formatDateRange } from './calendarUtils'
+import { PANEL_STYLES } from '../constants'
 
 /**
  * CalendarHeader Component
@@ -40,7 +41,7 @@ export default function CalendarHeader({
   const isNextDisabled = isWeekView && patternOffset !== null && patternOffset + 7 >= maxPatternDays
 
   return (
-    <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
+    <div className={`sticky top-0 z-10 ${PANEL_STYLES.header}`}>
       <div className="flex flex-wrap items-center gap-2">
         {/* Schedule Selector */}
         <select
