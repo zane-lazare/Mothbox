@@ -20,7 +20,6 @@ import { memo, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import HourRow from './HourRow'
 import ConflictSummary from './ConflictSummary'
-import { LEGEND_ITEMS } from './dayTimelineConstants'
 import {
   groupExecutionsByHourCycleAware,
   getConflictForHour,
@@ -28,23 +27,6 @@ import {
   getCycleHours,
   collapseRepetitiveHours,
 } from './dayTimelineUtils'
-
-/**
- * Legend component for the timeline
- * Memoized since LEGEND_ITEMS is static and never changes
- */
-const TimelineLegend = memo(function TimelineLegend() {
-  return (
-    <div className="flex items-center gap-6 text-xs text-gray-500 mb-6">
-      {LEGEND_ITEMS.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${item.color}`} />
-          {item.label}
-        </div>
-      ))}
-    </div>
-  )
-})
 
 /**
  * Collapsed hours indicator row
@@ -149,9 +131,6 @@ function DayTimeline({
       className="p-4"
       aria-label={`Day timeline for ${date}`}
     >
-      {/* Legend */}
-      <TimelineLegend />
-
       {/* Conflict Summary */}
       {conflicts.length > 0 && <ConflictSummary conflicts={conflicts} />}
 

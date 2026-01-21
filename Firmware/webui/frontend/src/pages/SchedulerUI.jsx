@@ -6,9 +6,9 @@ import ActiveScheduleBanner from '../components/scheduler/ActiveScheduleBanner'
 import { ScheduleList } from '../components/scheduler/ScheduleList'
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
 import CalendarView from '../components/scheduler/CalendarView'
+import SchedulerLegend from '../components/scheduler/SchedulerLegend'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule } from '../hooks/useSchedules'
-import { ACTION_COLORS } from '../utils/routineUtils'
 import toast from 'react-hot-toast'
 
 function SchedulerUIContent() {
@@ -92,35 +92,12 @@ function SchedulerUIContent() {
         <SchedulerToolbar onNewSchedule={handleNewSchedule} />
       </SchedulerHeader>
       <ActiveScheduleBanner />
+      <SchedulerLegend />
 
       {/* Two-column layout - always visible */}
       <div className="grid grid-cols-3 gap-6">
         {/* Left column: Schedule List (1/3 width) */}
         <div className="col-span-1 space-y-3">
-          {/* Action type legend */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 px-1">
-            <span className="font-medium">Key:</span>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.gpio}`} />
-              <span>GPIO</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.camera}`} />
-              <span>Camera</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.hdr}`} />
-              <span>HDR</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.gps_sync}`} />
-              <span>GPS</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${ACTION_COLORS.service}`} />
-              <span>Service</span>
-            </div>
-          </div>
           <ErrorBoundary
             errorTitle="Error loading schedules"
             errorMessage="Failed to load the schedule list"

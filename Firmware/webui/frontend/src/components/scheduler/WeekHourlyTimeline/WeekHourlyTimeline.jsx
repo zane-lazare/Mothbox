@@ -5,7 +5,7 @@
  * DayTimeline aesthetic. Features:
  * - Cycle-aware hour display (respects overnight schedules)
  * - ExecutionChip-style markers (time-only, action-type colored)
- * - TimelineLegend and ConflictSummary
+ * - ConflictSummary for displaying conflicts
  * - Responsive: Collapses to single-day view on mobile (<640px)
  * - Swipe navigation between days on mobile
  *
@@ -20,7 +20,6 @@ import ConflictSummary from '../DayTimeline/ConflictSummary'
 import ExecutionChip from '../DayTimeline/ExecutionChip'
 import HourRow from '../DayTimeline/HourRow'
 import {
-  LEGEND_ITEMS,
   WEEK_VIEW_CONFIG,
   DAY_HEADER_STYLES,
   ROW_CONFLICT_STYLES,
@@ -38,23 +37,6 @@ import {
   getConflictForHour,
   getExecutionKey,
 } from './weekTimelineUtils'
-
-/**
- * Legend component for the timeline (same as DayTimeline)
- * Memoized since LEGEND_ITEMS is static
- */
-const TimelineLegend = memo(function TimelineLegend() {
-  return (
-    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mb-4 px-2">
-      {LEGEND_ITEMS.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${item.color}`} />
-          {item.label}
-        </div>
-      ))}
-    </div>
-  )
-})
 
 /**
  * Day header cell for CSS Grid layout
@@ -527,7 +509,6 @@ function WeekHourlyTimeline({
   if (!hasExecutions) {
     return (
       <div className="p-4" data-testid="week-hourly-timeline">
-        <TimelineLegend />
         <div className="text-center text-gray-500 py-8">
           No scheduled events this week
         </div>
@@ -537,9 +518,6 @@ function WeekHourlyTimeline({
 
   return (
     <div className="p-4" data-testid="week-hourly-timeline">
-      {/* Legend */}
-      <TimelineLegend />
-
       {/* Conflict Summary */}
       {conflicts.length > 0 && <ConflictSummary conflicts={conflicts} />}
 
