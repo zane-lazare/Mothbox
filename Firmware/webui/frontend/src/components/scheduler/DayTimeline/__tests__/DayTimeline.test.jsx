@@ -79,28 +79,6 @@ describe('DayTimeline', () => {
     })
   })
 
-  describe('Legend', () => {
-    it('renders legend with Camera label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Camera')).toBeInTheDocument()
-    })
-
-    it('renders legend with GPIO label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('GPIO')).toBeInTheDocument()
-    })
-
-    it('renders legend with Collision label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Collision')).toBeInTheDocument()
-    })
-
-    it('renders legend with Warning label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Warning')).toBeInTheDocument()
-    })
-  })
-
   describe('Conflict Summary', () => {
     it('shows conflict summary when conflicts exist', () => {
       render(

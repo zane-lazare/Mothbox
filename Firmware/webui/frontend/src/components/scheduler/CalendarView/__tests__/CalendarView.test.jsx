@@ -6,12 +6,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CalendarView } from '../CalendarView'
-import { useSchedules, useSchedulePreview } from '../../../../hooks/useSchedules'
+import { useSchedules, useSchedulePreview, useActiveSchedule } from '../../../../hooks/useSchedules'
 
 // Mock the hooks
 vi.mock('../../../../hooks/useSchedules', () => ({
   useSchedules: vi.fn(),
   useSchedulePreview: vi.fn(),
+  useActiveSchedule: vi.fn(),
 }))
 
 // Mock child components to isolate CalendarView logic
@@ -128,6 +129,11 @@ describe('CalendarView', () => {
       isError: false,
       error: null,
       refetch: vi.fn(),
+    })
+
+    useActiveSchedule.mockReturnValue({
+      data: null,
+      isLoading: false,
     })
   })
 

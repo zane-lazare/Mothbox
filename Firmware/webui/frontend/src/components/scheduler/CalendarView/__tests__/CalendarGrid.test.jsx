@@ -8,8 +8,9 @@ import userEvent from '@testing-library/user-event'
 import CalendarGrid from '../CalendarGrid'
 
 // Mock child components (only used for month views)
+// Note: CalendarCell no longer has onExecutionClick - clicking cell navigates to day view
 vi.mock('../CalendarCell', () => ({
-  default: vi.fn(({ date, isCurrentMonth, executions, moonPhase, onClick, onExecutionClick }) => {
+  default: vi.fn(({ date, isCurrentMonth, executions, moonPhase, onClick }) => {
     // Helper function to get date key (must match component implementation)
     const getDateKey = (d) => {
       const year = d.getFullYear()
@@ -29,18 +30,10 @@ vi.mock('../CalendarCell', () => ({
         onClick={() => onClick(date)}
       >
         {date.getDate()}
-        {executions.map((exec) => (
-          <button
-            key={exec.start_time}
-            data-testid={`execution-${exec.start_time}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onExecutionClick(exec)
-            }}
-          >
-            {exec.pattern_name}
-          </button>
-        ))}
+        {/* CalendarCell now shows action type indicator dots instead of clickable execution buttons */}
+        {executions.length > 0 && (
+          <span data-testid="action-indicators">{executions.length} actions</span>
+        )}
       </div>
     )
   }),
@@ -346,31 +339,9 @@ describe('CalendarGrid', () => {
       expect(mockOnCellClick).toHaveBeenCalledWith(expect.any(Date))
     })
 
-    it('calls onExecutionClick when execution is clicked', async () => {
-      const user = userEvent.setup()
-
-      render(
-        <CalendarGrid
-          viewMode="month"
-          currentDate={new Date(2025, 0, 15)}
-          executions={mockExecutions}
-          moonPhases={{}}
-          onCellClick={mockOnCellClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      const executionButton = screen.getByTestId('execution-2025-01-15T08:30:00')
-      await user.click(executionButton)
-
-      expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)
-      expect(mockOnExecutionClick).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'exec1',
-          pattern_name: 'Morning Capture',
-        })
-      )
-    })
+    // Note: onExecutionClick is no longer used in month view
+    // CalendarCell shows action type indicator dots; clicking a cell navigates to day view
+    // Execution click functionality is in day view (via DayTimeline)
   })
 
   describe('Week View', () => {
@@ -702,7 +673,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      expect(screen.getByText('Test Pattern')).toBeInTheDocument()
+      // CalendarCell mock shows action indicator count, not pattern name
+      expect(screen.getByTestId('action-indicators')).toBeInTheDocument()
+      expect(screen.getByText('1 actions')).toBeInTheDocument()
     })
   })
 
@@ -719,9 +692,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Check for dark mode border classes
+      // Check for dark mode border classes (PANEL_STYLES.grid uses dark:border-gray-800)
       const grid = container.querySelector('.grid-cols-7')
-      expect(grid?.className).toContain('dark:border-gray-700')
+      expect(grid?.className).toContain('dark:border-gray-800')
     })
 
     it('applies dark mode classes to day view', () => {

@@ -706,8 +706,9 @@ describe('ScheduleCard', () => {
         />
       )
       const article = screen.getByRole('article')
-      expect(article).toHaveClass('dark:bg-gray-800')
-      expect(article).toHaveClass('dark:border-gray-700')
+      // CARD_STYLES.base uses dark:border-gray-800 and border-gray-200
+      expect(article).toHaveClass('dark:border-gray-800')
+      expect(article).toHaveClass('border-gray-200')
     })
   })
 })
