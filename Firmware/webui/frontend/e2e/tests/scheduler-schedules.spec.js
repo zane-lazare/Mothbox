@@ -119,25 +119,25 @@ test.describe('Scheduler Schedules', () => {
     expect(await scheduler.isEditorOpen()).toBeFalsy()
   })
 
-  test('edit existing schedule opens editor with data', async ({ page }) => {
+  test('view existing schedule opens editor with data', async ({ page }) => {
     void page // suppress unused warning
     const scheduleCount = await scheduler.getScheduleCount()
     if (scheduleCount === 0) {
-      test.skip(true, 'No schedules available for testing edit')
+      test.skip(true, 'No schedules available for testing view')
       return
     }
 
-    // Click Edit on first schedule
-    await scheduler.clickEditOnSchedule(0)
+    // Click View on first schedule (view-first paradigm - Issue #266)
+    await scheduler.clickViewOnSchedule(0)
 
     // Verify editor is open
     expect(await scheduler.isEditorOpen()).toBeTruthy()
 
-    // Verify title is "Edit Schedule"
+    // Verify title is "View Schedule" (opens in view mode first)
     const title = await scheduler.getEditorTitle()
-    expect(title).toContain('Edit Schedule')
+    expect(title).toContain('View Schedule')
 
-    // Verify name input has a value (existing schedule name)
+    // Verify name is displayed (existing schedule name)
     const nameValue = await scheduler.getScheduleNameValue()
     expect(nameValue.length).toBeGreaterThan(0)
 
@@ -347,10 +347,12 @@ test.describe('Scheduler Schedules', () => {
       const scheduleExists = await scheduler.hasScheduleWithName(testName)
       expect(scheduleExists, 'Schedule should appear in list after creation').toBeTruthy()
 
-      // Edit schedule
+      // Edit schedule (view-first paradigm: View → Edit in header)
       const card = scheduler.getScheduleCardByName(testName)
-      await card.locator('button:has-text("Edit")').click()
+      await card.locator('button:has-text("View")').click()
       await scheduler.waitForEditorOpen()
+      // Switch to edit mode
+      await scheduler.clickEditInEditorHeader()
 
       // Update name
       await scheduler.fillScheduleName(updatedName)

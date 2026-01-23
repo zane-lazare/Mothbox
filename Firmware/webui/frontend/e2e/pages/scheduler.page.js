@@ -34,9 +34,16 @@ export class SchedulerPage {
       // Schedule List
       scheduleCard: 'article[role="article"]',
       scheduleCardByName: (name) => `article[role="article"]:has-text("${name}")`,
-      editButton: 'button:has-text("Edit")',
+      // View button (formerly Edit - view-first paradigm, Issue #266)
+      viewButton: 'button:has-text("View")',
+      editButton: 'button:has-text("View")', // Alias for backward compatibility
+      // Enable/Disable toggle (formerly Activate/Deactivate on cards)
+      enableButton: 'button:has-text("Enable")',
+      disableButton: 'button:has-text("Disable")',
+      // Legacy selectors - kept for backward compatibility, now in ActiveScheduleBanner
       activateButton: 'button:has-text("Activate")',
       deactivateButton: 'button:has-text("Deactivate")',
+      // Delete is now inside ScheduleEditor, not on cards
       deleteButton: 'button:has-text("Delete")',
 
       // Active Badge (within card) - use aria-label to avoid matching schedule names containing "Active"
@@ -209,43 +216,92 @@ export class SchedulerPage {
   }
 
   /**
-   * Click Edit button on a schedule card
+   * Click View button on a schedule card to open editor
    * @param {number} index - Zero-based index
    */
-  async clickEditOnSchedule(index) {
+  async clickViewOnSchedule(index) {
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.editButton).click()
+    await card.locator(this.selectors.viewButton).click()
     await this.waitForEditorOpen()
+  }
+
+  /**
+   * Click Edit button on a schedule card (alias for clickViewOnSchedule)
+   * @param {number} index - Zero-based index
+   * @deprecated Use clickViewOnSchedule() - view-first paradigm (Issue #266)
+   */
+  async clickEditOnSchedule(index) {
+    return this.clickViewOnSchedule(index)
+  }
+
+  /**
+   * Click Enable button on a schedule card
+   * Enables a schedule so it can be activated
+   * @param {number} index - Zero-based index
+   */
+  async clickEnableOnSchedule(index) {
+    const card = this.getScheduleCardByIndex(index)
+    await card.locator(this.selectors.enableButton).click()
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Click Disable button on a schedule card
+   * @param {number} index - Zero-based index
+   */
+  async clickDisableOnSchedule(index) {
+    const card = this.getScheduleCardByIndex(index)
+    await card.locator(this.selectors.disableButton).click()
+    await this.page.waitForLoadState('networkidle')
   }
 
   /**
    * Click Activate button on a schedule card
    * @param {number} index - Zero-based index
+   * @deprecated Activation is now via ActiveScheduleBanner. Use clickEnableOnSchedule() to enable first.
    */
   async clickActivateOnSchedule(index) {
+    // Try the enable button first (new UI), fallback to activate (legacy)
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.activateButton).click()
-    // Wait for network and potential state change
+    const enableBtn = card.locator(this.selectors.enableButton)
+    if (await enableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await enableBtn.click()
+    } else {
+      await card.locator(this.selectors.activateButton).click()
+    }
     await this.page.waitForLoadState('networkidle')
   }
 
   /**
    * Click Deactivate button on a schedule card
    * @param {number} index - Zero-based index
+   * @deprecated Deactivation is now via ActiveScheduleBanner. Use clickDisableOnSchedule() or clickBannerDeactivate().
    */
   async clickDeactivateOnSchedule(index) {
+    // Try the disable button first (new UI), fallback to deactivate (legacy)
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.deactivateButton).click()
+    const disableBtn = card.locator(this.selectors.disableButton)
+    if (await disableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await disableBtn.click()
+    } else {
+      await card.locator(this.selectors.deactivateButton).click()
+    }
     await this.page.waitForLoadState('networkidle')
   }
 
   /**
    * Click Delete button on a schedule card
    * @param {number} index - Zero-based index
+   * @deprecated Delete is now inside ScheduleEditor in edit mode.
    */
   async clickDeleteOnSchedule(index) {
-    const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.deleteButton).click()
+    // Open the editor first via View button
+    await this.clickViewOnSchedule(index)
+    // Switch to edit mode by clicking Edit button in header
+    await this.clickEditInEditorHeader()
+    // Then click delete in the editor footer
+    const deleteBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Delete")')
+    await deleteBtn.click()
     // Wait for confirmation dialog
     await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
   }
@@ -253,11 +309,28 @@ export class SchedulerPage {
   /**
    * Click Delete button on a schedule by name
    * @param {string} name - Schedule name
+   * @deprecated Delete is now inside ScheduleEditor in edit mode.
    */
   async clickDeleteOnScheduleByName(name) {
+    // Open the editor first via View button on the named card
     const card = this.getScheduleCardByName(name)
-    await card.locator(this.selectors.deleteButton).click()
+    await card.locator(this.selectors.viewButton).click()
+    await this.waitForEditorOpen()
+    // Switch to edit mode by clicking Edit button in header
+    await this.clickEditInEditorHeader()
+    // Then click delete in the editor footer
+    const deleteBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Delete")')
+    await deleteBtn.click()
     await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
+  }
+
+  /**
+   * Click Edit button in the editor header to switch from view mode to edit mode
+   */
+  async clickEditInEditorHeader() {
+    const editBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Edit")')
+    await editBtn.click()
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   /**
