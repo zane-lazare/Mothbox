@@ -302,6 +302,63 @@ export class SchedulerPage {
   }
 
   /**
+   * Activate a schedule by name - handles multiple activation paths:
+   * 1. Enable button on card → Activate in banner (if no schedule active)
+   * 2. Activate button in editor's Activation panel (works when another schedule is active)
+   * @param {string} name - Schedule name
+   */
+  async activateScheduleByName(name) {
+    const card = this.getScheduleCardByName(name)
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+
+    // First deactivate any currently active schedule
+    if (await this.isActiveBannerVisible()) {
+      await this.clickBannerDeactivate()
+      await this.page.waitForLoadState('networkidle')
+      await this.page.waitForTimeout(500) // Allow UI to settle
+    }
+
+    // Path 1: Try Enable button on card (visible when no schedule is active)
+    const enableBtn = card.locator(this.selectors.enableButton)
+    if (await enableBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await enableBtn.click()
+      await this.page.waitForLoadState('networkidle')
+
+      // Wait for the enabled-schedule banner and click Activate
+      const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+      const bannerActivateBtn = this.page.locator(this.selectors.bannerActivateButton)
+
+      try {
+        await enabledBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+        await bannerActivateBtn.click()
+        await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK })
+        await this.page.waitForLoadState('networkidle')
+        return // Success
+      } catch {
+        // Fall through to alternative path
+      }
+    }
+
+    // Path 2: Open editor and use Activation panel's Activate button
+    await card.locator(this.selectors.viewButton).click()
+    await this.waitForEditorOpen()
+
+    // Look for Activate button in the editor's Activation panel
+    const editorActivateBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Activate")')
+    if (await editorActivateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await editorActivateBtn.click()
+      // Wait for activation to complete
+      await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK }).catch(() => {})
+      await this.page.waitForLoadState('networkidle')
+    }
+
+    // Close the editor if still open
+    if (await this.isEditorOpen()) {
+      await this.closeEditor()
+    }
+  }
+
+  /**
    * Click Deactivate button on a schedule card
    * @param {number} index - Zero-based index
    * @deprecated Deactivation is now via ActiveScheduleBanner. Use clickDisableOnSchedule() or clickBannerDeactivate().
