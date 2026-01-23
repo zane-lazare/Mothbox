@@ -202,13 +202,6 @@ test.describe('Scheduler Schedules', () => {
     expect(bannerVisible || cardActive).toBeTruthy()
   })
 
-  // OBSOLETE: In view-first paradigm (#266), deactivation only happens from the banner.
-  // Cards show Enable/Disable toggle (only when no schedule is active), not Activate/Deactivate.
-  test.skip('deactivate schedule from card', async () => {
-    // This test is skipped because card-based deactivation is removed in the new UI.
-    // Use "deactivate from active banner" test instead.
-  })
-
   // TODO: Investigate - deactivation may transition to "Ready" banner instead of disappearing
   test.skip('deactivate from active banner', async () => {
     // Check if active banner is visible
@@ -419,25 +412,6 @@ test.describe('Scheduler Schedules', () => {
     // Editor should stay open with error
     expect(await scheduler.isEditorOpen()).toBeTruthy()
     const errorVisible = await page.locator('text=required').first().isVisible()
-    expect(errorVisible).toBeTruthy()
-
-    await scheduler.clickCancel()
-  })
-
-  // OBSOLETE (#329): Pattern Library workflow removed in terminology refactor (#296)
-  // The new routine-based workflow doesn't have pattern selection validation
-  // DELETE after refactor complete
-  test.skip('save without event pattern shows validation error', async ({ page }) => {
-    await scheduler.clickNewSchedule()
-    await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
-
-    // Don't select pattern, try to save
-    await scheduler.clickSave()
-    await page.waitForTimeout(TIMEOUTS.TRANSITION)
-
-    // Editor should stay open with error
-    expect(await scheduler.isEditorOpen()).toBeTruthy()
-    const errorVisible = await page.locator('text=pattern').first().isVisible()
     expect(errorVisible).toBeTruthy()
 
     await scheduler.clickCancel()
