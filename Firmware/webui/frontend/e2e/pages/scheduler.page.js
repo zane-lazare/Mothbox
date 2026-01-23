@@ -49,10 +49,13 @@ export class SchedulerPage {
       // Active Badge (within card) - use aria-label to avoid matching schedule names containing "Active"
       activeBadge: '[aria-label="Schedule is active"]',
 
-      // Active Banner (top-level status)
+      // Active Banner (top-level status) - green banner when schedule is running
       activeBanner: '[data-testid="active-schedule-banner"]',
       bannerDeactivateButton: '[data-testid="active-schedule-banner"] button:has-text("Deactivate")',
       bannerScheduleName: '[data-testid="active-schedule-banner"] span',
+      // Enabled Banner (ready state) - red banner when schedule is enabled but not active
+      enabledBanner: '[data-testid="enabled-schedule-banner"]',
+      bannerActivateButton: '[data-testid="enabled-schedule-banner"] button:has-text("Activate")',
 
       // Editor Drawer
       editorDrawer: '[data-testid="schedule-editor-drawer"]',
@@ -61,13 +64,14 @@ export class SchedulerPage {
       scheduleNameInput: '#schedule-name',
       scheduleDescriptionInput: '#schedule-description',
       saveButton: '[data-testid="schedule-editor-drawer"] button:has-text("Save")',
-      cancelButton: '[data-testid="schedule-editor-drawer"] button:has-text("Cancel")',
+      // In edit mode: Cancel button; in view mode: Close button
+      cancelButton: '[data-testid="schedule-editor-drawer"] button:has-text("Cancel"), [data-testid="schedule-editor-drawer"] button:has-text("Close")',
       closeButton: 'button[aria-label="Close"]',
 
-      // Delete Confirmation Dialog
-      confirmDialog: '[data-testid="confirm-dialog"], [role="alertdialog"], [role="dialog"]:has-text("Delete")',
-      confirmDeleteButton: '[data-testid="confirm-dialog-confirm"], button:has-text("Confirm")',
-      cancelDeleteButton: '[data-testid="confirm-dialog-cancel"], button:has-text("Cancel")',
+      // Delete Confirmation Dialog - use specific data-testid to avoid matching editor drawer
+      confirmDialog: '[data-testid="confirm-dialog"]',
+      confirmDeleteButton: '[data-testid="confirm-dialog"] button:has-text("Confirm"), [data-testid="confirm-dialog"] button:has-text("Delete")',
+      cancelDeleteButton: '[data-testid="confirm-dialog"] button:has-text("Cancel")',
 
       // Calendar View (now always visible in two-column layout)
       scheduleSelector: 'select[aria-label="Select schedule"]',
@@ -86,9 +90,9 @@ export class SchedulerPage {
       loadingSpinner: '.loading, [data-testid="loading-spinner"]',
       emptySchedulesState: 'text=No schedules',
 
-      // Toast notifications
-      toastSuccess: '.toast-success, [class*="toast"]:has-text("success")',
-      toastError: '.toast-error, [class*="toast"]:has-text("error"), [class*="toast"]:has-text("fail")',
+      // Toast notifications (react-hot-toast uses role="status" and data attributes)
+      toastSuccess: '[role="status"]:has-text("success"), [role="status"]:has-text("activated"), [role="status"]:has-text("enabled"), [role="status"]:has-text("created"), [role="status"]:has-text("updated")',
+      toastError: '[role="status"]:has-text("error"), [role="status"]:has-text("fail"), [role="status"]:has-text("Error")',
 
       // Routine Selection (formerly Event Pattern)
       routineTabLibrary: '[data-testid="routine-tab-library"], button[role="tab"]:has-text("Library")',
@@ -256,20 +260,45 @@ export class SchedulerPage {
   }
 
   /**
-   * Click Activate button on a schedule card
+   * Activate a schedule - handles the new two-step activation flow:
+   * 1. Enable the schedule (if not already enabled)
+   * 2. Click Activate in the enabled-schedule banner
+   * 3. Wait for the active-schedule banner to appear
    * @param {number} index - Zero-based index
-   * @deprecated Activation is now via ActiveScheduleBanner. Use clickEnableOnSchedule() to enable first.
    */
   async clickActivateOnSchedule(index) {
-    // Try the enable button first (new UI), fallback to activate (legacy)
     const card = this.getScheduleCardByIndex(index)
+
+    // Step 1: Check if Enable button is available and click it
     const enableBtn = card.locator(this.selectors.enableButton)
-    if (await enableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await enableBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await enableBtn.click()
-    } else {
-      await card.locator(this.selectors.activateButton).click()
+      await this.page.waitForLoadState('networkidle')
     }
-    await this.page.waitForLoadState('networkidle')
+
+    // Step 2: Wait for the enabled-schedule banner to appear and click Activate
+    const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+    const bannerActivateBtn = this.page.locator(this.selectors.bannerActivateButton)
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+
+    // Wait for the enabled banner to appear (schedule is now enabled but not active)
+    try {
+      await enabledBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await bannerActivateBtn.click()
+      // Wait for activation to complete - active banner should appear
+      await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK })
+      await this.page.waitForLoadState('networkidle')
+    } catch {
+      // Fallback: Maybe already active or different UI state
+      // Try clicking Activate button directly if visible somewhere
+      const anyActivateBtn = this.page.locator('button:has-text("Activate")').first()
+      if (await anyActivateBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await anyActivateBtn.click()
+        // Wait for active banner
+        await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK }).catch(() => {})
+        await this.page.waitForLoadState('networkidle')
+      }
+    }
   }
 
   /**
@@ -781,10 +810,15 @@ export class SchedulerPage {
 
   /**
    * Confirm delete in dialog
+   * Waits for both the dialog and editor to close after deletion
    */
   async confirmDelete() {
     await this.page.click(this.selectors.confirmDeleteButton)
     await this.page.waitForLoadState('networkidle')
+    // Wait for confirm dialog to close
+    await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }))
+    // Also wait for editor drawer to close (delete closes the editor)
+    await optionalWait(this.page.locator(this.selectors.editorDrawer).waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }))
   }
 
   /**

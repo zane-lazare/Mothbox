@@ -202,23 +202,11 @@ test.describe('Scheduler Schedules', () => {
     expect(bannerVisible || cardActive).toBeTruthy()
   })
 
-  test('deactivate schedule from card', async () => {
-    // Find the active schedule
-    const activeIndex = await scheduler.findActiveSchedule()
-    if (activeIndex === -1) {
-      test.skip(true, 'No active schedule to deactivate')
-      return
-    }
-
-    // Deactivate from card
-    await scheduler.clickDeactivateOnSchedule(activeIndex)
-
-    // Wait for UI to update
-    await scheduler.waitForLoad()
-
-    // Verify the card no longer shows active (or banner disappeared)
-    const stillActive = await scheduler.isScheduleActive(activeIndex)
-    expect(stillActive).toBeFalsy()
+  // OBSOLETE: In view-first paradigm (#266), deactivation only happens from the banner.
+  // Cards show Enable/Disable toggle (only when no schedule is active), not Activate/Deactivate.
+  test.skip('deactivate schedule from card', async () => {
+    // This test is skipped because card-based deactivation is removed in the new UI.
+    // Use "deactivate from active banner" test instead.
   })
 
   test('deactivate from active banner', async () => {
@@ -232,12 +220,12 @@ test.describe('Scheduler Schedules', () => {
     // Click deactivate in banner
     await scheduler.clickBannerDeactivate()
 
-    // Wait for UI to update
+    // Wait for UI to update - the active banner transitions to "Ready" (enabled) banner
     await scheduler.waitForLoad()
 
-    // Verify banner disappeared
-    const stillVisible = await scheduler.isActiveBannerVisible()
-    expect(stillVisible).toBeFalsy()
+    // Verify active banner (green) disappeared - may now show enabled banner (red) instead
+    const stillActiveVisible = await scheduler.isActiveBannerVisible()
+    expect(stillActiveVisible).toBeFalsy()
   })
 
   test('active banner shows correct schedule name', async () => {
@@ -358,9 +346,13 @@ test.describe('Scheduler Schedules', () => {
       await scheduler.fillScheduleName(updatedName)
       await scheduler.clickSave()
 
-      // If editor still open, close it
+      // Wait for editor to close after save (save should close the editor on success)
+      // Give extra time for the API call and UI update
+      await scheduler.page.waitForTimeout(1000)
+
+      // If editor is still open (e.g., validation error), close it
       if (await scheduler.isEditorOpen()) {
-        await scheduler.clickCancel()
+        await scheduler.closeEditor()  // Use X button or Escape, more reliable than Cancel
       }
 
       // Wait for update
