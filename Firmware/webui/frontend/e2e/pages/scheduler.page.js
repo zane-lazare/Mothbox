@@ -338,9 +338,16 @@ export class SchedulerPage {
     if (!(await banner.isVisible())) {
       return null
     }
-    const text = await banner.textContent()
-    // Extract name from "Active: Schedule Name"
-    const match = text.match(/Active:\s*(.+?)(?:\s*Deactivate)?$/i)
+    // ActiveScheduleBanner renders: Active: <span className="font-normal">{name}</span>
+    // Target the name span directly for reliable extraction
+    const nameSpan = banner.locator('span.font-normal').first()
+    if (await nameSpan.isVisible()) {
+      return (await nameSpan.textContent()).trim()
+    }
+    // Fallback to regex extraction from the title row
+    const titleSpan = banner.locator('span:has-text("Active:")').first()
+    const text = await titleSpan.textContent()
+    const match = text.match(/Active:\s*(.+)/i)
     return match ? match[1].trim() : null
   }
 

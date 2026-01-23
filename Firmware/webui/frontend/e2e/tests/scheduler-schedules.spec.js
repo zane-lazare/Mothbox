@@ -51,21 +51,21 @@ test.describe('Scheduler Schedules', () => {
     expect(hasSchedules || isEmptyState).toBeTruthy()
   })
 
-  test('both tabs are visible and functional', async ({ page }) => {
-    // Verify Schedules tab
-    const schedulesTab = page.locator('button:has-text("Schedules")')
-    await expect(schedulesTab).toBeVisible()
+  test('schedule list and calendar are both visible in two-column layout', async ({ page }) => {
+    // In the new two-column layout, both schedule list and calendar are always visible
+    // (no tabs required - UI refactored in terminology refactor #296)
 
-    // Verify Calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await expect(calendarTab).toBeVisible()
+    // Verify schedule list panel is visible (left column - 1/3 width)
+    const scheduleListColumn = page.locator('.col-span-1')
+    await expect(scheduleListColumn.first()).toBeVisible()
 
-    // Switch between tabs
-    await scheduler.switchToCalendarTab()
-    await expect(page.locator('#calendar-panel')).toBeVisible()
+    // Verify calendar panel is visible (right column - 2/3 width)
+    const calendarColumn = page.locator('.col-span-2')
+    await expect(calendarColumn.first()).toBeVisible()
 
-    await scheduler.switchToSchedulesTab()
-    await expect(page.locator('#schedules-panel')).toBeVisible()
+    // Verify calendar navigation is present and functional
+    const calendarNavPrev = page.locator('[data-testid="calendar-nav-previous"]')
+    await expect(calendarNavPrev).toBeVisible()
   })
 
   // ============================================================
