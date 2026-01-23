@@ -28,6 +28,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
     if (await isRateLimited(page)) {
       test.skip(true, 'Rate limited by server (50/hour)')
     }
+
+    // Clean up any enabled/active schedules from previous runs
+    // This handles the built-in "Daytime Pollinator Survey" if enabled
+    await scheduler.deactivateAndDisableAll()
   })
 
   test.afterEach(async () => {
@@ -462,8 +466,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
       await scheduler.clickCancel()
     })
 
-    // TODO: Update test for view-first paradigm - activation flow changed (Issue #266)
-    test.skip('all trigger types can be saved and activated', async () => {
+    test('all trigger types can be saved and activated', async ({ page }) => {
+      // Increase timeout for this integration test that creates/deletes multiple schedules
+      test.setTimeout(120000)
+
       const names = {
         interval: `Integration Interval ${Date.now()}`,
         moonPhase: `Integration Moon ${Date.now()}`,
@@ -471,6 +477,12 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
 
       try {
+        // Clean up leftover test schedules from previous failed runs
+        // Multiple patterns to catch different test naming conventions
+        for (const pattern of ['Integration', 'e2e-test-schedule', 'First Active', 'Second Active']) {
+          await cleanupLeftoverSchedules(scheduler, pattern)
+        }
+
         // Create interval schedule
         let created = await scheduler.createIntervalSchedule({
           name: names.interval,
@@ -479,6 +491,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
         })
         expect(created, 'Interval schedule should be created').toBeTruthy()
 
+        // Wait for UI to settle before creating next schedule
+        await scheduler.waitForLoad()
+        await page.waitForTimeout(TIMEOUTS.SAVE)
+
         // Create moon phase schedule
         created = await scheduler.createMoonPhaseSchedule({
           name: names.moonPhase,
@@ -486,6 +502,10 @@ test.describe('Scheduler Real-World Scenarios', () => {
           moonPhase: 'new',
         })
         expect(created, 'Moon phase schedule should be created').toBeTruthy()
+
+        // Wait for UI to settle before creating next schedule
+        await scheduler.waitForLoad()
+        await page.waitForTimeout(TIMEOUTS.SAVE)
 
         // Create fixed time schedule
         created = await scheduler.createFixedTimeSchedule({
@@ -501,8 +521,12 @@ test.describe('Scheduler Real-World Scenarios', () => {
         expect(await scheduler.hasScheduleWithName(names.moonPhase)).toBeTruthy()
         expect(await scheduler.hasScheduleWithName(names.fixedTime)).toBeTruthy()
 
-        // Activate one of them (fixed time schedule) - enable → activate from banner
-        await scheduler.activateScheduleByName(names.fixedTime)
+        // Activate one of them (fixed time schedule) using explicit steps:
+        // 1. Enable the schedule via the card's Enable button
+        await scheduler.enableScheduleByName(names.fixedTime)
+
+        // 2. Activate from the enabled banner
+        await scheduler.clickBannerActivate()
 
         // Verify activation
         const bannerVisible = await scheduler.waitForActiveBannerWithName('Integration Fixed')
@@ -702,5 +726,27 @@ async function cleanupSchedule(scheduler, name) {
     }
   } catch {
     // Cleanup failure is acceptable - test still passes
+  }
+}
+
+/**
+ * Clean up leftover E2E test schedules matching a pattern
+ * @param {SchedulerPage} scheduler
+ * @param {string} pattern - Text pattern to match (e.g., "Integration", "e2e-test")
+ */
+async function cleanupLeftoverSchedules(scheduler, pattern) {
+  await scheduler.waitForLoad()
+  const count = await scheduler.getScheduleCount()
+  // Iterate backwards to avoid index shifting when deleting
+  for (let i = count - 1; i >= 0; i--) {
+    const card = scheduler.getScheduleCardByIndex(i)
+    const heading = await card.locator('h3').textContent().catch(() => '')
+    if (heading && heading.includes(pattern)) {
+      try {
+        await cleanupSchedule(scheduler, heading)
+      } catch {
+        // Continue with other schedules if one fails
+      }
+    }
   }
 }
