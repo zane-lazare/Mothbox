@@ -99,8 +99,7 @@ class ScheduleNameExistsError(Exception):
         self.name = name
         self.existing_filename = existing_filename
         super().__init__(
-            f"A schedule with the name '{name}' already exists. "
-            "Please choose a different name."
+            f"A schedule with the name '{name}' already exists. Please choose a different name."
         )
 
 
@@ -237,9 +236,7 @@ def list_schedule_ids(is_builtin: bool = False) -> list[str]:
     return sorted(schedule_ids)
 
 
-def _scan_directory_for_schedule_id(
-    directory: Path, schedule_id: str
-) -> Path | None:
+def _scan_directory_for_schedule_id(directory: Path, schedule_id: str) -> Path | None:
     """Scan directory for a JSON file containing matching schedule_id.
 
     Args:
