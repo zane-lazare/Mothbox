@@ -231,7 +231,7 @@ test.describe('Scheduler Schedules', () => {
 
       // Wait for the active banner to disappear (React state update + re-render)
       const activeBanner = page.locator('[data-testid="active-schedule-banner"]')
-      await activeBanner.waitFor({ state: 'hidden', timeout: 10000 })
+      await activeBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.NETWORK })
 
       // Verify active banner (green) is gone
       const stillActiveVisible = await scheduler.isActiveBannerVisible()
