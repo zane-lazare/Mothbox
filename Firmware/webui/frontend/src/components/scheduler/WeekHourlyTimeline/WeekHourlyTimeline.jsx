@@ -85,7 +85,7 @@ DayHeaderCell.propTypes = {
 /**
  * Hour label cell for CSS Grid layout
  */
-const HourLabelCell = memo(function HourLabelCell({ item, index }) {
+const HourLabelCell = memo(function HourLabelCell({ item }) {
   if (item.type === 'collapsed') {
     return (
       <div className="p-1 border-b border-gray-800 text-[10px] text-gray-600 flex items-center">
@@ -106,7 +106,6 @@ HourLabelCell.propTypes = {
     PropTypes.shape({ type: PropTypes.oneOf(['hour']), hour: PropTypes.number }),
     PropTypes.shape({ type: PropTypes.oneOf(['collapsed']), count: PropTypes.number }),
   ]).isRequired,
-  index: PropTypes.number.isRequired,
 }
 
 /**
@@ -207,7 +206,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
 
           return (
             <Fragment key={isCollapsed ? `collapsed-${rowIndex}` : `hour-${hour}`}>
-              <HourLabelCell item={item} index={rowIndex} />
+              <HourLabelCell item={item} />
               {weekDates.map((date, dayIndex) => {
                 const dateKey = getDateKey(date)
                 // In pattern mode, use cycle-based keys; in calendar mode, use date keys
