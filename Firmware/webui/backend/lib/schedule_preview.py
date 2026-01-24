@@ -531,10 +531,7 @@ def _detect_cycle(
         next_hour = sorted_hours[(i + 1) % len(sorted_hours)]
 
         # Calculate gap (handle wrap-around from 23 to 0)
-        if next_hour > current:
-            gap = next_hour - current
-        else:
-            gap = (24 - current) + next_hour
+        gap = next_hour - current if next_hour > current else (24 - current) + next_hour
 
         if gap > max_gap:
             max_gap = gap

@@ -357,10 +357,7 @@ def estimate_cron_entries(
 
         elif isinstance(trigger, SolarTrigger):
             # Date-specific: entries = days × actions (times vary daily)
-            if trigger.days_of_week:
-                active_days = len(trigger.days_of_week) * (days // 7)
-            else:
-                active_days = days
+            active_days = len(trigger.days_of_week) * (days // 7) if trigger.days_of_week else days
             total += active_days * action_count
 
         elif isinstance(trigger, MoonPhaseTrigger):
@@ -950,10 +947,7 @@ def _has_solar_time_window(trigger: IntervalTrigger) -> bool:
     # Check if start or end is a solar event keyword
     if start and start.lower() in SOLAR_TIME_KEYWORDS:
         return True
-    if end and end.lower() in SOLAR_TIME_KEYWORDS:
-        return True
-
-    return False
+    return bool(end and end.lower() in SOLAR_TIME_KEYWORDS)
 
 
 def _routine_interval_to_cron(routine: Routine) -> list[CronEntry]:
@@ -1154,7 +1148,7 @@ def routine_to_cron(
         return _routine_cron_trigger_to_cron(routine)
 
     # Date-specific triggers - times vary daily or use specific dates
-    elif isinstance(trigger, SolarTrigger) or isinstance(trigger, MoonPhaseTrigger):
+    elif isinstance(trigger, (SolarTrigger, MoonPhaseTrigger)):
         return routine_to_dated_cron(routine, latitude, longitude, timezone_name, days_ahead)
     elif isinstance(trigger, RecurringDaysTrigger):
         # RecurringDays uses "every N days" which requires date-specific
