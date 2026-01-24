@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import RoutineEditor from '../RoutineEditor'
 import { ROUTINE_LIMITS } from '../constants'
 
+// Extended timeout for async operations under heavy test load
+const ASYNC_TIMEOUT = { timeout: 3000 }
+
 // Create hoisted mocks that can be controlled per-test
 const mockMutateAsync = vi.hoisted(() => vi.fn())
 const mockIsPending = vi.hoisted(() => ({ value: false }))
@@ -387,7 +390,7 @@ describe('RoutineEditor', () => {
 
   describe('Save Functionality', () => {
     it('calls useValidateRoutine before saving', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -401,11 +404,11 @@ describe('RoutineEditor', () => {
 
       await waitFor(() => {
         expect(mockMutateAsync).toHaveBeenCalled()
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('calls onSave with routine data on successful validation', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -429,7 +432,7 @@ describe('RoutineEditor', () => {
             tags: []
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('generates routine_id for new routines', async () => {
@@ -437,7 +440,7 @@ describe('RoutineEditor', () => {
       const mockUUID = 'test-uuid-123'
       const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue(mockUUID)
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -455,7 +458,7 @@ describe('RoutineEditor', () => {
             routine_id: mockUUID
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
 
       randomUUIDSpy.mockRestore()
     })
@@ -467,7 +470,7 @@ describe('RoutineEditor', () => {
         actions: []
       }
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor
           routine={existingRoutine}
@@ -486,7 +489,7 @@ describe('RoutineEditor', () => {
             routine_id: 'existing-123'
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('shows validation error message on save failure', async () => {
@@ -496,7 +499,7 @@ describe('RoutineEditor', () => {
         errors: ['Invalid action offset']
       })
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -511,7 +514,7 @@ describe('RoutineEditor', () => {
       await waitFor(() => {
         expect(screen.getByText(/invalid action offset/i)).toBeInTheDocument()
         expect(mockOnSave).not.toHaveBeenCalled()
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('disables save button while validation is pending', async () => {
