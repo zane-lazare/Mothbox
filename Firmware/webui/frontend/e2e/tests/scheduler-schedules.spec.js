@@ -21,6 +21,9 @@ test.describe('Scheduler Schedules', () => {
     if (await isRateLimited(page)) {
       test.skip(true, 'Rate limited by server (50/hour)')
     }
+
+    // Clean up any enabled/active schedules from previous runs
+    await scheduler.deactivateAndDisableAll()
   })
 
   test.afterEach(async () => {
@@ -202,37 +205,59 @@ test.describe('Scheduler Schedules', () => {
     expect(bannerVisible || cardActive).toBeTruthy()
   })
 
-  // TODO: Investigate - deactivation may transition to "Ready" banner instead of disappearing
-  test.skip('deactivate from active banner', async () => {
-    // Check if active banner is visible
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    if (!bannerVisible) {
-      test.skip(true, 'No active schedule banner visible')
-      return
+  test('deactivate from active banner', async ({ page }) => {
+    const testName = `Deactivate Test ${Date.now()}`
+
+    try {
+      // Create and activate a schedule so we have a known state
+      await scheduler.createFixedTimeSchedule({
+        name: testName,
+        description: 'Test deactivation',
+        timeOfDay: '12:00',
+      })
+      await scheduler.waitForLoad()
+      await scheduler.activateScheduleByName(testName)
+
+      // Verify active banner is visible with correct schedule name
+      const bannerVisible = await scheduler.isActiveBannerVisible()
+      expect(bannerVisible, 'Active banner should be visible').toBeTruthy()
+
+      const bannerName = await scheduler.getActiveBannerScheduleName()
+      expect(bannerName, 'Banner should show schedule name').toContain(testName)
+
+      // Click deactivate in banner
+      await scheduler.clickBannerDeactivate()
+      await scheduler.waitForLoad()
+
+      // Wait for the active banner to disappear (React state update + re-render)
+      const activeBanner = page.locator('[data-testid="active-schedule-banner"]')
+      await activeBanner.waitFor({ state: 'hidden', timeout: 10000 })
+
+      // Verify active banner (green) is gone
+      const stillActiveVisible = await scheduler.isActiveBannerVisible()
+      expect(stillActiveVisible, 'Active banner should be gone after deactivate').toBeFalsy()
+
+      // Verify enabled banner (red/ready) now appears
+      const enabledVisible = await scheduler.isEnabledBannerVisible()
+      expect(enabledVisible, 'Enabled banner should appear after deactivate').toBeTruthy()
+    } finally {
+      // Cleanup - wrap in try-catch since state may vary after test
+      try {
+        await scheduler.deactivateAndDisableAll()
+      } catch {
+        // Ignore cleanup errors - banner may already be gone
+      }
+      try {
+        if (await scheduler.hasScheduleWithName(testName)) {
+          await scheduler.clickDeleteOnScheduleByName(testName)
+          if (await scheduler.isConfirmDialogOpen()) {
+            await scheduler.confirmDelete()
+          }
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
     }
-
-    // Click deactivate in banner
-    await scheduler.clickBannerDeactivate()
-
-    // Wait for UI to update - the active banner transitions to "Ready" (enabled) banner
-    await scheduler.waitForLoad()
-
-    // Verify active banner (green) disappeared - may now show enabled banner (red) instead
-    const stillActiveVisible = await scheduler.isActiveBannerVisible()
-    expect(stillActiveVisible).toBeFalsy()
-  })
-
-  test('active banner shows correct schedule name', async () => {
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    if (!bannerVisible) {
-      test.skip(true, 'No active schedule banner visible')
-      return
-    }
-
-    // Get the active schedule name from banner
-    const bannerName = await scheduler.getActiveBannerScheduleName()
-    expect(bannerName).toBeTruthy()
-    expect(bannerName.length).toBeGreaterThan(0)
   })
 
   // ============================================================
@@ -421,43 +446,34 @@ test.describe('Scheduler Schedules', () => {
   // Edge Cases
   // ============================================================
 
-  // TODO: Test depends on having an active schedule at test start - needs test isolation
-  test.skip('deleting active schedule removes active banner', async () => {
-    const activeIndex = await scheduler.findActiveSchedule()
-    if (activeIndex === -1) {
-      test.skip(true, 'No active schedule to test deletion')
-      return
-    }
+  test('deleting active schedule removes active banner', async () => {
+    const testName = `Delete Active Test ${Date.now()}`
+
+    // Create and activate a schedule
+    await scheduler.createFixedTimeSchedule({
+      name: testName,
+      description: 'Test delete active',
+      timeOfDay: '12:00',
+    })
+    await scheduler.waitForLoad()
+    await scheduler.activateScheduleByName(testName)
+
+    // Verify it's active
+    const bannerVisible = await scheduler.isActiveBannerVisible()
+    expect(bannerVisible, 'Schedule should be active').toBeTruthy()
 
     // Delete the active schedule
-    await scheduler.clickDeleteOnSchedule(activeIndex)
-
+    await scheduler.clickDeleteOnScheduleByName(testName)
     if (await scheduler.isConfirmDialogOpen()) {
       await scheduler.confirmDelete()
       await scheduler.waitForLoad()
     }
 
-    // Verify active banner is gone
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    expect(bannerVisible).toBeFalsy()
-  })
-
-  // ============================================================
-  // Toast Notifications
-  // ============================================================
-
-  // TODO: Toast selectors need updating for react-hot-toast timing/structure
-  test.skip('successful activation shows success toast', async () => {
-    const inactiveIndex = await scheduler.findFirstInactiveSchedule()
-    if (inactiveIndex === -1) {
-      test.skip(true, 'No inactive schedules available')
-      return
-    }
-
-    await scheduler.clickActivateOnSchedule(inactiveIndex)
-
-    const toastAppeared = await scheduler.waitForToast('success')
-    expect(toastAppeared).toBeTruthy()
+    // Verify active banner is gone (and no enabled banner either since schedule is deleted)
+    const stillActive = await scheduler.isActiveBannerVisible()
+    const stillEnabled = await scheduler.isEnabledBannerVisible()
+    expect(stillActive, 'Active banner should be gone').toBeFalsy()
+    expect(stillEnabled, 'Enabled banner should be gone').toBeFalsy()
   })
 
   // ============================================================

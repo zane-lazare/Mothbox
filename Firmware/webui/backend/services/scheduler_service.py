@@ -901,6 +901,15 @@ class SchedulerService:
             ValueError: If schedule_id is provided but schedule not found
         """
         if schedule_id is not None:
+            # Check if another schedule is already enabled (manual disable required)
+            current_enabled = self._enabled_schedule_id
+            if current_enabled and current_enabled != schedule_id:
+                raise ValueError(
+                    f"Cannot enable schedule '{schedule_id}': "
+                    f"Schedule '{current_enabled}' is already enabled. "
+                    "Disable it first."
+                )
+
             # Verify schedule exists
             schedule = storage_read(schedule_id)
             if schedule is None:
@@ -936,7 +945,7 @@ class SchedulerService:
         coordinates_source: str = "explicit",
     ) -> None:
         """
-        Activate a schedule (deactivates any currently active first).
+        Activate a schedule (requires manual deactivation of any active schedule first).
 
         Optionally checks for schedule conflicts before activation. Conflict
         detection analyzes the next 7 days of scheduled executions to find
@@ -1027,9 +1036,13 @@ class SchedulerService:
                 _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
                 raise ScheduleActivationError(f"Conflict check failed: {e}") from e
 
-        # Deactivate any currently active schedule
+        # Check if another schedule is already active (manual deactivate required)
         if self._active_schedule_id and self._active_schedule_id != schedule_id:
-            self.deactivate_schedule()
+            raise ScheduleActivationError(
+                f"Cannot activate schedule '{schedule_id}': "
+                f"Schedule '{self._active_schedule_id}' is already active. "
+                "Deactivate it first."
+            )
 
         # Re-check schedule state to prevent TOCTOU race condition
         # (schedule could have been modified/deleted/disabled between initial check and now)

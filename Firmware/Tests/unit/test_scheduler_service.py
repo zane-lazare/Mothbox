@@ -40,12 +40,17 @@ pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementatio
 
 @pytest.fixture
 def temp_schedules_dir(tmp_path, monkeypatch):
-    """Create temp directory and mock SCHEDULES_DIR."""
+    """Create temp directory and mock SCHEDULES_DIR and ACTIVE_STATE_FILE."""
     schedules = tmp_path / "schedules"
     schedules.mkdir()
     # Mock SCHEDULES_DIR in both mothbox_paths (for get_schedule_path) and storage module
     monkeypatch.setattr("mothbox_paths.SCHEDULES_DIR", schedules)
     monkeypatch.setattr("webui.backend.lib.schedule_storage.SCHEDULES_DIR", schedules)
+    # Mock ACTIVE_STATE_FILE to use temp directory for test isolation
+    active_state_file = tmp_path / "active_state.json"
+    monkeypatch.setattr(
+        "webui.backend.services.scheduler_service.ACTIVE_STATE_FILE", active_state_file
+    )
     return schedules
 
 
@@ -886,10 +891,10 @@ class TestSetEnabledSchedule:
 
         assert scheduler_service._enabled_schedule_id is None
 
-    def test_set_enabled_schedule_replaces_previous(
+    def test_set_enabled_schedule_rejects_when_another_enabled(
         self, scheduler_service, temp_schedules_dir, sample_schedule
     ):
-        """Enabling a new schedule disables the previous one (only one enabled at a time)."""
+        """Enabling a schedule when another is enabled raises ValueError (manual disable required)."""
         from copy import deepcopy
 
         from webui.backend.lib.schedule_storage import create_schedule
@@ -910,7 +915,42 @@ class TestSetEnabledSchedule:
         scheduler_service.set_enabled_schedule(_test_uuid("first-enabled"))
         assert scheduler_service._enabled_schedule_id == _test_uuid("first-enabled")
 
-        # Enable second (should replace first)
+        # Try to enable second without disabling first - should raise error
+        with pytest.raises(ValueError, match="already enabled.*Disable it first"):
+            scheduler_service.set_enabled_schedule(_test_uuid("second-enabled"))
+
+        # First should still be enabled
+        assert scheduler_service._enabled_schedule_id == _test_uuid("first-enabled")
+
+    def test_set_enabled_schedule_after_manual_disable(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """Enabling a schedule after manually disabling the previous one works."""
+        from copy import deepcopy
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create first schedule (with unique name)
+        schedule1 = deepcopy(sample_schedule)
+        schedule1.schedule_id = _test_uuid("first-enabled")
+        schedule1.name = "First Enabled Schedule"
+        create_schedule(schedule1)
+
+        # Create second schedule (with unique name)
+        schedule2 = deepcopy(sample_schedule)
+        schedule2.schedule_id = _test_uuid("second-enabled")
+        schedule2.name = "Second Enabled Schedule"
+        create_schedule(schedule2)
+
+        # Enable first
+        scheduler_service.set_enabled_schedule(_test_uuid("first-enabled"))
+        assert scheduler_service._enabled_schedule_id == _test_uuid("first-enabled")
+
+        # Disable first (manual disable)
+        scheduler_service.set_enabled_schedule(None)
+        assert scheduler_service._enabled_schedule_id is None
+
+        # Now enable second (should work)
         scheduler_service.set_enabled_schedule(_test_uuid("second-enabled"))
         assert scheduler_service._enabled_schedule_id == _test_uuid("second-enabled")
 
@@ -1117,10 +1157,45 @@ class TestActivateSchedule:
         with pytest.raises(ScheduleActivationError, match="disabled"):
             scheduler_service.activate_schedule(_test_uuid("activate-disabled"))
 
-    def test_activate_deactivates_previous(
+    def test_activate_rejects_when_another_active(
         self, scheduler_service, temp_schedules_dir, sample_schedule
     ):
-        """activate_schedule should deactivate previous active schedule."""
+        """activate_schedule raises error if another schedule is already active (manual deactivate required)."""
+        from webui.backend.lib.schedule_schema import Schedule, ScheduleActivationError
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        # Create two schedules (enabled state is now derived from service)
+        sample_schedule.schedule_id = _test_uuid("activate-first")
+        create_schedule(sample_schedule)
+
+        second_schedule = Schedule(
+            schedule_id=_test_uuid("activate-second"),
+            name="Second Schedule",
+            description="Second test schedule",
+            routines=sample_schedule.routines,
+        )
+        create_schedule(second_schedule)
+
+        # Enable and activate first (Issue #331 - enabled state via service)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-first"))
+        scheduler_service.activate_schedule(_test_uuid("activate-first"))
+        assert scheduler_service._active_schedule_id == _test_uuid("activate-first")
+
+        # Disable first, enable second (required for enabling new schedule)
+        scheduler_service.set_enabled_schedule(None)
+        scheduler_service.set_enabled_schedule(_test_uuid("activate-second"))
+
+        # Try to activate second without deactivating first - should raise error
+        with pytest.raises(ScheduleActivationError, match="already active.*Deactivate it first"):
+            scheduler_service.activate_schedule(_test_uuid("activate-second"))
+
+        # First should still be active
+        assert scheduler_service._active_schedule_id == _test_uuid("activate-first")
+
+    def test_activate_after_manual_deactivate(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule works after manually deactivating the previous schedule."""
         from webui.backend.lib.schedule_schema import Schedule
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -1141,7 +1216,9 @@ class TestActivateSchedule:
         scheduler_service.activate_schedule(_test_uuid("activate-first"))
         assert scheduler_service._active_schedule_id == _test_uuid("activate-first")
 
-        # Enable and activate second (Issue #331 - enabled state via service)
+        # Manual deactivate first, then disable, enable second, activate second
+        scheduler_service.deactivate_schedule()
+        scheduler_service.set_enabled_schedule(None)
         scheduler_service.set_enabled_schedule(_test_uuid("activate-second"))
         scheduler_service.activate_schedule(_test_uuid("activate-second"))
         assert scheduler_service._active_schedule_id == _test_uuid("activate-second")

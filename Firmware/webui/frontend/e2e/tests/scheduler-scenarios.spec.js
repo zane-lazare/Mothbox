@@ -539,21 +539,31 @@ test.describe('Scheduler Real-World Scenarios', () => {
       }
     })
 
-    // TODO: Update test for view-first paradigm - activation flow changed (Issue #266)
-    test.skip('only one schedule can be active at a time', async () => {
+    test('only one schedule can be active at a time', async ({ page }) => {
+      test.setTimeout(120000)
+
       const names = {
         first: `First Active ${Date.now()}`,
         second: `Second Active ${Date.now()}`,
       }
 
       try {
-        // Create two schedules
+        // Clean up leftover test schedules
+        await cleanupLeftoverSchedules(scheduler, 'First Active')
+        await cleanupLeftoverSchedules(scheduler, 'Second Active')
+
+        // Create first schedule
         await scheduler.createFixedTimeSchedule({
           name: names.first,
           description: 'First schedule',
           timeOfDay: '10:00',
         })
 
+        // Wait for UI to settle
+        await scheduler.waitForLoad()
+        await page.waitForTimeout(TIMEOUTS.SAVE)
+
+        // Create second schedule
         await scheduler.createFixedTimeSchedule({
           name: names.second,
           description: 'Second schedule',
@@ -562,17 +572,20 @@ test.describe('Scheduler Real-World Scenarios', () => {
 
         await scheduler.waitForLoad()
 
-        // Activate first schedule (enable → activate from banner)
+        // Activate first schedule
         await scheduler.activateScheduleByName(names.first)
         let bannerVisible = await scheduler.waitForActiveBannerWithName('First Active')
         expect(bannerVisible, 'First schedule should show active banner').toBeTruthy()
 
-        // Activate second schedule - this will deactivate first (only one can be active)
+        // Wait before activating second
+        await page.waitForTimeout(TIMEOUTS.SAVE)
+
+        // Activate second schedule - this will deactivate first
         await scheduler.activateScheduleByName(names.second)
         bannerVisible = await scheduler.waitForActiveBannerWithName('Second Active')
         expect(bannerVisible, 'Second schedule should show active banner').toBeTruthy()
 
-        // Verify banner shows second schedule (not first)
+        // Verify banner shows second schedule
         const activeName = await scheduler.getActiveBannerScheduleName()
         expect(activeName).toContain('Second Active')
       } finally {

@@ -50,9 +50,6 @@ function ActiveScheduleBanner() {
   const { data } = useActiveSchedule()
   const { data: schedulesData } = useSchedules({ include_builtin: true })
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
-    onSuccess: () => {
-      toast.success('Schedule deactivated successfully')
-    },
     onError: (error) => {
       toast.error(`Failed to deactivate: ${error.message}`)
     },
@@ -87,7 +84,6 @@ function ActiveScheduleBanner() {
       { id: schedule.schedule_id },
       {
         onSuccess: () => {
-          toast.success('Schedule activated successfully')
           setIsActivating(false)
         },
         onError: (error) => {

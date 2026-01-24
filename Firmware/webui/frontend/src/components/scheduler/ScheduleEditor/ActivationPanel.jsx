@@ -62,7 +62,6 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   const handleActivationComplete = useCallback(() => {
     setIsActivating(false)
     refetchActive()
-    toast.success('Schedule activated')
   }, [refetchActive])
 
   // Handle activation error
@@ -97,9 +96,6 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Handle deactivate click
   const handleDeactivate = () => {
     deactivate(undefined, {
-      onSuccess: () => {
-        toast.success('Schedule deactivated')
-      },
       onError: (error) => {
         toast.error(`Deactivation failed: ${error.message}`)
       },
