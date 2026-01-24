@@ -1107,8 +1107,18 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                     },
                 )
 
-        # Activate via service (handles existence check internally)
+        # Enable and activate schedule via service
+        # set_enabled_schedule() must be called before activate_schedule()
+        # to update the internal enabled state (Issue #331)
         try:
+            # Deactivate and disable any currently active/enabled schedule first
+            current_enabled = service.get_enabled_schedule_id()
+            if current_enabled and current_enabled != schedule_id:
+                service.deactivate_schedule()
+                service.set_enabled_schedule(None)
+
+            # Enable the new schedule
+            service.set_enabled_schedule(schedule_id)
             service.activate_schedule(
                 schedule_id,
                 check_conflicts=check_conflicts,

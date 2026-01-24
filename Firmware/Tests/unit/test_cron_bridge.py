@@ -1139,6 +1139,7 @@ class TestPreviewSchedule:
             name="Test Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
@@ -1160,6 +1161,7 @@ class TestPreviewSchedule:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events = preview_schedule(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
@@ -1190,6 +1192,7 @@ class TestPreviewSchedule:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 20, 0, 0))
@@ -1212,6 +1215,7 @@ class TestPreviewSchedule:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events = preview_schedule(schedule, count=20, from_time=datetime(2024, 6, 15, 20, 0, 0))
@@ -1237,6 +1241,7 @@ class TestPreviewSchedule:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events = preview_schedule(schedule, count=10, from_time=datetime(2024, 6, 15, 0, 0, 0))
@@ -1278,6 +1283,7 @@ class TestPreviewSchedule:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         events5 = preview_schedule(schedule, count=5, from_time=datetime(2024, 6, 15, 20, 0, 0))
@@ -1351,6 +1357,7 @@ class TestScheduleToCron:
             name="Solar Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule, latitude=35.96, longitude=-83.92)
@@ -1373,6 +1380,7 @@ class TestScheduleToCron:
             name="Moon Phase Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1408,6 +1416,7 @@ class TestScheduleToCron:
             name="Empty Schedule",
             description="",
             routines=[],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1443,6 +1452,7 @@ class TestSensorTriggerStub:
             name="Sensor Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1477,6 +1487,7 @@ class TestEdgeCases:
             name="Multi Routine",
             description="",
             routines=[routine1, routine2],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1502,6 +1513,7 @@ class TestEdgeCases:
             name="With Offsets",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1534,6 +1546,7 @@ class TestEdgeCases:
             name="Test",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -2174,6 +2187,7 @@ class TestEstimateCronEntries:
                     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
                 )
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
@@ -2193,6 +2207,7 @@ class TestEstimateCronEntries:
                     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
                 )
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
@@ -2212,6 +2227,7 @@ class TestEstimateCronEntries:
                     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
                 )
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
@@ -2230,6 +2246,7 @@ class TestEstimateCronEntries:
                     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
                 )
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
@@ -2254,6 +2271,7 @@ class TestEstimateCronEntries:
                     actions=[Action(action_type="camera", action_name="takephoto", offset_minutes=0)],
                 ),
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
@@ -2276,6 +2294,7 @@ class TestEstimateCronEntries:
                     ],
                 )
             ],
+            enabled=True,
         )
 
         estimate = estimate_cron_entries(schedule, days_ahead=60)
