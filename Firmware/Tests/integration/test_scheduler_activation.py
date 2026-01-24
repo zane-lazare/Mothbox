@@ -45,8 +45,18 @@ os.environ.setdefault("MOTHBOX_ENV", "test")
 
 
 @pytest.fixture
-def scheduler_service(temp_schedules_env, mock_cron_system):
-    """SchedulerService with mocked cron system."""
+def isolated_state_file(temp_schedules_env, monkeypatch):
+    """Patch ACTIVE_STATE_FILE to use temp directory (avoids leftover state)."""
+    import webui.backend.services.scheduler_service as ss
+
+    active_state_file = temp_schedules_env["user_dir"] / "active_state.json"
+    monkeypatch.setattr(ss, "ACTIVE_STATE_FILE", active_state_file)
+    return active_state_file
+
+
+@pytest.fixture
+def scheduler_service(temp_schedules_env, mock_cron_system, isolated_state_file):
+    """SchedulerService with mocked cron system and isolated state file."""
     from webui.backend.services.scheduler_service import SchedulerService
 
     service = SchedulerService(cache_ttl=60, max_cache_size=50)
@@ -85,7 +95,8 @@ class TestActivationWorkflow:
         assert fetched is not None, "Schedule should exist"
         assert fetched.is_active is False, "Schedule should not be active initially"
 
-        # 2. ACTIVATE
+        # 2. ENABLE then ACTIVATE
+        scheduler_service.set_enabled_schedule(_test_uuid("workflow-test"))
         scheduler_service.activate_schedule(
             _test_uuid("workflow-test"),
             check_conflicts=False,
@@ -131,7 +142,8 @@ class TestActivationWorkflow:
         create_schedule(schedule_a)
         create_schedule(schedule_b)
 
-        # Activate schedule A
+        # Enable and activate schedule A
+        scheduler_service.set_enabled_schedule(_test_uuid("schedule-a"))
         scheduler_service.activate_schedule(
             _test_uuid("schedule-a"),
             check_conflicts=False,
@@ -142,7 +154,10 @@ class TestActivationWorkflow:
         active1 = scheduler_service.get_active_schedule()
         assert active1.schedule_id == _test_uuid("schedule-a"), "Schedule A should be active"
 
-        # Activate schedule B
+        # Deactivate and disable A, then enable and activate schedule B
+        scheduler_service.deactivate_schedule()  # Deactivate A first
+        scheduler_service.set_enabled_schedule(None)  # Disable A
+        scheduler_service.set_enabled_schedule(_test_uuid("schedule-b"))
         scheduler_service.activate_schedule(
             _test_uuid("schedule-b"),
             check_conflicts=False,
@@ -199,7 +214,8 @@ class TestActivationWorkflow:
         )
         create_schedule(schedule)
 
-        # First activation
+        # Enable and activate (first time)
+        scheduler_service.set_enabled_schedule(_test_uuid("idempotent-test"))
         scheduler_service.activate_schedule(
             _test_uuid("idempotent-test"),
             check_conflicts=False,
@@ -234,11 +250,10 @@ class TestPersistenceAcrossRestarts:
         temp_schedules_env,
         sample_schedule_factory,
         scheduler_service,
+        isolated_state_file,
     ):
-        """is_active flag is persisted in JSON file."""
+        """Active state is persisted in active_state.json file."""
         from webui.backend.lib.schedule_storage import create_schedule
-
-        user_dir = temp_schedules_env["user_dir"]
 
         # Create and activate schedule
         schedule = sample_schedule_factory(
@@ -247,31 +262,34 @@ class TestPersistenceAcrossRestarts:
         )
         create_schedule(schedule)
 
+        # Enable and activate
+        scheduler_service.set_enabled_schedule(_test_uuid("persist-test"))
         scheduler_service.activate_schedule(
             _test_uuid("persist-test"),
             check_conflicts=False,
         )
 
-        # Read JSON file directly from disk
-        schedule_file = user_dir / f"{_test_uuid('persist-test')}.json"
-        assert schedule_file.exists(), "Schedule file should exist"
+        # Read active_state.json directly from disk (active state now stored here, not in schedule file)
+        assert isolated_state_file.exists(), "active_state.json should exist"
 
-        with open(schedule_file) as f:
+        with open(isolated_state_file) as f:
             data = json.load(f)
 
-        assert data.get("is_active") is True, "is_active should be True in JSON"
+        # Verify the correct schedule is recorded as active
+        assert data.get("schedule_id") == _test_uuid("persist-test"), "Active schedule_id should match"
 
     def test_active_schedule_restored_on_service_init(
         self,
         temp_schedules_env,
         sample_schedule_factory,
         mock_cron_system,
+        isolated_state_file,
     ):
         """New SchedulerService instance finds previously active schedule."""
         from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.services.scheduler_service import SchedulerService
 
-        # Create first service instance
+        # Create first service instance (uses patched ACTIVE_STATE_FILE)
         service1 = SchedulerService(cache_ttl=60, max_cache_size=50)
 
         # Create and activate schedule
@@ -281,6 +299,8 @@ class TestPersistenceAcrossRestarts:
         )
         create_schedule(schedule)
 
+        # Enable and activate
+        service1.set_enabled_schedule(_test_uuid("restore-test"))
         service1.activate_schedule(_test_uuid("restore-test"), check_conflicts=False)
 
         # Verify active
@@ -301,12 +321,13 @@ class TestPersistenceAcrossRestarts:
         temp_schedules_env,
         sample_schedule_factory,
         mock_cron_system,
+        isolated_state_file,
     ):
         """Different service instance can activate when schedule already active."""
         from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.services.scheduler_service import SchedulerService
 
-        # Create first service instance
+        # Create first service instance (uses patched ACTIVE_STATE_FILE)
         service1 = SchedulerService(cache_ttl=60, max_cache_size=50)
 
         # Create and activate schedule with service1
@@ -316,6 +337,8 @@ class TestPersistenceAcrossRestarts:
         )
         create_schedule(schedule1)
 
+        # Enable and activate
+        service1.set_enabled_schedule(_test_uuid("cross-instance-test-1"))
         service1.activate_schedule(
             _test_uuid("cross-instance-test-1"),
             check_conflicts=False,
@@ -341,6 +364,10 @@ class TestPersistenceAcrossRestarts:
 
         # After discovering active schedule, service2's _active_schedule_id is set
         # Now activating a different schedule should deactivate the old one
+        # First deactivate and disable the current schedule, then enable the new one
+        service2.deactivate_schedule()
+        service2.set_enabled_schedule(None)
+        service2.set_enabled_schedule(_test_uuid("cross-instance-test-2"))
         service2.activate_schedule(
             _test_uuid("cross-instance-test-2"),
             check_conflicts=False,
@@ -364,12 +391,13 @@ class TestPersistenceAcrossRestarts:
         temp_schedules_env,
         sample_schedule_factory,
         mock_cron_system,
+        isolated_state_file,
     ):
         """Full schedule data including patterns survives restart."""
         from webui.backend.lib.schedule_storage import create_schedule
         from webui.backend.services.scheduler_service import SchedulerService
 
-        # Create first service instance
+        # Create first service instance (uses patched ACTIVE_STATE_FILE)
         service1 = SchedulerService(cache_ttl=60, max_cache_size=50)
 
         # Create schedule with specific data
@@ -381,6 +409,8 @@ class TestPersistenceAcrossRestarts:
         )
         create_schedule(schedule)
 
+        # Enable and activate
+        service1.set_enabled_schedule(_test_uuid("data-persist-test"))
         service1.activate_schedule(_test_uuid("data-persist-test"), check_conflicts=False)
 
         # Create NEW service instance
@@ -412,6 +442,7 @@ class TestErrorHandling:
         temp_schedules_env,
         sample_schedule_factory,
         monkeypatch,
+        isolated_state_file,
     ):
         """If cron write fails, schedule state is rolled back."""
         from webui.backend.lib.schedule_schema import ScheduleActivationError
@@ -443,7 +474,10 @@ class TestErrorHandling:
         )
         create_schedule(schedule)
 
-        # Attempt activation (should raise exception)
+        # Enable the schedule first
+        service.set_enabled_schedule(_test_uuid("rollback-test"))
+
+        # Attempt activation (should raise exception due to mock failure)
         with pytest.raises(ScheduleActivationError, match="(?i)failed"):
             service.activate_schedule(
                 _test_uuid("rollback-test"),
@@ -470,6 +504,7 @@ class TestErrorHandling:
         temp_schedules_env,
         sample_schedule_factory,
         monkeypatch,
+        isolated_state_file,
     ):
         """Failed activation of new schedule handles previous schedule correctly."""
         from webui.backend.lib.schedule_schema import ScheduleActivationError
@@ -505,6 +540,8 @@ class TestErrorHandling:
             name="First Schedule",
         )
         create_schedule(schedule1)
+        # Enable and activate first schedule
+        service.set_enabled_schedule(_test_uuid("preserve-test-1"))
         service.activate_schedule(_test_uuid("preserve-test-1"), check_conflicts=False)
         # No exception = success
 
@@ -522,6 +559,11 @@ class TestErrorHandling:
             name="Second Schedule",
         )
         create_schedule(schedule2)
+
+        # Deactivate and disable first schedule, then enable second
+        service.deactivate_schedule()
+        service.set_enabled_schedule(None)
+        service.set_enabled_schedule(_test_uuid("preserve-test-2"))
 
         # Attempt activation of second schedule (will raise exception)
         with pytest.raises(ScheduleActivationError, match="(?i)failed"):
@@ -566,6 +608,9 @@ class TestProgressCallbackEvents:
             name="Progress Events Test",
         )
         create_schedule(schedule)
+
+        # Enable schedule first
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-events-test"))
 
         # Track progress calls (simulates WebSocket emit)
         received_events = []
@@ -628,6 +673,9 @@ class TestProgressCallbackEvents:
             name="Progress Fail Test",
         )
         create_schedule(schedule)
+
+        # Enable schedule first
+        scheduler_service.set_enabled_schedule(_test_uuid("progress-fail-test"))
 
         # Make apply_to_system fail
         mock_cron_system["apply"].side_effect = RuntimeError("Simulated cron failure")

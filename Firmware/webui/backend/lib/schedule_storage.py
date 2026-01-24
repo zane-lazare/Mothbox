@@ -250,10 +250,12 @@ def _scan_directory_for_schedule_id(directory: Path, schedule_id: str) -> Path |
         return None
 
     for json_file in directory.glob(f"*{SCHEDULE_FILENAME_EXTENSION}"):
-        # Skip backup and lock files
+        # Skip backup, lock, and state files
         if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}{BACKUP_EXTENSION}"):
             continue
         if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}.lock"):
+            continue
+        if json_file.name == "active_state.json":
             continue
         try:
             with open(json_file) as f:

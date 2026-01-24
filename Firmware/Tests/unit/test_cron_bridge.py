@@ -1304,6 +1304,7 @@ class TestScheduleToCron:
             name="Test Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
@@ -1328,6 +1329,7 @@ class TestScheduleToCron:
             name="Interval Schedule",
             description="",
             routines=[routine],
+            enabled=True,
         )
 
         result = schedule_to_cron(schedule)
