@@ -17,6 +17,10 @@ from croniter import croniter
 from crontab import CronTab
 
 from mothbox_paths import MOTHBOX_HOME
+from webui.backend.constants import (
+    CRON_PREVIEW_DAYS_AHEAD,
+    MAX_CRON_ENTRIES,
+)
 from webui.backend.lib.cron_security import (
     get_script_key_for_action,
     get_validated_command,
@@ -39,11 +43,10 @@ from webui.backend.lib.solar_time import parse_time_spec
 
 logger = logging.getLogger(__name__)
 
-# Constants
+# Constants (MAX_CRON_ENTRIES imported from webui.backend.constants)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
-MAX_CRON_ENTRIES: Final[int] = 10000  # System crontab line limit
 
 
 @dataclass
@@ -270,7 +273,7 @@ def datetime_to_cron(dt: datetime) -> str:
 
 def estimate_cron_entries(
     schedule: Schedule,
-    days_ahead: int = 60,
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,
 ) -> int:
     """
     Estimate total cron entries a schedule would generate.
@@ -281,7 +284,7 @@ def estimate_cron_entries(
 
     Args:
         schedule: Schedule object to estimate
-        days_ahead: Number of days to estimate for (default 60)
+        days_ahead: Number of days to estimate for (default CRON_PREVIEW_DAYS_AHEAD)
 
     Returns:
         Estimated number of cron entries that would be generated.
@@ -738,7 +741,7 @@ def calculate_execution_times(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,  # Limited to 60 days to stay under system crontab ~10k line limit
     from_date: date | None = None,
 ) -> list[datetime]:
     """Calculate all execution times for a trigger over a given period.
@@ -751,7 +754,7 @@ def calculate_execution_times(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        days_ahead: Number of days to pre-calculate (default 60)
+        days_ahead: Number of days to pre-calculate (default CRON_PREVIEW_DAYS_AHEAD)
         from_date: Start date (defaults to today)
 
     Returns:
@@ -842,7 +845,7 @@ def routine_to_dated_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,  # Limited to 60 days to stay under system crontab ~10k line limit
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -855,7 +858,7 @@ def routine_to_dated_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        days_ahead: Number of days to pre-calculate (default 60)
+        days_ahead: Number of days to pre-calculate (default CRON_PREVIEW_DAYS_AHEAD)
 
     Returns:
         List of CronEntry objects with date-specific expressions
@@ -982,17 +985,11 @@ def _routine_interval_to_cron(routine: Routine) -> list[CronEntry]:
     # Create entries for each action at each execution time
     for hour, minute in exec_times:
         for action in routine.actions:
-            # Apply action offset
-            action_hour = hour
-            action_minute = minute + action.offset_minutes
-            # Handle minute overflow/underflow
-            while action_minute >= 60:
-                action_minute -= 60
-                action_hour += 1
-            while action_minute < 0:
-                action_minute += 60
-                action_hour -= 1
-            action_hour = action_hour % 24
+            # Apply action offset using divmod for safe arithmetic
+            # (prevents infinite loop with large negative offsets)
+            total_minutes = hour * 60 + minute + action.offset_minutes
+            hours_offset, action_minute = divmod(total_minutes, 60)
+            action_hour = hours_offset % 24
 
             expression = f"{action_minute} {action_hour} * * {dow_str}"
             comment = f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}"
@@ -1029,16 +1026,11 @@ def _routine_fixed_time_to_cron(routine: Routine) -> list[CronEntry]:
 
     entries = []
     for action in routine.actions:
-        action_hour = hour
-        action_minute = minute + action.offset_minutes
-        # Handle minute overflow/underflow
-        while action_minute >= 60:
-            action_minute -= 60
-            action_hour += 1
-        while action_minute < 0:
-            action_minute += 60
-            action_hour -= 1
-        action_hour = action_hour % 24
+        # Apply action offset using divmod for safe arithmetic
+        # (prevents infinite loop with large negative offsets)
+        total_minutes = hour * 60 + minute + action.offset_minutes
+        hours_offset, action_minute = divmod(total_minutes, 60)
+        action_hour = hours_offset % 24
 
         expression = f"{action_minute} {action_hour} * * {dow_str}"
         comment = f"{CRON_COMMENT_PREFIX} {routine_name} {action.action_name}"
@@ -1104,7 +1096,7 @@ def routine_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    days_ahead: int = 60,
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,
 ) -> list[CronEntry]:
     """Generate cron entries for a routine using optimal strategy.
 
@@ -1121,7 +1113,7 @@ def routine_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        days_ahead: Number of days to pre-calculate (default 60) (for date-specific triggers)
+        days_ahead: Number of days to pre-calculate (default CRON_PREVIEW_DAYS_AHEAD) (for date-specific triggers)
 
     Returns:
         List of CronEntry objects
@@ -1796,7 +1788,7 @@ def schedule_to_cron(
     latitude: float | None = None,
     longitude: float | None = None,
     timezone_name: str = "UTC",
-    days_ahead: int = 60,  # Limited to 60 days to stay under system crontab ~10k line limit
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,  # Limited to 60 days to stay under system crontab ~10k line limit
 ) -> CronBridgeResult:
     """Convert Schedule to date-specific cron entries.
 
@@ -1812,7 +1804,7 @@ def schedule_to_cron(
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
-        days_ahead: Number of days to pre-calculate (default 60) (default 1)
+        days_ahead: Number of days to pre-calculate (default CRON_PREVIEW_DAYS_AHEAD) (default 1)
 
     Returns:
         CronBridgeResult with entries, rtc_waketime, and any errors
@@ -1869,7 +1861,7 @@ def schedule_to_cron(
 
 def expand_pattern_entries(
     entries: list[CronEntry],
-    days_ahead: int = 60,
+    days_ahead: int = CRON_PREVIEW_DAYS_AHEAD,
     timezone_name: str = "UTC",
 ) -> list[CronEntry]:
     """Expand pattern-based cron entries to date-specific entries.
@@ -1886,7 +1878,7 @@ def expand_pattern_entries(
 
     Args:
         entries: List of CronEntry objects to expand
-        days_ahead: Number of days to expand patterns into (default 60)
+        days_ahead: Number of days to expand patterns into (default CRON_PREVIEW_DAYS_AHEAD)
         timezone_name: Timezone for datetime calculations (default "UTC")
 
     Returns:
