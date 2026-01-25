@@ -1288,6 +1288,64 @@ class TestActivateSchedule:
 
             assert scheduler_service._active_schedule_id == _test_uuid("builtin-schedule")
 
+    def test_activate_rejects_invalid_latitude(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule should reject invalid latitude (defense-in-depth Issue #385)."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = _test_uuid("invalid-lat")
+        create_schedule(sample_schedule)
+        scheduler_service.set_enabled_schedule(_test_uuid("invalid-lat"))
+
+        with pytest.raises(ScheduleActivationError, match="Invalid latitude"):
+            scheduler_service.activate_schedule(
+                _test_uuid("invalid-lat"), latitude=91.0, longitude=0.0
+            )
+
+        with pytest.raises(ScheduleActivationError, match="Invalid latitude"):
+            scheduler_service.activate_schedule(
+                _test_uuid("invalid-lat"), latitude=-91.0, longitude=0.0
+            )
+
+    def test_activate_rejects_invalid_longitude(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule should reject invalid longitude (defense-in-depth Issue #385)."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = _test_uuid("invalid-lon")
+        create_schedule(sample_schedule)
+        scheduler_service.set_enabled_schedule(_test_uuid("invalid-lon"))
+
+        with pytest.raises(ScheduleActivationError, match="Invalid longitude"):
+            scheduler_service.activate_schedule(
+                _test_uuid("invalid-lon"), latitude=0.0, longitude=181.0
+            )
+
+        with pytest.raises(ScheduleActivationError, match="Invalid longitude"):
+            scheduler_service.activate_schedule(
+                _test_uuid("invalid-lon"), latitude=0.0, longitude=-181.0
+            )
+
+    def test_activate_rejects_invalid_timezone(
+        self, scheduler_service, temp_schedules_dir, sample_schedule
+    ):
+        """activate_schedule should reject invalid timezone (defense-in-depth Issue #385)."""
+        from webui.backend.lib.schedule_schema import ScheduleActivationError
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        sample_schedule.schedule_id = _test_uuid("invalid-tz")
+        create_schedule(sample_schedule)
+        scheduler_service.set_enabled_schedule(_test_uuid("invalid-tz"))
+
+        with pytest.raises(ScheduleActivationError, match="Invalid timezone"):
+            scheduler_service.activate_schedule(
+                _test_uuid("invalid-tz"), timezone_name="Invalid/Nonexistent"
+            )
+
 
 # ============================================================================
 # Test Activation Progress Callback (Issue #309)

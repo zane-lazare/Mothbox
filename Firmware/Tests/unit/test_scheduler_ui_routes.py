@@ -1233,6 +1233,54 @@ class TestActivateScheduleEndpoint:
 
         assert response.status_code == 200
 
+    def test_activate_rejects_invalid_gps_latitude_from_controls(
+        self, client, mock_scheduler_service, sample_schedule
+    ):
+        """Test activation rejects invalid GPS latitude from controls.txt (Issue #385)."""
+        module = _get_scheduler_ui_module()
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        # Mock get_control_values to return invalid latitude (out of range)
+        with patch.object(
+            module,
+            "get_control_values",
+            return_value={"lat": "91.0", "lon": "0.0"},  # Invalid: lat > 90
+        ):
+            response = client.post(
+                "/api/scheduler/ui/schedules/test-schedule/activate",
+                json={},  # No explicit coordinates - will use GPS fallback
+                content_type="application/json",
+            )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid coordinates" in data["error"]
+
+    def test_activate_rejects_invalid_gps_longitude_from_controls(
+        self, client, mock_scheduler_service, sample_schedule
+    ):
+        """Test activation rejects invalid GPS longitude from controls.txt (Issue #385)."""
+        module = _get_scheduler_ui_module()
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        # Mock get_control_values to return invalid longitude (out of range)
+        with patch.object(
+            module,
+            "get_control_values",
+            return_value={"lat": "45.0", "lon": "181.0"},  # Invalid: lon > 180
+        ):
+            response = client.post(
+                "/api/scheduler/ui/schedules/test-schedule/activate",
+                json={},  # No explicit coordinates - will use GPS fallback
+                content_type="application/json",
+            )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid coordinates" in data["error"]
+
 
 # ============================================================================
 # Deactivate Schedule Endpoint Tests (Issue #218)

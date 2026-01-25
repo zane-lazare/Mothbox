@@ -1087,16 +1087,16 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             timezone_name = get_system_timezone()
             logger.info(f"Using system timezone: {timezone_name}")
 
-        # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
-        # This ensures Null Island coordinates are validated rather than skipped
-        if lat_provided and lon_provided:
-            valid, coord_error = validate_coordinates(latitude, longitude)
-            if not valid:
-                return jsonify(
-                    {
-                        "error": f"Invalid coordinates: {coord_error}",
-                    }
-                ), 400
+        # Validate coordinate ranges regardless of source (Issue #385 review fix)
+        # Coordinates may come from explicit request, GPS, or timezone fallback -
+        # all sources should be validated to catch invalid controls.txt values
+        valid, coord_error = validate_coordinates(latitude, longitude)
+        if not valid:
+            return jsonify(
+                {
+                    "error": f"Invalid coordinates: {coord_error}",
+                }
+            ), 400
 
         # Validate timezone
         valid, tz_error = validate_timezone(timezone_name)

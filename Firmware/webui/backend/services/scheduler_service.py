@@ -468,6 +468,7 @@ class SchedulerService:
             )
         except LockTimeoutError as e:
             logger.error(f"Failed to acquire lock for active state: {e}")
+            raise  # Re-raise so caller can rollback cron (Issue #385 review fix)
         except OSError as e:
             logger.warning(f"Failed to save active state: {e}")
 
@@ -1038,6 +1039,24 @@ class SchedulerService:
         # This lock ensures that between schedule validation and cron application,
         # no concurrent activation/deactivation can interfere
         with self._activation_lock:
+            # Defense-in-depth: Validate coordinates and timezone (Issue #385 review)
+            # Even if caller validated, re-check here since this method may be called
+            # programmatically from tests or future code paths
+            if latitude < -90 or latitude > 90:
+                raise ScheduleActivationError(
+                    f"Invalid latitude: {latitude}. Must be between -90 and 90."
+                )
+            if longitude < -180 or longitude > 180:
+                raise ScheduleActivationError(
+                    f"Invalid longitude: {longitude}. Must be between -180 and 180."
+                )
+            try:
+                import pytz
+
+                pytz.timezone(timezone_name)
+            except pytz.UnknownTimeZoneError:
+                raise ScheduleActivationError(f"Invalid timezone: {timezone_name}") from None
+
             # Get the schedule
             schedule = self.get_schedule(schedule_id)
             if not schedule:
