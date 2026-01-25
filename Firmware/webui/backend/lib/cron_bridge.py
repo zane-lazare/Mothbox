@@ -818,6 +818,33 @@ def build_action_command(
 
     If pre_condition is set, wraps the command with a sensor check script.
 
+    Security Model (Defense-in-Depth):
+    -----------------------------------
+    Command injection is prevented through multiple layers:
+
+    1. **Schema Validation** (schedule_schema.py):
+       - action_type is validated against ACTION_TYPES whitelist
+       - Rejects unknown action types at API boundary
+
+    2. **Action Type Whitelist** (cron_security.py):
+       - ACTION_TYPE_SCRIPTS maps action_type → action_name → script_key
+       - Only approved action type/name combinations return a valid key
+       - Unknown combinations return None → safe comment string
+
+    3. **Script Whitelist** (cron_security.py):
+       - ALLOWED_SCRIPTS maps script_key → script filename
+       - get_validated_command() validates key exists before building path
+       - Raises ValueError for unknown keys
+
+    4. **Path Sanitization** (cron_security.py):
+       - get_validated_command() uses shlex.quote() on script path
+       - Even though path is already validated via whitelist, this provides
+         additional protection against future vulnerabilities
+
+    This means user input (action_type, action_name) can NEVER directly
+    influence the command string - it must pass through two whitelist
+    lookups before any command is generated.
+
     Args:
         action: Action to build command for
         pre_condition: Optional sensor trigger as gate condition

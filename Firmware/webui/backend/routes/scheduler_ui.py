@@ -923,7 +923,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
             cloned_routines.append(Routine.from_dict(routine_dict))
 
         # Create new schedule with fresh IDs and timestamps
-        now = datetime.now().isoformat()
+        now = datetime.now(UTC).isoformat()
         new_schedule = Schedule(
             schedule_id=str(uuid4()),
             name=new_name,
@@ -1626,9 +1626,9 @@ def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
         try:
             for _ in range(count):
                 next_time = calculate_next_waketime(expression, current_time)
-                next_executions.append(datetime.fromtimestamp(next_time).isoformat())
+                next_executions.append(datetime.fromtimestamp(next_time, UTC).isoformat())
                 # Advance time by 1 second to get next occurrence
-                current_time = datetime.fromtimestamp(next_time + 1)
+                current_time = datetime.fromtimestamp(next_time + 1, UTC)
         except ValueError as e:
             logger.debug(f"Failed to calculate next execution times: {e}")
             return jsonify(

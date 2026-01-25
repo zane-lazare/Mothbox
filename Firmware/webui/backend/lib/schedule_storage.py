@@ -61,7 +61,7 @@ import logging
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mothbox_paths import (
@@ -533,7 +533,7 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
                     setattr(schedule, key, value)
 
             # Update modified_at timestamp
-            schedule.modified_at = datetime.now().isoformat()
+            schedule.modified_at = datetime.now(UTC).isoformat()
 
             # Validate updated schedule
             valid, error = validate_schedule(schedule)
