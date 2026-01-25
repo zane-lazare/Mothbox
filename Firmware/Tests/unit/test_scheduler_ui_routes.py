@@ -89,6 +89,8 @@ def mock_scheduler_service():
     """
     module = _get_scheduler_ui_module()
     mock_service = MagicMock()
+    # Default return value for entry count warning (no warning by default)
+    mock_service.get_entry_count_warning.return_value = None
     module._scheduler_service = mock_service
     yield mock_service
 
