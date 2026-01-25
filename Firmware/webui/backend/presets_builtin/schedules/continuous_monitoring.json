@@ -1,0 +1,29 @@
+{
+  "schedule_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567005",
+  "name": "Continuous Monitoring",
+  "description": "Captures photos every 30 minutes from sunset to sunrise for maximum coverage",
+  "schema_version": "2.0",
+  "is_builtin": true,
+  "trigger_type": "interval",
+  "interval_trigger": {
+    "interval_minutes": 30,
+    "time_window": {
+      "start_time": "sunset",
+      "end_time": "sunrise"
+    }
+  },
+  "event_patterns": [
+    {
+      "pattern_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567105",
+      "name": "Continuous UV Capture",
+      "tags": ["uv", "continuous", "monitoring"],
+      "actions": [
+        {"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0},
+        {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 1},
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 2},
+        {"action_type": "gpio", "action_name": "flash_off", "offset_minutes": 3},
+        {"action_type": "gpio", "action_name": "attract_off", "offset_minutes": 4}
+      ]
+    }
+  ]
+}

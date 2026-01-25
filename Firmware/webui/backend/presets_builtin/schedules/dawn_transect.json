@@ -1,0 +1,28 @@
+{
+  "schedule_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567003",
+  "name": "Dawn Transect",
+  "description": "Captures multiple photos at sunrise minus 15 minutes for dawn insect activity transect",
+  "schema_version": "2.0",
+  "is_builtin": true,
+  "trigger_type": "solar",
+  "solar_trigger": {
+    "solar_event": "sunrise",
+    "offset_minutes": -15
+  },
+  "event_patterns": [
+    {
+      "pattern_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567103",
+      "name": "Dawn Transect Capture",
+      "tags": ["dawn", "transect", "uv"],
+      "actions": [
+        {"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0},
+        {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 1},
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 2},
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 5},
+        {"action_type": "camera", "action_name": "takephoto", "offset_minutes": 8},
+        {"action_type": "gpio", "action_name": "flash_off", "offset_minutes": 9},
+        {"action_type": "gpio", "action_name": "attract_off", "offset_minutes": 10}
+      ]
+    }
+  ]
+}
