@@ -30,6 +30,7 @@ Example usage:
 Issue #207 - Scheduler Phase 0: Extract Cron Security Library
 """
 
+import shlex
 from typing import Final, TypeAlias
 
 from mothbox_paths import MOTHBOX_HOME, get_script_path
@@ -184,7 +185,9 @@ def get_validated_command(script_key: str) -> str:
         ValueError: If script_key is not in whitelist
     """
     script_path = get_validated_script_path(script_key)
-    return f"systemd-cat -t mothbox /usr/bin/python3 {script_path}"
+    # Defense in depth: shlex.quote protects against injection even though
+    # script_path is already validated via whitelist
+    return f"systemd-cat -t mothbox /usr/bin/python3 {shlex.quote(script_path)}"
 
 
 def get_script_key_for_action(action_type: str, action_name: str) -> str | None:
