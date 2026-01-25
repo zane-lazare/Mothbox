@@ -155,12 +155,16 @@ class PreviewExecution:
 
     @classmethod
     def from_dict(cls, data: dict) -> "PreviewExecution":
-        """Deserialize from dictionary."""
+        """Deserialize from dictionary.
+
+        Accepts both old (pattern_id/pattern_name) and new (routine_id/routine_name)
+        field names for backward compatibility with API responses.
+        """
         return cls(
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
-            routine_id=data["routine_id"],
-            routine_name=data["routine_name"],
+            routine_id=data.get("routine_id") or data.get("pattern_id", ""),
+            routine_name=data.get("routine_name") or data.get("pattern_name", ""),
             trigger_info=data["trigger_info"],
             actions=[ActionExecution.from_dict(a) for a in data.get("actions", [])],
         )

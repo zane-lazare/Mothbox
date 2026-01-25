@@ -355,8 +355,8 @@ class TestPreviewExecution:
 
         assert result["start_time"] == "2025-06-15T21:00:00+00:00"
         assert result["end_time"] == "2025-06-15T21:15:00+00:00"
-        assert result["routine_id"] == "uv-cycle"
-        assert result["routine_name"] == "UV Capture Cycle"
+        assert result["pattern_id"] == "uv-cycle"
+        assert result["pattern_name"] == "UV Capture Cycle"
         assert result["trigger_info"] == "interval:60m"
         assert len(result["actions"]) == 1
 
