@@ -14,7 +14,7 @@
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
@@ -55,15 +55,16 @@ function ScheduleCard({
   const nameId = `schedule-name-${schedule.schedule_id}`
   const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
 
-  const handleView = () => {
+  // Memoize handlers to preserve memo() optimization
+  const handleView = useCallback(() => {
     onView(schedule)
-  }
+  }, [onView, schedule])
 
-  const handleToggleEnabled = () => {
+  const handleToggleEnabled = useCallback(() => {
     if (onToggleEnabled) {
       onToggleEnabled(schedule)
     }
-  }
+  }, [onToggleEnabled, schedule])
 
   // Build card classes based on state
   const cardClasses = [
