@@ -144,21 +144,26 @@ class CronEntry:
         return "\n".join(lines)
 
     @staticmethod
-    def is_valid_expression(expr: str) -> bool:
-        """Validate cron expression syntax using croniter.
+    def is_valid_expression(expression: str) -> bool:
+        """Validate a cron expression.
 
         Args:
-            expr: Cron expression string to validate
+            expression: Cron expression string (e.g., "0 21 * * *")
 
         Returns:
-            True if expression is valid cron syntax, False otherwise
+            True if valid 5-field cron expression, False otherwise.
         """
-        if not expr or not isinstance(expr, str):
+        if not expression or not isinstance(expression, str):
             return False
 
-        # Use croniter's built-in validation
+        # Cron must have exactly 5 fields (minute, hour, day, month, weekday)
+        fields = expression.strip().split()
+        if len(fields) != 5:
+            return False
+
         try:
-            croniter(expr)
+            # Use croniter to validate the expression syntax
+            croniter(expression)
             return True
         except (ValueError, KeyError):
             return False
