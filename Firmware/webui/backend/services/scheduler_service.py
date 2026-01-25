@@ -41,6 +41,11 @@ from threading import RLock
 from typing import Any
 
 from mothbox_paths import CONFIG_DIR
+from webui.backend.constants import (
+    CRON_ENTRY_WARNING_THRESHOLD,
+    CRON_PREVIEW_DAYS_AHEAD,
+    MAX_CRON_ENTRIES,
+)
 
 # Cron bridge for system integration (Issue #215)
 from webui.backend.lib.cron_bridge import (
@@ -555,6 +560,30 @@ class SchedulerService:
         future_entries.sort(key=lambda e: e.execution_time)
 
         return future_entries[:limit]
+
+    def get_entry_count_warning(self) -> dict | None:
+        """
+        Check if cron entry count is approaching the system limit.
+
+        Returns warning dict if entry count exceeds 75% threshold,
+        None otherwise.
+
+        Returns:
+            Dict with 'message', 'entry_count', 'max_entries', 'threshold'
+            if warning applies, None otherwise.
+        """
+        entry_count = len(self._active_entries)
+        if entry_count >= CRON_ENTRY_WARNING_THRESHOLD:
+            return {
+                "message": (
+                    f"Schedule has {entry_count:,} cron entries, "
+                    f"approaching system limit of {MAX_CRON_ENTRIES:,}"
+                ),
+                "entry_count": entry_count,
+                "max_entries": MAX_CRON_ENTRIES,
+                "threshold": CRON_ENTRY_WARNING_THRESHOLD,
+            }
+        return None
 
     # ========================================================================
     # Conflict Cache Methods
@@ -1089,7 +1118,7 @@ class SchedulerService:
             # This allows frontend to read next actions directly from disk
             expanded_entries = expand_pattern_entries(
                 entries=result.entries,
-                days_ahead=60,  # Same as schedule_to_cron default
+                days_ahead=CRON_PREVIEW_DAYS_AHEAD,
                 timezone_name=timezone_name,
             )
             logger.debug(f"Expanded {len(result.entries)} entries to {len(expanded_entries)}")
