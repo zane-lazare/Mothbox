@@ -109,7 +109,18 @@ def schedule_factory():
     def _create_schedule(**overrides):
         # Handle routine_count specially
         routine_count = overrides.pop("routine_count", 1)
-        routines = [MagicMock() for _ in range(routine_count)]
+
+        # Create mock routines with working to_dict() methods
+        routines = []
+        for i in range(routine_count):
+            routine = MagicMock()
+            routine.to_dict.return_value = {
+                "routine_id": f"routine-{i}",
+                "name": f"Test Routine {i}",
+                "trigger": {"trigger_type": "interval", "interval_minutes": 15},
+                "actions": [{"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0}],
+            }
+            routines.append(routine)
 
         defaults = {
             "schedule_id": "test-schedule",
@@ -131,7 +142,7 @@ def schedule_factory():
         schedule.to_dict.return_value = {
             "schedule_id": defaults["schedule_id"],
             "name": defaults["name"],
-            "routines": [{"name": "Test Routine"}] * routine_count,
+            "routines": [r.to_dict() for r in routines],
         }
         return schedule
 
