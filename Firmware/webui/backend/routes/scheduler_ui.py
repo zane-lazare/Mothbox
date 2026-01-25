@@ -39,11 +39,13 @@ from webui.backend.lib.schedule_preview import (
 )
 from webui.backend.lib.schedule_schema import (
     MAX_PATTERN_NAME_LENGTH,
+    MoonPhaseTrigger,
     Routine,
     Schedule,
     ScheduleActivationError,
     ScheduleConflictError,
     ScheduleValidationError,
+    SolarTrigger,
 )
 from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
@@ -62,6 +64,21 @@ except ImportError:
             return decorator
 
     limiter = _LimiterStub()
+
+
+def _requires_coordinates(routines: list[Routine]) -> bool:
+    """Check if any routine has a solar or moon phase trigger requiring coordinates.
+
+    Args:
+        routines: List of Routine objects to check
+
+    Returns:
+        True if any routine requires coordinates for solar/moon calculations
+    """
+    for routine in routines:
+        if isinstance(routine.trigger, (SolarTrigger, MoonPhaseTrigger)):
+            return True
+    return False
 
 
 def get_system_timezone() -> str:
@@ -1147,15 +1164,21 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             ), 400
 
         # Include coordinates_source in response for UI notification (Issue #331)
-        return jsonify(
-            {
-                "message": "Schedule activated",
-                "schedule_id": schedule_id,
-                "coordinates_source": coordinates_source,
-                "latitude": latitude,
-                "longitude": longitude,
-            }
-        ), 200
+        # Check for entry count warning (approaching system limit)
+        entry_warning = service.get_entry_count_warning()
+
+        response = {
+            "message": "Schedule activated",
+            "schedule_id": schedule_id,
+            "coordinates_source": coordinates_source,
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+
+        if entry_warning:
+            response["warning"] = entry_warning
+
+        return jsonify(response), 200
 
     except Exception as e:
         logger.error(f"Error activating schedule: {e}", exc_info=True)
@@ -1313,6 +1336,14 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
                 }
             ), 404
 
+        # Check if coordinates required but not provided (solar/moon triggers)
+        if not lat_provided and _requires_coordinates(schedule.routines):
+            return jsonify(
+                {
+                    "error": "Coordinates required for schedules with solar or moon triggers",
+                }
+            ), 400
+
         # Get cached conflict report
         report = service.get_cached_conflict_report(
             schedule,
@@ -1443,6 +1474,12 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
             return jsonify({"error": f"Invalid timezone: {tz_error}"}), 400
+
+        # Check if coordinates required but not provided (solar/moon triggers)
+        if not lat_provided and _requires_coordinates(routines):
+            return jsonify(
+                {"error": "Coordinates required for routines with solar or moon triggers"}
+            ), 400
 
         # Create temporary schedule for conflict detection
         temp_schedule = Schedule(
