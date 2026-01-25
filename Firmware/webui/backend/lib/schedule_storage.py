@@ -86,6 +86,22 @@ logger = logging.getLogger(__name__)
 SCHEDULE_FILENAME_EXTENSION = ".json"
 BACKUP_EXTENSION = ".bak"
 
+# Whitelist of fields that can be updated via update_schedule()
+# Internal fields like schedule_id, created_at are protected
+ALLOWED_UPDATE_FIELDS: frozenset[str] = frozenset(
+    {
+        "name",
+        "description",
+        "routines",
+        "enabled",
+        "pre_conditions",
+        "tags",
+        "deployment_id",
+        "create_deployment",
+        "modified_by",
+    }
+)
+
 
 # =============================================================================
 # EXCEPTIONS
@@ -508,8 +524,11 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
             data = json.load(f)
             schedule = Schedule.from_dict(data)
 
-            # Apply updates
+            # Apply updates (only for allowed fields)
             for key, value in updates.items():
+                if key not in ALLOWED_UPDATE_FIELDS:
+                    logger.warning(f"Ignoring update to protected field: {key}")
+                    continue
                 if hasattr(schedule, key):
                     setattr(schedule, key, value)
 
@@ -732,6 +751,7 @@ def cleanup_temp_files(max_age_seconds: int = 3600) -> int:
 __all__ = [
     # Constants
     "SCHEDULE_FILENAME_EXTENSION",
+    "ALLOWED_UPDATE_FIELDS",
     "SCHEDULES_DIR",
     "BUILTIN_SCHEDULES_DIR",
     # Exceptions
