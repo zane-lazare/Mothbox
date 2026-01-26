@@ -120,7 +120,7 @@ export function formatTimeShort(isoString) {
  * @param {string} isoString - ISO datetime string
  * @returns {string|null} Local date in YYYY-MM-DD format, or null if invalid
  */
-function getLocalDateFromIso(isoString) {
+export function getLocalDateFromIso(isoString) {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }

@@ -26,6 +26,7 @@ import {
   getConflictForExecution,
   getCycleHours,
   collapseRepetitiveHours,
+  getLocalDateFromIso,
 } from './dayTimelineUtils'
 
 /**
@@ -80,10 +81,19 @@ function DayTimeline({
     [cycleInfo]
   )
 
-  // Group executions by hour (cycle-aware, ignores date)
+  // Filter executions to only those matching the specified date
+  const filteredExecutions = useMemo(() => {
+    if (!executions || !date) return executions
+    return executions.filter((exec) => {
+      const execDate = getLocalDateFromIso(exec.start_time)
+      return execDate === date
+    })
+  }, [executions, date])
+
+  // Group executions by hour (cycle-aware)
   const executionsByHour = useMemo(
-    () => groupExecutionsByHourCycleAware(executions),
-    [executions]
+    () => groupExecutionsByHourCycleAware(filteredExecutions),
+    [filteredExecutions]
   )
 
   // Collapse repetitive consecutive hours (>3 identical patterns)
@@ -104,8 +114,8 @@ function DayTimeline({
     return map
   }, [executions, conflicts])
 
-  // Check if there are any executions
-  const hasExecutions = executions.length > 0
+  // Check if there are any executions for the filtered date
+  const hasExecutions = filteredExecutions && filteredExecutions.length > 0
 
   // Empty state
   if (!hasExecutions) {
