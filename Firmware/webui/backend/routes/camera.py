@@ -69,6 +69,23 @@ ERROR_DETAILS_MAX_LENGTH = 500  # Maximum characters of stderr to include in API
 # ============================================================================
 
 
+def _validate_capture_directory(directory: Path) -> None:
+    """
+    Validate capture directory is real (not a symlink).
+
+    Prevents TOCTOU attacks where symlink could redirect writes
+    to unauthorized locations during photo capture.
+
+    Args:
+        directory: Path to validate
+
+    Raises:
+        ValueError: If directory is a symlink
+    """
+    if directory.is_symlink():
+        raise ValueError(f"Capture directory is a symlink: {directory.name}")
+
+
 def acquire_camera_with_retry(
     camera_id: int = 0, max_retries: int = 3, wait_time: float = 2.0
 ) -> Picamera2:
