@@ -2696,3 +2696,84 @@ class TestInstantActionCollisions:
         assert report.has_blocking_conflicts is True
         camera_conflicts = [c for c in report.conflicts if c.resource == "camera"]
         assert len(camera_conflicts) >= 1
+
+
+# ============================================================================
+# Test _check_time_overlap Helper Function (Issue #385 Review)
+# ============================================================================
+
+
+class TestTimeOverlapWithInstants:
+    """Tests for _check_time_overlap helper function (Issue #385 review)."""
+
+    def test_both_instant_same_time_overlaps(self):
+        """Two instant actions at the same time should overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        t = datetime(2026, 1, 26, 12, 0, 0)
+        assert _check_time_overlap(t, t, t, t) is True
+
+    def test_both_instant_different_times_no_overlap(self):
+        """Two instant actions at different times should not overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        t1 = datetime(2026, 1, 26, 12, 0, 0)
+        t2 = datetime(2026, 1, 26, 12, 1, 0)
+        assert _check_time_overlap(t1, t1, t2, t2) is False
+
+    def test_instant_within_range_overlaps(self):
+        """Instant action within a range should overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        instant = datetime(2026, 1, 26, 12, 30, 0)
+        range_start = datetime(2026, 1, 26, 12, 0, 0)
+        range_end = datetime(2026, 1, 26, 13, 0, 0)
+        # instant within range
+        assert _check_time_overlap(instant, instant, range_start, range_end) is True
+        # range contains instant
+        assert _check_time_overlap(range_start, range_end, instant, instant) is True
+
+    def test_instant_outside_range_no_overlap(self):
+        """Instant action outside a range should not overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        instant = datetime(2026, 1, 26, 14, 0, 0)
+        range_start = datetime(2026, 1, 26, 12, 0, 0)
+        range_end = datetime(2026, 1, 26, 13, 0, 0)
+        assert _check_time_overlap(instant, instant, range_start, range_end) is False
+
+    def test_ranges_overlap(self):
+        """Two overlapping ranges should overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        start1 = datetime(2026, 1, 26, 12, 0, 0)
+        end1 = datetime(2026, 1, 26, 13, 0, 0)
+        start2 = datetime(2026, 1, 26, 12, 30, 0)
+        end2 = datetime(2026, 1, 26, 13, 30, 0)
+        assert _check_time_overlap(start1, end1, start2, end2) is True
+
+    def test_ranges_no_overlap(self):
+        """Two non-overlapping ranges should not overlap."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        start1 = datetime(2026, 1, 26, 12, 0, 0)
+        end1 = datetime(2026, 1, 26, 13, 0, 0)
+        start2 = datetime(2026, 1, 26, 14, 0, 0)
+        end2 = datetime(2026, 1, 26, 15, 0, 0)
+        assert _check_time_overlap(start1, end1, start2, end2) is False
+
+    def test_instant_at_range_boundary_overlaps(self):
+        """Instant action at range boundary should overlap (inclusive)."""
+        from webui.backend.lib.schedule_conflict import _check_time_overlap
+        from datetime import datetime
+
+        instant = datetime(2026, 1, 26, 13, 0, 0)  # At end of range
+        range_start = datetime(2026, 1, 26, 12, 0, 0)
+        range_end = datetime(2026, 1, 26, 13, 0, 0)
+        assert _check_time_overlap(instant, instant, range_start, range_end) is True

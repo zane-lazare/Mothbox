@@ -369,6 +369,41 @@ def get_resource_type(action: Action) -> str:
 # ============================================================================
 
 
+def _check_time_overlap(
+    start1: datetime, end1: datetime, start2: datetime, end2: datetime
+) -> bool:
+    """
+    Check if two time ranges overlap, handling instant actions.
+
+    Instant actions have start == end. They overlap with ranges if they fall
+    within the range (inclusive of boundaries). Two instants only overlap if
+    they occur at the exact same time.
+
+    Args:
+        start1: Start time of first range
+        end1: End time of first range (equals start1 for instant actions)
+        start2: Start time of second range
+        end2: End time of second range (equals start2 for instant actions)
+
+    Returns:
+        True if the time ranges overlap, False otherwise
+
+    Issue #385 review: Extracted from _check_resource_conflict for testability.
+    """
+    if start1 == end1 and start2 == end2:
+        # Both are instant - only conflict if at exact same time
+        return start1 == start2
+    elif start1 == end1:
+        # usage1 is instant - check if it falls within usage2 (inclusive end)
+        return start2 <= start1 <= end2
+    elif start2 == end2:
+        # usage2 is instant - check if it falls within usage1 (inclusive end)
+        return start1 <= start2 <= end1
+    else:
+        # Both have duration - standard overlap check
+        return start1 < end2 and start2 < end1
+
+
 def check_resource_contention(
     usage1: ResourceUsage,
     usage2: ResourceUsage,
@@ -388,20 +423,10 @@ def check_resource_contention(
         Tuple of (conflicts: bool, conflict_type: str)
         conflict_type is "resource_contention" or "gpio_state_conflict" or ""
     """
-    # Check time overlap first
-    # Handle instant actions (start == end) specially
-    if usage1.start_time == usage1.end_time and usage2.start_time == usage2.end_time:
-        # Both are instant - only conflict if at exact same time
-        times_overlap = usage1.start_time == usage2.start_time
-    elif usage1.start_time == usage1.end_time:
-        # usage1 is instant - check if it falls within usage2 (inclusive end)
-        times_overlap = usage2.start_time <= usage1.start_time <= usage2.end_time
-    elif usage2.start_time == usage2.end_time:
-        # usage2 is instant - check if it falls within usage1 (inclusive end)
-        times_overlap = usage1.start_time <= usage2.start_time <= usage1.end_time
-    else:
-        # Both have duration - standard overlap check
-        times_overlap = usage1.start_time < usage2.end_time and usage2.start_time < usage1.end_time
+    # Check time overlap first (handles instant actions specially)
+    times_overlap = _check_time_overlap(
+        usage1.start_time, usage1.end_time, usage2.start_time, usage2.end_time
+    )
 
     if not times_overlap:
         return False, ""
