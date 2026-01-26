@@ -107,9 +107,10 @@ def _sanitize_error_message(message: str | None, max_length: int = 200) -> str:
     """
     Sanitize error message for safe display to users.
 
-    Prevents XSS by stripping HTML tags and truncating long messages.
-    This is defense-in-depth - Flask's jsonify escapes by default,
-    but we strip tags to prevent any frontend rendering issues.
+    Prevents XSS by stripping HTML tags, redacts internal file paths,
+    and truncates long messages. This is defense-in-depth - Flask's
+    jsonify escapes by default, but we strip tags and redact paths
+    to prevent information disclosure and frontend rendering issues.
 
     Args:
         message: Raw error message (may contain user input)
@@ -118,7 +119,7 @@ def _sanitize_error_message(message: str | None, max_length: int = 200) -> str:
     Returns:
         Sanitized error message safe for display
 
-    Issue #385 security fix: Reflected XSS prevention
+    Issue #385 security fix: Reflected XSS prevention + path redaction
     """
     if not message:
         return "An error occurred"
@@ -131,6 +132,10 @@ def _sanitize_error_message(message: str | None, max_length: int = 200) -> str:
         prev_len = len(msg)
         msg = re.sub(r"<[^>]*>", "", msg)
         msg = re.sub(r"<[^>]*$", "", msg)  # Incomplete tags
+
+    # Redact internal file paths to prevent information disclosure
+    # Matches Unix-style absolute paths (e.g., /etc/secrets/file.txt)
+    msg = re.sub(r"/(?:etc|var|home|opt|usr|tmp|root)/[^\s'\"]*", "[path]", msg)
 
     if len(msg) > max_length:
         msg = msg[: max_length - 3] + "..."
@@ -787,7 +792,9 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
                     service.set_enabled_schedule(None)
             except ValueError as e:
                 logger.warning(f"Failed to set enabled state: {e}")
-                return jsonify({"error": str(e)}), 400
+                # Sanitize exception message before returning to user
+                safe_error = _sanitize_error_message(str(e))
+                return jsonify({"error": safe_error}), 400
 
         # If only 'enabled' was being updated, we're done
         if not json_data:
@@ -804,7 +811,8 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
         try:
             updated = service.update_schedule(schedule_id, json_data)
         except ValueError as e:
-            # Built-in schedule protection
+            # Built-in schedule protection - intentionally returns generic message
+            # (not str(e)) to avoid exposing internal details
             logger.warning(f"Update blocked for built-in schedule: {e}")
             return jsonify(
                 {
