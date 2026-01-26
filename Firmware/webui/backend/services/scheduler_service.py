@@ -118,6 +118,27 @@ _ACTIVATION_PHASES = frozenset(
 )
 
 
+# =============================================================================
+# Cache Configuration Constants (Issue #385 review)
+# =============================================================================
+
+# Schedule cache TTL - balance between freshness and disk I/O
+SCHEDULE_CACHE_TTL_SECONDS = 300  # 5 minutes
+
+# Maximum cached schedules - prevents unbounded memory growth
+MAX_SCHEDULE_CACHE_SIZE = 100
+
+# Conflict analysis cache TTL - shorter because schedule changes invalidate
+CONFLICT_CACHE_TTL_SECONDS = 600  # 10 minutes
+
+# Maximum conflict cache entries
+MAX_CONFLICT_CACHE_SIZE = 50
+
+# Built-in schedules cache TTL - longer because they rarely change
+# (only on firmware update, not during normal operation)
+BUILTIN_CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
 # ============================================================================
 # Persistent Active State (Issue #331)
 # ============================================================================
@@ -208,8 +229,8 @@ class SchedulerService:
         # Conflict cache: cache_key -> (ConflictReport, timestamp)
         # Uses longer TTL since conflict analysis is expensive
         self._conflict_cache: OrderedDict[str, tuple[Any, float]] = OrderedDict()
-        self._conflict_cache_ttl = 600  # 10 minutes
-        self._max_conflict_cache_size = 50
+        self._conflict_cache_ttl = CONFLICT_CACHE_TTL_SECONDS
+        self._max_conflict_cache_size = MAX_CONFLICT_CACHE_SIZE
         self._conflict_cache_hits = 0
         self._conflict_cache_misses = 0
 
@@ -217,7 +238,7 @@ class SchedulerService:
         # Built-in schedules rarely change (only on firmware update)
         self._builtin_cache: list[Schedule] | None = None
         self._builtin_cache_timestamp: float = 0.0
-        self._builtin_cache_ttl = 3600  # 1 hour
+        self._builtin_cache_ttl = BUILTIN_CACHE_TTL_SECONDS
 
         # Expanded cron entries for active schedule (Issue #331)
         # Stored to allow frontend to read next actions without recalculating
