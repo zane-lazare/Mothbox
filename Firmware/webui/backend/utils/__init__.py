@@ -44,6 +44,47 @@ _validate_int_enum = _backend_utils._validate_int_enum
 _validate_exposure_time = _backend_utils._validate_exposure_time
 _validate_noise_reduction_mode = _backend_utils._validate_noise_reduction_mode
 
+
+def validate_liveview_settings(settings: dict) -> dict:
+    """
+    Filter camera settings, keeping only valid values.
+
+    Invalid values are silently excluded to allow defaults.
+    This prevents crashes from bad input when applying settings to Picamera2.
+
+    Ranges:
+        - sharpness: 0.0 to 4.0
+        - brightness: -1.0 to 1.0
+        - contrast: 0.0 to 4.0
+        - saturation: 0.0 to 4.0
+        - af_mode: 0, 1, or 2
+        - exposure_time: 1 to 999999
+        - analogue_gain: 1.0 to 16.0
+
+    Args:
+        settings: Dict of camera settings to validate
+
+    Returns:
+        Dict containing only valid settings
+    """
+    validators = {
+        'sharpness': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        'brightness': lambda v: isinstance(v, (int, float)) and -1.0 <= v <= 1.0,
+        'contrast': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        'saturation': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        'af_mode': lambda v: isinstance(v, int) and v in (0, 1, 2),
+        'exposure_time': lambda v: isinstance(v, int) and 1 <= v < 1000000,
+        'analogue_gain': lambda v: isinstance(v, (int, float)) and 1.0 <= v <= 16.0,
+    }
+
+    result = {}
+    for key, value in settings.items():
+        validator = validators.get(key)
+        if validator and validator(value):
+            result[key] = value
+    return result
+
+
 # Import GPS coordinate utilities from webui.shared
 from webui.shared.gps_coordinates import (
     decimal_to_dms,
@@ -67,4 +108,5 @@ __all__ = [
     "dms_to_decimal",
     "format_coordinate_display",
     "validate_coordinate",
+    "validate_liveview_settings",
 ]
