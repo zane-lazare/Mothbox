@@ -52,6 +52,16 @@ from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
 from webui.backend.services.scheduler_service import SchedulerService
 
+# Standardized error codes for frontend handling (Issue #385 review)
+# These codes are used by the frontend to display user-friendly error messages
+ERROR_CODES = {
+    "VALIDATION_ERROR": "VALIDATION_ERROR",
+    "NOT_FOUND": "NOT_FOUND",
+    "CONFLICT_ERROR": "CONFLICT_ERROR",
+    "ACTIVATION_ERROR": "ACTIVATION_ERROR",
+    "SERVER_ERROR": "SERVER_ERROR",
+}
+
 # Rate limiter import with fallback for testing
 try:
     from webui.backend.app import limiter
@@ -362,6 +372,7 @@ def get_schedule_preview(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -389,6 +400,7 @@ def get_schedule_preview(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to generate preview",
             }
         ), 500
@@ -439,6 +451,7 @@ def list_schedules() -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to list schedules",
             }
         ), 500
@@ -463,6 +476,7 @@ def get_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -473,6 +487,7 @@ def get_schedule(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -526,6 +541,7 @@ def get_active_schedule() -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to get active schedule",
             }
         ), 500
@@ -609,6 +625,7 @@ def get_next_actions() -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to get next actions",
             }
         ), 500
@@ -653,6 +670,7 @@ def list_builtin_schedules() -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to list built-in schedules",
             }
         ), 500
@@ -713,6 +731,7 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule validation failed",
+                    "code": ERROR_CODES["VALIDATION_ERROR"],
                 }
             ), 400
 
@@ -736,6 +755,7 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to create schedule",
             }
         ), 500
@@ -778,6 +798,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -824,6 +845,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Validation failed",
+                    "code": ERROR_CODES["VALIDATION_ERROR"],
                 }
             ), 400
 
@@ -846,6 +868,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -876,6 +899,7 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -910,6 +934,7 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -955,6 +980,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -1026,6 +1052,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Validation failed",
+                    "code": ERROR_CODES["VALIDATION_ERROR"],
                 }
             ), 400
 
@@ -1049,6 +1076,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -1216,6 +1244,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule conflict detected",
+                    "code": ERROR_CODES["CONFLICT_ERROR"],
                     "conflict": True,
                 }
             ), 409
@@ -1225,6 +1254,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule activation failed",
+                    "code": ERROR_CODES["ACTIVATION_ERROR"],
                 }
             ), 400
 
@@ -1250,6 +1280,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -1312,6 +1343,7 @@ def deactivate_current_schedule() -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
                 "message": "Failed to deactivate schedule",
             }
         ), 500
@@ -1395,6 +1427,7 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
             return jsonify(
                 {
                     "error": "Schedule not found",
+                    "code": ERROR_CODES["NOT_FOUND"],
                 }
             ), 404
 
@@ -1440,6 +1473,7 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
         return jsonify(
             {
                 "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
             }
         ), 500
 
@@ -1586,7 +1620,10 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating draft routines: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({
+            "error": "Internal server error",
+            "code": ERROR_CODES["SERVER_ERROR"],
+        }), 500
 
 
 # ============================================================================
