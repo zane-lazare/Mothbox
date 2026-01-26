@@ -4,6 +4,7 @@ import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
 import ActivationPanel from './ActivationPanel';
+import CronLimitWarning from '../CronLimitWarning';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
@@ -673,6 +674,11 @@ const ScheduleEditor = ({
                 error={validationError}
               />
             </div>
+
+            {/* Cron entry limit warning (Issue #385) */}
+            {conflictReport?.estimated_entries && (
+              <CronLimitWarning estimatedEntries={conflictReport.estimated_entries} />
+            )}
           </div>
         </div>
 

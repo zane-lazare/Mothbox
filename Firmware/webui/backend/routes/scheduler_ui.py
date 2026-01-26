@@ -1470,7 +1470,8 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
             "has_warnings": true/false,
             "conflicts": [...],
             "total_conflicts": number,
-            "blocking_conflicts": number
+            "blocking_conflicts": number,
+            "estimated_entries": number  // total scheduled executions in preview period
         }
         400 Bad Request: Invalid parameters or routines
     """
@@ -1492,6 +1493,7 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
                     "conflicts": [],
                     "total_conflicts": 0,
                     "blocking_conflicts": 0,
+                    "estimated_entries": 0,
                 }
             ), 200
 
@@ -1578,6 +1580,7 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
                 "conflicts": [c.to_dict() for c in report.conflicts],
                 "total_conflicts": total_conflicts,
                 "blocking_conflicts": blocking_count,
+                "estimated_entries": report.total_executions,
             }
         ), 200
 
