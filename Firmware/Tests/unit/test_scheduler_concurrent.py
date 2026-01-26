@@ -619,3 +619,35 @@ class TestLockTimeoutErrorRollback:
             # In-memory state was set before save, so it will be present
             # This is expected - the state file is the source of truth for restarts
             # The key fix is that the error is raised so callers know activation failed
+
+
+# ============================================================================
+# Test: JSON Parsing from Content (Issue #385 review fix)
+# ============================================================================
+
+
+class TestLoadActiveStateJsonParsing:
+    """Tests for _load_active_state JSON parsing (Issue #385 review fix)."""
+
+    def test_load_active_state_parses_from_content_not_file(
+        self, temp_schedules_dir, active_state_file
+    ):
+        """_load_active_state should parse JSON from read content, not re-read file."""
+        # Create a valid state file
+        state_data = {
+            "schedule_id": _test_uuid("json-parse-test"),
+            "enabled_schedule_id": _test_uuid("json-parse-test"),
+            "coordinates_source": "explicit",
+            "latitude": 35.0,
+            "longitude": -80.0,
+            "timezone_name": "America/New_York",
+            "entries": [],
+        }
+        active_state_file.write_text(json.dumps(state_data))
+
+        # Create service - should load state successfully
+        service = SchedulerService()
+
+        assert service._active_schedule_id == _test_uuid("json-parse-test")
+        assert service._active_latitude == 35.0
+        assert service._active_longitude == -80.0

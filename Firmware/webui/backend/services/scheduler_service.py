@@ -491,10 +491,12 @@ class SchedulerService:
             # Use FileLock for safe read (Issue #385 - concurrent activation safety)
             with FileLock(ACTIVE_STATE_FILE, exclusive=False, timeout=5.0) as f:
                 content = f.read()
-                if not content:
+                if not content.strip():
                     return
-                f.seek(0)
-                state = json.load(f)
+                # Parse from string content to avoid TOCTOU race (Issue #385 review)
+                # Previously used f.seek(0) + json.load(f) which could read stale data
+                # if another process modified the file between read() and load()
+                state = json.loads(content)
 
             self._active_schedule_id = state.get("schedule_id")
             self._active_coordinates_source = state.get("coordinates_source")
