@@ -68,13 +68,13 @@ def validate_liveview_settings(settings: dict) -> dict:
         Dict containing only valid settings
     """
     validators = {
-        'sharpness': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
-        'brightness': lambda v: isinstance(v, (int, float)) and -1.0 <= v <= 1.0,
-        'contrast': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
-        'saturation': lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
-        'af_mode': lambda v: isinstance(v, int) and v in (0, 1, 2),
-        'exposure_time': lambda v: isinstance(v, int) and 1 <= v < 1000000,
-        'analogue_gain': lambda v: isinstance(v, (int, float)) and 1.0 <= v <= 16.0,
+        "sharpness": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        "brightness": lambda v: isinstance(v, (int, float)) and -1.0 <= v <= 1.0,
+        "contrast": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        "saturation": lambda v: isinstance(v, (int, float)) and 0.0 <= v <= 4.0,
+        "af_mode": lambda v: isinstance(v, int) and v in (0, 1, 2),
+        "exposure_time": lambda v: isinstance(v, int) and 1 <= v < 1000000,
+        "analogue_gain": lambda v: isinstance(v, (int, float)) and 1.0 <= v <= 16.0,
     }
 
     result = {}
