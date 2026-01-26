@@ -271,7 +271,7 @@ export class SchedulerPage {
     if (await activeBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
       await this.clickBannerDeactivate()
       await this.page.waitForLoadState('networkidle')
-      await this.page.waitForTimeout(500)
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
     }
 
     // Then disable any enabled schedule
@@ -281,7 +281,7 @@ export class SchedulerPage {
         await disableBtn.click()
         await this.page.waitForLoadState('networkidle')
         await enabledBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }).catch(() => {})
-        await this.page.waitForTimeout(500)
+        await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
       }
     }
   }
@@ -293,7 +293,7 @@ export class SchedulerPage {
   async enableScheduleByName(name) {
     const card = this.getScheduleCardByName(name)
     await card.scrollIntoViewIfNeeded()
-    await this.page.waitForTimeout(300)
+    await this.page.waitForTimeout(TIMEOUTS.UI_SETTLE)
 
     const enableBtn = card.locator(this.selectors.enableButton)
     await enableBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
@@ -375,7 +375,7 @@ export class SchedulerPage {
     if (await this.isActiveBannerVisible()) {
       await this.clickBannerDeactivate()
       await this.page.waitForLoadState('networkidle')
-      await this.page.waitForTimeout(500) // Allow UI to settle
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION) // Allow UI to settle
     }
 
     // Also disable any currently enabled schedule (required: manual disable before enabling another)
@@ -387,14 +387,14 @@ export class SchedulerPage {
         await this.page.waitForLoadState('networkidle')
         // Wait for the enabled banner to disappear
         await enabledBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }).catch(() => {})
-        await this.page.waitForTimeout(500) // Allow UI to settle
+        await this.page.waitForTimeout(TIMEOUTS.TRANSITION) // Allow UI to settle
       }
     }
 
     // Path 1: Try Enable button on card (visible when no schedule is active)
     // Scroll card into view first to ensure button is visible
     await card.scrollIntoViewIfNeeded()
-    await this.page.waitForTimeout(300) // Allow UI to settle after scroll
+    await this.page.waitForTimeout(TIMEOUTS.UI_SETTLE) // Allow UI to settle after scroll
 
     const enableBtn = card.locator(this.selectors.enableButton)
     if (await enableBtn.isVisible({ timeout: 3000 }).catch(() => false)) {

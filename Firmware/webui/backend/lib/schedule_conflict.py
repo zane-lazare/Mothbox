@@ -905,43 +905,46 @@ def detect_conflicts(
 
     # Check instant action collisions (zero-duration executions at same time)
     # These are skipped by check_time_overlap() but still cause resource conflicts
-    time_groups: dict[datetime, list[RoutineExecution]] = defaultdict(list)
-    for execution in executions:
-        if execution.start_time == execution.end_time:  # Instant action
+    # Filter instant actions first - skip section if empty (common case) (Issue #385)
+    instant_actions = [e for e in executions if e.start_time == e.end_time]
+
+    if instant_actions:
+        time_groups: dict[datetime, list[RoutineExecution]] = defaultdict(list)
+        for execution in instant_actions:
             time_groups[execution.start_time].append(execution)
 
-    # Check resource contention within each time group
-    for collision_time, colliding_execs in time_groups.items():
-        if len(colliding_execs) < 2:
-            continue
+        # Check resource contention within each time group
+        for collision_time, colliding_execs in time_groups.items():
+            if len(colliding_execs) < 2:
+                continue
 
-        # Check all pairs for resource contention
-        for i, exec1 in enumerate(colliding_execs):
-            for exec2 in colliding_execs[i + 1 :]:
-                for usage1 in exec1.resource_usages:
-                    for usage2 in exec2.resource_usages:
-                        contends, conflict_type = check_resource_contention(usage1, usage2)
-                        if contends:
-                            instant_conflict = Conflict(
-                                conflict_type=conflict_type,
-                                event1_id=exec1.routine_id,
-                                event1_name=exec1.routine_name,
-                                event2_id=exec2.routine_id,
-                                event2_name=exec2.routine_name,
-                                start_time=collision_time,
-                                end_time=collision_time,
-                                resource=usage1.resource_type,
-                                message=(
-                                    f"'{exec1.routine_name}' and '{exec2.routine_name}' "
-                                    f"both use {usage1.resource_type} at "
-                                    f"{collision_time.strftime('%H:%M:%S')}"
-                                ),
-                                suggested_resolution=(
-                                    "Stagger trigger times or combine into single routine"
-                                ),
-                                severity=SEVERITY_ERROR,
-                            )
-                            conflicts.append(instant_conflict)
+            # Check all pairs for resource contention
+            for i, exec1 in enumerate(colliding_execs):
+                for exec2 in colliding_execs[i + 1 :]:
+                    for usage1 in exec1.resource_usages:
+                        for usage2 in exec2.resource_usages:
+                            contends, conflict_type = check_resource_contention(usage1, usage2)
+                            if contends:
+                                instant_conflict = Conflict(
+                                    conflict_type=conflict_type,
+                                    event1_id=exec1.routine_id,
+                                    event1_name=exec1.routine_name,
+                                    event2_id=exec2.routine_id,
+                                    event2_name=exec2.routine_name,
+                                    start_time=collision_time,
+                                    end_time=collision_time,
+                                    resource=usage1.resource_type,
+                                    message=(
+                                        f"'{exec1.routine_name}' and '{exec2.routine_name}' "
+                                        f"both use {usage1.resource_type} at "
+                                        f"{collision_time.strftime('%H:%M:%S')}"
+                                    ),
+                                    suggested_resolution=(
+                                        "Stagger trigger times or combine into single routine"
+                                    ),
+                                    severity=SEVERITY_ERROR,
+                                )
+                                conflicts.append(instant_conflict)
 
     has_blocking = any(c.severity == SEVERITY_ERROR for c in conflicts)
     blocking_count = sum(1 for c in conflicts if c.severity == SEVERITY_ERROR)

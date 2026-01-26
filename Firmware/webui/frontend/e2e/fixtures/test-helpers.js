@@ -13,6 +13,10 @@ export const TIMEOUTS = {
   TRANSITION: 500,
   /** Short delay for save operations to complete */
   SAVE: 1000,
+  /** Delay for debounced validation (400ms debounce + buffer) */
+  DEBOUNCE_VALIDATION: 600,
+  /** Short delay for UI to settle after scroll/animation */
+  UI_SETTLE: 300,
   /** Short timeout for optional/fast elements (e.g., spinners that may not appear) */
   SHORT: 2000,
   /** Medium timeout for UI transitions and state changes */

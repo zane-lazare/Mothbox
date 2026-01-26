@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import PropTypes from 'prop-types';
 import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
@@ -84,6 +84,8 @@ const ScheduleEditor = ({
 }) => {
   // Refs
   const nameInputRef = useRef(null);
+  // Track requested schedule ID to prevent race conditions (Issue #385)
+  const requestedScheduleRef = useRef(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -156,11 +158,25 @@ const ScheduleEditor = ({
   }, [isOpen, isEditMode]);
 
   /**
+   * Track requested schedule ID to detect stale responses (Issue #385)
+   * This ref is updated synchronously when schedule changes, allowing
+   * the form initialization effect to ignore stale fetch responses.
+   */
+  useLayoutEffect(() => {
+    requestedScheduleRef.current = isEditMode ? schedule?.schedule_id : null;
+  }, [isEditMode, schedule?.schedule_id]);
+
+  /**
    * Initialize form from schedule data
    * In edit mode, use fullSchedule (fetched from API with complete data including routines)
    * In create mode, reset to defaults
    */
   useEffect(() => {
+    // Ignore stale responses from previous schedule fetches (Issue #385)
+    if (isEditMode && fullSchedule?.schedule_id !== requestedScheduleRef.current) {
+      return;
+    }
+
     if (isEditMode && fullSchedule && fullSchedule.schedule_id === schedule?.schedule_id) {
       // Only populate when fetched data matches the requested schedule
       setName(fullSchedule.name || '');

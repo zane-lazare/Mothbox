@@ -1080,76 +1080,65 @@ class SchedulerService:
             except pytz.UnknownTimeZoneError:
                 raise ScheduleActivationError(f"Invalid timezone: {timezone_name}") from None
 
-            # Get the schedule
-            schedule = self.get_schedule(schedule_id)
-            if not schedule:
-                raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
-
-            # Check if enabled
-            if not schedule.enabled:
-                raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
-
-            # Already active? Return success (idempotent)
-            if schedule.is_active and self._active_schedule_id == schedule_id:
-                return
-
-            # Check for conflicts before activation (Issue #213)
-            # Uses cached conflict report to avoid redundant computation
-            if check_conflicts:
-                _emit_progress(
-                    ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS
-                )
-                try:
-                    from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
-
-                    report = self.get_cached_conflict_report(
-                        schedule,
-                        preview_days=7,
-                        latitude=latitude,
-                        longitude=longitude,
-                        timezone_name=timezone_name,
-                    )
-                    if report.has_blocking_conflicts:
-                        blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
-                        messages = [c.message for c in blocking[:3]]
-                        error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
-                            messages
-                        )
-                        _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-                        raise ScheduleConflictError(f"Conflict detected: {error}")
-                except ImportError:
-                    # Conflict detection module not available - skip check
-                    logger.warning("Conflict detection module not available, skipping check")
-                except ScheduleConflictError:
-                    # Re-raise conflict errors for caller to handle
-                    raise
-                except Exception as e:
-                    logger.exception(f"Error during conflict check: {e}")
-                    _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-                    raise ScheduleActivationError(f"Conflict check failed: {e}") from e
-
-            # Check if another schedule is already active (manual deactivate required)
-            if self._active_schedule_id and self._active_schedule_id != schedule_id:
-                raise ScheduleActivationError(
-                    f"Cannot activate schedule '{schedule_id}': "
-                    f"Schedule '{self._active_schedule_id}' is already active. "
-                    "Deactivate it first."
-                )
-
-            # Re-check schedule state for defense-in-depth
-            # (schedule could have been modified/deleted/disabled by another thread)
+            # Acquire cache lock for entire validation section to prevent TOCTOU race
+            # (Issue #385 review fix). This ensures schedule cannot be modified/deleted
+            # between validation and cron application.
             with self._cache_lock:
-                current = self.get_schedule(schedule_id)
-                if current is None:
-                    raise ScheduleActivationError(
-                        f"Schedule was deleted during activation: {schedule_id}"
+                # Get the schedule (now protected by cache lock)
+                schedule = self.get_schedule(schedule_id)
+                if not schedule:
+                    raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
+
+                # Check if enabled
+                if not schedule.enabled:
+                    raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
+
+                # Already active? Return success (idempotent)
+                if schedule.is_active and self._active_schedule_id == schedule_id:
+                    return
+
+                # Check for conflicts before activation (Issue #213)
+                # Uses cached conflict report to avoid redundant computation
+                if check_conflicts:
+                    _emit_progress(
+                        ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS
                     )
-                if not current.enabled:
+                    try:
+                        from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+
+                        report = self.get_cached_conflict_report(
+                            schedule,
+                            preview_days=7,
+                            latitude=latitude,
+                            longitude=longitude,
+                            timezone_name=timezone_name,
+                        )
+                        if report.has_blocking_conflicts:
+                            blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
+                            messages = [c.message for c in blocking[:3]]
+                            error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
+                                messages
+                            )
+                            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
+                            raise ScheduleConflictError(f"Conflict detected: {error}")
+                    except ImportError:
+                        # Conflict detection module not available - skip check
+                        logger.warning("Conflict detection module not available, skipping check")
+                    except ScheduleConflictError:
+                        # Re-raise conflict errors for caller to handle
+                        raise
+                    except Exception as e:
+                        logger.exception(f"Error during conflict check: {e}")
+                        _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
+                        raise ScheduleActivationError(f"Conflict check failed: {e}") from e
+
+                # Check if another schedule is already active (manual deactivate required)
+                if self._active_schedule_id and self._active_schedule_id != schedule_id:
                     raise ScheduleActivationError(
-                        f"Schedule was disabled during activation: {schedule_id}"
+                        f"Cannot activate schedule '{schedule_id}': "
+                        f"Schedule '{self._active_schedule_id}' is already active. "
+                        "Deactivate it first."
                     )
-                # Use the refreshed schedule for cron conversion
-                schedule = current
 
             # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
             # We apply cron before updating is_active to avoid inconsistent state
@@ -1204,7 +1193,21 @@ class SchedulerService:
                     self._active_timezone_name = timezone_name
 
                 # Persist state to disk with expanded entries for recovery after restart (Issue #331)
-                self._save_active_state(entries=expanded_entries)
+                # If this fails, rollback in-memory state and re-raise (Issue #385 review fix)
+                try:
+                    self._save_active_state(entries=expanded_entries)
+                except (LockTimeoutError, OSError) as persist_error:
+                    logger.error(f"Failed to persist active state: {persist_error}")
+                    # Clear in-memory state since persistence failed
+                    with self._cache_lock:
+                        self._active_schedule_id = None
+                        self._active_coordinates_source = None
+                        self._active_latitude = None
+                        self._active_longitude = None
+                        self._active_timezone_name = None
+                    raise ScheduleActivationError(
+                        f"Failed to persist activation state: {persist_error}"
+                    ) from persist_error
 
             except ScheduleActivationError:
                 # Re-raise our own errors, but rollback cron if already applied

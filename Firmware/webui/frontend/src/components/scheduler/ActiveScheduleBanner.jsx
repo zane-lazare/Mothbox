@@ -66,7 +66,7 @@ function ActiveScheduleBanner() {
 
   // Fetch next actions from persisted entries (Issue #331)
   // Uses pre-expanded cron entries stored in active_state.json instead of preview API
-  const { data: nextActionsData } = useNextActions(
+  const { data: nextActionsData, isError: nextActionsError } = useNextActions(
     { limit: 5 },
     {
       enabled: !!activeSchedule,
@@ -137,11 +137,16 @@ function ActiveScheduleBanner() {
 
         {/* Second row: Next action and time/location info */}
         <div className={`mt-2 flex items-center gap-4 ${TEXT_STYLES.description}`}>
-          {nextTime && nextActionName && (
+          {nextActionsError ? (
+            <span className={TEXT_STYLES.meta}>
+              <ExclamationTriangleIcon className="h-4 w-4 inline mr-1 text-yellow-500" />
+              Failed to load next actions
+            </span>
+          ) : nextTime && nextActionName ? (
             <span data-testid="next-execution">
               Next: {nextTime} {nextActionName}
             </span>
-          )}
+          ) : null}
           {coordinatesSource && (
             <span data-testid="location-info">
               {coordinatesSource === 'gps' &&

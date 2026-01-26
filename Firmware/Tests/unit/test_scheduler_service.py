@@ -378,31 +378,32 @@ class TestGetSchedule:
         assert stats_after["total_reads"] == 2
 
     def test_cache_ttl_expiration(self, temp_schedules_dir, sample_schedule):
-        """Entry expires after TTL (use time.sleep)."""
-        import time
+        """Entry expires after TTL (use freezegun for deterministic time control)."""
+        from freezegun import freeze_time
 
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create service with very short TTL
-        service = SchedulerService(cache_ttl=0.1, max_cache_size=100)
+        # Create service with longer TTL for clearer test semantics
+        service = SchedulerService(cache_ttl=60, max_cache_size=100)
 
         sample_schedule.schedule_id = _test_uuid("ttl")
         create_schedule(sample_schedule)
 
-        # First call - cache miss
-        service.get_schedule(_test_uuid("ttl"))
-        stats_after_first = service.get_statistics()
-        assert stats_after_first["cache_misses"] == 1
-        assert stats_after_first["cache_size"] == 1
+        with freeze_time("2024-01-15 10:00:00") as frozen_time:
+            # First call - cache miss
+            service.get_schedule(_test_uuid("ttl"))
+            stats_after_first = service.get_statistics()
+            assert stats_after_first["cache_misses"] == 1
+            assert stats_after_first["cache_size"] == 1
 
-        # Wait for TTL to expire
-        time.sleep(0.15)
+            # Advance time past TTL (65 seconds > 60 second TTL)
+            frozen_time.tick(65)
 
-        # Second call - cache miss (TTL expired)
-        service.get_schedule(_test_uuid("ttl"))
-        stats_after_second = service.get_statistics()
-        assert stats_after_second["cache_misses"] == 2
-        assert stats_after_second["cache_hits"] == 0
+            # Second call - cache miss (TTL expired)
+            service.get_schedule(_test_uuid("ttl"))
+            stats_after_second = service.get_statistics()
+            assert stats_after_second["cache_misses"] == 2
+            assert stats_after_second["cache_hits"] == 0
 
 
 # ============================================================================
@@ -2959,8 +2960,8 @@ class TestConflictCache:
     def test_conflict_cache_ttl_expiration(
         self, scheduler_service, temp_schedules_dir, sample_schedule
     ):
-        """Expired entries should be refreshed (cache miss)."""
-        import time
+        """Expired entries should be refreshed (cache miss) - uses freezegun for deterministic timing."""
+        from freezegun import freeze_time
 
         from webui.backend.lib.schedule_storage import create_schedule
 
@@ -2970,40 +2971,41 @@ class TestConflictCache:
 
         schedule = scheduler_service.get_schedule(_test_uuid("ttl-test-schedule"))
 
-        # Set very short TTL for testing
+        # Set TTL for testing (60 seconds for clear semantics)
         original_ttl = scheduler_service._conflict_cache_ttl
-        scheduler_service._conflict_cache_ttl = 0.1  # 100ms
+        scheduler_service._conflict_cache_ttl = 60
 
         try:
-            # First call - cache miss
-            scheduler_service.get_cached_conflict_report(
-                schedule,
-                preview_days=7,
-                latitude=0.0,
-                longitude=0.0,
-                timezone_name="UTC",
-            )
+            with freeze_time("2024-01-15 10:00:00") as frozen_time:
+                # First call - cache miss
+                scheduler_service.get_cached_conflict_report(
+                    schedule,
+                    preview_days=7,
+                    latitude=0.0,
+                    longitude=0.0,
+                    timezone_name="UTC",
+                )
 
-            stats_after_first = scheduler_service.get_statistics()
-            misses_first = stats_after_first["conflict_cache_misses"]
+                stats_after_first = scheduler_service.get_statistics()
+                misses_first = stats_after_first["conflict_cache_misses"]
 
-            # Wait for TTL to expire
-            time.sleep(0.2)
+                # Advance time past TTL (65 seconds > 60 second TTL)
+                frozen_time.tick(65)
 
-            # Second call - should be cache miss due to TTL expiration
-            scheduler_service.get_cached_conflict_report(
-                schedule,
-                preview_days=7,
-                latitude=0.0,
-                longitude=0.0,
-                timezone_name="UTC",
-            )
+                # Second call - should be cache miss due to TTL expiration
+                scheduler_service.get_cached_conflict_report(
+                    schedule,
+                    preview_days=7,
+                    latitude=0.0,
+                    longitude=0.0,
+                    timezone_name="UTC",
+                )
 
-            stats_after_second = scheduler_service.get_statistics()
-            misses_second = stats_after_second["conflict_cache_misses"]
+                stats_after_second = scheduler_service.get_statistics()
+                misses_second = stats_after_second["conflict_cache_misses"]
 
-            # Should have another miss due to expiration
-            assert misses_second == misses_first + 1
+                # Should have another miss due to expiration
+                assert misses_second == misses_first + 1
 
         finally:
             # Restore original TTL

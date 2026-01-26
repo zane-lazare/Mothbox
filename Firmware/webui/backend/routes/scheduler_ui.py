@@ -66,6 +66,35 @@ except ImportError:
     limiter = _LimiterStub()
 
 
+def _validate_location_params(
+    latitude: float | None,
+    longitude: float | None,
+    timezone_name: str | None,
+) -> tuple[dict | None, int | None]:
+    """Validate location parameters for schedule operations.
+
+    Consolidates coordinate and timezone validation logic (Issue #385 review fix).
+
+    Args:
+        latitude: Latitude value to validate
+        longitude: Longitude value to validate
+        timezone_name: Optional timezone name to validate
+
+    Returns:
+        Tuple of (error_dict, status_code) if validation fails, or (None, None) if valid.
+    """
+    valid, coord_error = validate_coordinates(latitude, longitude)
+    if not valid:
+        return {"error": f"Invalid coordinates: {coord_error}"}, 400
+
+    if timezone_name:
+        valid, tz_error = validate_timezone(timezone_name)
+        if not valid:
+            return {"error": f"Invalid timezone: {tz_error}"}, 400
+
+    return None, None
+
+
 def _requires_coordinates(routines: list[Routine]) -> bool:
     """Check if any routine has a solar or moon phase trigger requiring coordinates.
 
@@ -1087,25 +1116,12 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
             timezone_name = get_system_timezone()
             logger.info(f"Using system timezone: {timezone_name}")
 
-        # Validate coordinate ranges regardless of source (Issue #385 review fix)
+        # Validate coordinate ranges and timezone (Issue #385 review fix)
         # Coordinates may come from explicit request, GPS, or timezone fallback -
         # all sources should be validated to catch invalid controls.txt values
-        valid, coord_error = validate_coordinates(latitude, longitude)
-        if not valid:
-            return jsonify(
-                {
-                    "error": f"Invalid coordinates: {coord_error}",
-                }
-            ), 400
-
-        # Validate timezone
-        valid, tz_error = validate_timezone(timezone_name)
-        if not valid:
-            return jsonify(
-                {
-                    "error": f"Invalid timezone: {tz_error}",
-                }
-            ), 400
+        error, status = _validate_location_params(latitude, longitude, timezone_name)
+        if error:
+            return jsonify(error), status
 
         service = get_scheduler_service()
 
@@ -1316,14 +1332,11 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
         timezone_name = data.get("timezone", "UTC")
 
         # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
+        # Use helper with timezone_name=None to skip timezone validation (Issue #385)
         if lat_provided and lon_provided:
-            valid, coord_error = validate_coordinates(latitude, longitude)
-            if not valid:
-                return jsonify(
-                    {
-                        "error": f"Invalid coordinates: {coord_error}",
-                    }
-                ), 400
+            error, status = _validate_location_params(latitude, longitude, None)
+            if error:
+                return jsonify(error), status
 
         service = get_scheduler_service()
 

@@ -214,7 +214,7 @@ test.describe('Scheduler Conflict Detection', () => {
     await scheduler.saveRoutine()
 
     // Wait for debounced validation
-    await page.waitForTimeout(500) // 400ms debounce + buffer
+    await page.waitForTimeout(TIMEOUTS.DEBOUNCE_VALIDATION)
     await scheduler.waitForConflictValidation()
 
     // Now should show conflicts (GPIO state conflict - attract_on at same time)
@@ -245,7 +245,7 @@ test.describe('Scheduler Conflict Detection', () => {
     await scheduler.saveRoutine()
 
     // The loading state may be brief, but panel should eventually show a result
-    await page.waitForTimeout(1000) // Wait for debounce + validation
+    await page.waitForTimeout(TIMEOUTS.SAVE) // Wait for debounce + validation
 
     // Panel should show either loading, no conflicts, or conflicts
     const panelText = await scheduler.getConflictPanelText()

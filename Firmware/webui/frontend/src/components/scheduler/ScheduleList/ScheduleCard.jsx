@@ -55,16 +55,20 @@ function ScheduleCard({
   const nameId = `schedule-name-${schedule.schedule_id}`
   const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
 
-  // Memoize handlers to preserve memo() optimization
+  // Memoize handlers to preserve memo() optimization (Issue #385)
+  // Use schedule.schedule_id instead of schedule object to prevent breaking memo()
+  // when parent passes new schedule object references with same data
   const handleView = useCallback(() => {
     onView(schedule)
-  }, [onView, schedule])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally use ID, not object
+  }, [onView, schedule.schedule_id])
 
   const handleToggleEnabled = useCallback(() => {
     if (onToggleEnabled) {
       onToggleEnabled(schedule)
     }
-  }, [onToggleEnabled, schedule])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally use ID, not object
+  }, [onToggleEnabled, schedule.schedule_id])
 
   // Build card classes based on state
   const cardClasses = [
