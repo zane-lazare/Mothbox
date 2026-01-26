@@ -369,9 +369,7 @@ def get_resource_type(action: Action) -> str:
 # ============================================================================
 
 
-def _check_time_overlap(
-    start1: datetime, end1: datetime, start2: datetime, end2: datetime
-) -> bool:
+def _check_time_overlap(start1: datetime, end1: datetime, start2: datetime, end2: datetime) -> bool:
     """
     Check if two time ranges overlap, handling instant actions.
 

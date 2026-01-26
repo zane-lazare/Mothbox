@@ -459,38 +459,26 @@ class TestTOCTOURacePrevention:
                 # Expected - schedule was deleted
                 pass
 
-    def test_schedule_disabled_during_activation_detected(
+    def test_schedule_disabled_before_activation_detected(
         self, scheduler_service, sample_schedule, temp_schedules_dir
     ):
-        """If schedule is disabled during activation, error is raised."""
+        """If schedule is disabled before activation starts, error is raised.
+
+        Note: The TOCTOU fix (Issue #385) holds _cache_lock throughout validation,
+        so schedule cannot be disabled DURING activation. This test verifies that
+        a disabled schedule is detected at activation start.
+        """
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
 
-        # Create and enable the schedule
+        # Create the schedule but leave it disabled
         create_schedule(sample_schedule)
-        scheduler_service.set_enabled_schedule(sample_schedule.schedule_id)
+        # Do NOT enable it - leave disabled
 
-        call_count = [0]
-
-        # Mock get_schedule to return disabled on second call
-        original_get_schedule = scheduler_service.get_schedule
-
-        def mock_get_schedule(schedule_id):
-            call_count[0] += 1
-            schedule = original_get_schedule(schedule_id)
-            if schedule and call_count[0] > 1:
-                # Simulate schedule being disabled between checks
-                schedule.enabled = False
-            return schedule
-
-        with (
-            patch.object(scheduler_service, "get_schedule", mock_get_schedule),
-            patch("webui.backend.services.scheduler_service.schedule_to_cron") as mock_cron,
-        ):
+        with patch("webui.backend.services.scheduler_service.schedule_to_cron") as mock_cron:
             mock_cron.return_value = MagicMock(entries=[], errors=[])
 
-            # This should raise because the re-check inside activation lock
-            # will detect that the schedule was disabled
+            # This should raise because schedule is disabled
             with pytest.raises(ScheduleActivationError) as exc_info:
                 scheduler_service.activate_schedule(sample_schedule.schedule_id)
 
@@ -580,7 +568,7 @@ class TestLockTimeoutErrorRollback:
                 scheduler_service.activate_schedule(sample_schedule.schedule_id)
 
             # Verify error message mentions state save failure
-            assert "Failed to apply schedule" in str(exc_info.value)
+            assert "Failed to persist activation state" in str(exc_info.value)
 
             # Verify rollback was called (cron entries were removed)
             assert len(remove_from_system_called) > 0, "Cron rollback should have been triggered"

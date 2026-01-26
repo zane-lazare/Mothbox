@@ -1116,8 +1116,9 @@ class SchedulerService:
                         if report.has_blocking_conflicts:
                             blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
                             messages = [c.message for c in blocking[:3]]
-                            error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
-                                messages
+                            error = (
+                                f"Schedule has {len(blocking)} blocking conflict(s): "
+                                + "; ".join(messages)
                             )
                             _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
                             raise ScheduleConflictError(f"Conflict detected: {error}")
@@ -1153,7 +1154,9 @@ class SchedulerService:
                     timezone_name=timezone_name,
                 )
                 if result.errors:
-                    raise ScheduleActivationError(f"Cron conversion failed: {'; '.join(result.errors)}")
+                    raise ScheduleActivationError(
+                        f"Cron conversion failed: {'; '.join(result.errors)}"
+                    )
 
                 _emit_progress(ACTIVATION_PHASE_APPLYING_CRON, ACTIVATION_PROGRESS_APPLYING_CRON)
                 apply_to_system(
@@ -1232,7 +1235,9 @@ class SchedulerService:
                 raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
             _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
-            logger.info(f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})")
+            logger.info(
+                f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})"
+            )
 
     def deactivate_schedule(self) -> bool:
         """

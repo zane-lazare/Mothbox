@@ -1175,9 +1175,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 # No GPS, fall back to timezone
                 latitude, longitude, fallback_timezone = get_fallback_coordinates()
                 coordinates_source = "timezone"
-                logger.debug(
-                    f"No GPS available, using timezone fallback: {fallback_timezone}"
-                )
+                logger.debug(f"No GPS available, using timezone fallback: {fallback_timezone}")
 
         # Determine timezone:
         # 1. If using timezone fallback, use that timezone
@@ -1574,10 +1572,12 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
             # Don't reflect user input in error - use generic message (Issue #385 security fix)
-            return jsonify({
-                "error": "Invalid timezone: Use IANA timezone names "
-                "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
-            }), 400
+            return jsonify(
+                {
+                    "error": "Invalid timezone: Use IANA timezone names "
+                    "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
+                }
+            ), 400
 
         # Check if coordinates required but not provided (solar/moon triggers)
         if not lat_provided and _requires_coordinates(routines):
@@ -1620,10 +1620,12 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating draft routines: {e}", exc_info=True)
-        return jsonify({
-            "error": "Internal server error",
-            "code": ERROR_CODES["SERVER_ERROR"],
-        }), 500
+        return jsonify(
+            {
+                "error": "Internal server error",
+                "code": ERROR_CODES["SERVER_ERROR"],
+            }
+        ), 500
 
 
 # ============================================================================
