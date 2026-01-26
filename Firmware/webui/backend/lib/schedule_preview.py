@@ -315,7 +315,7 @@ def _get_default_location() -> tuple[float | None, float | None]:
         if lat_str != "n/a" and lon_str != "n/a":
             lat = float(lat_str)
             lon = float(lon_str)
-            logger.debug(f"Using GPS location from controls.txt: {lat}, {lon}")
+            logger.debug("Using GPS location from controls.txt (redacted for privacy)")
             return lat, lon
     except Exception as e:
         logger.warning(f"Could not read GPS coordinates from controls.txt: {e}")

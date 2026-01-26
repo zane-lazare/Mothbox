@@ -150,7 +150,7 @@ def get_fallback_coordinates() -> tuple[float, float, str]:
     coords = get_coordinates_from_timezone(tz)
 
     if coords:
-        logger.info(f"Using timezone '{tz}' for approximate coordinates: {coords}")
+        logger.debug(f"Using timezone '{tz}' for coordinate fallback (redacted for privacy)")
         return (coords[0], coords[1], tz)
 
     # Timezone not in mapping - use UTC (0, 0) as last resort

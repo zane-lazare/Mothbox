@@ -1127,22 +1127,20 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                     latitude = float(device_lat)
                     longitude = float(device_lon)
                     coordinates_source = "gps"
-                    logger.info(f"Using device GPS: {latitude}, {longitude}")
+                    logger.debug("Using device GPS coordinates (redacted for privacy)")
                 except (ValueError, TypeError):
                     # GPS values invalid, fall back to timezone
                     latitude, longitude, fallback_timezone = get_fallback_coordinates()
                     coordinates_source = "timezone"
-                    logger.info(
-                        f"GPS values invalid, using timezone '{fallback_timezone}': "
-                        f"{latitude}, {longitude}"
+                    logger.debug(
+                        f"GPS values invalid, using timezone fallback: {fallback_timezone}"
                     )
             else:
                 # No GPS, fall back to timezone
                 latitude, longitude, fallback_timezone = get_fallback_coordinates()
                 coordinates_source = "timezone"
-                logger.info(
-                    f"No GPS available, using timezone '{fallback_timezone}': "
-                    f"{latitude}, {longitude}"
+                logger.debug(
+                    f"No GPS available, using timezone fallback: {fallback_timezone}"
                 )
 
         # Determine timezone:
