@@ -15,6 +15,7 @@ Issue #310 - API terminology update (Schema 3.0)
 """
 
 import logging
+import re
 import subprocess
 from datetime import UTC, datetime
 from functools import wraps
@@ -85,14 +86,56 @@ def _validate_location_params(
     """
     valid, coord_error = validate_coordinates(latitude, longitude)
     if not valid:
-        return {"error": f"Invalid coordinates: {coord_error}"}, 400
+        # Return sanitized error - coord_error doesn't include user input
+        safe_error = _sanitize_error_message(coord_error)
+        return {"error": f"Invalid coordinates: {safe_error}"}, 400
 
     if timezone_name:
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
-            return {"error": f"Invalid timezone: {tz_error}"}, 400
+            # Don't reflect user input in error - use generic message
+            # Original error logged for debugging, sanitized version returned
+            return {
+                "error": "Invalid timezone: Use IANA timezone names "
+                "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
+            }, 400
 
     return None, None
+
+
+def _sanitize_error_message(message: str | None, max_length: int = 200) -> str:
+    """
+    Sanitize error message for safe display to users.
+
+    Prevents XSS by stripping HTML tags and truncating long messages.
+    This is defense-in-depth - Flask's jsonify escapes by default,
+    but we strip tags to prevent any frontend rendering issues.
+
+    Args:
+        message: Raw error message (may contain user input)
+        max_length: Maximum length before truncation
+
+    Returns:
+        Sanitized error message safe for display
+
+    Issue #385 security fix: Reflected XSS prevention
+    """
+    if not message:
+        return "An error occurred"
+
+    msg = str(message)
+
+    # Strip HTML tags iteratively (handles nested/malformed tags)
+    prev_len = -1
+    while len(msg) != prev_len:
+        prev_len = len(msg)
+        msg = re.sub(r"<[^>]*>", "", msg)
+        msg = re.sub(r"<[^>]*$", "", msg)  # Incomplete tags
+
+    if len(msg) > max_length:
+        msg = msg[: max_length - 3] + "..."
+
+    return msg.strip() or "An error occurred"
 
 
 def _requires_coordinates(routines: list[Routine]) -> bool:
@@ -1481,12 +1524,18 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
         if lat_provided and lon_provided:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
-                return jsonify({"error": f"Invalid coordinates: {coord_error}"}), 400
+                # Sanitize error - coord_error doesn't include user input but sanitize anyway
+                safe_error = _sanitize_error_message(coord_error)
+                return jsonify({"error": f"Invalid coordinates: {safe_error}"}), 400
 
         # Validate timezone
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
-            return jsonify({"error": f"Invalid timezone: {tz_error}"}), 400
+            # Don't reflect user input in error - use generic message (Issue #385 security fix)
+            return jsonify({
+                "error": "Invalid timezone: Use IANA timezone names "
+                "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
+            }), 400
 
         # Check if coordinates required but not provided (solar/moon triggers)
         if not lat_provided and _requires_coordinates(routines):
