@@ -369,8 +369,10 @@ def print_af_state(request):
 def run_calibration():
     global calib_lens_position, calib_exposure, camera_settings, width, height, picam2
     # preview_config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (4624, 3472)})
+    print(f"[DEBUG {time.time():.3f}] Creating 4K preview_config", flush=True)
     preview_config = picam2.create_preview_configuration(main={"size": (1920 * 2, 1080 * 2)})
     # still_config = picam2.create_still_configuration(main={"size": (width, height), "format": "RGB888"}, buffer_count=1)
+    print(f"[DEBUG {time.time():.3f}] Configuring camera with preview_config", flush=True)
     picam2.configure(preview_config)
 
     # picam2.set_controls({"AfMode":0,"AfSpeed":0,"AfRange":0, "LensPosition":7.0})
@@ -815,6 +817,8 @@ try:
 
     # Start up cameras
     picam2 = Picamera2()
+    print(f"[DEBUG {time.time():.3f}] Picamera2 created", flush=True)
+    print(f"[DEBUG {time.time():.3f}] Initial config: {picam2.camera_configuration()}", flush=True)
 
     # ----Autocalibration ---------
 
@@ -826,8 +830,10 @@ try:
         "  seconds ago \n Autocalibration period is   ",
         AutoCalibrationPeriod,
     )
+    print(f"[DEBUG {time.time():.3f}] AutoCalibration={AutoCalibration}, timeSince={timesincelastcalibration:.1f}s, period={AutoCalibrationPeriod}s", flush=True)
     recalibrated = False
     if AutoCalibration and (timesincelastcalibration > AutoCalibrationPeriod):
+        print(f"[DEBUG {time.time():.3f}] ENTERING run_calibration()", flush=True)
         print("Do Autocalibrate")
         recalibrated = True
         print(current_time)
@@ -835,6 +841,7 @@ try:
         # picam2.configure(capture_config_fastAuto)
         run_calibration()
     else:
+        print(f"[DEBUG {time.time():.3f}] SKIPPING calibration", flush=True)
         print("Don't Autocalibration")
 
     # ------ Prepare to take actual photo -----------
@@ -870,10 +877,12 @@ try:
         "size": (width, height),
         "format": "BGR888",  # Outputs RGB-ordered bytes for PIL compatibility
     }
+    print(f"[DEBUG {time.time():.3f}] Creating 64MP capture_config", flush=True)
     capture_config = picam2.create_still_configuration(main=capture_main, raw=None, lores=None)
     capture_config_flipped = picam2.create_still_configuration(
         main=capture_main, transform=Transform(vflip=True, hflip=True), raw=None, lores=None
     )
+    print(f"[DEBUG {time.time():.3f}] Configuring camera with capture_config", flush=True)
     picam2.configure(capture_config)
 
     if camera_settings:
