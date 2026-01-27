@@ -183,6 +183,18 @@ def flashOff():
     print("Flash Off\n")
 
 
+# Application-level settings (not Picamera2 controls, but used by TakePhoto.py)
+APPLICATION_SETTINGS = {
+    "Name",
+    "HDR",
+    "HDR_width",
+    "AutoCalibration",
+    "AutoCalibrationPeriod",
+    "ImageFileType",
+    "VerticalFlip",
+}
+
+
 def load_camera_settings():
     """
     Reads camera settings from a CSV file and converts them to appropriate data types.
@@ -268,6 +280,8 @@ def load_camera_settings():
                         print("middleexposurevalue ", middleexposure)
                     except ValueError:
                         raise ValueError(f"Invalid value for ExposureTime: {value}")
+                elif setting in APPLICATION_SETTINGS:
+                    pass  # Keep as string, application handles these
                 else:
                     print(f"Warning: Unknown setting: {setting}. Ignoring.")
 
@@ -824,12 +838,13 @@ try:
         print("Don't Autocalibration")
 
     # ------ Prepare to take actual photo -----------
-    # reload camera settings after possible calibration
-    camera_settings = load_camera_settings()
-    AutoCalibration = camera_settings.pop(
-        "AutoCalibration", 1
-    )  # defaults to what is set above if not in the files being read
-    AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod", 1000))
+    # Only reload if calibration ran (it may have updated settings)
+    if recalibrated:
+        camera_settings = load_camera_settings()
+        AutoCalibration = camera_settings.pop(
+            "AutoCalibration", 1
+        )  # defaults to what is set above if not in the files being read
+        AutoCalibrationPeriod = int(camera_settings.pop("AutoCalibrationPeriod", 1000))
 
     calib_lens_position = camera_settings["LensPosition"]
     calib_exposure = camera_settings["ExposureTime"]

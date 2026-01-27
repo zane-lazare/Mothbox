@@ -63,6 +63,18 @@ def get_control_values(filepath):
     return control_values
 
 
+# Application-level settings (not Picamera2 controls, but used by capture scripts)
+APPLICATION_SETTINGS = {
+    "Name",
+    "HDR",
+    "HDR_width",
+    "AutoCalibration",
+    "AutoCalibrationPeriod",
+    "ImageFileType",
+    "VerticalFlip",
+}
+
+
 def load_camera_settings():
     """
     Reads camera settings from a CSV file and converts them to appropriate data types.
@@ -154,6 +166,8 @@ def load_camera_settings():
                         value = float(value)
                     except ValueError as err:
                         raise ValueError(f"Invalid value for {setting}: {value}") from err
+                elif setting in APPLICATION_SETTINGS:
+                    pass  # Keep as string, application handles these
                 else:
                     print(f"Warning: Unknown setting: {setting}. Ignoring.")
 
