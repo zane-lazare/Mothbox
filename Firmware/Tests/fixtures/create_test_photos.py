@@ -34,7 +34,7 @@ Example:
 import argparse
 import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -72,7 +72,7 @@ TEST_GPS_DATA = {
     'latitude': 9.15,
     'longitude': -79.85,
     'altitude': 50.0,
-    'gpstime': int(datetime(2024, 1, 15, 10, 0, 0).timestamp()),
+    'gpstime': int(datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc).timestamp()),
     'fix_mode': 3,  # 3D fix
     'satellites_used': 8,
     'hdop': 1.2,

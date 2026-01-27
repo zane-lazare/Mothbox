@@ -9,7 +9,7 @@ import logging
 import os
 import select
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from gps import *  # noqa: F403 - gpsd library requires these exports
@@ -228,6 +228,7 @@ try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%S.%fZ")
         except ValueError:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%SZ")
+        dt = dt.replace(tzinfo=timezone.utc)  # Mark as UTC before converting to epoch
         epoch_time = int(dt.timestamp())
         logger.info("Epoch time:", epoch_time)
 
