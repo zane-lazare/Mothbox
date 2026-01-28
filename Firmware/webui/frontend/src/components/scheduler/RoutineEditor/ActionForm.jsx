@@ -6,11 +6,12 @@ import { generateUUID } from '../../../utils/uuid';
 // Valid parameter key pattern: must start with letter, then alphanumeric/underscore/hyphen
 const PARAM_KEY_REGEX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
-const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
+const ActionForm = ({ action, onSave, onCancel, isOpen, useSecondsTiming = false }) => {
   const [formData, setFormData] = useState({
     action_type: '',
     action_name: '',
     offset_minutes: '',
+    offset_seconds: '',
     description: '',
     parameters: [],
   });
@@ -29,6 +30,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
           action_type: action.action_type || '',
           action_name: action.action_name || '',
           offset_minutes: action.offset_minutes ?? '',
+          offset_seconds: action.offset_seconds ?? 0,
           description: action.description || '',
           parameters: action.parameters
             ? Object.entries(action.parameters).map(([key, value]) => ({
@@ -44,6 +46,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
           action_type: '',
           action_name: '',
           offset_minutes: '',
+          offset_seconds: 0,
           description: '',
           parameters: [],
         });
@@ -163,6 +166,14 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       }
     }
 
+    // Validate offset_seconds when seconds timing is enabled
+    if (useSecondsTiming) {
+      const seconds = Number(formData.offset_seconds);
+      if (isNaN(seconds) || seconds < ACTION_LIMITS.MIN_OFFSET_SECONDS || seconds > ACTION_LIMITS.MAX_OFFSET_SECONDS) {
+        newErrors.offset_seconds = `Seconds must be between ${ACTION_LIMITS.MIN_OFFSET_SECONDS} and ${ACTION_LIMITS.MAX_OFFSET_SECONDS}`;
+      }
+    }
+
     // Validate parameter keys
     const invalidKeys = formData.parameters
       .filter(param => param.key && !PARAM_KEY_REGEX.test(param.key))
@@ -197,6 +208,7 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
       action_type: formData.action_type,
       action_name: formData.action_name,
       offset_minutes: Number(formData.offset_minutes),
+      offset_seconds: Number(formData.offset_seconds) || 0,
       description: formData.description || undefined,
       parameters: parametersObj,
     };
@@ -317,6 +329,38 @@ const ActionForm = ({ action, onSave, onCancel, isOpen }) => {
                 </p>
               )}
             </div>
+
+            {/* Offset Seconds (shown only when seconds timing is enabled) */}
+            {useSecondsTiming && (
+              <div>
+                <label
+                  htmlFor="offset_seconds"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Offset (seconds)
+                </label>
+                <input
+                  id="offset_seconds"
+                  type="number"
+                  min={ACTION_LIMITS.MIN_OFFSET_SECONDS}
+                  max={ACTION_LIMITS.MAX_OFFSET_SECONDS}
+                  value={formData.offset_seconds}
+                  onChange={(e) => handleInputChange('offset_seconds', e.target.value)}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600
+                           bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-white
+                           focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={`${ACTION_LIMITS.MIN_OFFSET_SECONDS}-${ACTION_LIMITS.MAX_OFFSET_SECONDS}`}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Sub-minute timing for precise action sequencing
+                </p>
+                {errors.offset_seconds && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.offset_seconds}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Description */}
             <div>
@@ -444,12 +488,15 @@ ActionForm.propTypes = {
     action_type: PropTypes.string,
     action_name: PropTypes.string,
     offset_minutes: PropTypes.number,
+    offset_seconds: PropTypes.number,
     description: PropTypes.string,
     parameters: PropTypes.object
   }),
   onSave: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  isOpen: PropTypes.bool.isRequired
+  isOpen: PropTypes.bool.isRequired,
+  /** When true, shows offset_seconds input for precise sub-minute timing */
+  useSecondsTiming: PropTypes.bool
 };
 
 export default ActionForm;

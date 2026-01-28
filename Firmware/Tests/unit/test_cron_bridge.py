@@ -2177,3 +2177,259 @@ class TestPreviewScheduleExtended:
         assert isinstance(events, list)
         # Should return events for weekdays only
         assert len(events) > 0
+
+
+class TestActionStaggering:
+    """Test action staggering for GPIO race condition prevention (#379)."""
+
+    def test_auto_stagger_by_list_order(self):
+        """Without seconds timing, actions at same minute stagger by 5s based on list order."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Multi-GPIO",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+                Action(action_type="gpio", action_name="attract_off", offset_minutes=0),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,  # Just get today's entries
+            use_seconds_timing=False,
+        )
+
+        # Should have multiple entries (one per day), we just need to check the first day's entries
+        # Filter entries for the first day
+        if len(entries) < 3:
+            pytest.skip("Not enough entries generated (may be after 21:00)")
+
+        first_day_entries = entries[:3]
+
+        # First action should have no sleep prefix
+        assert "sleep" not in first_day_entries[0].command
+        assert "Attract_On" in first_day_entries[0].command
+
+        # Second action should have sleep 5
+        assert "sleep 5 &&" in first_day_entries[1].command
+
+        # Third action should have sleep 10
+        assert "sleep 10 &&" in first_day_entries[2].command
+
+    def test_explicit_seconds_timing(self):
+        """With seconds timing enabled, uses action.offset_seconds values."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Explicit Timing",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(
+                    action_type="gpio",
+                    action_name="attract_on",
+                    offset_minutes=0,
+                    offset_seconds=0,
+                ),
+                Action(
+                    action_type="gpio",
+                    action_name="flash_on",
+                    offset_minutes=0,
+                    offset_seconds=15,
+                ),
+                Action(
+                    action_type="gpio",
+                    action_name="attract_off",
+                    offset_minutes=0,
+                    offset_seconds=30,
+                ),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,
+            use_seconds_timing=True,
+        )
+
+        if len(entries) < 3:
+            pytest.skip("Not enough entries generated")
+
+        first_day_entries = entries[:3]
+
+        # First action: offset_seconds=0, no sleep
+        assert "sleep" not in first_day_entries[0].command
+
+        # Second action: offset_seconds=15
+        assert "sleep 15 &&" in first_day_entries[1].command
+
+        # Third action: offset_seconds=30
+        assert "sleep 30 &&" in first_day_entries[2].command
+
+    def test_single_action_no_stagger(self):
+        """Single action at offset has no sleep prefix."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Single Action",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,
+            use_seconds_timing=False,
+        )
+
+        if len(entries) < 1:
+            pytest.skip("No entries generated")
+
+        assert "sleep" not in entries[0].command
+
+    def test_different_minutes_no_stagger(self):
+        """Actions at different minutes don't get staggered."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Different Minutes",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=5),
+                Action(action_type="gpio", action_name="attract_off", offset_minutes=10),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,
+            use_seconds_timing=False,
+        )
+
+        if len(entries) < 3:
+            pytest.skip("Not enough entries generated")
+
+        # Get first day's entries (3 per day)
+        first_day_entries = entries[:3]
+
+        # Each action is at different minute - no staggering needed
+        for entry in first_day_entries:
+            assert "sleep" not in entry.command
+
+    def test_zero_seconds_no_sleep_prefix(self):
+        """offset_seconds=0 generates no sleep prefix even with seconds timing enabled."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Zero Seconds",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(
+                    action_type="gpio",
+                    action_name="attract_on",
+                    offset_minutes=0,
+                    offset_seconds=0,
+                ),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,
+            use_seconds_timing=True,
+        )
+
+        if len(entries) < 1:
+            pytest.skip("No entries generated")
+
+        assert "sleep" not in entries[0].command
+
+    def test_mixed_minutes_stagger_within_groups(self):
+        """Actions only stagger within same-minute groups."""
+        from webui.backend.lib.cron_bridge import routine_to_dated_cron
+
+        routine = Routine(
+            routine_id="r1",
+            name="Mixed Minutes",
+            trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+            actions=[
+                Action(action_type="gpio", action_name="attract_on", offset_minutes=0),
+                Action(action_type="gpio", action_name="flash_on", offset_minutes=0),
+                Action(action_type="camera", action_name="takephoto", offset_minutes=5),
+                Action(action_type="gpio", action_name="attract_off", offset_minutes=10),
+                Action(action_type="gpio", action_name="flash_off", offset_minutes=10),
+            ],
+        )
+
+        entries = routine_to_dated_cron(
+            routine=routine,
+            years_ahead=0,
+            use_seconds_timing=False,
+        )
+
+        if len(entries) < 5:
+            pytest.skip("Not enough entries generated")
+
+        # Get first day's entries (5 per day)
+        first_day_entries = entries[:5]
+
+        # offset_minutes=0 group: first no sleep, second sleep 5
+        assert "sleep" not in first_day_entries[0].command
+        assert "sleep 5 &&" in first_day_entries[1].command
+
+        # offset_minutes=5: single action, no sleep
+        assert "sleep" not in first_day_entries[2].command
+
+        # offset_minutes=10 group: first no sleep, second sleep 5
+        assert "sleep" not in first_day_entries[3].command
+        assert "sleep 5 &&" in first_day_entries[4].command
+
+    def test_schedule_passes_use_seconds_timing_to_routines(self):
+        """schedule_to_cron passes use_seconds_timing from schedule to routines."""
+        schedule = Schedule(
+            schedule_id="test-sched",
+            name="Test Schedule",
+            enabled=True,
+            use_seconds_timing=True,
+            routines=[
+                Routine(
+                    routine_id="r1",
+                    trigger=FixedTimeTrigger(time="21:00", days_of_week=None),
+                    actions=[
+                        Action(
+                            action_type="gpio",
+                            action_name="attract_on",
+                            offset_minutes=0,
+                            offset_seconds=0,
+                        ),
+                        Action(
+                            action_type="gpio",
+                            action_name="flash_on",
+                            offset_minutes=0,
+                            offset_seconds=20,
+                        ),
+                    ],
+                )
+            ],
+        )
+
+        result = schedule_to_cron(schedule)
+
+        # Should have entries
+        assert len(result.entries) >= 2
+
+        # Second action should use explicit offset_seconds=20
+        # Find the flash_on command
+        flash_entries = [e for e in result.entries if "Flash_On" in e.command or "flash_on" in e.command.lower()]
+        assert len(flash_entries) > 0
+        assert "sleep 20 &&" in flash_entries[0].command

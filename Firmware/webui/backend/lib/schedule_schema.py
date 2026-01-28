@@ -91,6 +91,9 @@ MAX_DESCRIPTION_LENGTH: Final[int] = 2000
 MAX_ACTIONS_PER_PATTERN: Final[int] = 20
 MAX_ROUTINES_PER_SCHEDULE: Final[int] = 10
 MAX_OFFSET_MINUTES: Final[int] = 1440  # 24 hours
+MIN_OFFSET_SECONDS: Final[int] = 0
+MAX_OFFSET_SECONDS: Final[int] = 59
+DEFAULT_STAGGER_SECONDS: Final[int] = 5  # Auto-stagger interval for same-minute actions
 MAX_INTERVAL_MINUTES: Final[int] = 10080  # 7 days
 MIN_INTERVAL_MINUTES: Final[int] = 1
 MAX_COOLDOWN_MINUTES: Final[int] = 60
@@ -226,6 +229,10 @@ class Action:
         action_type: Category ("gpio", "camera", "gps_sync", "service")
         action_name: Specific action (e.g., "attract_on", "takephoto")
         offset_minutes: Minutes from routine start (t=0). Default 0, max 1440.
+        offset_seconds: Seconds within the minute (0-59). Used for sub-minute
+                       timing control when Schedule.use_seconds_timing is True.
+                       When use_seconds_timing is False, actions with the same
+                       offset_minutes are auto-staggered by list order.
         parameters: Action-specific configuration dict
         description: Human-readable description (max 500 chars)
 
@@ -234,6 +241,7 @@ class Action:
         ...     action_type="gpio",
         ...     action_name="attract_on",
         ...     offset_minutes=0,
+        ...     offset_seconds=0,
         ...     description="Turn on UV attract lights",
         ... )
     """
@@ -241,6 +249,7 @@ class Action:
     action_type: str
     action_name: str
     offset_minutes: int = 0
+    offset_seconds: int = 0
     parameters: dict = field(default_factory=dict)
     description: str = ""
 
@@ -250,6 +259,7 @@ class Action:
             "action_type": self.action_type,
             "action_name": self.action_name,
             "offset_minutes": self.offset_minutes,
+            "offset_seconds": self.offset_seconds,
             "parameters": self.parameters,
             "description": self.description,
         }
@@ -261,6 +271,7 @@ class Action:
             action_type=data["action_type"],
             action_name=data["action_name"],
             offset_minutes=data.get("offset_minutes", 0),
+            offset_seconds=data.get("offset_seconds", 0),
             parameters=data.get("parameters", {}),
             description=data.get("description", ""),
         )
@@ -847,6 +858,9 @@ class Schedule:
         name: Human-readable name (required, max 200 chars)
         description: Detailed description (max 2000 chars)
         routines: Embedded Routine objects (each with its own trigger)
+        use_seconds_timing: When True, use explicit offset_seconds from actions.
+                           When False (default), auto-stagger same-minute actions
+                           by DEFAULT_STAGGER_SECONDS based on list order.
         deployment_id: Linked deployment ID
         create_deployment: Create deployment on activation
         enabled: Whether schedule is enabled
@@ -878,6 +892,9 @@ class Schedule:
     name: str
     description: str = ""
     routines: list[Routine] = field(default_factory=list)
+
+    # Timing options
+    use_seconds_timing: bool = False
 
     # Deployment linkage
     deployment_id: str | None = None
@@ -914,6 +931,7 @@ class Schedule:
             "name": self.name,
             "description": self.description,
             "routines": [r.to_dict() for r in self.routines],
+            "use_seconds_timing": self.use_seconds_timing,
             "deployment_id": self.deployment_id,
             "create_deployment": self.create_deployment,
             "enabled": self.enabled,
@@ -964,6 +982,7 @@ class Schedule:
             name=data["name"],
             description=data.get("description", ""),
             routines=[Routine.from_dict(r) for r in data.get("routines", [])],
+            use_seconds_timing=data.get("use_seconds_timing", False),
             deployment_id=data.get("deployment_id"),
             create_deployment=data.get("create_deployment", False),
             enabled=data.get("enabled", True),
@@ -1073,6 +1092,14 @@ def validate_action(action: Action) -> tuple[bool, str | None]:
             False,
             f"Action offset {action.offset_minutes} exceeds maximum "
             f"of {MAX_OFFSET_MINUTES} minutes (24 hours)",
+        )
+
+    # Validate offset_seconds range
+    if not (MIN_OFFSET_SECONDS <= action.offset_seconds <= MAX_OFFSET_SECONDS):
+        return (
+            False,
+            f"offset_seconds must be {MIN_OFFSET_SECONDS}-{MAX_OFFSET_SECONDS}, "
+            f"got {action.offset_seconds}",
         )
 
     return True, None

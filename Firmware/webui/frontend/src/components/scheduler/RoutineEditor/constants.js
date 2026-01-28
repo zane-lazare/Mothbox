@@ -11,6 +11,9 @@ export const ACTION_LIMITS = {
   DESCRIPTION_MAX_LENGTH: 500,
   MIN_OFFSET_MINUTES: 0,
   MAX_OFFSET_MINUTES: 1440, // 24 hours
+  MIN_OFFSET_SECONDS: 0,
+  MAX_OFFSET_SECONDS: 59,
+  DEFAULT_STAGGER_SECONDS: 5, // Auto-stagger interval for same-minute actions
 }
 
 /**

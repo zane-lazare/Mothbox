@@ -25,6 +25,7 @@ from webui.backend.lib.cron_security import (
 )
 from webui.backend.lib.moon_phase import get_moon_phase, is_within_moon_phase
 from webui.backend.lib.schedule_schema import (
+    DEFAULT_STAGGER_SECONDS,
     Action,
     CronTrigger,
     FixedTimeTrigger,
@@ -593,14 +594,17 @@ def calculate_execution_times(
 def build_action_command(
     action: Action,
     pre_condition: SensorTrigger | None = None,
+    sleep_seconds: int = 0,
 ) -> str:
     """Build command string for cron entry.
 
     If pre_condition is set, wraps the command with a sensor check script.
+    If sleep_seconds > 0, prefixes command with sleep to stagger execution.
 
     Args:
         action: Action to build command for
         pre_condition: Optional sensor trigger as gate condition
+        sleep_seconds: Seconds to sleep before executing (for staggering same-minute actions)
 
     Returns:
         Command string for cron execution
@@ -614,7 +618,7 @@ def build_action_command(
     if pre_condition:
         # Wrap with pre-condition checker using path from mothbox_paths
         check_and_run_script = MOTHBOX_HOME / "check_and_run.py"
-        return (
+        base_command = (
             f"python3 {check_and_run_script} "
             f"--sensor {pre_condition.sensor_type} "
             f"--op {pre_condition.comparison} "
@@ -622,7 +626,53 @@ def build_action_command(
             f"-- {base_command}"
         )
 
+    # Add sleep prefix for staggering same-minute actions
+    if sleep_seconds > 0:
+        return f"sleep {sleep_seconds} && {base_command}"
+
     return base_command
+
+
+def _calculate_action_sleep_seconds(
+    actions: list[Action],
+    use_seconds_timing: bool,
+) -> dict[int, int]:
+    """Calculate sleep seconds for each action index to stagger same-minute actions.
+
+    When multiple actions share the same offset_minutes, they would fire simultaneously
+    causing GPIO race conditions. This function calculates sleep delays to stagger them.
+
+    Args:
+        actions: List of actions in execution order (list index = priority)
+        use_seconds_timing: If True, use explicit action.offset_seconds values.
+                           If False, auto-stagger by DEFAULT_STAGGER_SECONDS based on list order.
+
+    Returns:
+        Dict mapping action index to sleep seconds (0 = no sleep needed)
+    """
+    sleep_map: dict[int, int] = {}
+
+    # Group actions by offset_minutes
+    minute_groups: dict[int, list[int]] = {}  # offset_minutes -> list of action indices
+    for idx, action in enumerate(actions):
+        minute = action.offset_minutes
+        if minute not in minute_groups:
+            minute_groups[minute] = []
+        minute_groups[minute].append(idx)
+
+    # Calculate sleep for each action
+    for _minute, indices in minute_groups.items():
+        if use_seconds_timing:
+            # Use explicit offset_seconds from each action
+            for idx in indices:
+                sleep_map[idx] = actions[idx].offset_seconds
+        else:
+            # Auto-stagger by list order within each minute group
+            # First action (position 0) = 0 sleep, second = 5s, third = 10s, etc.
+            for position, idx in enumerate(indices):
+                sleep_map[idx] = position * DEFAULT_STAGGER_SECONDS
+
+    return sleep_map
 
 
 def routine_to_dated_cron(
@@ -631,6 +681,7 @@ def routine_to_dated_cron(
     longitude: float | None = None,
     timezone_name: str = "UTC",
     years_ahead: int = 1,  # Limited to 1 year; system crontab has ~10k line limit
+    use_seconds_timing: bool = False,
 ) -> list[CronEntry]:
     """Generate date-specific cron entries for a routine.
 
@@ -638,12 +689,19 @@ def routine_to_dated_cron(
     This unifies solar, moon, interval, and recurring_days triggers into a
     consistent pre-computed cron entry format.
 
+    When multiple actions share the same offset_minutes, they are staggered to
+    prevent GPIO race conditions:
+    - If use_seconds_timing=True: Uses each action's offset_seconds value
+    - If use_seconds_timing=False: Auto-staggers by DEFAULT_STAGGER_SECONDS (5s)
+      based on list order (first action = 0s, second = 5s, third = 10s, etc.)
+
     Args:
         routine: Routine with embedded trigger and actions
         latitude: Observer latitude (required for solar triggers)
         longitude: Observer longitude (required for solar triggers)
         timezone_name: Timezone for calculations
         years_ahead: Number of years to pre-calculate
+        use_seconds_timing: Use explicit offset_seconds vs auto-stagger
 
     Returns:
         List of CronEntry objects with date-specific expressions
@@ -672,18 +730,24 @@ def routine_to_dated_cron(
         years_ahead=years_ahead,
     )
 
+    # Calculate sleep seconds for staggering same-minute actions
+    sleep_map = _calculate_action_sleep_seconds(routine.actions, use_seconds_timing)
+
     entries = []
     routine_name = routine.get_display_name()
 
     for exec_time in execution_times:
-        for action in routine.actions:
+        for idx, action in enumerate(routine.actions):
             # Apply action offset
             action_time = exec_time + timedelta(minutes=action.offset_minutes)
+
+            # Get sleep seconds for this action (0 if no staggering needed)
+            sleep_seconds = sleep_map.get(idx, 0)
 
             entries.append(
                 CronEntry(
                     expression=datetime_to_cron(action_time),
-                    command=build_action_command(action, routine.pre_condition),
+                    command=build_action_command(action, routine.pre_condition, sleep_seconds),
                     comment=f"{CRON_COMMENT_PREFIX} {routine_name} ({action_time.date().isoformat()})",
                     routine_id=routine.routine_id,
                     execution_time=action_time,
@@ -1371,6 +1435,7 @@ def schedule_to_cron(
                 longitude=longitude,
                 timezone_name=timezone_name,
                 years_ahead=years_ahead,
+                use_seconds_timing=schedule.use_seconds_timing,
             )
             result.entries.extend(entries)
         except ValueError as e:

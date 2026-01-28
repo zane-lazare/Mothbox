@@ -1444,6 +1444,54 @@ class TestValidateAction:
         assert valid is False
         assert "offset" in error.lower()
 
+    def test_valid_offset_seconds(self):
+        """Valid offset_seconds (0-59) passes validation."""
+        action = Action(
+            action_type="gpio",
+            action_name="attract_on",
+            offset_minutes=0,
+            offset_seconds=30,
+        )
+        valid, error = validate_action(action)
+        assert valid is True
+        assert error is None
+
+    def test_offset_seconds_at_max_valid(self):
+        """offset_seconds at max (59) is valid."""
+        action = Action(
+            action_type="gpio",
+            action_name="attract_on",
+            offset_minutes=0,
+            offset_seconds=59,
+        )
+        valid, error = validate_action(action)
+        assert valid is True
+        assert error is None
+
+    def test_offset_seconds_exceeds_max_fails(self):
+        """offset_seconds > 59 fails validation."""
+        action = Action(
+            action_type="gpio",
+            action_name="attract_on",
+            offset_minutes=0,
+            offset_seconds=60,
+        )
+        valid, error = validate_action(action)
+        assert valid is False
+        assert "offset_seconds" in error.lower()
+
+    def test_negative_offset_seconds_fails(self):
+        """Negative offset_seconds fails validation."""
+        action = Action(
+            action_type="gpio",
+            action_name="attract_on",
+            offset_minutes=0,
+            offset_seconds=-1,
+        )
+        valid, error = validate_action(action)
+        assert valid is False
+        assert "offset_seconds" in error.lower()
+
 
 # =============================================================================
 # VALIDATE TIME WINDOW TESTS

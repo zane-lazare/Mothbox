@@ -27,6 +27,7 @@ import {
 } from '@heroicons/react/24/outline'
 import ActionForm from './ActionForm'
 import { generateUUID } from '../../../utils/uuid'
+import { ACTION_LIMITS } from './constants'
 
 /**
  * Get icon component for action type
@@ -49,7 +50,15 @@ function getActionIcon(type) {
 /**
  * Sortable wrapper for individual action items
  */
-function SortableAction({ action, onEdit, onDelete, disabled = false }) {
+function SortableAction({
+  action,
+  onEdit,
+  onDelete,
+  disabled = false,
+  useSecondsTiming = false,
+  staggerSeconds = 0,
+  sameMinuteCount = 1
+}) {
   const {
     attributes,
     listeners,
@@ -95,11 +104,26 @@ function SortableAction({ action, onEdit, onDelete, disabled = false }) {
         </div>
 
         {/* Offset Badge */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 flex items-center gap-1">
           <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900
                            text-blue-800 dark:text-blue-200 rounded">
             +{action.offset_minutes}min
           </span>
+          {/* Show seconds timing badge */}
+          {useSecondsTiming && (
+            <span className="px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900
+                             text-purple-800 dark:text-purple-200 rounded">
+              +{action.offset_seconds ?? 0}s
+            </span>
+          )}
+          {/* Show auto-stagger badge when NOT using seconds timing and multiple actions share same minute */}
+          {!useSecondsTiming && sameMinuteCount > 1 && staggerSeconds > 0 && (
+            <span className="px-2 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900
+                             text-amber-800 dark:text-amber-200 rounded"
+                  title="Auto-staggered to prevent GPIO conflicts">
+              +{staggerSeconds}s stagger
+            </span>
+          )}
         </div>
 
         {/* Action Details */}
@@ -148,7 +172,10 @@ SortableAction.propTypes = {
   action: PropTypes.object.isRequired,
   onEdit: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  useSecondsTiming: PropTypes.bool,
+  staggerSeconds: PropTypes.number,
+  sameMinuteCount: PropTypes.number
 }
 
 /**
@@ -241,6 +268,39 @@ DeleteConfirmDialog.propTypes = {
 }
 
 /**
+ * Calculate stagger info for actions (which actions share minutes, what stagger to show)
+ */
+function calculateStaggerInfo(actions, useSecondsTiming) {
+  const staggerInfo = {}
+
+  // Group actions by offset_minutes
+  const minuteGroups = {}
+  actions.forEach((action, idx) => {
+    const minute = action.offset_minutes ?? 0
+    if (!minuteGroups[minute]) {
+      minuteGroups[minute] = []
+    }
+    minuteGroups[minute].push(idx)
+  })
+
+  // Calculate stagger for each action
+  actions.forEach((action, idx) => {
+    const minute = action.offset_minutes ?? 0
+    const group = minuteGroups[minute]
+    const positionInGroup = group.indexOf(idx)
+
+    staggerInfo[idx] = {
+      sameMinuteCount: group.length,
+      staggerSeconds: useSecondsTiming
+        ? (action.offset_seconds ?? 0)
+        : positionInGroup * ACTION_LIMITS.DEFAULT_STAGGER_SECONDS
+    }
+  })
+
+  return staggerInfo
+}
+
+/**
  * ActionList Component
  *
  * Displays a sortable list of pattern actions with add/edit/delete capabilities.
@@ -250,8 +310,9 @@ DeleteConfirmDialog.propTypes = {
  * @param {Array<PatternAction>} props.actions - Array of actions
  * @param {Function} props.onActionsChange - Callback when actions change
  * @param {boolean} props.disabled - Disable all interactions
+ * @param {boolean} props.useSecondsTiming - Show explicit seconds vs auto-stagger badges
  */
-export default function ActionList({ actions = [], onActionsChange, disabled = false }) {
+export default function ActionList({ actions = [], onActionsChange, disabled = false, useSecondsTiming = false }) {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingAction, setEditingAction] = useState(null)
   const [deletingAction, setDeletingAction] = useState(null)
@@ -287,6 +348,12 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
   const sortedActions = useMemo(() =>
     [...actionsWithIds].sort((a, b) => a.offset_minutes - b.offset_minutes),
     [actionsWithIds]
+  )
+
+  // Calculate stagger info for display
+  const staggerInfo = useMemo(() =>
+    calculateStaggerInfo(sortedActions, useSecondsTiming),
+    [sortedActions, useSecondsTiming]
   )
 
   /**
@@ -403,13 +470,16 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {sortedActions.map(action => (
+                {sortedActions.map((action, idx) => (
                   <SortableAction
                     key={action.id}
                     action={action}
                     onEdit={handleEditAction}
                     onDelete={handleDeleteClick}
                     disabled={disabled}
+                    useSecondsTiming={useSecondsTiming}
+                    staggerSeconds={staggerInfo[idx]?.staggerSeconds ?? 0}
+                    sameMinuteCount={staggerInfo[idx]?.sameMinuteCount ?? 1}
                   />
                 ))}
               </div>
@@ -440,6 +510,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
         onSave={handleFormSave}
         onCancel={handleFormCancel}
         isOpen={isFormOpen}
+        useSecondsTiming={useSecondsTiming}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -457,5 +528,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
 ActionList.propTypes = {
   actions: PropTypes.arrayOf(PropTypes.object),
   onActionsChange: PropTypes.func.isRequired,
-  disabled: PropTypes.bool
+  disabled: PropTypes.bool,
+  /** When true, shows explicit offset_seconds; when false, shows auto-stagger info */
+  useSecondsTiming: PropTypes.bool
 }

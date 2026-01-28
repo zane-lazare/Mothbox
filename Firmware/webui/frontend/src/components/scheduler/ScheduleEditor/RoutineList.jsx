@@ -51,6 +51,7 @@ function RoutineList({
   onStartAddRoutine,
   onCancelAddRoutine,
   disabled = false,
+  useSecondsTiming = false,
 }) {
 
   /**
@@ -108,6 +109,7 @@ function RoutineList({
           onUpdate={onRoutineUpdate}
           onDelete={onRoutineDelete}
           disabled={disabled}
+          useSecondsTiming={useSecondsTiming}
         />
       ))}
 
@@ -117,6 +119,7 @@ function RoutineList({
           onComplete={handleNewRoutineComplete}
           onCancel={onCancelAddRoutine}
           disabled={disabled}
+          useSecondsTiming={useSecondsTiming}
         />
       )}
 
@@ -156,6 +159,8 @@ RoutineList.propTypes = {
   onCancelAddRoutine: PropTypes.func.isRequired,
   /** Whether editing is disabled */
   disabled: PropTypes.bool,
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming: PropTypes.bool,
 }
 
 export default memo(RoutineList)

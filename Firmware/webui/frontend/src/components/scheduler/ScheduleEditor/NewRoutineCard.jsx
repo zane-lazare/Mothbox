@@ -32,7 +32,7 @@ import { generateUUID } from '@/utils/uuid'
  *   onCancel={() => console.log('cancelled')}
  * />
  */
-function NewRoutineCard({ onComplete, onCancel, disabled = false }) {
+function NewRoutineCard({ onComplete, onCancel, disabled = false, useSecondsTiming = false }) {
   // Initialize with default interval trigger
   const [trigger, setTrigger] = useState(() => createDefaultTrigger('interval'))
   const [actions, setActions] = useState([])
@@ -122,6 +122,7 @@ function NewRoutineCard({ onComplete, onCancel, disabled = false }) {
             actions={actions}
             onActionsChange={handleActionsChange}
             disabled={disabled}
+            useSecondsTiming={useSecondsTiming}
           />
           {actions.length === 0 && (
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
@@ -162,6 +163,8 @@ NewRoutineCard.propTypes = {
   onCancel: PropTypes.func.isRequired,
   /** Whether form is disabled */
   disabled: PropTypes.bool,
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming: PropTypes.bool,
 }
 
 export default memo(NewRoutineCard)

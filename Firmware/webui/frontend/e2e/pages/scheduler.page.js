@@ -904,6 +904,101 @@ export class SchedulerPage {
   }
 
   // ============================================================
+  // Stagger Timing Operations (Issue #379)
+  // ============================================================
+
+  /**
+   * Check if seconds-level timing checkbox is checked
+   * @returns {Promise<boolean>}
+   */
+  async isSecondsTimingEnabled() {
+    const checkbox = this.page.locator('input[type="checkbox"]').filter({
+      has: this.page.locator('xpath=../..').filter({ hasText: 'seconds-level timing' })
+    })
+    // Find checkbox near the text
+    const checkboxNear = this.page.locator('label:has-text("seconds-level timing") input[type="checkbox"]')
+    if (await checkboxNear.count() > 0) {
+      return checkboxNear.isChecked()
+    }
+    // Fallback: look for checkbox followed by the text
+    return checkbox.isChecked()
+  }
+
+  /**
+   * Toggle seconds-level timing checkbox
+   * @param {boolean} enable - Whether to enable seconds timing
+   */
+  async setSecondsTiming(enable) {
+    const checkbox = this.page.locator('label:has-text("seconds-level timing") input[type="checkbox"]')
+    const isCurrentlyChecked = await checkbox.isChecked()
+
+    if (enable !== isCurrentlyChecked) {
+      await checkbox.click()
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+    }
+  }
+
+  /**
+   * Check if offset_seconds input is visible in ActionForm
+   * @returns {Promise<boolean>}
+   */
+  async isOffsetSecondsInputVisible() {
+    return this.page.locator('#offset_seconds').isVisible()
+  }
+
+  /**
+   * Get stagger badge text from an action item
+   * @param {number} index - Action index (0-based)
+   * @returns {Promise<{seconds: string|null, stagger: string|null}>}
+   */
+  async getActionStaggerInfo(index) {
+    const actionItem = this.page.locator('[data-sortable="true"]').nth(index)
+    const result = { seconds: null, stagger: null }
+
+    // Check for explicit seconds badge (purple)
+    const secondsBadge = actionItem.locator('span:has-text("s")').filter({ hasText: /^\+\d+s$/ })
+    if (await secondsBadge.count() > 0) {
+      const text = await secondsBadge.first().textContent()
+      result.seconds = text
+    }
+
+    // Check for auto-stagger badge (amber)
+    const staggerBadge = actionItem.locator('span:has-text("stagger")')
+    if (await staggerBadge.count() > 0) {
+      const text = await staggerBadge.first().textContent()
+      result.stagger = text
+    }
+
+    return result
+  }
+
+  /**
+   * Get preview API response for a schedule
+   * @param {string} scheduleId
+   * @param {number} count - Number of events to preview
+   * @returns {Promise<Object>}
+   */
+  async getSchedulePreview(scheduleId, count = 5) {
+    const response = await this.page.request.get(
+      `/api/scheduler/ui/schedules/${scheduleId}/preview?count=${count}`
+    )
+    return response.json()
+  }
+
+  /**
+   * Verify that a command has the expected sleep prefix
+   * @param {string} command - The cron command
+   * @param {number} expectedSeconds - Expected sleep seconds (0 = no sleep)
+   * @returns {boolean}
+   */
+  verifySleepPrefix(command, expectedSeconds) {
+    if (expectedSeconds === 0) {
+      return !command.includes('sleep')
+    }
+    return command.includes(`sleep ${expectedSeconds} &&`)
+  }
+
+  // ============================================================
   // Routine Selection (Extended) - formerly Event Pattern
   // ============================================================
 

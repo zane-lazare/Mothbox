@@ -80,6 +80,7 @@ const ScheduleEditor = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [routines, setRoutines] = useState([]);
+  const [useSecondsTiming, setUseSecondsTiming] = useState(false);
   const [isAddingRoutine, setIsAddingRoutine] = useState(false);
 
   // UI state
@@ -97,12 +98,14 @@ const ScheduleEditor = ({
       setName(schedule.name || '');
       setDescription(schedule.description || '');
       setRoutines(schedule.routines || []);
+      setUseSecondsTiming(schedule.use_seconds_timing || false);
       setIsAddingRoutine(false);
     } else {
       // Reset to defaults for new schedule
       setName('');
       setDescription('');
       setRoutines([]);
+      setUseSecondsTiming(false);
       setIsAddingRoutine(false);
     }
     setErrors({});
@@ -245,6 +248,7 @@ const ScheduleEditor = ({
         name: name.trim(),
         description: description.trim(),
         routines,
+        use_seconds_timing: useSecondsTiming,
       };
 
       await onSave(scheduleData);
@@ -259,6 +263,7 @@ const ScheduleEditor = ({
     name,
     description,
     routines,
+    useSecondsTiming,
     onSave,
   ]);
 
@@ -430,6 +435,31 @@ const ScheduleEditor = ({
                 aria-label="Description"
               />
             </div>
+
+            {/* Advanced timing options */}
+            <div className="pt-2">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useSecondsTiming}
+                  onChange={(e) => setUseSecondsTiming(e.target.checked)}
+                  disabled={isSaving}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600
+                             text-blue-600 focus:ring-blue-500 focus:ring-2
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Enable seconds-level timing
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {useSecondsTiming
+                      ? 'You can set exact seconds for each action'
+                      : 'Actions at the same minute are auto-staggered by 5 seconds based on list order'}
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Divider */}
@@ -449,6 +479,7 @@ const ScheduleEditor = ({
               onStartAddRoutine={handleStartAddRoutine}
               onCancelAddRoutine={handleCancelAddRoutine}
               disabled={isSaving}
+              useSecondsTiming={useSecondsTiming}
             />
             {errors.routines && (
               <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
@@ -509,6 +540,7 @@ ScheduleEditor.propTypes = {
     name: PropTypes.string,
     description: PropTypes.string,
     routines: PropTypes.arrayOf(RoutinePropType),
+    use_seconds_timing: PropTypes.bool,
   }),
   /** Callback when schedule is saved. Receives complete schedule object. */
   onSave: PropTypes.func.isRequired,

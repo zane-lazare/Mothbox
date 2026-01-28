@@ -44,6 +44,7 @@ function RoutineCard({
   onDelete,
   disabled = false,
   defaultExpanded = false,
+  useSecondsTiming = false,
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
@@ -189,6 +190,7 @@ function RoutineCard({
               actions={routine.actions || []}
               onActionsChange={handleActionsChange}
               disabled={disabled}
+              useSecondsTiming={useSecondsTiming}
             />
           </div>
         </div>
@@ -210,6 +212,8 @@ RoutineCard.propTypes = {
   disabled: PropTypes.bool,
   /** Whether card starts expanded */
   defaultExpanded: PropTypes.bool,
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming: PropTypes.bool,
 }
 
 export default memo(RoutineCard)
