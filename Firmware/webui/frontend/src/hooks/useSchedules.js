@@ -44,6 +44,7 @@ import {
   activateSchedule,
   deactivateSchedule,
   validateSchedule,
+  getNextActions,
 } from '../utils/schedulerApi'
 
 // =============================================================================
@@ -115,8 +116,14 @@ function handleMutationError(error, operation) {
 export function useSchedules(params = {}, queryOptions = {}) {
   const { include_builtin } = params
 
+  // Build query key that includes params for proper cache separation
+  // This ensures different param combinations have separate cache entries
+  const queryKey = include_builtin !== undefined
+    ? [...QUERY_KEYS.SCHEDULES, { include_builtin }]
+    : QUERY_KEYS.SCHEDULES
+
   return useQuery({
-    queryKey: QUERY_KEYS.SCHEDULES,
+    queryKey,
     queryFn: async () => {
       const apiParams = {}
       if (include_builtin !== undefined) {
@@ -185,6 +192,48 @@ export function useActiveSchedule(queryOptions = {}) {
       return response.data
     },
     staleTime: QUERY_CONFIG.STALE_TIME, // 5 minutes
+    ...queryOptions,
+  })
+}
+
+/**
+ * Get next actions for the active schedule
+ *
+ * Reads pre-expanded cron entries from persistent storage, avoiding
+ * the need to recalculate solar times via the preview API.
+ *
+ * @param {Object} [params] - API parameters
+ * @param {number} [params.limit] - Maximum number of actions (default: 5, max: 100)
+ * @param {Object} [queryOptions] - React Query options (refetchInterval, onSuccess, etc.)
+ * @returns {Object} React Query result
+ * @returns {Object} data - { actions: [...], schedule_id, coordinates_source, total_stored }
+ * @returns {boolean} isLoading - Whether initial query is loading
+ * @returns {boolean} isError - Whether an error occurred
+ * @returns {Object} error - Error object if query failed
+ *
+ * @example
+ * const { data, isLoading } = useNextActions({ limit: 10 })
+ * if (data?.actions?.length > 0) {
+ *   const next = data.actions[0]
+ *   console.log(`Next: ${next.time} ${next.action_name}`)
+ * }
+ *
+ * Issue #331: Store cron entries in active_state.json
+ */
+export function useNextActions(params = {}, queryOptions = {}) {
+  const { limit } = params
+
+  // Build query key that includes params for proper cache separation
+  const queryKeyParams = {}
+  if (limit !== undefined) queryKeyParams.limit = limit
+
+  return useQuery({
+    queryKey: [...QUERY_KEYS.NEXT_ACTIONS, queryKeyParams],
+    queryFn: async () => {
+      const response = await getNextActions(queryKeyParams)
+      return response.data
+    },
+    staleTime: 30 * 1000, // 30 seconds - shorter than default since actions change over time
     ...queryOptions,
   })
 }
@@ -306,8 +355,8 @@ export function useCreateSchedule() {
   return useMutation({
     mutationFn: (data) => createSchedule(data),
     onSuccess: () => {
-      // Invalidate schedules list to show new schedule
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES })
+      // Invalidate all schedule list variants (with and without include_builtin)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
     },
     onError: (error) => handleMutationError(error, 'create'),
   })
@@ -347,9 +396,10 @@ export function useUpdateSchedule() {
     mutationFn: ({ id, data }) => updateSchedule(id, data),
     onSuccess: async (_, { id }) => {
       // Invalidate caches in parallel to avoid race conditions
+      // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULE(id) }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'update'),
@@ -403,9 +453,10 @@ export function useDeleteSchedule() {
     mutationFn: (id) => deleteSchedule(id),
     onSuccess: async (_, id) => {
       // Invalidate caches in parallel to avoid race conditions
+      // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULE(id) }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'delete'),
@@ -445,10 +496,13 @@ export function useActivateSchedule() {
   return useMutation({
     mutationFn: ({ id, options }) => activateSchedule(id, options),
     onSuccess: async () => {
-      // Invalidate caches in parallel to avoid race conditions
+      // Refetch queries to ensure UI updates immediately after activation
+      // Using refetchQueries instead of invalidateQueries ensures the refetch completes
+      // before onSuccess returns, which is critical for E2E tests that check for banner visibility
+      // Use exact: false for SCHEDULES to refetch all variants (with/without include_builtin)
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'activate'),
@@ -485,10 +539,13 @@ export function useDeactivateSchedule() {
   return useMutation({
     mutationFn: () => deactivateSchedule(),
     onSuccess: async () => {
-      // Invalidate caches in parallel to avoid race conditions
+      // Refetch queries to ensure UI updates immediately after deactivation
+      // Using refetchQueries instead of invalidateQueries ensures the refetch completes
+      // before onSuccess returns, which is critical for E2E tests that check for banner visibility
+      // Use exact: false for SCHEDULES to refetch all variants (with/without include_builtin)
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.ACTIVE_SCHEDULE }),
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
     onError: (error) => handleMutationError(error, 'deactivate'),

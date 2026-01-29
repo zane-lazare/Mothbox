@@ -205,6 +205,36 @@ export const activateSchedule = (id, options = {}) =>
 export const deactivateSchedule = () =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/deactivate`, {}, { timeout: API_TIMEOUT_MS })
 
+/**
+ * Get next actions for the active schedule
+ *
+ * Reads pre-expanded cron entries from persistent storage, avoiding
+ * the need to recalculate solar times via the preview API.
+ *
+ * @param {Object} [params] - Query parameters
+ * @param {number} [params.limit] - Maximum number of actions (default: 5, max: 100)
+ * @returns {Promise<Object>} Axios response with next actions
+ *
+ * Response: {
+ *   actions: [
+ *     {
+ *       time: "ISO 8601 datetime",
+ *       action_name: "Attract On",
+ *       action_type: "attract_on",
+ *       routine_id: "routine-123"
+ *     },
+ *     ...
+ *   ],
+ *   schedule_id: "string" | null,
+ *   coordinates_source: "gps" | "timezone" | "explicit" | null,
+ *   total_stored: number
+ * }
+ *
+ * Issue #331: Store cron entries in active_state.json
+ */
+export const getNextActions = (params = {}) =>
+  api.get(`${SCHEDULER_API_PREFIX}/active/next-actions`, { params, timeout: API_TIMEOUT_MS })
+
 // =============================================================================
 // Preview/Validation
 // =============================================================================
@@ -253,6 +283,30 @@ export const getSchedulePreview = (id, params = {}) =>
  */
 export const validateSchedule = (id, data) =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/validate`, data, { timeout: API_TIMEOUT_MS })
+
+/**
+ * Validate draft routines for conflicts without requiring saved schedule.
+ *
+ * Useful for real-time conflict detection in the schedule editor before saving.
+ *
+ * @param {Object} data - Draft validation data
+ * @param {Array} data.routines - Array of routine objects to validate
+ * @param {number} [data.days] - Number of days to preview (default: 7)
+ * @param {number} [data.latitude] - Latitude for solar calculations
+ * @param {number} [data.longitude] - Longitude for solar calculations
+ * @param {string} [data.timezone] - Timezone (default: UTC)
+ * @returns {Promise<Object>} Axios response with validation results
+ *
+ * Response: {
+ *   valid: true/false,
+ *   has_warnings: true/false,
+ *   conflicts: [...],
+ *   total_conflicts: number,
+ *   blocking_conflicts: number
+ * }
+ */
+export const validateDraftRoutines = (data) =>
+  api.post(`${SCHEDULER_API_PREFIX}/schedules/validate-draft`, data, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
 // Built-in Resources

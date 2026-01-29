@@ -259,8 +259,9 @@ describe('CalendarHeader', () => {
       const { container } = render(<CalendarHeader {...defaultProps} />)
 
       const header = container.querySelector('.sticky')
-      expect(header).toHaveClass('dark:bg-gray-800')
-      expect(header).toHaveClass('dark:border-gray-700')
+      // Component uses dark:bg-gray-900 and dark:border-gray-800
+      expect(header).toHaveClass('dark:bg-gray-900')
+      expect(header).toHaveClass('dark:border-gray-800')
     })
 
     it('has dark mode classes on schedule dropdown', () => {

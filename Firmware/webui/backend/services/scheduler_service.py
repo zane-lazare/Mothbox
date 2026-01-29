@@ -30,20 +30,28 @@ Usage:
     print(f"Hit ratio: {stats['hit_ratio']:.2%}")
 """
 
-import contextlib
 import hashlib
 import json
 import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from copy import deepcopy
+from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 
+from mothbox_paths import CONFIG_DIR
+from webui.backend.constants import (
+    CRON_ENTRY_WARNING_THRESHOLD,
+    CRON_PREVIEW_DAYS_AHEAD,
+    MAX_CRON_ENTRIES,
+)
+
 # Cron bridge for system integration (Issue #215)
 from webui.backend.lib.cron_bridge import (
+    CronEntry,
     apply_to_system,
+    expand_pattern_entries,
     remove_from_system,
     schedule_to_cron,
 )
@@ -72,6 +80,7 @@ from webui.backend.lib.schedule_storage import (
 from webui.backend.lib.schedule_storage import (
     update_schedule as storage_update,
 )
+from webui.backend.lib.sidecar_metadata import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +118,35 @@ _ACTIVATION_PHASES = frozenset(
 )
 
 
+# =============================================================================
+# Cache Configuration Constants (Issue #385 review)
+# =============================================================================
+
+# Schedule cache TTL - balance between freshness and disk I/O
+SCHEDULE_CACHE_TTL_SECONDS = 300  # 5 minutes
+
+# Maximum cached schedules - prevents unbounded memory growth
+MAX_SCHEDULE_CACHE_SIZE = 100
+
+# Conflict analysis cache TTL - shorter because schedule changes invalidate
+CONFLICT_CACHE_TTL_SECONDS = 600  # 10 minutes
+
+# Maximum conflict cache entries
+MAX_CONFLICT_CACHE_SIZE = 50
+
+# Built-in schedules cache TTL - longer because they rarely change
+# (only on firmware update, not during normal operation)
+BUILTIN_CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
+# ============================================================================
+# Persistent Active State (Issue #331)
+# ============================================================================
+
+# File to persist active schedule state across service restarts
+ACTIVE_STATE_FILE = CONFIG_DIR / "active_state.json"
+
+
 # ============================================================================
 # Scheduler Service
 # ============================================================================
@@ -128,15 +166,17 @@ class SchedulerService:
 
     Thread Safety:
     ---------------
-    This class uses two locks to ensure thread-safe operation:
+    This class uses three locks to ensure thread-safe operation:
     - _cache_lock: Protects in-memory cache (OrderedDict) and active schedule tracking
     - _stats_lock: Protects statistics counters
+    - _activation_lock: Serializes activation/deactivation operations (Issue #385)
 
     LOCK ACQUISITION ORDER (to prevent deadlocks):
     -----------------------------------------------
     If multiple locks must be acquired, always acquire in this order:
-        1. _cache_lock (first)
-        2. _stats_lock (last)
+        1. _activation_lock (outermost - protects entire activation sequence)
+        2. _cache_lock (middle)
+        3. _stats_lock (innermost)
 
     NEVER acquire locks in a different order, as this can cause deadlocks.
     """
@@ -161,10 +201,22 @@ class SchedulerService:
 
         # Separate cache for active schedule (O(1) lookup)
         self._active_schedule_id: str | None = None
+        # Track which schedule is enabled (single source of truth - Issue #331)
+        # Only one schedule can be enabled at a time
+        self._enabled_schedule_id: str | None = None
+        # Tracks how coordinates were determined for active schedule (Issue #331)
+        # Values: "explicit", "gps", "timezone", or None if no active schedule
+        self._active_coordinates_source: str | None = None
+        # Store actual coordinates and timezone used for solar calculations (Issue #331)
+        self._active_latitude: float | None = None
+        self._active_longitude: float | None = None
+        self._active_timezone_name: str | None = None  # Timezone name when source="timezone"
 
         # Thread safety (RLock allows recursive locking)
         self._cache_lock = RLock()
         self._stats_lock = RLock()
+        # Serializes activation/deactivation to prevent TOCTOU races (Issue #385)
+        self._activation_lock = RLock()
 
         # Statistics tracking
         self._cache_hits = 0
@@ -177,8 +229,8 @@ class SchedulerService:
         # Conflict cache: cache_key -> (ConflictReport, timestamp)
         # Uses longer TTL since conflict analysis is expensive
         self._conflict_cache: OrderedDict[str, tuple[Any, float]] = OrderedDict()
-        self._conflict_cache_ttl = 600  # 10 minutes
-        self._max_conflict_cache_size = 50
+        self._conflict_cache_ttl = CONFLICT_CACHE_TTL_SECONDS
+        self._max_conflict_cache_size = MAX_CONFLICT_CACHE_SIZE
         self._conflict_cache_hits = 0
         self._conflict_cache_misses = 0
 
@@ -186,7 +238,14 @@ class SchedulerService:
         # Built-in schedules rarely change (only on firmware update)
         self._builtin_cache: list[Schedule] | None = None
         self._builtin_cache_timestamp: float = 0.0
-        self._builtin_cache_ttl = 3600  # 1 hour
+        self._builtin_cache_ttl = BUILTIN_CACHE_TTL_SECONDS
+
+        # Expanded cron entries for active schedule (Issue #331)
+        # Stored to allow frontend to read next actions without recalculating
+        self._active_entries: list[CronEntry] = []
+
+        # Load persisted active state on startup (Issue #331)
+        self._load_active_state()
 
     # ========================================================================
     # CRUD Read Operations
@@ -196,11 +255,16 @@ class SchedulerService:
         """
         Get schedule by ID with caching.
 
+        Derives enabled/is_active from active_state.json (single source of truth)
+        rather than from the schedule JSON file. This ensures that firmware
+        updates (which may overwrite schedule files) don't cause inconsistent
+        state like showing both "Disabled" and "Active" badges.
+
         Args:
             schedule_id: Schedule identifier
 
         Returns:
-            Schedule if found, None otherwise
+            Schedule if found, None otherwise (with correct enabled/is_active state)
         """
         with self._cache_lock:
             # Check cache first
@@ -212,6 +276,9 @@ class SchedulerService:
                     with self._stats_lock:
                         self._cache_hits += 1
                         self._total_reads += 1
+                    # Derive enabled/is_active from state (Issue #331 fix)
+                    schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+                    schedule.is_active = schedule.schedule_id == self._active_schedule_id
                     return schedule
                 else:
                     # TTL expired - remove stale entry
@@ -225,6 +292,9 @@ class SchedulerService:
             # Read from storage
             schedule = storage_read(schedule_id)
             if schedule:
+                # Derive enabled/is_active from state (Issue #331 fix)
+                schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+                schedule.is_active = schedule.schedule_id == self._active_schedule_id
                 self._set_cache(schedule_id, schedule)
 
             return schedule
@@ -233,17 +303,27 @@ class SchedulerService:
         """
         List all schedules.
 
+        Derives enabled/is_active from active_state.json (single source of truth)
+        rather than from the schedule JSON files. This ensures that firmware
+        updates (which may overwrite schedule files) don't cause inconsistent
+        state like showing both "Disabled" and "Active" badges.
+
         Args:
             include_builtin: Include built-in schedules (default True)
 
         Returns:
-            List of Schedule objects
+            List of Schedule objects with correct enabled/is_active state
 
         Thread Safety:
             Acquires _cache_lock when populating cache. Uses overwrite=False
             to avoid overwriting fresher entries from concurrent operations.
         """
         schedules = storage_list(include_builtin=include_builtin)
+
+        # Derive enabled/is_active from state (single source of truth - Issue #331 fix)
+        for schedule in schedules:
+            schedule.enabled = schedule.schedule_id == self._enabled_schedule_id
+            schedule.is_active = schedule.schedule_id == self._active_schedule_id
 
         # Cache individual schedules (skip if already cached to avoid race)
         with self._cache_lock:
@@ -357,20 +437,194 @@ class SchedulerService:
 
         self._cache[schedule_id] = (schedule, time.time())
 
-    def _update_builtin_schedule_state(self, schedule_id: str, is_active: bool) -> None:
+    # ========================================================================
+    # Persistent Active State Methods (Issue #331)
+    # ========================================================================
+
+    def _save_active_state(self, entries: list[CronEntry] | None = None) -> None:
         """
-        Update active state for built-in schedule (cache-only, no disk write).
+        Persist active schedule state to disk.
+
+        Saves schedule_id, enabled_schedule_id, coordinates_source, latitude,
+        longitude, timezone_name, activation timestamp, and optionally expanded
+        cron entries to active_state.json.
+
+        This file is the single source of truth for which schedule is enabled
+        and active. The enabled/is_active fields in schedule JSON files are
+        derived from this state, not the other way around. This ensures that
+        firmware updates (which may overwrite schedule files) don't cause
+        inconsistent state like showing both "Disabled" and "Active" badges.
 
         Args:
-            schedule_id: Schedule identifier
-            is_active: New active state
+            entries: Optional list of expanded CronEntry objects to persist.
+                     If provided, entries are stored for frontend to read next actions.
+
+        Called after successful activation to survive service restarts.
         """
-        schedule = self.get_schedule(schedule_id)
-        if schedule:
-            schedule_copy = deepcopy(schedule)
-            schedule_copy.is_active = is_active
-            with self._cache_lock:
-                self._set_cache(schedule_id, schedule_copy)
+        # Always save enabled_schedule_id even if nothing is active
+        state = {
+            "schedule_id": self._active_schedule_id,
+            "enabled_schedule_id": self._enabled_schedule_id,
+            "coordinates_source": self._active_coordinates_source,
+            "latitude": self._active_latitude,
+            "longitude": self._active_longitude,
+            "timezone_name": self._active_timezone_name,
+            "activated_at": datetime.now(UTC).isoformat() if self._active_schedule_id else None,
+        }
+
+        # Store expanded entries if provided (Issue #331)
+        if entries is not None:
+            self._active_entries = entries
+            state["entries"] = [e.to_dict() for e in entries]
+
+        try:
+            # Use FileLock for atomic write (Issue #385 - concurrent activation safety)
+            with FileLock(ACTIVE_STATE_FILE, exclusive=True, timeout=10.0) as f:
+                f.seek(0)
+                f.truncate()
+                json.dump(state, f, indent=2)
+            entry_count = len(entries) if entries else 0
+            logger.debug(
+                f"Saved active state to disk: {self._active_schedule_id} ({entry_count} entries)"
+            )
+        except LockTimeoutError as e:
+            logger.error(f"Failed to acquire lock for active state: {e}")
+            raise  # Re-raise so caller can rollback cron (Issue #385 review fix)
+        except OSError as e:
+            logger.warning(f"Failed to save active state: {e}")
+
+    def _load_active_state(self) -> None:
+        """
+        Load active schedule state from disk on startup.
+
+        Restores schedule_id, enabled_schedule_id, coordinates_source, latitude,
+        longitude, timezone_name, and expanded cron entries from active_state.json.
+
+        Migration: If enabled_schedule_id is not present (old state file),
+        derive it from schedule_id (active implies enabled).
+
+        Called during __init__ to recover state after service restart.
+        """
+        if not ACTIVE_STATE_FILE.exists():
+            return
+
+        try:
+            # Use FileLock for safe read (Issue #385 - concurrent activation safety)
+            with FileLock(ACTIVE_STATE_FILE, exclusive=False, timeout=5.0) as f:
+                content = f.read()
+                if not content.strip():
+                    return
+                # Parse from string content to avoid TOCTOU race (Issue #385 review)
+                # Previously used f.seek(0) + json.load(f) which could read stale data
+                # if another process modified the file between read() and load()
+                state = json.loads(content)
+
+            self._active_schedule_id = state.get("schedule_id")
+            self._active_coordinates_source = state.get("coordinates_source")
+            self._active_latitude = state.get("latitude")
+            self._active_longitude = state.get("longitude")
+            self._active_timezone_name = state.get("timezone_name")
+
+            # Load enabled_schedule_id (Issue #331 fix)
+            self._enabled_schedule_id = state.get("enabled_schedule_id")
+
+            # Migration: if enabled_schedule_id not present, derive from active
+            # (active schedule must have been enabled to be activated)
+            if self._enabled_schedule_id is None and self._active_schedule_id:
+                self._enabled_schedule_id = self._active_schedule_id
+                logger.info(
+                    f"Migrated enabled_schedule_id from active: {self._enabled_schedule_id}"
+                )
+
+            # Load expanded entries if present (Issue #331)
+            entries_data = state.get("entries", [])
+            self._active_entries = [CronEntry.from_dict(e) for e in entries_data]
+
+            logger.info(
+                f"Restored active schedule state: {self._active_schedule_id} "
+                f"(enabled: {self._enabled_schedule_id}, {len(self._active_entries)} entries)"
+            )
+        except LockTimeoutError as e:
+            logger.warning(f"Failed to acquire lock for active state: {e}")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load active state: {e}")
+
+    def _clear_active_state(self) -> None:
+        """
+        Remove active state file from disk and clear in-memory entries.
+
+        Called after deactivation to ensure no stale state remains.
+        """
+        # Clear in-memory entries (Issue #331)
+        self._active_entries = []
+
+        try:
+            if ACTIVE_STATE_FILE.exists():
+                ACTIVE_STATE_FILE.unlink()
+                logger.debug("Cleared active state file")
+        except OSError as e:
+            logger.warning(f"Failed to clear active state file: {e}")
+
+    def get_active_entries(self) -> list[CronEntry]:
+        """
+        Get all expanded cron entries for the active schedule.
+
+        Returns:
+            List of CronEntry objects with execution times.
+            Empty list if no schedule is active.
+        """
+        return self._active_entries
+
+    def get_next_actions(self, limit: int = 5) -> list[CronEntry]:
+        """
+        Get the next N upcoming actions from the active schedule.
+
+        Filters entries to only include future execution times,
+        sorts chronologically, and limits to the specified count.
+
+        Args:
+            limit: Maximum number of actions to return (default 5)
+
+        Returns:
+            List of CronEntry objects for upcoming actions.
+            Empty list if no schedule is active or no future actions.
+        """
+        if not self._active_entries:
+            return []
+
+        # Use UTC for timezone-aware comparison with stored entries
+        now = datetime.now(UTC)
+        # Filter to future entries and sort by execution time
+        future_entries = [
+            e for e in self._active_entries if e.execution_time and e.execution_time > now
+        ]
+        future_entries.sort(key=lambda e: e.execution_time)
+
+        return future_entries[:limit]
+
+    def get_entry_count_warning(self) -> dict | None:
+        """
+        Check if cron entry count is approaching the system limit.
+
+        Returns warning dict if entry count exceeds 75% threshold,
+        None otherwise.
+
+        Returns:
+            Dict with 'message', 'entry_count', 'max_entries', 'threshold'
+            if warning applies, None otherwise.
+        """
+        entry_count = len(self._active_entries)
+        if entry_count >= CRON_ENTRY_WARNING_THRESHOLD:
+            return {
+                "message": (
+                    f"Schedule has {entry_count:,} cron entries, "
+                    f"approaching system limit of {MAX_CRON_ENTRIES:,}"
+                ),
+                "entry_count": entry_count,
+                "max_entries": MAX_CRON_ENTRIES,
+                "threshold": CRON_ENTRY_WARNING_THRESHOLD,
+            }
+        return None
 
     # ========================================================================
     # Conflict Cache Methods
@@ -536,12 +790,17 @@ class SchedulerService:
             Updated Schedule if successful, None if not found
 
         Raises:
-            ValueError: If attempting to modify built-in schedule
+            ValueError: If attempting to modify protected fields on built-in schedule
             ScheduleValidationError: If updated schedule fails validation
         """
-        # Check if built-in
+        # Built-in schedules are read-only (Issue #331 fix)
+        # enabled and is_active are now derived from active_state.json, not stored in files.
+        # This ensures firmware updates don't cause inconsistent state.
         if is_builtin_schedule(schedule_id):
-            raise ValueError(f"Cannot modify built-in schedule: {schedule_id}")
+            raise ValueError(
+                f"Cannot modify built-in schedule: {schedule_id}. "
+                "Use set_enabled_schedule() to enable/disable schedules."
+            )
 
         # Delegate to storage
         updated = storage_update(schedule_id, updates)
@@ -593,10 +852,19 @@ class SchedulerService:
                     del self._cache[schedule_id]
                 # Invalidate conflict cache since schedule is deleted
                 self._invalidate_conflict_cache(schedule_id)
+                # Clear enabled/active state if deleted schedule was enabled/active
+                if self._enabled_schedule_id == schedule_id:
+                    self._enabled_schedule_id = None
                 if self._active_schedule_id == schedule_id:
                     self._active_schedule_id = None
                 with self._stats_lock:
                     self._total_deletes += 1
+
+            # Persist cleared state
+            if self._enabled_schedule_id is None and self._active_schedule_id is None:
+                self._clear_active_state()
+            else:
+                self._save_active_state()
 
         return success
 
@@ -637,6 +905,105 @@ class SchedulerService:
             return active_schedules[0]
         return None
 
+    def get_active_schedule_id(self) -> str | None:
+        """
+        Get the ID of the currently active schedule.
+
+        Returns:
+            Schedule ID if one is active, None otherwise.
+        """
+        return self._active_schedule_id
+
+    def get_active_coordinates_source(self) -> str | None:
+        """
+        Get how coordinates were determined for the active schedule (Issue #331).
+
+        Returns:
+            "explicit" if coordinates were provided in the request,
+            "gps" if coordinates came from device GPS (controls.txt),
+            "timezone" if coordinates came from timezone fallback,
+            or None if no active schedule.
+        """
+        return self._active_coordinates_source
+
+    def get_active_coordinates(self) -> tuple[float, float] | None:
+        """
+        Get the coordinates used for the active schedule (Issue #331).
+
+        Returns:
+            Tuple of (latitude, longitude) if a schedule is active, None otherwise.
+        """
+        if self._active_latitude is not None and self._active_longitude is not None:
+            return (self._active_latitude, self._active_longitude)
+        return None
+
+    def get_active_timezone_name(self) -> str | None:
+        """
+        Get the timezone name used for solar time calculations (Issue #331).
+
+        Returns:
+            Timezone name (e.g., "Pacific/Auckland") used for the active schedule,
+            None if no schedule is active.
+        """
+        return self._active_timezone_name
+
+    def get_enabled_schedule_id(self) -> str | None:
+        """
+        Get the ID of the currently enabled schedule.
+
+        Returns:
+            Schedule ID if one is enabled, None otherwise.
+        """
+        return self._enabled_schedule_id
+
+    def set_enabled_schedule(self, schedule_id: str | None) -> None:
+        """
+        Set which schedule is enabled (only one at a time).
+
+        This is the single source of truth for schedule enabled state.
+        The enabled field in schedule JSON files is derived from this,
+        not the other way around.
+
+        Args:
+            schedule_id: Schedule to enable, or None to disable all
+
+        Raises:
+            ValueError: If schedule_id is provided but schedule not found
+        """
+        if schedule_id is not None:
+            # Check if another schedule is already enabled (manual disable required)
+            current_enabled = self._enabled_schedule_id
+            if current_enabled and current_enabled != schedule_id:
+                raise ValueError(
+                    f"Cannot enable schedule '{schedule_id}': "
+                    f"Schedule '{current_enabled}' is already enabled. "
+                    "Disable it first."
+                )
+
+            # Verify schedule exists
+            schedule = storage_read(schedule_id)
+            if schedule is None:
+                raise ValueError(f"Schedule not found: {schedule_id}")
+
+        with self._cache_lock:
+            old_enabled = self._enabled_schedule_id
+            self._enabled_schedule_id = schedule_id
+
+            # Invalidate cache for both old and new enabled schedules
+            # so they get refreshed with correct enabled state
+            if old_enabled and old_enabled in self._cache:
+                del self._cache[old_enabled]
+            if schedule_id and schedule_id in self._cache:
+                del self._cache[schedule_id]
+
+        # Persist state to disk
+        self._save_active_state()
+
+        if schedule_id:
+            logger.info(f"Enabled schedule: {schedule_id}")
+        else:
+            logger.info("Disabled all schedules")
+
     def activate_schedule(
         self,
         schedule_id: str,
@@ -645,9 +1012,10 @@ class SchedulerService:
         longitude: float = 0.0,
         timezone_name: str = "UTC",
         progress_callback: Callable[[str, int], None] | None = None,
+        coordinates_source: str = "explicit",
     ) -> None:
         """
-        Activate a schedule (deactivates any currently active first).
+        Activate a schedule (requires manual deactivation of any active schedule first).
 
         Optionally checks for schedule conflicts before activation. Conflict
         detection analyzes the next 7 days of scheduled executions to find
@@ -665,6 +1033,8 @@ class SchedulerService:
                               "checking_conflicts" (10%), "generating_cron" (30%),
                               "applying_cron" (60%), "updating_state" (90%),
                               "complete" (100%)
+            coordinates_source: How coordinates were determined (Issue #331).
+                               Values: "explicit", "gps", "timezone"
 
         Returns:
             None on success
@@ -688,163 +1058,238 @@ class SchedulerService:
                 except Exception as e:
                     logger.warning(f"Progress callback failed: {e}")
 
-        # Get the schedule
-        schedule = self.get_schedule(schedule_id)
-        if not schedule:
-            raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
-
-        # Check if enabled
-        if not schedule.enabled:
-            raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
-
-        # Already active? Return success (idempotent)
-        if schedule.is_active and self._active_schedule_id == schedule_id:
-            return
-
-        # Check for conflicts before activation (Issue #213)
-        # Uses cached conflict report to avoid redundant computation
-        if check_conflicts:
-            _emit_progress(
-                ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS
-            )
+        # Serialize entire activation sequence to prevent TOCTOU race (Issue #385)
+        # This lock ensures that between schedule validation and cron application,
+        # no concurrent activation/deactivation can interfere
+        with self._activation_lock:
+            # Defense-in-depth: Validate coordinates and timezone (Issue #385 review)
+            # Even if caller validated, re-check here since this method may be called
+            # programmatically from tests or future code paths
+            if latitude < -90 or latitude > 90:
+                raise ScheduleActivationError(
+                    f"Invalid latitude: {latitude}. Must be between -90 and 90."
+                )
+            if longitude < -180 or longitude > 180:
+                raise ScheduleActivationError(
+                    f"Invalid longitude: {longitude}. Must be between -180 and 180."
+                )
             try:
-                from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+                import pytz
 
-                report = self.get_cached_conflict_report(
+                pytz.timezone(timezone_name)
+            except pytz.UnknownTimeZoneError:
+                raise ScheduleActivationError(f"Invalid timezone: {timezone_name}") from None
+
+            # Acquire cache lock for entire validation section to prevent TOCTOU race
+            # (Issue #385 review fix). This ensures schedule cannot be modified/deleted
+            # between validation and cron application.
+            with self._cache_lock:
+                # Get the schedule (now protected by cache lock)
+                schedule = self.get_schedule(schedule_id)
+                if not schedule:
+                    raise ScheduleActivationError(f"Schedule not found: {schedule_id}")
+
+                # Check if enabled
+                if not schedule.enabled:
+                    raise ScheduleActivationError(f"Schedule is disabled: {schedule_id}")
+
+                # Already active? Return success (idempotent)
+                if schedule.is_active and self._active_schedule_id == schedule_id:
+                    return
+
+                # Check for conflicts before activation (Issue #213)
+                # Uses cached conflict report to avoid redundant computation
+                if check_conflicts:
+                    _emit_progress(
+                        ACTIVATION_PHASE_CHECKING_CONFLICTS, ACTIVATION_PROGRESS_CHECKING_CONFLICTS
+                    )
+                    try:
+                        from webui.backend.lib.schedule_conflict import SEVERITY_ERROR
+
+                        report = self.get_cached_conflict_report(
+                            schedule,
+                            preview_days=7,
+                            latitude=latitude,
+                            longitude=longitude,
+                            timezone_name=timezone_name,
+                        )
+                        if report.has_blocking_conflicts:
+                            blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
+                            messages = [c.message for c in blocking[:3]]
+                            error = (
+                                f"Schedule has {len(blocking)} blocking conflict(s): "
+                                + "; ".join(messages)
+                            )
+                            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
+                            raise ScheduleConflictError(f"Conflict detected: {error}")
+                    except ImportError:
+                        # Conflict detection module not available - skip check
+                        logger.warning("Conflict detection module not available, skipping check")
+                    except ScheduleConflictError:
+                        # Re-raise conflict errors for caller to handle
+                        raise
+                    except Exception as e:
+                        logger.exception(f"Error during conflict check: {e}")
+                        _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
+                        raise ScheduleActivationError(f"Conflict check failed: {e}") from e
+
+                # Check if another schedule is already active (manual deactivate required)
+                if self._active_schedule_id and self._active_schedule_id != schedule_id:
+                    raise ScheduleActivationError(
+                        f"Cannot activate schedule '{schedule_id}': "
+                        f"Schedule '{self._active_schedule_id}' is already active. "
+                        "Deactivate it first."
+                    )
+
+            # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
+            # We apply cron before updating is_active to avoid inconsistent state
+            # if cron application fails. If post-cron steps fail, we rollback cron.
+            _emit_progress(ACTIVATION_PHASE_GENERATING_CRON, ACTIVATION_PROGRESS_GENERATING_CRON)
+            cron_applied = False
+            try:
+                result = schedule_to_cron(
                     schedule,
-                    preview_days=7,
                     latitude=latitude,
                     longitude=longitude,
                     timezone_name=timezone_name,
                 )
-                if report.has_blocking_conflicts:
-                    blocking = [c for c in report.conflicts if c.severity == SEVERITY_ERROR]
-                    messages = [c.message for c in blocking[:3]]
-                    error = f"Schedule has {len(blocking)} blocking conflict(s): " + "; ".join(
-                        messages
+                if result.errors:
+                    raise ScheduleActivationError(
+                        f"Cron conversion failed: {'; '.join(result.errors)}"
                     )
-                    _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-                    raise ScheduleConflictError(f"Conflict detected: {error}")
-            except ImportError:
-                # Conflict detection module not available - skip check
-                logger.warning("Conflict detection module not available, skipping check")
-            except ScheduleConflictError:
-                # Re-raise conflict errors for caller to handle
+
+                _emit_progress(ACTIVATION_PHASE_APPLYING_CRON, ACTIVATION_PROGRESS_APPLYING_CRON)
+                apply_to_system(
+                    entries=result.entries,
+                    schedule_id=schedule_id,
+                    set_rtc=True,
+                )
+                cron_applied = True
+                logger.info(
+                    f"Applied cron entries for schedule: {schedule_id} ({len(result.entries)} entries)"
+                )
+
+                # Expand pattern entries to concrete datetimes for persistence (Issue #331)
+                # This allows frontend to read next actions directly from disk
+                expanded_entries = expand_pattern_entries(
+                    entries=result.entries,
+                    days_ahead=CRON_PREVIEW_DAYS_AHEAD,
+                    timezone_name=timezone_name,
+                )
+                logger.debug(f"Expanded {len(result.entries)} entries to {len(expanded_entries)}")
+
+                # Update in-memory state AFTER cron succeeds (Issue #331 fix)
+                # We no longer write is_active to schedule JSON files - active_state.json
+                # is the single source of truth. This ensures firmware updates don't cause
+                # inconsistent state like showing both "Disabled" and "Active" badges.
+                _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
+
+                # Set active schedule ID, coordinates source, and location data
+                with self._cache_lock:
+                    self._active_schedule_id = schedule_id
+                    self._active_coordinates_source = coordinates_source
+                    self._active_latitude = latitude
+                    self._active_longitude = longitude
+                    # Store timezone name for all activation methods (Issue #331)
+                    # Previously only stored when coordinates_source="timezone",
+                    # but displaying it is useful for GPS-based activation too
+                    self._active_timezone_name = timezone_name
+
+                # Persist state to disk with expanded entries for recovery after restart (Issue #331)
+                # If this fails, rollback in-memory state and re-raise (Issue #385 review fix)
+                try:
+                    self._save_active_state(entries=expanded_entries)
+                except (LockTimeoutError, OSError) as persist_error:
+                    logger.error(f"Failed to persist active state: {persist_error}")
+                    # Clear in-memory state since persistence failed
+                    with self._cache_lock:
+                        self._active_schedule_id = None
+                        self._active_coordinates_source = None
+                        self._active_latitude = None
+                        self._active_longitude = None
+                        self._active_timezone_name = None
+                    raise ScheduleActivationError(
+                        f"Failed to persist activation state: {persist_error}"
+                    ) from persist_error
+
+            except ScheduleActivationError:
+                # Re-raise our own errors, but rollback cron if already applied
+                if cron_applied:
+                    logger.warning("Rolling back cron entries due to activation failure")
+                    try:
+                        remove_from_system(clear_rtc=True)
+                    except Exception as rollback_error:
+                        logger.error(f"Failed to rollback cron entries: {rollback_error}")
+                _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
                 raise
             except Exception as e:
-                logger.exception(f"Error during conflict check: {e}")
+                # Rollback cron if already applied
+                if cron_applied:
+                    logger.warning(f"Rolling back cron entries due to error: {e}")
+                    try:
+                        remove_from_system(clear_rtc=True)
+                    except Exception as rollback_error:
+                        logger.error(f"Failed to rollback cron entries: {rollback_error}")
+                logger.error(f"Failed to activate schedule: {e}")
                 _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-                raise ScheduleActivationError(f"Conflict check failed: {e}") from e
+                raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
-        # Deactivate any currently active schedule
-        if self._active_schedule_id and self._active_schedule_id != schedule_id:
-            self.deactivate_schedule()
-
-        # Re-check schedule state to prevent TOCTOU race condition
-        # (schedule could have been modified/deleted/disabled between initial check and now)
-        with self._cache_lock:
-            current = self.get_schedule(schedule_id)
-            if current is None:
-                raise ScheduleActivationError(
-                    f"Schedule was deleted during activation: {schedule_id}"
-                )
-            if not current.enabled:
-                raise ScheduleActivationError(
-                    f"Schedule was disabled during activation: {schedule_id}"
-                )
-            # Use the refreshed schedule for cron conversion
-            schedule = current
-
-        # Apply schedule to system cron FIRST (Issue #215, Fix #4 atomic operation)
-        # We apply cron before updating is_active to avoid inconsistent state
-        # if cron application fails. This eliminates the need for rollback.
-        _emit_progress(ACTIVATION_PHASE_GENERATING_CRON, ACTIVATION_PROGRESS_GENERATING_CRON)
-        try:
-            result = schedule_to_cron(
-                schedule,
-                latitude=latitude,
-                longitude=longitude,
-                timezone_name=timezone_name,
-            )
-            if result.errors:
-                raise ScheduleActivationError(f"Cron conversion failed: {'; '.join(result.errors)}")
-
-            _emit_progress(ACTIVATION_PHASE_APPLYING_CRON, ACTIVATION_PROGRESS_APPLYING_CRON)
-            apply_to_system(
-                entries=result.entries,
-                schedule_id=schedule_id,
-                set_rtc=True,
-            )
+            _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
             logger.info(
-                f"Applied cron entries for schedule: {schedule_id} ({len(result.entries)} entries)"
+                f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})"
             )
-        except ScheduleActivationError:
-            # Re-raise our own errors
-            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-            raise
-        except Exception as e:
-            logger.error(f"Failed to apply cron entries: {e}")
-            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-            raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
-
-        # Update is_active flag in storage AFTER cron succeeds
-        # For built-in schedules, we only update the in-memory state
-        _emit_progress(ACTIVATION_PHASE_UPDATING_STATE, ACTIVATION_PROGRESS_UPDATING_STATE)
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": True})
-            else:
-                self._update_builtin_schedule_state(schedule_id, True)
-        except Exception as e:
-            # Cron was applied but storage update failed - rollback cron
-            logger.exception(f"Failed to update schedule, rolling back cron: {e}")
-            with contextlib.suppress(Exception):
-                remove_from_system(clear_rtc=True)
-            _emit_progress(ACTIVATION_PHASE_FAILED, ACTIVATION_PROGRESS_FAILED)
-            raise ScheduleActivationError(f"Failed to update schedule: {e}") from e
-
-        # Set active schedule ID last
-        with self._cache_lock:
-            self._active_schedule_id = schedule_id
-
-        _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
-        logger.info(f"Activated schedule: {schedule_id}")
 
     def deactivate_schedule(self) -> bool:
         """
-        Deactivate the currently active schedule.
+        Deactivate the currently active schedule and clear system crontab.
+
+        Always clears crontab entries, even if no schedule is tracked as active.
+        This handles orphaned cron entries from crashes/restarts (Issue #331).
+
+        We no longer write is_active to schedule JSON files - active_state.json
+        is the single source of truth. This ensures firmware updates don't cause
+        inconsistent state like showing both "Disabled" and "Active" badges.
 
         Returns:
-            True always (no-op if no active schedule)
+            True if crontab was successfully cleared, False on failure.
         """
-        if self._active_schedule_id is None:
-            return True  # No-op
+        # Serialize with activation lock to prevent concurrent activation/deactivation (Issue #385)
+        with self._activation_lock:
+            schedule_id = self._active_schedule_id
 
-        schedule_id = self._active_schedule_id
+            # Clear in-memory state (Issue #331 fix)
+            # We no longer call update_schedule to write is_active=False to JSON files
+            if schedule_id is not None:
+                # Clear active schedule ID and location data
+                with self._cache_lock:
+                    self._active_schedule_id = None
+                    self._active_coordinates_source = None
+                    self._active_latitude = None
+                    self._active_longitude = None
+                    self._active_timezone_name = None
 
-        # Update storage if not built-in
-        try:
-            if not is_builtin_schedule(schedule_id):
-                self.update_schedule(schedule_id, {"is_active": False})
+                    # Invalidate cache so schedule gets refreshed with correct is_active state
+                    if schedule_id in self._cache:
+                        del self._cache[schedule_id]
+
+                # Clear persisted state from disk (Issue #331)
+                self._clear_active_state()
+
+            # ALWAYS clear system cron - even if no active schedule tracked (Issue #331)
+            # This handles orphaned cron entries from crashes or restarts
+            try:
+                remove_from_system(clear_rtc=True)
+                logger.info("Cleared system crontab")
+            except Exception as e:
+                logger.error(f"Failed to remove cron jobs: {e}")
+                return False  # Return failure so caller knows
+
+            if schedule_id:
+                logger.info(f"Deactivated schedule: {schedule_id}")
             else:
-                self._update_builtin_schedule_state(schedule_id, False)
-        except Exception:
-            logger.exception(f"Failed to deactivate schedule {schedule_id}")
+                logger.info("Cleared orphaned cron entries (no active schedule)")
 
-        # Clear active schedule ID
-        with self._cache_lock:
-            self._active_schedule_id = None
-
-        # Clear system cron (Issue #215)
-        try:
-            remove_from_system(clear_rtc=True)
-        except Exception as e:
-            logger.error(f"Failed to remove cron jobs: {e}")
-            # Still proceed with deactivation - don't block on cron removal failure
-
-        logger.info(f"Deactivated schedule: {schedule_id}")
-
-        return True
+            return True
 
     # ========================================================================
     # Cache Management

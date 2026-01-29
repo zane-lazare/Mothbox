@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { MOON_PHASES } from './constants'
+import { MOON_PHASES, TRIGGER_FORM_BORDER } from './constants'
 
 /**
  * MoonPhaseTriggerForm Component
@@ -35,10 +35,10 @@ function MoonPhaseTriggerForm({ trigger, onChange, disabled = false, error = nul
   }
 
   return (
-    <div className="border border-gray-800 rounded-lg p-4" data-testid="moon-phase-trigger-form">
+    <div className={TRIGGER_FORM_BORDER} data-testid="moon-phase-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Moon Phase</span>
-        <span className="text-xs text-gray-600">lunar cycle events</span>
+        <span className="text-sm text-gray-900 dark:text-white">Moon Phase</span>
+        <span className="text-xs text-gray-500 dark:text-gray-600">lunar cycle events</span>
       </div>
 
       <div className="space-y-4">

@@ -48,6 +48,7 @@ import toast from 'react-hot-toast'
  */
 function GalleryContent() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [selectedSeries, setSelectedSeries] = useState(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
 
@@ -207,6 +208,22 @@ function GalleryContent() {
     })
   }, [photos, seriesLookup])
 
+  // Compute photos for lightbox navigation - restricted to series when viewing a series
+  const lightboxPhotos = useMemo(() => {
+    if (selectedSeries) {
+      // When viewing a series, normalize series photos to objects
+      return selectedSeries.photos.map(photo => {
+        if (typeof photo === 'string') {
+          // Find full photo object from photos array, or create minimal object
+          const fullPhoto = photos.find(p => p.path === photo)
+          return fullPhoto || { path: photo, filename: photo.split('/').pop() }
+        }
+        return photo
+      })
+    }
+    return photos
+  }, [selectedSeries, photos])
+
   // Determine if virtualization should be enabled
   const shouldUseVirtualization = useMemo(() => {
     return (
@@ -217,7 +234,10 @@ function GalleryContent() {
   }, [viewMode, photos.length])
 
   // Memoized callbacks to prevent unnecessary re-renders
-  const handleCloseLightbox = useCallback(() => setSelectedPhoto(null), [])
+  const handleCloseLightbox = useCallback(() => {
+    setSelectedPhoto(null)
+    setSelectedSeries(null)
+  }, [])
   const handlePhotoClick = useCallback((photo) => {
     // Save scroll position before opening lightbox
     saveScrollPosition()
@@ -229,9 +249,10 @@ function GalleryContent() {
       setSelectedPhoto(photo)
     }
   }, [photos])
-  // Handle series card click - open lightbox with cover photo
-  const handleSeriesPhotoClick = useCallback((photo) => {
+  // Handle series card click - open lightbox with cover photo and track series
+  const handleSeriesPhotoClick = useCallback((photo, series) => {
     saveScrollPosition()
+    setSelectedSeries(series)
     setSelectedPhoto(photo)
   }, [saveScrollPosition])
 
@@ -831,7 +852,7 @@ function GalleryContent() {
                         <StackedPhotoCard
                           key={photo.path}
                           series={series}
-                          onPhotoClick={isSelectMode ? undefined : handleSeriesPhotoClick}
+                          onPhotoClick={isSelectMode ? undefined : (photo) => handleSeriesPhotoClick(photo, series)}
                         />
                       )
                     }
@@ -856,15 +877,15 @@ function GalleryContent() {
                 </div>
               )
             ) : (
-              /* Photo List */
+              /* Photo List - show ALL photos, not filtered displayPhotos */
               <div className="flex flex-col gap-4">
-                {displayPhotos.map((photo, index) => (
+                {photos.map((photo, index) => (
                   <PhotoListItem
                     key={photo.path}
                     photo={photo}
                     onClick={isSelectMode ? undefined : setSelectedPhoto}
                     index={index}
-                    photos={displayPhotos}
+                    photos={photos}
                   />
                 ))}
               </div>
@@ -908,7 +929,7 @@ function GalleryContent() {
         >
           <PhotoLightbox
             photo={selectedPhoto}
-            photos={photos}
+            photos={lightboxPhotos}
             onClose={handleCloseLightbox}
             onNavigate={handleNavigate}
           />

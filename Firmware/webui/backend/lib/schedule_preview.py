@@ -53,6 +53,10 @@ MAX_PREVIEW_DAYS: Final[int] = 90
 MIN_PREVIEW_DAYS: Final[int] = 1
 DEFAULT_PREVIEW_DAYS: Final[int] = 7
 
+# Minimum gap (in hours) to identify cycle boundary
+# If there's a gap of 6+ hours between executions, that's likely the cycle boundary
+MIN_CYCLE_GAP_HOURS: Final[int] = 6
+
 # Default location (equator) when GPS unavailable
 DEFAULT_LATITUDE: Final[float] = 0.0
 DEFAULT_LONGITUDE: Final[float] = 0.0
@@ -139,26 +143,70 @@ class PreviewExecution:
     actions: list[ActionExecution] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        """Serialize to dictionary."""
+        """Serialize to dictionary matching API schema (pattern_id/pattern_name)."""
         return {
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
-            "routine_id": self.routine_id,
-            "routine_name": self.routine_name,
+            "pattern_id": self.routine_id,
+            "pattern_name": self.routine_name,
             "trigger_info": self.trigger_info,
             "actions": [a.to_dict() for a in self.actions],
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "PreviewExecution":
-        """Deserialize from dictionary."""
+        """Deserialize from dictionary.
+
+        Accepts both old (pattern_id/pattern_name) and new (routine_id/routine_name)
+        field names for backward compatibility with API responses.
+        """
         return cls(
             start_time=datetime.fromisoformat(data["start_time"]),
             end_time=datetime.fromisoformat(data["end_time"]),
-            routine_id=data["routine_id"],
-            routine_name=data["routine_name"],
+            routine_id=data.get("routine_id") or data.get("pattern_id", ""),
+            routine_name=data.get("routine_name") or data.get("pattern_name", ""),
             trigger_info=data["trigger_info"],
             actions=[ActionExecution.from_dict(a) for a in data.get("actions", [])],
+        )
+
+
+@dataclass
+class CycleInfo:
+    """
+    Schedule cycle metadata for day view rendering.
+
+    Helps the frontend display a full schedule loop (e.g., dusk-to-dawn)
+    instead of a fixed calendar day (midnight-to-midnight).
+
+    Attributes:
+        start_hour: Hour when cycle begins (0-23, e.g., 17 for dusk)
+        end_hour: Hour when cycle ends (0-23, e.g., 6 for dawn)
+        spans_midnight: True if cycle crosses midnight (end_hour < start_hour)
+        suggested_preview_days: Minimum days to request for complete cycle (usually 2)
+    """
+
+    start_hour: int
+    end_hour: int
+    spans_midnight: bool
+    suggested_preview_days: int = 2
+
+    def to_dict(self) -> dict:
+        """Serialize to dictionary."""
+        return {
+            "start_hour": self.start_hour,
+            "end_hour": self.end_hour,
+            "spans_midnight": self.spans_midnight,
+            "suggested_preview_days": self.suggested_preview_days,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CycleInfo":
+        """Deserialize from dictionary."""
+        return cls(
+            start_hour=data["start_hour"],
+            end_hour=data["end_hour"],
+            spans_midnight=data["spans_midnight"],
+            suggested_preview_days=data.get("suggested_preview_days", 2),
         )
 
 
@@ -173,6 +221,7 @@ class PreviewResult:
     - Moon phases for calendar display
     - Summary statistics
     - Warnings about potential issues
+    - Cycle info for day view rendering
 
     Attributes:
         schedule_id: Source schedule identifier
@@ -185,6 +234,7 @@ class PreviewResult:
         total_actions: Total count of individual actions
         total_executions: Total count of routine executions
         warnings: List of warning messages (e.g., default location used)
+        cycle_info: Schedule cycle metadata for day view
         generated_at: Timestamp when preview was generated
     """
 
@@ -198,11 +248,12 @@ class PreviewResult:
     total_actions: int
     total_executions: int
     warnings: list[str] = field(default_factory=list)
+    cycle_info: CycleInfo | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
-        return {
+        result = {
             "schedule_id": self.schedule_id,
             "schedule_name": self.schedule_name,
             "preview_start": self.preview_start.isoformat(),
@@ -215,10 +266,16 @@ class PreviewResult:
             "warnings": self.warnings,
             "generated_at": self.generated_at.isoformat(),
         }
+        if self.cycle_info:
+            result["cycle_info"] = self.cycle_info.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "PreviewResult":
         """Deserialize from dictionary."""
+        cycle_info = None
+        if "cycle_info" in data:
+            cycle_info = CycleInfo.from_dict(data["cycle_info"])
         return cls(
             schedule_id=data["schedule_id"],
             schedule_name=data["schedule_name"],
@@ -230,6 +287,7 @@ class PreviewResult:
             total_actions=data["total_actions"],
             total_executions=data["total_executions"],
             warnings=data.get("warnings", []),
+            cycle_info=cycle_info,
             generated_at=datetime.fromisoformat(data["generated_at"]),
         )
 
@@ -257,7 +315,7 @@ def _get_default_location() -> tuple[float | None, float | None]:
         if lat_str != "n/a" and lon_str != "n/a":
             lat = float(lat_str)
             lon = float(lon_str)
-            logger.debug(f"Using GPS location from controls.txt: {lat}, {lon}")
+            logger.debug("Using GPS location from controls.txt (redacted for privacy)")
             return lat, lon
     except Exception as e:
         logger.warning(f"Could not read GPS coordinates from controls.txt: {e}")
@@ -408,6 +466,102 @@ def _get_moon_phases_dict(start_date: date, end_date: date) -> dict[str, dict]:
     return {phase["date"]: phase for phase in phases_list}
 
 
+def _detect_cycle(
+    executions: list[PreviewExecution],
+    timezone_name: str = "UTC",
+) -> CycleInfo | None:
+    """
+    Detect schedule cycle boundaries from executions.
+
+    Analyzes execution hours to find the natural cycle of a schedule.
+    For overnight schedules (e.g., dusk-to-dawn), the cycle spans midnight.
+    For daytime schedules (e.g., sunrise-to-sunset), it doesn't.
+
+    Algorithm:
+    1. Extract unique hours that have executions (in local timezone)
+    2. Find the largest gap between consecutive hours
+    3. Cycle starts after the largest gap, ends before it
+
+    Args:
+        executions: List of PreviewExecution objects
+        timezone_name: IANA timezone name for hour conversion
+
+    Returns:
+        CycleInfo with cycle boundaries, or None if no executions
+    """
+    if not executions:
+        return None
+
+    # Get timezone for conversion
+    try:
+        import pytz
+
+        tz = pytz.timezone(timezone_name)
+    except (ImportError, Exception):
+        tz = None
+
+    # Extract unique hours from all executions (in local timezone)
+    hours = set()
+    for execution in executions:
+        if tz:
+            # Convert UTC to local timezone before extracting hour
+            local_time = execution.start_time.astimezone(tz)
+            hours.add(local_time.hour)
+        else:
+            hours.add(execution.start_time.hour)
+
+    if not hours:
+        return None
+
+    # Sort hours for gap analysis
+    sorted_hours = sorted(hours)
+
+    if len(sorted_hours) == 1:
+        # Single hour - no cycle detection possible
+        hour = sorted_hours[0]
+        return CycleInfo(
+            start_hour=hour,
+            end_hour=hour,
+            spans_midnight=False,
+            suggested_preview_days=1,
+        )
+
+    # Find largest gap between consecutive hours (including wrap-around)
+    max_gap = 0
+    gap_after_hour = sorted_hours[-1]  # Default: gap after last hour (wrap to first)
+
+    for i in range(len(sorted_hours)):
+        current = sorted_hours[i]
+        next_hour = sorted_hours[(i + 1) % len(sorted_hours)]
+
+        # Calculate gap (handle wrap-around from 23 to 0)
+        gap = next_hour - current if next_hour > current else (24 - current) + next_hour
+
+        if gap > max_gap:
+            max_gap = gap
+            gap_after_hour = current
+
+    # Cycle starts after the largest gap
+    start_idx = (sorted_hours.index(gap_after_hour) + 1) % len(sorted_hours)
+    start_hour = sorted_hours[start_idx]
+
+    # Cycle ends at the hour before the largest gap
+    end_hour = gap_after_hour
+
+    # Check if cycle spans midnight
+    spans_midnight = end_hour < start_hour
+
+    # Suggest 2 days if overnight, 1 day otherwise
+    suggested_days = 2 if spans_midnight else 1
+
+    return CycleInfo(
+        start_hour=start_hour,
+        end_hour=end_hour,
+        spans_midnight=spans_midnight,
+        suggested_preview_days=suggested_days,
+    )
+
+
 # ============================================================================
 # Main Preview Function
 # ============================================================================
@@ -497,13 +651,17 @@ def generate_preview(
     # Convert to preview executions with expanded actions
     executions = [_convert_execution(exec, trigger_info, routine_cache) for exec in raw_executions]
 
-    # Detect conflicts
+    # Detect conflicts using the same executions to avoid regeneration
+    # (regeneration would produce slightly different times for solar-based schedules)
     conflict_report = detect_conflicts(
         schedule=schedule,
         preview_days=days,
         latitude=latitude,
         longitude=longitude,
         timezone_name=timezone_name,
+        executions=raw_executions,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     # Get moon phases for the period
@@ -512,6 +670,9 @@ def generate_preview(
     # Calculate totals
     total_actions = sum(len(e.actions) for e in executions)
     total_executions = len(executions)
+
+    # Detect schedule cycle (e.g., dusk-to-dawn for overnight schedules)
+    cycle_info = _detect_cycle(executions, timezone_name)
 
     # Build preview start/end as datetimes in the user's timezone, then convert to UTC
     # This ensures consistency when execution times span timezone boundaries
@@ -539,6 +700,7 @@ def generate_preview(
         total_actions=total_actions,
         total_executions=total_executions,
         warnings=warnings,
+        cycle_info=cycle_info,
     )
 
 

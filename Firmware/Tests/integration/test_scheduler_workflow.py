@@ -52,7 +52,17 @@ from webui.backend.lib.cron_bridge import (  # noqa: E402
 
 
 @pytest.fixture
-def scheduler_service(temp_schedules_env, mock_rtc_functions, monkeypatch):
+def isolated_state_file(temp_schedules_env, monkeypatch):
+    """Patch ACTIVE_STATE_FILE to use temp directory (avoids leftover state)."""
+    import webui.backend.services.scheduler_service as ss
+
+    active_state_file = temp_schedules_env["user_dir"] / "active_state.json"
+    monkeypatch.setattr(ss, "ACTIVE_STATE_FILE", active_state_file)
+    return active_state_file
+
+
+@pytest.fixture
+def scheduler_service(temp_schedules_env, mock_rtc_functions, isolated_state_file, monkeypatch):
     """SchedulerService with mocked dependencies.
 
     Uses mock_rtc_functions from conftest.py for RTC mocking, and adds
@@ -109,7 +119,8 @@ class TestCronJobManagement:
 
         create_schedule(schedule)
 
-        # Activate schedule
+        # Enable and activate schedule
+        scheduler_service.set_enabled_schedule(_test_uuid("cron-test-1"))
         scheduler_service.activate_schedule(
             _test_uuid("cron-test-1"),
             check_conflicts=False,
@@ -126,15 +137,16 @@ class TestCronJobManagement:
         # Verify cron entry content
         entry = entries[0]
 
-        # 1. Verify cron expression uses date-specific format (minute hour day month *)
-        # Note: schedule_to_cron now generates date-specific entries, not generic "* * *"
+        # 1. Verify cron expression format (minute hour day month weekday)
+        # Note: Fixed time triggers generate pattern-based entries (wildcards for day/month)
         parts = entry.expression.split()
         assert len(parts) == 5, f"Expected 5 cron fields, got {len(parts)}: {entry.expression}"
         assert parts[0] == "0", f"Expected minute=0, got {parts[0]}"
         assert parts[1] == "21", f"Expected hour=21, got {parts[1]}"
-        # Day and month are date-specific, just verify they're valid numbers
-        assert parts[2].isdigit() and 1 <= int(parts[2]) <= 31, f"Invalid day: {parts[2]}"
-        assert parts[3].isdigit() and 1 <= int(parts[3]) <= 12, f"Invalid month: {parts[3]}"
+        # Day and month can be wildcards for pattern-based entries
+        assert parts[2] == "*" or parts[2].isdigit(), f"Invalid day: {parts[2]}"
+        assert parts[3] == "*" or parts[3].isdigit(), f"Invalid month: {parts[3]}"
+        # Weekday is wildcard for daily schedule
         assert parts[4] == "*", f"Expected weekday=*, got {parts[4]}"
 
         # 2. Verify command references TakePhoto script
@@ -163,6 +175,7 @@ class TestCronJobManagement:
         )
         create_schedule(schedule1)
 
+        scheduler_service.set_enabled_schedule(_test_uuid("cron-test-2a"))
         scheduler_service.activate_schedule(
             _test_uuid("cron-test-2a"),
             check_conflicts=False,
@@ -173,13 +186,17 @@ class TestCronJobManagement:
         scheduler_service._apply_mock.reset_mock()
         scheduler_service._remove_mock.reset_mock()
 
-        # Create and activate second schedule
+        # Create second schedule
         schedule2 = sample_schedule_factory(
             schedule_id=_test_uuid("cron-test-2b"),
             name="Second Schedule",
         )
         create_schedule(schedule2)
 
+        # Deactivate and disable first, then enable and activate second
+        scheduler_service.deactivate_schedule()
+        scheduler_service.set_enabled_schedule(None)
+        scheduler_service.set_enabled_schedule(_test_uuid("cron-test-2b"))
         scheduler_service.activate_schedule(
             _test_uuid("cron-test-2b"),
             check_conflicts=False,
@@ -208,6 +225,7 @@ class TestCronJobManagement:
         )
         create_schedule(schedule)
 
+        scheduler_service.set_enabled_schedule(_test_uuid("cron-test-3"))
         scheduler_service.activate_schedule(
             _test_uuid("cron-test-3"),
             check_conflicts=False,
@@ -268,7 +286,8 @@ class TestRTCWakealarmManagement:
         )
         create_schedule(schedule)
 
-        # Activate
+        # Enable and activate
+        scheduler_service.set_enabled_schedule(_test_uuid("rtc-test-1"))
         scheduler_service.activate_schedule(
             _test_uuid("rtc-test-1"),
             check_conflicts=False,
@@ -296,6 +315,7 @@ class TestRTCWakealarmManagement:
         )
         create_schedule(schedule)
 
+        scheduler_service.set_enabled_schedule(_test_uuid("rtc-test-2"))
         scheduler_service.activate_schedule(_test_uuid("rtc-test-2"), check_conflicts=False)
         scheduler_service._remove_mock.reset_mock()
 
@@ -514,13 +534,12 @@ class TestTriggerTypeWorkflows:
         )
 
         # Convert to cron with location
-        # Note: schedule_to_cron uses years_ahead, not days_ahead
         result = schedule_to_cron(
             schedule,
             latitude=37.7749,  # San Francisco
             longitude=-122.4194,
             timezone_name="America/Los_Angeles",
-            years_ahead=1,  # Generate 1 year of entries
+            days_ahead=30,  # Generate 30 days of entries
         )
 
         # Should have entries for multiple days

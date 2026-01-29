@@ -21,6 +21,9 @@ test.describe('Scheduler Schedules', () => {
     if (await isRateLimited(page)) {
       test.skip(true, 'Rate limited by server (50/hour)')
     }
+
+    // Clean up any enabled/active schedules from previous runs
+    await scheduler.deactivateAndDisableAll()
   })
 
   test.afterEach(async () => {
@@ -51,21 +54,21 @@ test.describe('Scheduler Schedules', () => {
     expect(hasSchedules || isEmptyState).toBeTruthy()
   })
 
-  test('both tabs are visible and functional', async ({ page }) => {
-    // Verify Schedules tab
-    const schedulesTab = page.locator('button:has-text("Schedules")')
-    await expect(schedulesTab).toBeVisible()
+  test('schedule list and calendar are both visible in two-column layout', async ({ page }) => {
+    // In the new two-column layout, both schedule list and calendar are always visible
+    // (no tabs required - UI refactored in terminology refactor #296)
 
-    // Verify Calendar tab
-    const calendarTab = page.locator('button:has-text("Calendar")')
-    await expect(calendarTab).toBeVisible()
+    // Verify schedule list panel is visible (left column - 1/3 width)
+    const scheduleListColumn = page.locator('.col-span-1')
+    await expect(scheduleListColumn.first()).toBeVisible()
 
-    // Switch between tabs
-    await scheduler.switchToCalendarTab()
-    await expect(page.locator('#calendar-panel')).toBeVisible()
+    // Verify calendar panel is visible (right column - 2/3 width)
+    const calendarColumn = page.locator('.col-span-2')
+    await expect(calendarColumn.first()).toBeVisible()
 
-    await scheduler.switchToSchedulesTab()
-    await expect(page.locator('#schedules-panel')).toBeVisible()
+    // Verify calendar navigation is present and functional
+    const calendarNavPrev = page.locator('[data-testid="calendar-nav-previous"]')
+    await expect(calendarNavPrev).toBeVisible()
   })
 
   // ============================================================
@@ -119,25 +122,25 @@ test.describe('Scheduler Schedules', () => {
     expect(await scheduler.isEditorOpen()).toBeFalsy()
   })
 
-  test('edit existing schedule opens editor with data', async ({ page }) => {
+  test('view existing schedule opens editor with data', async ({ page }) => {
     void page // suppress unused warning
     const scheduleCount = await scheduler.getScheduleCount()
     if (scheduleCount === 0) {
-      test.skip(true, 'No schedules available for testing edit')
+      test.skip(true, 'No schedules available for testing view')
       return
     }
 
-    // Click Edit on first schedule
-    await scheduler.clickEditOnSchedule(0)
+    // Click View on first schedule (view-first paradigm - Issue #266)
+    await scheduler.clickViewOnSchedule(0)
 
     // Verify editor is open
     expect(await scheduler.isEditorOpen()).toBeTruthy()
 
-    // Verify title is "Edit Schedule"
+    // Verify title is "View Schedule" (opens in view mode first)
     const title = await scheduler.getEditorTitle()
-    expect(title).toContain('Edit Schedule')
+    expect(title).toContain('View Schedule')
 
-    // Verify name input has a value (existing schedule name)
+    // Verify name is displayed (existing schedule name)
     const nameValue = await scheduler.getScheduleNameValue()
     expect(nameValue.length).toBeGreaterThan(0)
 
@@ -202,64 +205,66 @@ test.describe('Scheduler Schedules', () => {
     expect(bannerVisible || cardActive).toBeTruthy()
   })
 
-  test('deactivate schedule from card', async () => {
-    // Find the active schedule
-    const activeIndex = await scheduler.findActiveSchedule()
-    if (activeIndex === -1) {
-      test.skip(true, 'No active schedule to deactivate')
-      return
+  test('deactivate from active banner', async ({ page }) => {
+    const testName = `Deactivate Test ${Date.now()}`
+
+    try {
+      // Create and activate a schedule so we have a known state
+      await scheduler.createFixedTimeSchedule({
+        name: testName,
+        description: 'Test deactivation',
+        timeOfDay: '12:00',
+      })
+      await scheduler.waitForLoad()
+      await scheduler.activateScheduleByName(testName)
+
+      // Verify active banner is visible with correct schedule name
+      const bannerVisible = await scheduler.isActiveBannerVisible()
+      expect(bannerVisible, 'Active banner should be visible').toBeTruthy()
+
+      const bannerName = await scheduler.getActiveBannerScheduleName()
+      expect(bannerName, 'Banner should show schedule name').toContain(testName)
+
+      // Click deactivate in banner
+      await scheduler.clickBannerDeactivate()
+      await scheduler.waitForLoad()
+
+      // Wait for the active banner to disappear (React state update + re-render)
+      const activeBanner = page.locator('[data-testid="active-schedule-banner"]')
+      await activeBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.NETWORK })
+
+      // Verify active banner (green) is gone
+      const stillActiveVisible = await scheduler.isActiveBannerVisible()
+      expect(stillActiveVisible, 'Active banner should be gone after deactivate').toBeFalsy()
+
+      // Verify enabled banner (red/ready) now appears
+      const enabledVisible = await scheduler.isEnabledBannerVisible()
+      expect(enabledVisible, 'Enabled banner should appear after deactivate').toBeTruthy()
+    } finally {
+      // Cleanup - wrap in try-catch since state may vary after test
+      try {
+        await scheduler.deactivateAndDisableAll()
+      } catch {
+        // Ignore cleanup errors - banner may already be gone
+      }
+      try {
+        if (await scheduler.hasScheduleWithName(testName)) {
+          await scheduler.clickDeleteOnScheduleByName(testName)
+          if (await scheduler.isConfirmDialogOpen()) {
+            await scheduler.confirmDelete()
+          }
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
     }
-
-    // Deactivate from card
-    await scheduler.clickDeactivateOnSchedule(activeIndex)
-
-    // Wait for UI to update
-    await scheduler.waitForLoad()
-
-    // Verify the card no longer shows active (or banner disappeared)
-    const stillActive = await scheduler.isScheduleActive(activeIndex)
-    expect(stillActive).toBeFalsy()
-  })
-
-  test('deactivate from active banner', async () => {
-    // Check if active banner is visible
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    if (!bannerVisible) {
-      test.skip(true, 'No active schedule banner visible')
-      return
-    }
-
-    // Click deactivate in banner
-    await scheduler.clickBannerDeactivate()
-
-    // Wait for UI to update
-    await scheduler.waitForLoad()
-
-    // Verify banner disappeared
-    const stillVisible = await scheduler.isActiveBannerVisible()
-    expect(stillVisible).toBeFalsy()
-  })
-
-  test('active banner shows correct schedule name', async () => {
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    if (!bannerVisible) {
-      test.skip(true, 'No active schedule banner visible')
-      return
-    }
-
-    // Get the active schedule name from banner
-    const bannerName = await scheduler.getActiveBannerScheduleName()
-    expect(bannerName).toBeTruthy()
-    expect(bannerName.length).toBeGreaterThan(0)
   })
 
   // ============================================================
   // Full CRUD Integration Tests
   // ============================================================
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('create schedule with valid data and verify in list', async () => {
+  test('create schedule with valid data and verify in list', async () => {
     const initialCount = await scheduler.getScheduleCount()
     const testName = scheduler.generateTestScheduleName()
 
@@ -273,9 +278,18 @@ test.describe('Scheduler Schedules', () => {
       // Fill description (optional)
       await scheduler.fillScheduleDescription('E2E test schedule - can be deleted')
 
-      // Select a routine (required) - TODO: Update to selectFirstRoutine()
-      const patternSelected = await scheduler.selectFirstEventPattern()
-      expect(patternSelected, 'Routines should be available').toBeTruthy()
+      // Add routine with trigger and action
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await scheduler.fillIntervalMinutesInRoutine(15)
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Save the routine
+      await scheduler.saveRoutine()
 
       // Save the schedule
       await scheduler.clickSave()
@@ -306,9 +320,7 @@ test.describe('Scheduler Schedules', () => {
     }
   })
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('full CRUD workflow: create, edit, delete', async () => {
+  test('full CRUD workflow: create, edit, delete', async () => {
     const testName = scheduler.generateTestScheduleName()
     const updatedName = `${testName}-updated`
 
@@ -318,9 +330,18 @@ test.describe('Scheduler Schedules', () => {
       await scheduler.fillScheduleName(testName)
       await scheduler.fillScheduleDescription('E2E CRUD test')
 
-      // Select a routine (required) - TODO: Update to selectFirstRoutine()
-      const patternSelected = await scheduler.selectFirstEventPattern()
-      expect(patternSelected, 'Routines should be available').toBeTruthy()
+      // Add routine with trigger and action
+      await scheduler.clickAddRoutine()
+      await scheduler.selectTriggerTypeInRoutine('interval')
+      await scheduler.fillIntervalMinutesInRoutine(15)
+
+      // Add an action
+      await scheduler.clickAddActionInRoutine()
+      await scheduler.selectActionTypeInRoutine(0, 'gpio')
+      await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+      // Save the routine
+      await scheduler.saveRoutine()
 
       // Save
       await scheduler.clickSave()
@@ -333,18 +354,24 @@ test.describe('Scheduler Schedules', () => {
       const scheduleExists = await scheduler.hasScheduleWithName(testName)
       expect(scheduleExists, 'Schedule should appear in list after creation').toBeTruthy()
 
-      // Edit schedule
+      // Edit schedule (view-first paradigm: View → Edit in header)
       const card = scheduler.getScheduleCardByName(testName)
-      await card.locator('button:has-text("Edit")').click()
+      await card.locator('button:has-text("View")').click()
       await scheduler.waitForEditorOpen()
+      // Switch to edit mode
+      await scheduler.clickEditInEditorHeader()
 
       // Update name
       await scheduler.fillScheduleName(updatedName)
       await scheduler.clickSave()
 
-      // If editor still open, close it
+      // Wait for editor to close after save (save should close the editor on success)
+      // Give extra time for the API call and UI update
+      await scheduler.page.waitForTimeout(1000)
+
+      // If editor is still open (e.g., validation error), close it
       if (await scheduler.isEditorOpen()) {
-        await scheduler.clickCancel()
+        await scheduler.closeEditor()  // Use X button or Escape, more reliable than Cancel
       }
 
       // Wait for update
@@ -387,13 +414,23 @@ test.describe('Scheduler Schedules', () => {
   // Form Validation Tests
   // ============================================================
 
-  // NEEDS UPDATE (#329): Uses selectFirstEventPattern() - update when routine workflow complete
-  // The deprecated method still works via backward compatibility wrapper
-  test.fixme('save without name shows validation error', async ({ page }) => {
+  test('save without name shows validation error', async ({ page }) => {
     await scheduler.clickNewSchedule()
 
-    // Select routine but don't fill name - TODO: Update to selectFirstRoutine()
-    await scheduler.selectFirstEventPattern()
+    // Add routine but don't fill schedule name
+    await scheduler.clickAddRoutine()
+    await scheduler.selectTriggerTypeInRoutine('interval')
+    await scheduler.fillIntervalMinutesInRoutine(15)
+
+    // Add an action
+    await scheduler.clickAddActionInRoutine()
+    await scheduler.selectActionTypeInRoutine(0, 'gpio')
+    await scheduler.selectActionNameInRoutine(0, 'attract_on')
+
+    // Save the routine
+    await scheduler.saveRoutine()
+
+    // Try to save without name
     await scheduler.clickSave()
     await page.waitForTimeout(TIMEOUTS.TRANSITION)
 
@@ -405,64 +442,38 @@ test.describe('Scheduler Schedules', () => {
     await scheduler.clickCancel()
   })
 
-  // OBSOLETE (#329): Pattern Library workflow removed in terminology refactor (#296)
-  // The new routine-based workflow doesn't have pattern selection validation
-  // DELETE after refactor complete
-  test.skip('save without event pattern shows validation error', async ({ page }) => {
-    await scheduler.clickNewSchedule()
-    await scheduler.fillScheduleName(scheduler.generateTestScheduleName())
-
-    // Don't select pattern, try to save
-    await scheduler.clickSave()
-    await page.waitForTimeout(TIMEOUTS.TRANSITION)
-
-    // Editor should stay open with error
-    expect(await scheduler.isEditorOpen()).toBeTruthy()
-    const errorVisible = await page.locator('text=pattern').first().isVisible()
-    expect(errorVisible).toBeTruthy()
-
-    await scheduler.clickCancel()
-  })
-
   // ============================================================
   // Edge Cases
   // ============================================================
 
   test('deleting active schedule removes active banner', async () => {
-    const activeIndex = await scheduler.findActiveSchedule()
-    if (activeIndex === -1) {
-      test.skip(true, 'No active schedule to test deletion')
-      return
-    }
+    const testName = `Delete Active Test ${Date.now()}`
+
+    // Create and activate a schedule
+    await scheduler.createFixedTimeSchedule({
+      name: testName,
+      description: 'Test delete active',
+      timeOfDay: '12:00',
+    })
+    await scheduler.waitForLoad()
+    await scheduler.activateScheduleByName(testName)
+
+    // Verify it's active
+    const bannerVisible = await scheduler.isActiveBannerVisible()
+    expect(bannerVisible, 'Schedule should be active').toBeTruthy()
 
     // Delete the active schedule
-    await scheduler.clickDeleteOnSchedule(activeIndex)
-
+    await scheduler.clickDeleteOnScheduleByName(testName)
     if (await scheduler.isConfirmDialogOpen()) {
       await scheduler.confirmDelete()
       await scheduler.waitForLoad()
     }
 
-    // Verify active banner is gone
-    const bannerVisible = await scheduler.isActiveBannerVisible()
-    expect(bannerVisible).toBeFalsy()
-  })
-
-  // ============================================================
-  // Toast Notifications
-  // ============================================================
-
-  test('successful activation shows success toast', async () => {
-    const inactiveIndex = await scheduler.findFirstInactiveSchedule()
-    if (inactiveIndex === -1) {
-      test.skip(true, 'No inactive schedules available')
-      return
-    }
-
-    await scheduler.clickActivateOnSchedule(inactiveIndex)
-
-    const toastAppeared = await scheduler.waitForToast('success')
-    expect(toastAppeared).toBeTruthy()
+    // Verify active banner is gone (and no enabled banner either since schedule is deleted)
+    const stillActive = await scheduler.isActiveBannerVisible()
+    const stillEnabled = await scheduler.isEnabledBannerVisible()
+    expect(stillActive, 'Active banner should be gone').toBeFalsy()
+    expect(stillEnabled, 'Enabled banner should be gone').toBeFalsy()
   })
 
   // ============================================================

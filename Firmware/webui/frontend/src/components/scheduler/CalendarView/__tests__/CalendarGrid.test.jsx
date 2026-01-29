@@ -7,9 +7,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CalendarGrid from '../CalendarGrid'
 
-// Mock child components (only used for month/week views)
+// Mock child components (only used for month views)
+// Note: CalendarCell no longer has onExecutionClick - clicking cell navigates to day view
 vi.mock('../CalendarCell', () => ({
-  default: vi.fn(({ date, isCurrentMonth, executions, moonPhase, onClick, onExecutionClick }) => {
+  default: vi.fn(({ date, isCurrentMonth, executions, moonPhase, onClick }) => {
     // Helper function to get date key (must match component implementation)
     const getDateKey = (d) => {
       const year = d.getFullYear()
@@ -29,18 +30,82 @@ vi.mock('../CalendarCell', () => ({
         onClick={() => onClick(date)}
       >
         {date.getDate()}
-        {executions.map((exec) => (
-          <button
-            key={exec.start_time}
-            data-testid={`execution-${exec.start_time}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onExecutionClick(exec)
-            }}
-          >
-            {exec.pattern_name}
-          </button>
+        {/* CalendarCell now shows action type indicator dots instead of clickable execution buttons */}
+        {executions.length > 0 && (
+          <span data-testid="action-indicators">{executions.length} actions</span>
+        )}
+      </div>
+    )
+  }),
+}))
+
+// Mock WeekHourlyTimeline component (used for week view)
+vi.mock('../../WeekHourlyTimeline', () => ({
+  default: vi.fn(({ currentDate, executions, moonPhases, onCellClick, onExecutionClick }) => {
+    // Helper function to get date key
+    const getDateKey = (d) => {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    // Get week dates (Sunday to Saturday)
+    const getWeekDates = (centerDate) => {
+      const dates = []
+      const dayOfWeek = centerDate.getDay()
+      const sunday = new Date(centerDate)
+      sunday.setDate(centerDate.getDate() - dayOfWeek)
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(sunday)
+        date.setDate(sunday.getDate() + i)
+        dates.push(date)
+      }
+      return dates
+    }
+
+    const weekDates = getWeekDates(currentDate)
+
+    return (
+      <div data-testid="week-hourly-timeline">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          <span key={day}>{day}</span>
         ))}
+        {weekDates.map((date) => {
+          const dateKey = getDateKey(date)
+          const dayExecutions = executions.filter((exec) => {
+            const execDate = new Date(exec.start_time)
+            return (
+              execDate.getDate() === date.getDate() &&
+              execDate.getMonth() === date.getMonth() &&
+              execDate.getFullYear() === date.getFullYear()
+            )
+          })
+          return (
+            <div
+              key={dateKey}
+              data-testid="week-hourly-day"
+              data-date={dateKey}
+              data-executions-count={dayExecutions.length}
+              data-has-moon-phase={!!moonPhases[dateKey]}
+              onClick={() => onCellClick(date)}
+            >
+              {date.getDate()}
+              {dayExecutions.map((exec) => (
+                <button
+                  key={exec.start_time}
+                  data-testid={`week-execution-${exec.start_time}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onExecutionClick(exec)
+                  }}
+                >
+                  {exec.pattern_name}
+                </button>
+              ))}
+            </div>
+          )
+        })}
       </div>
     )
   }),
@@ -50,24 +115,25 @@ describe('CalendarGrid', () => {
   const mockOnCellClick = vi.fn()
   const mockOnExecutionClick = vi.fn()
 
+  // Use local time strings (no Z suffix) for predictable behavior across timezones
   const mockExecutions = [
     {
       id: 'exec1',
       pattern_id: 'pattern1',
       pattern_name: 'Morning Capture',
-      start_time: '2025-01-15T08:30:00Z',
+      start_time: '2025-01-15T08:30:00',
     },
     {
       id: 'exec2',
       pattern_id: 'pattern2',
       pattern_name: 'Evening Capture',
-      start_time: '2025-01-15T18:00:00Z',
+      start_time: '2025-01-15T18:00:00',
     },
     {
       id: 'exec3',
       pattern_id: 'pattern1',
       pattern_name: 'Afternoon Capture',
-      start_time: '2025-01-20T14:00:00Z',
+      start_time: '2025-01-20T14:00:00',
     },
   ]
 
@@ -273,35 +339,13 @@ describe('CalendarGrid', () => {
       expect(mockOnCellClick).toHaveBeenCalledWith(expect.any(Date))
     })
 
-    it('calls onExecutionClick when execution is clicked', async () => {
-      const user = userEvent.setup()
-
-      render(
-        <CalendarGrid
-          viewMode="month"
-          currentDate={new Date(2025, 0, 15)}
-          executions={mockExecutions}
-          moonPhases={{}}
-          onCellClick={mockOnCellClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      const executionButton = screen.getByTestId('execution-2025-01-15T08:30:00Z')
-      await user.click(executionButton)
-
-      expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)
-      expect(mockOnExecutionClick).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'exec1',
-          pattern_name: 'Morning Capture',
-        })
-      )
-    })
+    // Note: onExecutionClick is no longer used in month view
+    // CalendarCell shows action type indicator dots; clicking a cell navigates to day view
+    // Execution click functionality is in day view (via DayTimeline)
   })
 
   describe('Week View', () => {
-    it('renders 7 day column headers with dates', () => {
+    it('renders WeekHourlyTimeline component', () => {
       render(
         <CalendarGrid
           viewMode="week"
@@ -313,6 +357,9 @@ describe('CalendarGrid', () => {
         />
       )
 
+      // Should render the WeekHourlyTimeline component
+      expect(screen.getByTestId('week-hourly-timeline')).toBeInTheDocument()
+
       // Should show day names
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       days.forEach((day) => {
@@ -320,14 +367,13 @@ describe('CalendarGrid', () => {
       })
 
       // Should show dates (12-18 for the week containing Jan 15)
-      // Note: dates appear both in headers and cells, so use getAllByText
       for (let day = 12; day <= 18; day++) {
         const elements = screen.getAllByText(day.toString())
         expect(elements.length).toBeGreaterThanOrEqual(1)
       }
     })
 
-    it('renders 7 calendar cells for the week', () => {
+    it('renders 7 day slots for the week', () => {
       render(
         <CalendarGrid
           viewMode="week"
@@ -339,7 +385,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('calendar-cell')
+      const cells = screen.getAllByTestId('week-hourly-day')
       expect(cells).toHaveLength(7)
     })
 
@@ -372,7 +418,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const cells = screen.getAllByTestId('calendar-cell')
+      const cells = screen.getAllByTestId('week-hourly-day')
 
       // Find cell with moon phase (Jan 15)
       const cellsWithMoonPhase = cells.filter(
@@ -396,7 +442,7 @@ describe('CalendarGrid', () => {
         />
       )
 
-      const firstCell = screen.getAllByTestId('calendar-cell')[0]
+      const firstCell = screen.getAllByTestId('week-hourly-day')[0]
       await user.click(firstCell)
 
       expect(mockOnCellClick).toHaveBeenCalledTimes(1)
@@ -444,11 +490,13 @@ describe('CalendarGrid', () => {
     })
 
     it('shows empty state when no executions for day', () => {
+      // DayTimeline uses cycle-aware grouping (ignores date, groups by hour)
+      // To get empty state, we need to pass an empty executions array
       render(
         <CalendarGrid
           viewMode="day"
-          currentDate={new Date(2025, 0, 10)} // Day with no executions
-          executions={mockExecutions}
+          currentDate={new Date(2025, 0, 10)}
+          executions={[]} // Empty executions array for empty state
           moonPhases={{}}
           onCellClick={mockOnCellClick}
           onExecutionClick={mockOnExecutionClick}
@@ -485,7 +533,9 @@ describe('CalendarGrid', () => {
       )
     })
 
-    it('renders 24 hour rows', () => {
+    it('renders hour rows with cycle-aware collapsing', () => {
+      // DayTimeline uses cycle-aware rendering with automatic collapsing
+      // of repetitive consecutive hours. It won't render all 24 rows.
       render(
         <CalendarGrid
           viewMode="day"
@@ -497,10 +547,13 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Should have 24 hour rows (0-23)
-      for (let hour = 0; hour < 24; hour++) {
-        expect(screen.getByTestId(`hour-row-${hour}`)).toBeInTheDocument()
-      }
+      // Should have the day-timeline container
+      expect(screen.getByTestId('day-timeline')).toBeInTheDocument()
+
+      // Should render rows for hours with executions (8 and 18)
+      // Note: DayTimeline may collapse repetitive empty hours
+      expect(screen.getByTestId('hour-row-8')).toBeInTheDocument()
+      expect(screen.getByTestId('hour-row-18')).toBeInTheDocument()
     })
 
     it('passes conflicts to DayTimeline', () => {
@@ -620,7 +673,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      expect(screen.getByText('Test Pattern')).toBeInTheDocument()
+      // CalendarCell mock shows action indicator count, not pattern name
+      expect(screen.getByTestId('action-indicators')).toBeInTheDocument()
+      expect(screen.getByText('1 actions')).toBeInTheDocument()
     })
   })
 
@@ -637,9 +692,9 @@ describe('CalendarGrid', () => {
         />
       )
 
-      // Check for dark mode border classes
+      // Check for dark mode border classes (PANEL_STYLES.grid uses dark:border-gray-800)
       const grid = container.querySelector('.grid-cols-7')
-      expect(grid?.className).toContain('dark:border-gray-700')
+      expect(grid?.className).toContain('dark:border-gray-800')
     })
 
     it('applies dark mode classes to day view', () => {

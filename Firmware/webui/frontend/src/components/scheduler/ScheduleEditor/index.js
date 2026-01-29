@@ -38,7 +38,6 @@ export { default as ScheduleEditor } from './ScheduleEditor';
 
 // Section components
 export { default as TriggerForm } from './TriggerForm';
-export { default as PreviewSection } from './PreviewSection';
 
 // Trigger form sub-components
 export { default as IntervalTriggerForm } from './IntervalTriggerForm';
@@ -57,6 +56,9 @@ export { default as RoutineCard } from './RoutineCard';
 export { default as RoutineList } from './RoutineList';
 export { default as NewRoutineCard } from './NewRoutineCard';
 export { default as PreConditionForm } from './PreConditionForm';
+
+// Conflict detection (Issue #331)
+export { default as ConflictPanel } from './ConflictPanel';
 
 // Constants and types
 export {

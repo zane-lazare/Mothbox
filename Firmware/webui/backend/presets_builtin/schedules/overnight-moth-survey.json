@@ -7,7 +7,7 @@
   "routines": [
     {
       "routine_id": "7b935a8f-80f0-47fc-9ce9-19fd45bf2448",
-      "name": null,
+      "name": "Lights On at Dusk",
       "trigger": {
         "trigger_type": "solar",
         "solar_event": "dusk",
@@ -19,11 +19,11 @@
     },
     {
       "routine_id": "2cd9aa2c-df70-4d2e-966a-76e417b8aaf1",
-      "name": null,
+      "name": "Photo Capture",
       "trigger": {
         "trigger_type": "interval",
         "interval_minutes": 15,
-        "time_window": {"start_time": "sunset", "end_time": "sunrise"}
+        "time_window": {"start_time": "dusk", "end_time": "dawn"}
       },
       "actions": [
         {"action_type": "gpio", "action_name": "flash_on", "offset_minutes": 0},
@@ -33,7 +33,7 @@
     },
     {
       "routine_id": "c5651e73-5e60-42c5-8a16-916e275e1d89",
-      "name": null,
+      "name": "Lights Off at Dawn",
       "trigger": {
         "trigger_type": "solar",
         "solar_event": "dawn",

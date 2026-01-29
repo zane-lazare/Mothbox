@@ -50,11 +50,13 @@ from webui.backend.lib.schedule_schema import (
     TimeWindow,
 )
 from webui.backend.lib.schedule_storage import (
+    SCHEDULE_FILENAME_EXTENSION,
     create_schedule,
     delete_schedule,
     is_builtin_schedule,
     list_schedules,
     read_schedule,
+    slugify_schedule_name,
     update_schedule,
 )
 
@@ -151,9 +153,10 @@ class TestScheduleWorkflow:
         success = create_schedule(schedule)
         assert success is True, "Should successfully create schedule"
 
-        # Verify file exists
-        schedule_file = user_dir / f"{schedule.schedule_id}.json"
-        assert schedule_file.exists(), "Schedule file should exist"
+        # Verify file exists (uses slugified name, not schedule_id)
+        schedule_filename = f"{slugify_schedule_name(schedule.name)}{SCHEDULE_FILENAME_EXTENSION}"
+        schedule_file = user_dir / schedule_filename
+        assert schedule_file.exists(), f"Schedule file should exist at {schedule_file}"
 
         # 2. READ - Read back schedule
         read_schedule_obj = read_schedule(schedule.schedule_id)
@@ -183,11 +186,11 @@ class TestScheduleWorkflow:
         delete_success = delete_schedule(schedule.schedule_id, backup=True)
         assert delete_success is True, "Should successfully delete schedule"
 
-        # Verify file is gone
+        # Verify file is gone (note: update_schedule writes to same file, doesn't rename)
         assert not schedule_file.exists(), "Schedule file should be deleted"
 
-        # Verify backup exists
-        backup_file = user_dir / f"{schedule.schedule_id}.json.bak"
+        # Verify backup exists (uses original filename)
+        backup_file = user_dir / f"{schedule_filename}.bak"
         assert backup_file.exists(), "Backup file should exist"
 
         # Verify read returns None after deletion
@@ -256,8 +259,10 @@ class TestScheduleWorkflow:
         create_schedule(schedule)
 
         # Simulate "session end" by reading file directly from disk
-        schedule_file = user_dir / f"{schedule.schedule_id}.json"
-        assert schedule_file.exists()
+        # (uses slugified name, not schedule_id)
+        schedule_filename = f"{slugify_schedule_name(schedule.name)}{SCHEDULE_FILENAME_EXTENSION}"
+        schedule_file = user_dir / schedule_filename
+        assert schedule_file.exists(), f"Schedule file should exist at {schedule_file}"
 
         with open(schedule_file) as f:
             disk_data = json.load(f)
@@ -403,12 +408,13 @@ class TestScheduleWorkflow:
         delete_success = delete_schedule(schedule.schedule_id, backup=True)
         assert delete_success is True
 
-        # Verify original file is gone
-        schedule_file = user_dir / f"{schedule.schedule_id}.json"
+        # Verify original file is gone (uses slugified name)
+        schedule_filename = f"{slugify_schedule_name(schedule.name)}{SCHEDULE_FILENAME_EXTENSION}"
+        schedule_file = user_dir / schedule_filename
         assert not schedule_file.exists()
 
         # Verify backup exists
-        backup_file = user_dir / f"{schedule.schedule_id}.json.bak"
+        backup_file = user_dir / f"{schedule_filename}.bak"
         assert backup_file.exists()
 
         # "Restore" by renaming backup to original

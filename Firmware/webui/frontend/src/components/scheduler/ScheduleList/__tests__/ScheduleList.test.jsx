@@ -1,28 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock dependencies BEFORE imports
 vi.mock('../../../../hooks/useSchedules', () => ({
   useSchedules: vi.fn(),
   useActiveSchedule: vi.fn(),
-  useActivateSchedule: vi.fn(),
-  useDeactivateSchedule: vi.fn(),
-  useDeleteSchedule: vi.fn(),
+  useUpdateSchedule: vi.fn(),
 }))
 
-// Note: ConfirmDialog is NOT mocked - we test with the real component
-
 vi.mock('../ScheduleCard', () => ({
-  default: ({ schedule, isActive, isActivating, onActivate, onDeactivate, onEdit, onDelete }) => (
+  default: ({ schedule, isActive, onView, onToggleEnabled, isTogglingEnabled }) => (
     <div data-testid={`schedule-card-${schedule.schedule_id}`} role="listitem">
       <h3>{schedule.name}</h3>
       <span data-testid={`active-status-${schedule.schedule_id}`}>{isActive ? 'active' : 'inactive'}</span>
-      <span data-testid={`activating-status-${schedule.schedule_id}`}>{isActivating ? 'activating' : 'idle'}</span>
-      <button onClick={() => onActivate(schedule)}>Activate</button>
-      <button onClick={() => onDeactivate(schedule)}>Deactivate</button>
-      <button onClick={() => onEdit(schedule)}>Edit</button>
-      <button onClick={() => onDelete(schedule)}>Delete</button>
+      <span data-testid={`toggling-status-${schedule.schedule_id}`}>{isTogglingEnabled ? 'toggling' : 'idle'}</span>
+      <button onClick={() => onView(schedule)}>View</button>
+      {onToggleEnabled && (
+        <button onClick={() => onToggleEnabled(schedule)}>
+          {schedule.enabled === false ? 'Enable' : 'Disable'}
+        </button>
+      )}
     </div>
   ),
 }))
@@ -41,9 +39,7 @@ vi.mock('react-hot-toast', () => ({
 import {
   useSchedules,
   useActiveSchedule,
-  useActivateSchedule,
-  useDeactivateSchedule,
-  useDeleteSchedule,
+  useUpdateSchedule,
 } from '../../../../hooks/useSchedules'
 import toast from 'react-hot-toast'
 import { ScheduleList } from '../ScheduleList'
@@ -67,7 +63,7 @@ describe('ScheduleList', () => {
     },
   ]
 
-  const mockOnEditSchedule = vi.fn()
+  const mockOnViewSchedule = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,17 +80,7 @@ describe('ScheduleList', () => {
       data: { active_schedule: null },
     })
 
-    useActivateSchedule.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-    })
-
-    useDeactivateSchedule.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-    })
-
-    useDeleteSchedule.mockReturnValue({
+    useUpdateSchedule.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
     })
@@ -109,7 +95,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
@@ -123,7 +109,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      const { container } = render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      const { container } = render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
       const loadingContainer = container.querySelector('[data-testid="loading-spinner"]').parentElement
 
       expect(loadingContainer).toHaveClass('flex', 'justify-center', 'items-center')
@@ -140,7 +126,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByText(/failed to load schedules/i)).toBeInTheDocument()
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
@@ -154,7 +140,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
     })
@@ -170,7 +156,7 @@ describe('ScheduleList', () => {
         refetch: mockRefetch,
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       const retryButton = screen.getByRole('button', { name: /retry/i })
       await user.click(retryButton)
@@ -186,7 +172,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       const errorMessage = screen.getByText(/failed to load schedules/i)
       expect(errorMessage).toHaveClass('text-red-600')
@@ -202,7 +188,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByText(/no schedules yet/i)).toBeInTheDocument()
       expect(screen.queryByRole('list')).not.toBeInTheDocument()
@@ -216,7 +202,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       // Check for Calendar icon
       const emptyStateContainer = screen.getByText(/no schedules yet/i).parentElement
@@ -231,7 +217,7 @@ describe('ScheduleList', () => {
         refetch: vi.fn(),
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       const emptyStateContainer = screen.getByText(/no schedules yet/i).parentElement
       expect(emptyStateContainer).toHaveClass('text-center')
@@ -243,7 +229,7 @@ describe('ScheduleList', () => {
 
   describe('List Rendering', () => {
     it('should render ScheduleCard for each schedule', () => {
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByTestId('schedule-card-schedule-1')).toBeInTheDocument()
       expect(screen.getByTestId('schedule-card-schedule-2')).toBeInTheDocument()
@@ -251,7 +237,7 @@ describe('ScheduleList', () => {
     })
 
     it('should use grid layout with responsive columns', () => {
-      const { container } = render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      const { container } = render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       const grid = container.querySelector('[role="list"]')
       expect(grid).toHaveClass('grid', 'grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-3', 'gap-4')
@@ -262,7 +248,7 @@ describe('ScheduleList', () => {
         data: { active_schedule: { schedule_id: 'schedule-2' } },
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByTestId('active-status-schedule-1')).toHaveTextContent('inactive')
       expect(screen.getByTestId('active-status-schedule-2')).toHaveTextContent('active')
@@ -274,7 +260,7 @@ describe('ScheduleList', () => {
         data: { active_schedule: null },
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByTestId('active-status-schedule-1')).toHaveTextContent('inactive')
       expect(screen.getByTestId('active-status-schedule-2')).toHaveTextContent('inactive')
@@ -282,140 +268,37 @@ describe('ScheduleList', () => {
     })
   })
 
-  describe('Activate Action', () => {
-    it('should call activate mutation when schedule is activated', async () => {
+  describe('View Action', () => {
+    it('should call onViewSchedule callback when view is clicked', async () => {
       const user = userEvent.setup()
-      const mockActivate = vi.fn()
 
-      useActivateSchedule.mockReturnValue({
-        mutate: mockActivate,
-        isPending: false,
-      })
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      const viewButton = screen.getAllByRole('button', { name: /view/i })[0]
+      await user.click(viewButton)
 
-      const activateButton = screen.getAllByRole('button', { name: /activate/i })[0]
-      await user.click(activateButton)
-
-      expect(mockActivate).toHaveBeenCalledWith(
-        { id: 'schedule-1' },
-        expect.objectContaining({
-          onSuccess: expect.any(Function),
-          onError: expect.any(Function),
-        })
-      )
-    })
-
-    it('should track activating state for specific schedule', async () => {
-      const user = userEvent.setup()
-      const mockActivate = vi.fn()
-
-      useActivateSchedule.mockReturnValue({
-        mutate: mockActivate,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      // Initially not activating
-      expect(screen.getByTestId('activating-status-schedule-1')).toHaveTextContent('idle')
-
-      // Click activate
-      const activateButton = screen.getAllByRole('button', { name: /activate/i })[0]
-      await user.click(activateButton)
-
-      // Verify mutation was called with correct schedule ID
-      expect(mockActivate).toHaveBeenCalledWith(
-        { id: 'schedule-1' },
-        expect.objectContaining({
-          onSuccess: expect.any(Function),
-          onError: expect.any(Function),
-        })
-      )
-    })
-
-    it('should show success toast on successful activation', async () => {
-      const user = userEvent.setup()
-      let onSuccessCallback
-
-      const mockActivate = vi.fn((variables, callbacks) => {
-        onSuccessCallback = callbacks.onSuccess
-      })
-
-      useActivateSchedule.mockReturnValue({
-        mutate: mockActivate,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const activateButton = screen.getAllByRole('button', { name: /activate/i })[0]
-      await user.click(activateButton)
-
-      // Simulate success
-      onSuccessCallback()
-
-      expect(toast.success).toHaveBeenCalledWith('Schedule activated successfully')
-    })
-
-    it('should show error toast on activation failure', async () => {
-      const user = userEvent.setup()
-      let onErrorCallback
-
-      const mockActivate = vi.fn((variables, callbacks) => {
-        onErrorCallback = callbacks.onError
-      })
-
-      useActivateSchedule.mockReturnValue({
-        mutate: mockActivate,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const activateButton = screen.getAllByRole('button', { name: /activate/i })[0]
-      await user.click(activateButton)
-
-      // Simulate error
-      const mockError = new Error('Activation failed')
-      onErrorCallback(mockError)
-
-      expect(toast.error).toHaveBeenCalledWith('Failed to activate schedule: Activation failed')
-    })
-
-    it('should pass isActivating=true only to the schedule being activated', async () => {
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      // Before activation
-      expect(screen.getByTestId('activating-status-schedule-1')).toHaveTextContent('idle')
-      expect(screen.getByTestId('activating-status-schedule-2')).toHaveTextContent('idle')
-
-      // This test verifies the component tracks which schedule is being activated
-      // The actual isActivating prop depends on matching activatingId with schedule.id
+      expect(mockOnViewSchedule).toHaveBeenCalledWith(mockSchedules[0])
     })
   })
 
-  describe('Deactivate Action', () => {
-    it('should call deactivate mutation when schedule is deactivated', async () => {
+  describe('Toggle Enabled Action', () => {
+    it('should call update mutation when enable/disable is toggled', async () => {
       const user = userEvent.setup()
-      const mockDeactivate = vi.fn()
+      const mockUpdate = vi.fn()
 
-      useDeactivateSchedule.mockReturnValue({
-        mutate: mockDeactivate,
+      useUpdateSchedule.mockReturnValue({
+        mutate: mockUpdate,
         isPending: false,
       })
 
-      useActiveSchedule.mockReturnValue({
-        data: { active_schedule: { schedule_id: 'schedule-1' } },
-      })
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      // Default mock schedule has enabled=true, so button is "Disable"
+      const disableButton = screen.getAllByRole('button', { name: /disable/i })[0]
+      await user.click(disableButton)
 
-      const deactivateButton = screen.getAllByRole('button', { name: /deactivate/i })[0]
-      await user.click(deactivateButton)
-
-      expect(mockDeactivate).toHaveBeenCalledWith(
-        undefined,
+      expect(mockUpdate).toHaveBeenCalledWith(
+        { id: 'schedule-1', data: { enabled: false } },
         expect.objectContaining({
           onSuccess: expect.any(Function),
           onError: expect.any(Function),
@@ -423,239 +306,73 @@ describe('ScheduleList', () => {
       )
     })
 
-    it('should show success toast on successful deactivation', async () => {
+    it('should show success toast on successful enable', async () => {
       const user = userEvent.setup()
       let onSuccessCallback
 
-      const mockDeactivate = vi.fn((variables, callbacks) => {
+      const mockUpdate = vi.fn((variables, callbacks) => {
         onSuccessCallback = callbacks.onSuccess
       })
 
-      useDeactivateSchedule.mockReturnValue({
-        mutate: mockDeactivate,
+      useUpdateSchedule.mockReturnValue({
+        mutate: mockUpdate,
         isPending: false,
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      // Schedule with enabled=false
+      useSchedules.mockReturnValue({
+        data: { schedules: [{ ...mockSchedules[0], enabled: false }] },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      })
 
-      const deactivateButton = screen.getAllByRole('button', { name: /deactivate/i })[0]
-      await user.click(deactivateButton)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
+
+      const enableButton = screen.getByRole('button', { name: /enable/i })
+      await user.click(enableButton)
 
       // Simulate success
       onSuccessCallback()
 
-      expect(toast.success).toHaveBeenCalledWith('Schedule deactivated successfully')
+      expect(toast.success).toHaveBeenCalledWith('Schedule enabled')
     })
 
-    it('should show error toast on deactivation failure', async () => {
+    it('should show error toast on toggle failure', async () => {
       const user = userEvent.setup()
       let onErrorCallback
 
-      const mockDeactivate = vi.fn((variables, callbacks) => {
+      const mockUpdate = vi.fn((variables, callbacks) => {
         onErrorCallback = callbacks.onError
       })
 
-      useDeactivateSchedule.mockReturnValue({
-        mutate: mockDeactivate,
+      useUpdateSchedule.mockReturnValue({
+        mutate: mockUpdate,
         isPending: false,
       })
 
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
-      const deactivateButton = screen.getAllByRole('button', { name: /deactivate/i })[0]
-      await user.click(deactivateButton)
+      const disableButton = screen.getAllByRole('button', { name: /disable/i })[0]
+      await user.click(disableButton)
 
       // Simulate error
-      const mockError = new Error('Deactivation failed')
+      const mockError = new Error('Update failed')
       onErrorCallback(mockError)
 
-      expect(toast.error).toHaveBeenCalledWith('Failed to deactivate schedule: Deactivation failed')
-    })
-  })
-
-  describe('Delete Action', () => {
-    it('should show confirmation dialog when delete is clicked', async () => {
-      const user = userEvent.setup()
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByText(/delete schedule/i)).toBeInTheDocument()
-      expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument()
-    })
-
-    it('should include schedule name in confirmation message', async () => {
-      const user = userEvent.setup()
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      // Check for the specific confirmation message with schedule name
-      expect(screen.getByText(/are you sure you want to delete "morning schedule"/i)).toBeInTheDocument()
-    })
-
-    it('should call delete mutation when confirmed', async () => {
-      const user = userEvent.setup()
-      const mockDelete = vi.fn()
-
-      useDeleteSchedule.mockReturnValue({
-        mutate: mockDelete,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
-      await user.click(confirmButton)
-
-      expect(mockDelete).toHaveBeenCalledWith(
-        'schedule-1',
-        expect.objectContaining({
-          onSuccess: expect.any(Function),
-          onError: expect.any(Function),
-        })
-      )
-    })
-
-    it('should close dialog without deleting when cancelled', async () => {
-      const user = userEvent.setup()
-      const mockDelete = vi.fn()
-
-      useDeleteSchedule.mockReturnValue({
-        mutate: mockDelete,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
-      await user.click(cancelButton)
-
-      expect(mockDelete).not.toHaveBeenCalled()
-
-      await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-      })
-    })
-
-    it('should show success toast on successful deletion', async () => {
-      const user = userEvent.setup()
-      let onSuccessCallback
-
-      const mockDelete = vi.fn((variables, callbacks) => {
-        onSuccessCallback = callbacks.onSuccess
-      })
-
-      useDeleteSchedule.mockReturnValue({
-        mutate: mockDelete,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
-      await user.click(confirmButton)
-
-      // Simulate success
-      onSuccessCallback()
-
-      expect(toast.success).toHaveBeenCalledWith('Schedule deleted successfully')
-    })
-
-    it('should show error toast on deletion failure', async () => {
-      const user = userEvent.setup()
-      let onErrorCallback
-
-      const mockDelete = vi.fn((variables, callbacks) => {
-        onErrorCallback = callbacks.onError
-      })
-
-      useDeleteSchedule.mockReturnValue({
-        mutate: mockDelete,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
-      await user.click(confirmButton)
-
-      // Simulate error
-      const mockError = new Error('Deletion failed')
-      onErrorCallback(mockError)
-
-      expect(toast.error).toHaveBeenCalledWith('Failed to delete schedule: Deletion failed')
-    })
-
-    it('should close dialog after successful deletion', async () => {
-      const user = userEvent.setup()
-      let onSuccessCallback
-
-      const mockDelete = vi.fn((variables, callbacks) => {
-        onSuccessCallback = callbacks.onSuccess
-      })
-
-      useDeleteSchedule.mockReturnValue({
-        mutate: mockDelete,
-        isPending: false,
-      })
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-      await user.click(deleteButton)
-
-      const confirmButton = screen.getByRole('button', { name: /confirm/i })
-      await user.click(confirmButton)
-
-      // Simulate success
-      onSuccessCallback()
-
-      await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-      })
-    })
-  })
-
-  describe('Edit Action', () => {
-    it('should call onEditSchedule callback when edit is clicked', async () => {
-      const user = userEvent.setup()
-
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
-
-      const editButton = screen.getAllByRole('button', { name: /edit/i })[0]
-      await user.click(editButton)
-
-      expect(mockOnEditSchedule).toHaveBeenCalledWith(mockSchedules[0])
+      expect(toast.error).toHaveBeenCalledWith('Failed to update schedule: Update failed')
     })
   })
 
   describe('Accessibility', () => {
     it('should have role="list" on schedule container', () => {
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       expect(screen.getByRole('list')).toBeInTheDocument()
     })
 
     it('should have role="listitem" on each ScheduleCard', () => {
-      render(<ScheduleList onEditSchedule={mockOnEditSchedule} />)
+      render(<ScheduleList onViewSchedule={mockOnViewSchedule} />)
 
       const listItems = screen.getAllByRole('listitem')
       expect(listItems).toHaveLength(3)

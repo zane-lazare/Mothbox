@@ -38,14 +38,6 @@ vi.mock('../RoutineList', () => ({
   ),
 }));
 
-vi.mock('../PreviewSection', () => ({
-  default: ({ routines }) => (
-    <div data-testid="preview-section">
-      <span data-testid="preview-routines-count">{routines?.length ?? 0}</span>
-    </div>
-  ),
-}));
-
 // Helper to render with QueryClient
 const createTestQueryClient = () =>
   new QueryClient({
@@ -71,13 +63,12 @@ describe('ScheduleEditor', () => {
   });
 
   describe('Rendering', () => {
-    it('renders RoutineList and PreviewSection components', () => {
+    it('renders RoutineList component', () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
       expect(screen.getByTestId('routine-list')).toBeInTheDocument();
-      expect(screen.getByTestId('preview-section')).toBeInTheDocument();
     });
 
     it('renders schedule name input', () => {
@@ -113,7 +104,7 @@ describe('ScheduleEditor', () => {
       expect(screen.getByText(/create schedule/i)).toBeInTheDocument();
     });
 
-    it('shows "Edit Schedule" title when editing existing schedule', () => {
+    it('shows "View Schedule" title when opening existing schedule (view-first paradigm)', () => {
       const schedule = {
         schedule_id: 'sched-1',
         name: 'Existing Schedule',
@@ -130,7 +121,8 @@ describe('ScheduleEditor', () => {
         />
       );
 
-      expect(screen.getByText(/edit schedule/i)).toBeInTheDocument();
+      // Opens in view mode first
+      expect(screen.getByText(/view schedule/i)).toBeInTheDocument();
     });
   });
 
@@ -145,19 +137,12 @@ describe('ScheduleEditor', () => {
       expect(screen.getByTestId('routines-count')).toHaveTextContent('0');
     });
 
-    it('populates form with existing schedule data', () => {
+    it('shows loading state in edit mode while fetching schedule data', () => {
       const schedule = {
         schedule_id: 'sched-1',
         name: 'My Schedule',
         description: 'A test schedule',
-        routines: [
-          {
-            routine_id: 'r1',
-            name: 'Routine 1',
-            trigger: { trigger_type: 'solar', solar_event: 'dusk' },
-            actions: [],
-          },
-        ],
+        routines: [],
       };
 
       renderWithClient(
@@ -169,13 +154,9 @@ describe('ScheduleEditor', () => {
         />
       );
 
-      const nameInput = screen.getByLabelText(/schedule name/i);
-      expect(nameInput).toHaveValue('My Schedule');
-
-      const descInput = screen.getByLabelText(/description/i);
-      expect(descInput).toHaveValue('A test schedule');
-
-      expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
+      // In edit mode, component fetches fresh data from API
+      // Without API mock, it should show loading state
+      expect(screen.getByText(/loading schedule/i)).toBeInTheDocument();
     });
 
     it('updates name when typed', () => {
@@ -213,17 +194,6 @@ describe('ScheduleEditor', () => {
       fireEvent.click(addButton);
 
       expect(screen.getByTestId('routines-count')).toHaveTextContent('1');
-    });
-
-    it('passes routines to PreviewSection', () => {
-      renderWithClient(
-        <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
-      );
-
-      const addButton = screen.getByTestId('add-routine');
-      fireEvent.click(addButton);
-
-      expect(screen.getByTestId('preview-routines-count')).toHaveTextContent('1');
     });
   });
 

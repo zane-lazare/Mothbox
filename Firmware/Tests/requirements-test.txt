@@ -41,3 +41,6 @@ geopip>=2.0.0  # Offline GPS-to-country lookup for Darwin Core countryCode field
 # Astronomical calculations for scheduler (Issue #210, #213)
 astral>=3.2
 pytz  # Required by solar_time for timezone handling
+
+# Time manipulation for deterministic TTL tests (Issue #385)
+freezegun>=1.2.0

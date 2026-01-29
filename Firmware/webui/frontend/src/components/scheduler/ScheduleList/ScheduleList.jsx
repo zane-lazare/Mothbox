@@ -15,97 +15,52 @@ import toast from 'react-hot-toast'
 import {
   useSchedules,
   useActiveSchedule,
-  useActivateSchedule,
-  useDeactivateSchedule,
-  useDeleteSchedule,
+  useUpdateSchedule,
 } from '../../../hooks/useSchedules'
 import ScheduleCard from './ScheduleCard'
-import ConfirmDialog from '../../common/ConfirmDialog'
 import LoadingSpinner from '../../LoadingSpinner'
 import { SCHEDULER_LAYOUT_CONFIG } from '../../../constants/config'
 
 /** Toast message constants for i18n and consistency */
 const TOAST_MESSAGES = {
-  ACTIVATE_SUCCESS: 'Schedule activated successfully',
-  ACTIVATE_ERROR: (msg) => `Failed to activate schedule: ${msg}`,
-  DEACTIVATE_SUCCESS: 'Schedule deactivated successfully',
-  DEACTIVATE_ERROR: (msg) => `Failed to deactivate schedule: ${msg}`,
-  DELETE_SUCCESS: 'Schedule deleted successfully',
-  DELETE_ERROR: (msg) => `Failed to delete schedule: ${msg}`,
+  ENABLE_SUCCESS: 'Schedule enabled',
+  DISABLE_SUCCESS: 'Schedule disabled',
+  TOGGLE_ENABLED_ERROR: (msg) => `Failed to update schedule: ${msg}`,
 }
 
-export function ScheduleList({ onEditSchedule, variant = 'default' }) {
+export function ScheduleList({ onViewSchedule, variant = 'default' }) {
   // Select grid classes based on variant (sidebar vs full-page)
   const gridClasses = variant === 'sidebar'
     ? SCHEDULER_LAYOUT_CONFIG.SIDEBAR_GRID
     : SCHEDULER_LAYOUT_CONFIG.DEFAULT_GRID
   const { data, isLoading, error, refetch } = useSchedules({ include_builtin: true })
   const { data: activeData } = useActiveSchedule()
-  const { mutate: activate } = useActivateSchedule()
-  const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule()
-  const { mutate: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
+  const { mutate: updateSchedule } = useUpdateSchedule()
 
-  const [activatingId, setActivatingId] = useState(null)
-  const [deleteConfirmation, setDeleteConfirmation] = useState({
-    isOpen: false,
-    schedule: null,
-  })
+  const [togglingEnabledId, setTogglingEnabledId] = useState(null)
 
   const schedules = data?.schedules || []
   const activeScheduleId = activeData?.active_schedule?.schedule_id || null
 
-  const handleActivate = (schedule) => {
-    setActivatingId(schedule.schedule_id)
-    activate(
-      { id: schedule.schedule_id },
+  // Find if any schedule is enabled (for controlling Enable/Disable button visibility)
+  const enabledScheduleId = schedules.find(s => s.enabled && s.schedule_id !== activeScheduleId)?.schedule_id || null
+
+  const handleToggleEnabled = (schedule) => {
+    const newEnabled = schedule.enabled === false ? true : false
+    setTogglingEnabledId(schedule.schedule_id)
+    updateSchedule(
+      { id: schedule.schedule_id, data: { enabled: newEnabled } },
       {
         onSuccess: () => {
-          toast.success(TOAST_MESSAGES.ACTIVATE_SUCCESS)
-          setActivatingId(null)
+          toast.success(newEnabled ? TOAST_MESSAGES.ENABLE_SUCCESS : TOAST_MESSAGES.DISABLE_SUCCESS)
+          setTogglingEnabledId(null)
         },
         onError: (error) => {
-          toast.error(TOAST_MESSAGES.ACTIVATE_ERROR(error.message))
-          setActivatingId(null)
+          toast.error(TOAST_MESSAGES.TOGGLE_ENABLED_ERROR(error.message))
+          setTogglingEnabledId(null)
         },
       }
     )
-  }
-
-  const handleDeactivate = () => {
-    deactivate(undefined, {
-      onSuccess: () => {
-        toast.success(TOAST_MESSAGES.DEACTIVATE_SUCCESS)
-      },
-      onError: (error) => {
-        toast.error(TOAST_MESSAGES.DEACTIVATE_ERROR(error.message))
-      },
-    })
-  }
-
-  const handleDeleteClick = (schedule) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      schedule,
-    })
-  }
-
-  const handleDeleteConfirm = () => {
-    if (!deleteConfirmation.schedule) return
-
-    deleteSchedule(deleteConfirmation.schedule.schedule_id, {
-      onSuccess: () => {
-        toast.success(TOAST_MESSAGES.DELETE_SUCCESS)
-        setDeleteConfirmation({ isOpen: false, schedule: null })
-      },
-      onError: (error) => {
-        toast.error(TOAST_MESSAGES.DELETE_ERROR(error.message))
-        setDeleteConfirmation({ isOpen: false, schedule: null })
-      },
-    })
-  }
-
-  const handleDeleteCancel = () => {
-    setDeleteConfirmation({ isOpen: false, schedule: null })
   }
 
   // Loading state
@@ -145,42 +100,32 @@ export function ScheduleList({ onEditSchedule, variant = 'default' }) {
 
   // List state
   return (
-    <>
-      <div role="list" className={gridClasses}>
-        {schedules.map((schedule) => (
+    <div role="list" className={gridClasses}>
+      {schedules.map((schedule) => {
+        // Only show Enable/Disable toggle when:
+        // - No schedule is active AND
+        // - Either no schedule is enabled (show Enable on all) OR this is the enabled schedule (show Disable)
+        const canToggleEnabled = !activeScheduleId &&
+          (!enabledScheduleId || schedule.schedule_id === enabledScheduleId)
+
+        return (
           <ScheduleCard
             key={schedule.schedule_id}
             schedule={schedule}
             isActive={schedule.schedule_id === activeScheduleId}
-            isActivating={schedule.schedule_id === activatingId}
-            isDeactivating={isDeactivating && schedule.schedule_id === activeScheduleId}
-            isDeleting={isDeleting && deleteConfirmation.schedule?.schedule_id === schedule.schedule_id}
-            onActivate={handleActivate}
-            onDeactivate={handleDeactivate}
-            onEdit={onEditSchedule}
-            onDelete={handleDeleteClick}
+            isTogglingEnabled={schedule.schedule_id === togglingEnabledId}
+            onView={onViewSchedule}
+            onToggleEnabled={canToggleEnabled ? handleToggleEnabled : undefined}
           />
-        ))}
-      </div>
-
-      <ConfirmDialog
-        isOpen={deleteConfirmation.isOpen}
-        title="Delete Schedule"
-        message={
-          deleteConfirmation.schedule
-            ? `Are you sure you want to delete "${deleteConfirmation.schedule.name}"? This action cannot be undone.`
-            : ''
-        }
-        onConfirm={handleDeleteConfirm}
-        onClose={handleDeleteCancel}
-      />
-    </>
+        )
+      })}
+    </div>
   )
 }
 
 ScheduleList.propTypes = {
-  /** Callback when a schedule is selected for editing */
-  onEditSchedule: PropTypes.func.isRequired,
+  /** Callback when a schedule is selected for viewing */
+  onViewSchedule: PropTypes.func.isRequired,
   /** Layout variant: 'default' for full-page grid, 'sidebar' for vertical stack */
   variant: PropTypes.oneOf(['default', 'sidebar']),
 }

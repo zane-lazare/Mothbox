@@ -20,28 +20,13 @@ vi.mock('../MoonPhaseIcon', () => ({
   ),
 }))
 
-vi.mock('../ExecutionMarker', () => ({
-  default: ({ execution, onClick, compact }) => (
-    <button
-      data-testid={`execution-marker-${execution.pattern_id}`}
-      onClick={(e) => {
-        e.stopPropagation() // Mirror real ExecutionMarker behavior
-        onClick()
-      }}
-      data-compact={compact}
-    >
-      {execution.pattern_name}
-    </button>
-  ),
-}))
+// Note: ExecutionMarker is no longer used - CalendarCell now shows action type indicator dots
 
 describe('CalendarCell', () => {
   let mockOnClick
-  let mockOnExecutionClick
 
   beforeEach(() => {
     mockOnClick = vi.fn()
-    mockOnExecutionClick = vi.fn()
   })
 
   describe('Date Display', () => {
@@ -52,7 +37,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -66,7 +50,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -80,7 +63,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -96,7 +78,6 @@ describe('CalendarCell', () => {
           date={today}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -116,7 +97,6 @@ describe('CalendarCell', () => {
           date={yesterday}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -134,7 +114,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -149,7 +128,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={false}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -165,7 +143,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={false}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -190,7 +167,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           moonPhase={moonPhase}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -208,7 +184,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           moonPhase={null}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -222,7 +197,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -230,8 +204,9 @@ describe('CalendarCell', () => {
     })
   })
 
-  describe('Execution Display', () => {
-    it('renders up to 3 executions', () => {
+  describe('Action Type Indicator Display', () => {
+    // Note: CalendarCell now shows action type indicator dots instead of individual execution markers
+    it('renders action type indicator dots for executions', () => {
       const date = new Date(2025, 11, 17)
       const executions = [
         {
@@ -239,156 +214,81 @@ describe('CalendarCell', () => {
           pattern_id: 'pattern1',
           pattern_name: 'Pattern 1',
           start_time: '2025-12-17T08:00:00Z',
+          actions: [{ action_type: 'camera' }],
         },
         {
           id: '2',
           pattern_id: 'pattern2',
           pattern_name: 'Pattern 2',
           start_time: '2025-12-17T12:00:00Z',
-        },
-        {
-          id: '3',
-          pattern_id: 'pattern3',
-          pattern_name: 'Pattern 3',
-          start_time: '2025-12-17T18:00:00Z',
+          actions: [{ action_type: 'gpio' }],
         },
       ]
 
-      render(
+      const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      expect(screen.getByTestId('execution-marker-pattern1')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern2')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
+      // Should have action type indicator dots
+      const dots = container.querySelectorAll('.rounded-full')
+      expect(dots.length).toBeGreaterThan(0)
     })
 
-    it('shows "+N more" indicator for >3 executions', () => {
+    it('shows one dot per unique action type', () => {
       const date = new Date(2025, 11, 17)
       const executions = [
         {
-          id: '1',
           pattern_id: 'pattern1',
           pattern_name: 'Pattern 1',
           start_time: '2025-12-17T08:00:00Z',
+          actions: [{ action_type: 'camera' }],
         },
         {
-          id: '2',
           pattern_id: 'pattern2',
           pattern_name: 'Pattern 2',
-          start_time: '2025-12-17T12:00:00Z',
+          start_time: '2025-12-17T10:00:00Z',
+          actions: [{ action_type: 'camera' }], // Same action type
         },
         {
-          id: '3',
           pattern_id: 'pattern3',
           pattern_name: 'Pattern 3',
-          start_time: '2025-12-17T14:00:00Z',
-        },
-        {
-          id: '4',
-          pattern_id: 'pattern4',
-          pattern_name: 'Pattern 4',
-          start_time: '2025-12-17T16:00:00Z',
-        },
-        {
-          id: '5',
-          pattern_id: 'pattern5',
-          pattern_name: 'Pattern 5',
-          start_time: '2025-12-17T18:00:00Z',
+          start_time: '2025-12-17T12:00:00Z',
+          actions: [{ action_type: 'gpio' }], // Different action type
         },
       ]
 
-      render(
+      const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      // First 3 executions should be visible
-      expect(screen.getByTestId('execution-marker-pattern1')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern2')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
-
-      // Next 2 should be hidden
-      expect(screen.queryByTestId('execution-marker-pattern4')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('execution-marker-pattern5')).not.toBeInTheDocument()
-
-      // "+2 more" indicator should be shown
-      expect(screen.getByText('+2 more')).toBeInTheDocument()
+      // Should have exactly 2 dots (camera + gpio, deduplicated)
+      const dots = container.querySelectorAll('.w-1\\.5.h-1\\.5.rounded-full')
+      expect(dots.length).toBe(2)
     })
 
-    it('does not show "+N more" for ≤3 executions', () => {
+    it('renders no dots when array is empty', () => {
       const date = new Date(2025, 11, 17)
-      const executions = [
-        {
-          id: '1',
-          pattern_id: 'pattern1',
-          pattern_name: 'Pattern 1',
-          start_time: '2025-12-17T08:00:00Z',
-        },
-      ]
-
-      render(
-        <CalendarCell
-          date={date}
-          isCurrentMonth={true}
-          executions={executions}
-          onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      expect(screen.queryByText(/more/i)).not.toBeInTheDocument()
-    })
-
-    it('renders no executions when array is empty', () => {
-      const date = new Date(2025, 11, 17)
-      render(
+      const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
           executions={[]}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      expect(screen.queryByTestId(/execution-marker/)).not.toBeInTheDocument()
-    })
-
-    it('passes compact prop to ExecutionMarker', () => {
-      const date = new Date(2025, 11, 17)
-      const executions = [
-        {
-          id: '1',
-          pattern_id: 'pattern1',
-          pattern_name: 'Pattern 1',
-          start_time: '2025-12-17T08:00:00Z',
-        },
-      ]
-
-      render(
-        <CalendarCell
-          date={date}
-          isCurrentMonth={true}
-          executions={executions}
-          onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      const marker = screen.getByTestId('execution-marker-pattern1')
-      expect(marker).toHaveAttribute('data-compact', 'true')
+      const dots = container.querySelectorAll('.w-1\\.5.h-1\\.5.rounded-full')
+      expect(dots.length).toBe(0)
     })
 
     it('renders without warning when executions have same start_time', () => {
@@ -398,16 +298,13 @@ describe('CalendarCell', () => {
           pattern_id: 'pattern1',
           pattern_name: 'Pattern 1',
           start_time: '2025-12-17T08:00:00Z',
+          actions: [{ action_type: 'camera' }],
         },
         {
           pattern_id: 'pattern2',
           pattern_name: 'Pattern 2',
-          start_time: '2025-12-17T08:00:00Z', // Same start_time as pattern1
-        },
-        {
-          pattern_id: 'pattern3',
-          pattern_name: 'Pattern 3',
-          start_time: '2025-12-17T08:00:00Z', // Same start_time as pattern1 & pattern2
+          start_time: '2025-12-17T08:00:00Z', // Same start_time
+          actions: [{ action_type: 'gpio' }],
         },
       ]
 
@@ -420,14 +317,8 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
-
-      // All 3 executions should be rendered
-      expect(screen.getByTestId('execution-marker-pattern1')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern2')).toBeInTheDocument()
-      expect(screen.getByTestId('execution-marker-pattern3')).toBeInTheDocument()
 
       // No React duplicate key warnings should have been logged
       expect(consoleErrorSpy).not.toHaveBeenCalledWith(
@@ -439,6 +330,7 @@ describe('CalendarCell', () => {
   })
 
   describe('Click Handlers', () => {
+    // Note: CalendarCell no longer has onExecutionClick prop - clicking the cell navigates to day view
     it('calls onClick with date when cell is clicked', async () => {
       const user = userEvent.setup()
       const date = new Date(2025, 11, 17)
@@ -448,7 +340,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -459,59 +350,33 @@ describe('CalendarCell', () => {
       expect(mockOnClick).toHaveBeenCalledWith(date)
     })
 
-    it('calls onExecutionClick when execution is clicked', async () => {
+    it('calls onClick when clicking cell with executions', async () => {
       const user = userEvent.setup()
       const date = new Date(2025, 11, 17)
-      const execution = {
-        id: '1',
-        pattern_id: 'pattern1',
-        pattern_name: 'Pattern 1',
-        start_time: '2025-12-17T08:00:00Z',
-      }
+      const executions = [
+        {
+          pattern_id: 'pattern1',
+          pattern_name: 'Pattern 1',
+          start_time: '2025-12-17T08:00:00Z',
+          actions: [{ action_type: 'camera' }],
+        },
+      ]
 
-      render(
+      const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
-          executions={[execution]}
+          executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      const marker = screen.getByTestId('execution-marker-pattern1')
-      await user.click(marker)
+      const cellDiv = container.querySelector('[role="button"]')
+      await user.click(cellDiv)
 
-      expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)
-      expect(mockOnExecutionClick).toHaveBeenCalledWith(execution)
-    })
-
-    it('does not call onClick when execution is clicked', async () => {
-      const user = userEvent.setup()
-      const date = new Date(2025, 11, 17)
-      const execution = {
-        id: '1',
-        pattern_id: 'pattern1',
-        pattern_name: 'Pattern 1',
-        start_time: '2025-12-17T08:00:00Z',
-      }
-
-      render(
-        <CalendarCell
-          date={date}
-          isCurrentMonth={true}
-          executions={[execution]}
-          onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
-        />
-      )
-
-      const marker = screen.getByTestId('execution-marker-pattern1')
-      await user.click(marker)
-
-      // Cell onClick should NOT be called (stopPropagation)
-      expect(mockOnClick).not.toHaveBeenCalled()
-      expect(mockOnExecutionClick).toHaveBeenCalledTimes(1)
+      // Clicking cell should call onClick (navigates to day view)
+      expect(mockOnClick).toHaveBeenCalledTimes(1)
+      expect(mockOnClick).toHaveBeenCalledWith(date)
     })
 
     it('supports keyboard navigation with Enter key', async () => {
@@ -523,7 +388,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -544,7 +408,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -565,12 +428,12 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
       const cellDiv = container.querySelector('[role="button"]')
-      expect(cellDiv).toHaveClass('dark:border-gray-700')
+      // PANEL_STYLES.grid uses dark:border-gray-800
+      expect(cellDiv).toHaveClass('dark:border-gray-800')
       expect(cellDiv).toHaveClass('dark:hover:bg-gray-800')
     })
 
@@ -581,7 +444,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={false}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -596,7 +458,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={false}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -613,7 +474,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -628,7 +488,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -643,7 +502,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -670,7 +528,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           moonPhase={moonPhase}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -698,7 +555,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -732,7 +588,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -750,7 +605,6 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           executions={[]}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -796,7 +650,6 @@ describe('CalendarCell', () => {
           moonPhase={moonPhase}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -808,37 +661,38 @@ describe('CalendarCell', () => {
   })
 
   describe('Layout and Styling', () => {
-    it('has minimum height class', () => {
+    it('has minimum height class (responsive)', () => {
       const date = new Date(2025, 11, 17)
       const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
       const cellDiv = container.querySelector('[role="button"]')
-      expect(cellDiv).toHaveClass('min-h-24')
+      // Responsive: min-h-20 sm:min-h-24
+      expect(cellDiv).toHaveClass('min-h-20')
+      expect(cellDiv).toHaveClass('sm:min-h-24')
     })
 
-    it('has border and padding classes', () => {
+    it('has border and padding classes (responsive)', () => {
       const date = new Date(2025, 11, 17)
       const { container } = render(
         <CalendarCell
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
       const cellDiv = container.querySelector('[role="button"]')
-      expect(cellDiv).toHaveClass('p-1')
+      // Responsive: p-0.5 sm:p-1
+      expect(cellDiv).toHaveClass('p-0.5')
+      expect(cellDiv).toHaveClass('sm:p-1')
       expect(cellDiv).toHaveClass('border-r')
       expect(cellDiv).toHaveClass('border-b')
-      expect(cellDiv).toHaveClass('border-gray-200')
     })
 
     it('has cursor pointer class', () => {
@@ -848,7 +702,6 @@ describe('CalendarCell', () => {
           date={date}
           isCurrentMonth={true}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
@@ -856,14 +709,14 @@ describe('CalendarCell', () => {
       expect(cellDiv).toHaveClass('cursor-pointer')
     })
 
-    it('has executions container with overflow and max-height', () => {
+    it('has action indicators container with flex layout', () => {
       const date = new Date(2025, 11, 17)
       const executions = [
         {
-          id: '1',
           pattern_id: 'pattern1',
           pattern_name: 'Pattern 1',
           start_time: '2025-12-17T08:00:00Z',
+          actions: [{ action_type: 'camera' }],
         },
       ]
 
@@ -873,14 +726,12 @@ describe('CalendarCell', () => {
           isCurrentMonth={true}
           executions={executions}
           onClick={mockOnClick}
-          onExecutionClick={mockOnExecutionClick}
         />
       )
 
-      const executionsContainer = container.querySelector('.space-y-1')
-      expect(executionsContainer).toHaveClass('mt-1')
-      expect(executionsContainer).toHaveClass('overflow-y-auto')
-      expect(executionsContainer).toHaveClass('max-h-16')
+      // Action indicators use flex flex-wrap gap-0.5 mt-1
+      const indicatorsContainer = container.querySelector('.flex.flex-wrap.gap-0\\.5.mt-1')
+      expect(indicatorsContainer).toBeInTheDocument()
     })
   })
 })

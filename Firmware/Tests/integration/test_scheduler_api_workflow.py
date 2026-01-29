@@ -112,11 +112,16 @@ def app(mock_scheduler_service, schedule_dirs, monkeypatch):
     # Patch the storage directories in both mothbox_paths and schedule_storage
     user_dir, builtin_dir = schedule_dirs
     import webui.backend.lib.schedule_storage as ss
+    import webui.backend.services.scheduler_service as svc
 
     monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', user_dir)
     monkeypatch.setattr('mothbox_paths.BUILTIN_SCHEDULES_DIR', builtin_dir)
     monkeypatch.setattr(ss, "SCHEDULES_DIR", user_dir)
     monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_dir)
+
+    # Patch ACTIVE_STATE_FILE to use temp directory (avoids leftover state)
+    active_state_file = user_dir / "active_state.json"
+    monkeypatch.setattr(svc, "ACTIVE_STATE_FILE", active_state_file)
 
     # Reset the singleton service to use patched paths
     import webui.backend.routes.scheduler_ui as sui
@@ -218,8 +223,8 @@ class TestScheduleLifecycleWorkflow:
         active_response = client.get("/api/scheduler/ui/schedules/active")
         assert active_response.status_code == 200
         active_data = active_response.get_json()
-        assert active_data.get("active") is True
-        assert active_data.get("schedule", {}).get("schedule_id") == schedule_id
+        assert active_data.get("active_schedule") is not None
+        assert active_data.get("active_schedule", {}).get("schedule_id") == schedule_id
 
         # 5. Deactivate schedule
         deactivate_response = client.post("/api/scheduler/ui/schedules/deactivate")
@@ -231,7 +236,7 @@ class TestScheduleLifecycleWorkflow:
         # 6. Verify no active schedule
         active_response2 = client.get("/api/scheduler/ui/schedules/active")
         assert active_response2.status_code == 200
-        assert active_response2.get_json().get("active") is False
+        assert active_response2.get_json().get("active_schedule") is None
 
         # 7. Delete schedule
         delete_response = client.delete(f"/api/scheduler/ui/schedules/{schedule_id}")
@@ -410,7 +415,7 @@ class TestActivationWorkflow:
 
         # Verify first is active
         active1 = client.get("/api/scheduler/ui/schedules/active")
-        assert active1.get_json().get("schedule", {}).get("schedule_id") == schedule_id_1
+        assert active1.get_json().get("active_schedule", {}).get("schedule_id") == schedule_id_1
 
         # Reset mock to track new activation
         app._remove_mock.reset_mock()
@@ -425,7 +430,7 @@ class TestActivationWorkflow:
 
         # Verify second is now active (first was replaced)
         active2 = client.get("/api/scheduler/ui/schedules/active")
-        assert active2.get_json().get("schedule", {}).get("schedule_id") == schedule_id_2
+        assert active2.get_json().get("active_schedule", {}).get("schedule_id") == schedule_id_2
 
         # Verify remove_from_system was called (to remove first schedule's cron)
         app._remove_mock.assert_called()
@@ -454,7 +459,7 @@ class TestActivationWorkflow:
 
         # Verify active
         active_before = client.get("/api/scheduler/ui/schedules/active")
-        assert active_before.get_json().get("active") is True
+        assert active_before.get_json().get("active_schedule") is not None
 
         # Delete the active schedule
         delete_response = client.delete(f"/api/scheduler/ui/schedules/{schedule_id}")
@@ -462,7 +467,7 @@ class TestActivationWorkflow:
 
         # Verify no longer active - the key assertion
         active_after = client.get("/api/scheduler/ui/schedules/active")
-        assert active_after.get_json().get("active") is False
+        assert active_after.get_json().get("active_schedule") is None
 
         # Verify schedule is gone
         get_response = client.get(f"/api/scheduler/ui/schedules/{schedule_id}")
@@ -506,7 +511,7 @@ class TestValidationAndConflicts:
 
         # Verify schedule is NOT active (validation doesn't activate)
         active_response = client.get("/api/scheduler/ui/schedules/active")
-        assert active_response.get_json().get("active") is False
+        assert active_response.get_json().get("active_schedule") is None
 
 
 # ============================================================================
@@ -570,10 +575,16 @@ class TestActivationInputValidation:
         assert create_response.status_code == 201
         schedule_id = create_response.get_json()["schedule_id"]
 
-        # Activate with invalid timezone
+        # Activate with invalid timezone and explicit coordinates
+        # (coordinates must be provided so the API validates the timezone
+        # instead of falling back to system timezone)
         response = client.post(
             f"/api/scheduler/ui/schedules/{schedule_id}/activate",
-            json={"timezone": "Not/A/Valid/Timezone"},
+            json={
+                "latitude": 35.0,
+                "longitude": -80.0,
+                "timezone": "Not/A/Valid/Timezone",
+            },
             content_type="application/json",
         )
         assert response.status_code == 400

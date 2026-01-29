@@ -662,7 +662,7 @@ describe('useCreateSchedule', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'], exact: false });
   });
 
   it('handles validation error (400)', async () => {
@@ -788,7 +788,7 @@ describe('useUpdateSchedule', () => {
 
     // Should invalidate both the specific schedule and the list
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'schedule_1'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'], exact: false });
   });
 
   it('handles 403 for built-in schedules', async () => {
@@ -897,7 +897,7 @@ describe('useDeleteSchedule', () => {
 
     // Should invalidate both the specific schedule and the list
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'schedule_1'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'], exact: false });
   });
 
   it('handles 403 for built-in schedules', async () => {
@@ -952,7 +952,7 @@ describe('useActivateSchedule', () => {
     expect(schedulerApi.activateSchedule).toHaveBeenCalledWith('schedule_1', {});
   });
 
-  it('invalidates active schedule cache on success', async () => {
+  it('refetches active schedule cache on success', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -960,7 +960,7 @@ describe('useActivateSchedule', () => {
       }
     });
 
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const refetchSpy = vi.spyOn(queryClient, 'refetchQueries');
 
     schedulerApi.activateSchedule.mockResolvedValue({
       data: { message: 'Activated', schedule_id: 'schedule_1' }
@@ -980,8 +980,8 @@ describe('useActivateSchedule', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'active'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'] });
+    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'active'] });
+    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: ['schedules'], exact: false });
   });
 
   it('handles 409 conflict error (schedule already active)', async () => {
@@ -1035,7 +1035,7 @@ describe('useDeactivateSchedule', () => {
     expect(schedulerApi.deactivateSchedule).toHaveBeenCalledTimes(1);
   });
 
-  it('invalidates active schedule cache on success', async () => {
+  it('refetches active schedule cache on success', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -1043,7 +1043,7 @@ describe('useDeactivateSchedule', () => {
       }
     });
 
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const refetchSpy = vi.spyOn(queryClient, 'refetchQueries');
 
     schedulerApi.deactivateSchedule.mockResolvedValue({
       data: { message: 'Deactivated', schedule_id: 'schedule_1' }
@@ -1063,8 +1063,8 @@ describe('useDeactivateSchedule', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'active'] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['schedules'] });
+    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: ['schedules', 'active'] });
+    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: ['schedules'], exact: false });
   });
 });
 

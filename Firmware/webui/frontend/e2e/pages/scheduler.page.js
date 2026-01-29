@@ -21,11 +21,12 @@ export class SchedulerPage {
       // Page heading
       pageHeading: 'text=Schedule',
 
-      // Tabs
+      // Tabs - DEPRECATED: UI now uses two-column layout with always-visible calendar
+      // These selectors kept for backward compatibility, some now target the new layout
       schedulesTab: 'button:has-text("Schedules")',
-      calendarTab: 'button:has-text("Calendar")',
-      schedulesPanel: '#schedules-panel',
-      calendarPanel: '#calendar-panel',
+      calendarTab: 'button:has-text("Calendar")', // No longer exists in two-column layout
+      schedulesPanel: '[data-testid="schedule-list"], .col-span-1', // Schedule list column
+      calendarPanel: '.col-span-2', // Calendar column (always visible)
 
       // Toolbar
       newScheduleButton: 'button:has-text("New Schedule")',
@@ -33,18 +34,28 @@ export class SchedulerPage {
       // Schedule List
       scheduleCard: 'article[role="article"]',
       scheduleCardByName: (name) => `article[role="article"]:has-text("${name}")`,
-      editButton: 'button:has-text("Edit")',
+      // View button (formerly Edit - view-first paradigm, Issue #266)
+      viewButton: 'button:has-text("View")',
+      editButton: 'button:has-text("View")', // Alias for backward compatibility
+      // Enable/Disable toggle (formerly Activate/Deactivate on cards)
+      enableButton: 'button:has-text("Enable")',
+      disableButton: 'button:has-text("Disable")',
+      // Legacy selectors - kept for backward compatibility, now in ActiveScheduleBanner
       activateButton: 'button:has-text("Activate")',
       deactivateButton: 'button:has-text("Deactivate")',
+      // Delete is now inside ScheduleEditor, not on cards
       deleteButton: 'button:has-text("Delete")',
 
-      // Active Badge (within card)
-      activeBadge: 'text=Active',
+      // Active Badge (within card) - use aria-label to avoid matching schedule names containing "Active"
+      activeBadge: '[aria-label="Schedule is active"]',
 
-      // Active Banner (top-level status)
-      activeBanner: '[role="status"]',
-      bannerDeactivateButton: '[role="status"] button:has-text("Deactivate")',
-      bannerScheduleName: '[role="status"] span',
+      // Active Banner (top-level status) - green banner when schedule is running
+      activeBanner: '[data-testid="active-schedule-banner"]',
+      bannerDeactivateButton: '[data-testid="active-schedule-banner"] button:has-text("Deactivate")',
+      bannerScheduleName: '[data-testid="active-schedule-banner"] span',
+      // Enabled Banner (ready state) - red banner when schedule is enabled but not active
+      enabledBanner: '[data-testid="enabled-schedule-banner"]',
+      bannerActivateButton: '[data-testid="enabled-schedule-banner"] button:has-text("Activate")',
 
       // Editor Drawer
       editorDrawer: '[data-testid="schedule-editor-drawer"]',
@@ -53,16 +64,17 @@ export class SchedulerPage {
       scheduleNameInput: '#schedule-name',
       scheduleDescriptionInput: '#schedule-description',
       saveButton: '[data-testid="schedule-editor-drawer"] button:has-text("Save")',
-      cancelButton: '[data-testid="schedule-editor-drawer"] button:has-text("Cancel")',
+      // In edit mode: Cancel button; in view mode: Close button
+      cancelButton: '[data-testid="schedule-editor-drawer"] button:has-text("Cancel"), [data-testid="schedule-editor-drawer"] button:has-text("Close")',
       closeButton: 'button[aria-label="Close"]',
 
-      // Delete Confirmation Dialog
-      confirmDialog: '[data-testid="confirm-dialog"], [role="alertdialog"], [role="dialog"]:has-text("Delete")',
-      confirmDeleteButton: '[data-testid="confirm-dialog-confirm"], button:has-text("Confirm")',
-      cancelDeleteButton: '[data-testid="confirm-dialog-cancel"], button:has-text("Cancel")',
+      // Delete Confirmation Dialog - use specific data-testid to avoid matching editor drawer
+      confirmDialog: '[data-testid="confirm-dialog"]',
+      confirmDeleteButton: '[data-testid="confirm-dialog"] button:has-text("Confirm"), [data-testid="confirm-dialog"] button:has-text("Delete")',
+      cancelDeleteButton: '[data-testid="confirm-dialog"] button:has-text("Cancel")',
 
-      // Calendar View
-      scheduleSelector: '#calendar-panel select',
+      // Calendar View (now always visible in two-column layout)
+      scheduleSelector: 'select[aria-label="Select schedule"]',
       // View mode buttons scoped to role="group" to avoid matching "Today" button
       dayViewButton: '[role="group"][aria-label="View mode"] button:has-text("Day")',
       weekViewButton: '[role="group"][aria-label="View mode"] button:has-text("Week")',
@@ -71,22 +83,30 @@ export class SchedulerPage {
       prevButton: '[data-testid="calendar-nav-previous"], button[aria-label="Previous"]',
       nextButton: '[data-testid="calendar-nav-next"], button[aria-label="Next"]',
       emptyCalendarState: 'text=No schedule selected',
-      // data-testid preferred, CSS class fallback for pre-deployment compatibility
-      calendarDateDisplay: '[data-testid="calendar-date-display"], #calendar-panel span.text-lg.font-semibold',
+      // data-testid preferred
+      calendarDateDisplay: '[data-testid="calendar-date-display"]',
 
       // Loading states
       loadingSpinner: '.loading, [data-testid="loading-spinner"]',
       emptySchedulesState: 'text=No schedules',
 
-      // Toast notifications
-      toastSuccess: '.toast-success, [class*="toast"]:has-text("success")',
-      toastError: '.toast-error, [class*="toast"]:has-text("error"), [class*="toast"]:has-text("fail")',
+      // Toast notifications (react-hot-toast uses role="status" and data attributes)
+      toastSuccess: '[role="status"]:has-text("success"), [role="status"]:has-text("activated"), [role="status"]:has-text("enabled"), [role="status"]:has-text("created"), [role="status"]:has-text("updated")',
+      toastError: '[role="status"]:has-text("error"), [role="status"]:has-text("fail"), [role="status"]:has-text("Error")',
 
       // Routine Selection (formerly Event Pattern)
       routineTabLibrary: '[data-testid="routine-tab-library"], button[role="tab"]:has-text("Library")',
       routineTabCustom: '[data-testid="routine-tab-custom"], button[role="tab"]:has-text("Custom")',
       routineCard: '[data-testid^="routine-"], [role="article"][aria-label^="Routine:"]',
       selectedRoutineSummary: '[data-testid="selected-routine-summary"]',
+
+      // Conflict Detection Panel (Issue #331)
+      conflictPanel: '.w-80',
+      conflictPanelHeader: 'text=Conflict Detection',
+      conflictValidating: 'text=Checking for conflicts',
+      conflictNoConflicts: 'text=No conflicts detected',
+      conflictList: 'text=conflict',
+      conflictBlocking: 'text=blocking',
     }
   }
 
@@ -123,18 +143,24 @@ export class SchedulerPage {
 
   /**
    * Switch to Schedules tab
+   * @deprecated The UI now uses a two-column layout where schedules list is always visible.
+   *             This method is kept for backward compatibility but is a no-op.
    */
   async switchToSchedulesTab() {
-    await this.page.click(this.selectors.schedulesTab)
-    await this.page.locator(this.selectors.schedulesPanel).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+    // No-op: Schedules list is always visible in two-column layout
+    // Wait a moment for any UI to settle
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   /**
    * Switch to Calendar tab
+   * @deprecated The UI now uses a two-column layout where calendar is always visible.
+   *             This method is kept for backward compatibility but is a no-op.
    */
   async switchToCalendarTab() {
-    await this.page.click(this.selectors.calendarTab)
-    await this.page.locator(this.selectors.calendarPanel).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT })
+    // No-op: Calendar is always visible in two-column layout
+    // Wait a moment for any UI to settle
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   // ============================================================
@@ -178,51 +204,266 @@ export class SchedulerPage {
 
   /**
    * Check if a schedule card exists by name
+   * Waits for the card to appear (handles async React Query cache invalidation)
    * @param {string} name - Schedule name
+   * @param {number} timeout - Max wait time in ms (default: 5000)
    * @returns {Promise<boolean>}
    */
-  async hasScheduleWithName(name) {
-    return this.page.locator(this.selectors.scheduleCardByName(name)).isVisible()
+  async hasScheduleWithName(name, timeout = 5000) {
+    const card = this.page.locator(this.selectors.scheduleCardByName(name))
+    try {
+      await card.waitFor({ state: 'visible', timeout })
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**
-   * Click Edit button on a schedule card
+   * Click View button on a schedule card to open editor
    * @param {number} index - Zero-based index
    */
-  async clickEditOnSchedule(index) {
+  async clickViewOnSchedule(index) {
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.editButton).click()
+    await card.locator(this.selectors.viewButton).click()
     await this.waitForEditorOpen()
   }
 
   /**
-   * Click Activate button on a schedule card
+   * Click Edit button on a schedule card (alias for clickViewOnSchedule)
+   * @param {number} index - Zero-based index
+   * @deprecated Use clickViewOnSchedule() - view-first paradigm (Issue #266)
+   */
+  async clickEditOnSchedule(index) {
+    return this.clickViewOnSchedule(index)
+  }
+
+  /**
+   * Click Enable button on a schedule card
+   * Enables a schedule so it can be activated
+   * @param {number} index - Zero-based index
+   */
+  async clickEnableOnSchedule(index) {
+    const card = this.getScheduleCardByIndex(index)
+    await card.locator(this.selectors.enableButton).click()
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Click Disable button on a schedule card
+   * @param {number} index - Zero-based index
+   */
+  async clickDisableOnSchedule(index) {
+    const card = this.getScheduleCardByIndex(index)
+    await card.locator(this.selectors.disableButton).click()
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Deactivate any active schedule and disable any enabled schedule.
+   * This ensures a clean state before enabling a new schedule.
+   */
+  async deactivateAndDisableAll() {
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+    const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+
+    // First deactivate any active schedule
+    if (await activeBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await this.clickBannerDeactivate()
+      await this.page.waitForLoadState('networkidle')
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+    }
+
+    // Then disable any enabled schedule
+    if (await enabledBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const disableBtn = this.page.locator('article button:has-text("Disable")')
+      if (await disableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await disableBtn.click()
+        await this.page.waitForLoadState('networkidle')
+        await enabledBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }).catch(() => {})
+        await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+      }
+    }
+  }
+
+  /**
+   * Enable a schedule by name - clicks the Enable button on the schedule card
+   * @param {string} name - Schedule name
+   */
+  async enableScheduleByName(name) {
+    const card = this.getScheduleCardByName(name)
+    await card.scrollIntoViewIfNeeded()
+    await this.page.waitForTimeout(TIMEOUTS.UI_SETTLE)
+
+    const enableBtn = card.locator(this.selectors.enableButton)
+    await enableBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+    await enableBtn.click()
+    await this.page.waitForLoadState('networkidle')
+
+    // Wait for the enabled banner to appear
+    const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+    await enabledBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+  }
+
+  /**
+   * Click the Activate button in the enabled-schedule banner
+   */
+  async clickBannerActivate() {
+    const bannerActivateBtn = this.page.locator(this.selectors.bannerActivateButton)
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+
+    await bannerActivateBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+    await bannerActivateBtn.click()
+    await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK })
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Activate a schedule - handles the new two-step activation flow:
+   * 1. Enable the schedule (if not already enabled)
+   * 2. Click Activate in the enabled-schedule banner
+   * 3. Wait for the active-schedule banner to appear
    * @param {number} index - Zero-based index
    */
   async clickActivateOnSchedule(index) {
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.activateButton).click()
-    // Wait for network and potential state change
-    await this.page.waitForLoadState('networkidle')
+
+    // Step 1: Check if Enable button is available and click it
+    const enableBtn = card.locator(this.selectors.enableButton)
+    if (await enableBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await enableBtn.click()
+      await this.page.waitForLoadState('networkidle')
+    }
+
+    // Step 2: Wait for the enabled-schedule banner to appear and click Activate
+    const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+    const bannerActivateBtn = this.page.locator(this.selectors.bannerActivateButton)
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+
+    // Wait for the enabled banner to appear (schedule is now enabled but not active)
+    try {
+      await enabledBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+      await bannerActivateBtn.click()
+      // Wait for activation to complete - active banner should appear
+      await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK })
+      await this.page.waitForLoadState('networkidle')
+    } catch {
+      // Fallback: Maybe already active or different UI state
+      // Try clicking Activate button directly if visible somewhere
+      const anyActivateBtn = this.page.locator('button:has-text("Activate")').first()
+      if (await anyActivateBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await anyActivateBtn.click()
+        // Wait for active banner
+        await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK }).catch(() => {})
+        await this.page.waitForLoadState('networkidle')
+      }
+    }
+  }
+
+  /**
+   * Activate a schedule by name - handles multiple activation paths:
+   * 1. Enable button on card → Activate in banner (if no schedule active)
+   * 2. Activate button in editor's Activation panel (works when another schedule is active)
+   * @param {string} name - Schedule name
+   */
+  async activateScheduleByName(name) {
+    const card = this.getScheduleCardByName(name)
+    const activeBanner = this.page.locator(this.selectors.activeBanner)
+    const enabledBanner = this.page.locator(this.selectors.enabledBanner)
+
+    // First deactivate any currently active schedule
+    if (await this.isActiveBannerVisible()) {
+      await this.clickBannerDeactivate()
+      await this.page.waitForLoadState('networkidle')
+      await this.page.waitForTimeout(TIMEOUTS.TRANSITION) // Allow UI to settle
+    }
+
+    // Also disable any currently enabled schedule (required: manual disable before enabling another)
+    if (await enabledBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
+      // Find and click the Disable button on the currently enabled schedule card
+      const disableBtn = this.page.locator('article button:has-text("Disable")')
+      if (await disableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await disableBtn.click()
+        await this.page.waitForLoadState('networkidle')
+        // Wait for the enabled banner to disappear
+        await enabledBanner.waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }).catch(() => {})
+        await this.page.waitForTimeout(TIMEOUTS.TRANSITION) // Allow UI to settle
+      }
+    }
+
+    // Path 1: Try Enable button on card (visible when no schedule is active)
+    // Scroll card into view first to ensure button is visible
+    await card.scrollIntoViewIfNeeded()
+    await this.page.waitForTimeout(TIMEOUTS.UI_SETTLE) // Allow UI to settle after scroll
+
+    const enableBtn = card.locator(this.selectors.enableButton)
+    if (await enableBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await enableBtn.click()
+      await this.page.waitForLoadState('networkidle')
+
+      // Wait for the enabled-schedule banner and click Activate
+      const bannerActivateBtn = this.page.locator(this.selectors.bannerActivateButton)
+
+      try {
+        await enabledBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.MEDIUM })
+        await bannerActivateBtn.click()
+        await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK })
+        await this.page.waitForLoadState('networkidle')
+        return // Success
+      } catch {
+        // Fall through to alternative path
+      }
+    }
+
+    // Path 2: Open editor and use Activation panel's Activate button
+    await card.locator(this.selectors.viewButton).click()
+    await this.waitForEditorOpen()
+
+    // Look for Activate button in the editor's Activation panel
+    const editorActivateBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Activate")')
+    if (await editorActivateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await editorActivateBtn.click()
+      // Wait for activation to complete
+      await activeBanner.waitFor({ state: 'visible', timeout: TIMEOUTS.NETWORK }).catch(() => {})
+      await this.page.waitForLoadState('networkidle')
+    }
+
+    // Close the editor if still open
+    if (await this.isEditorOpen()) {
+      await this.closeEditor()
+    }
   }
 
   /**
    * Click Deactivate button on a schedule card
    * @param {number} index - Zero-based index
+   * @deprecated Deactivation is now via ActiveScheduleBanner. Use clickDisableOnSchedule() or clickBannerDeactivate().
    */
   async clickDeactivateOnSchedule(index) {
+    // Try the disable button first (new UI), fallback to deactivate (legacy)
     const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.deactivateButton).click()
+    const disableBtn = card.locator(this.selectors.disableButton)
+    if (await disableBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await disableBtn.click()
+    } else {
+      await card.locator(this.selectors.deactivateButton).click()
+    }
     await this.page.waitForLoadState('networkidle')
   }
 
   /**
    * Click Delete button on a schedule card
    * @param {number} index - Zero-based index
+   * @deprecated Delete is now inside ScheduleEditor in edit mode.
    */
   async clickDeleteOnSchedule(index) {
-    const card = this.getScheduleCardByIndex(index)
-    await card.locator(this.selectors.deleteButton).click()
+    // Open the editor first via View button
+    await this.clickViewOnSchedule(index)
+    // Switch to edit mode by clicking Edit button in header
+    await this.clickEditInEditorHeader()
+    // Then click delete in the editor footer
+    const deleteBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Delete")')
+    await deleteBtn.click()
     // Wait for confirmation dialog
     await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
   }
@@ -230,11 +471,28 @@ export class SchedulerPage {
   /**
    * Click Delete button on a schedule by name
    * @param {string} name - Schedule name
+   * @deprecated Delete is now inside ScheduleEditor in edit mode.
    */
   async clickDeleteOnScheduleByName(name) {
+    // Open the editor first via View button on the named card
     const card = this.getScheduleCardByName(name)
-    await card.locator(this.selectors.deleteButton).click()
+    await card.locator(this.selectors.viewButton).click()
+    await this.waitForEditorOpen()
+    // Switch to edit mode by clicking Edit button in header
+    await this.clickEditInEditorHeader()
+    // Then click delete in the editor footer
+    const deleteBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Delete")')
+    await deleteBtn.click()
     await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'visible', timeout: TIMEOUTS.SHORT }))
+  }
+
+  /**
+   * Click Edit button in the editor header to switch from view mode to edit mode
+   */
+  async clickEditInEditorHeader() {
+    const editBtn = this.page.locator('[data-testid="schedule-editor-drawer"] button:has-text("Edit")')
+    await editBtn.click()
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
   }
 
   /**
@@ -290,6 +548,31 @@ export class SchedulerPage {
   }
 
   /**
+   * Check if the enabled/ready banner is visible (schedule enabled but not active)
+   * @returns {Promise<boolean>}
+   */
+  async isEnabledBannerVisible() {
+    return this.page.locator(this.selectors.enabledBanner).isVisible()
+  }
+
+  /**
+   * Wait for active banner to appear (handles async React Query refetch)
+   * @param {number} timeout - Max wait time in ms (default: 10000)
+   * @returns {Promise<boolean>}
+   */
+  async waitForActiveBanner(timeout = 10000) {
+    const banner = this.page.locator(this.selectors.activeBanner)
+    try {
+      // Wait for networkidle first to ensure query refetch completes
+      await this.page.waitForLoadState('networkidle', { timeout: timeout / 2 })
+      await banner.waitFor({ state: 'visible', timeout: timeout / 2 })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Get the name of the active schedule from banner
    * @returns {Promise<string|null>}
    */
@@ -298,10 +581,35 @@ export class SchedulerPage {
     if (!(await banner.isVisible())) {
       return null
     }
-    const text = await banner.textContent()
-    // Extract name from "Active: Schedule Name"
-    const match = text.match(/Active:\s*(.+?)(?:\s*Deactivate)?$/i)
+    // ActiveScheduleBanner renders: Active: <span className="font-normal">{name}</span>
+    // Target the name span directly for reliable extraction
+    const nameSpan = banner.locator('span.font-normal').first()
+    if (await nameSpan.isVisible()) {
+      return (await nameSpan.textContent()).trim()
+    }
+    // Fallback to regex extraction from the title row
+    const titleSpan = banner.locator('span:has-text("Active:")').first()
+    const text = await titleSpan.textContent()
+    const match = text.match(/Active:\s*(.+)/i)
     return match ? match[1].trim() : null
+  }
+
+  /**
+   * Wait for the banner to show a specific schedule name
+   * Useful when switching between active schedules
+   * @param {string} expectedName - The expected schedule name (partial match)
+   * @param {number} timeout - Max wait time in ms (default: 10000)
+   * @returns {Promise<boolean>}
+   */
+  async waitForActiveBannerWithName(expectedName, timeout = 10000) {
+    const banner = this.page.locator(this.selectors.activeBanner)
+    try {
+      // Wait for banner to contain the expected name
+      await banner.filter({ hasText: expectedName }).waitFor({ state: 'visible', timeout })
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -490,6 +798,146 @@ export class SchedulerPage {
   }
 
   // ============================================================
+  // Routine Creation Workflow (Per-Routine Triggers)
+  // ============================================================
+
+  /**
+   * Click the "Add Routine" button to start creating a new routine
+   */
+  async clickAddRoutine() {
+    await this.page.click('[data-testid="add-routine"]')
+    await this.waitForNewRoutineCard()
+  }
+
+  /**
+   * Wait for the NewRoutineCard to appear
+   */
+  async waitForNewRoutineCard() {
+    await this.page.locator('[data-testid="new-routine-card"]').waitFor({
+      state: 'visible',
+      timeout: TIMEOUTS.MEDIUM
+    })
+  }
+
+  /**
+   * Save the current routine being edited
+   */
+  async saveRoutine() {
+    await this.page.click('[data-testid="save-routine"]')
+    await this.page.waitForTimeout(TIMEOUTS.SAVE)
+  }
+
+  /**
+   * Cancel creating a new routine
+   */
+  async cancelNewRoutine() {
+    await this.page.click('[data-testid="cancel-new-routine"]')
+  }
+
+  // ============================================================
+  // Scoped Trigger Methods (within NewRoutineCard)
+  // ============================================================
+
+  /**
+   * Select trigger type within the NewRoutineCard context
+   * @param {'interval' | 'solar' | 'fixed_time' | 'moon_phase' | 'cron'} triggerType
+   */
+  async selectTriggerTypeInRoutine(triggerType) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="trigger-type"]').selectOption(triggerType)
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Fill interval minutes within the NewRoutineCard context
+   * @param {number} minutes
+   */
+  async fillIntervalMinutesInRoutine(minutes) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="interval-minutes"]').fill(String(minutes))
+  }
+
+  /**
+   * Select solar event within the NewRoutineCard context
+   * @param {string} event - e.g., 'dusk', 'dawn', 'sunrise', 'sunset'
+   */
+  async selectSolarEventInRoutine(event) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="solar-event"]').selectOption(event)
+  }
+
+  /**
+   * Fill fixed time within the NewRoutineCard context
+   * @param {string} time - HH:MM format
+   */
+  async fillFixedTimeInRoutine(time) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="fixed-time-input-0"]').fill(time)
+  }
+
+  /**
+   * Select moon phase within the NewRoutineCard context
+   * Uses click({ force: true }) because the checkbox is sr-only and wrapped in a label
+   * @param {string} phase - e.g., 'full', 'new', 'first_quarter', 'last_quarter'
+   */
+  async selectMoonPhaseInRoutine(phase) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    const checkbox = card.locator(`[data-testid="moon-phase-${phase}"]`)
+    const isChecked = await checkbox.isChecked()
+    if (!isChecked) {
+      await checkbox.click({ force: true })
+    }
+  }
+
+  /**
+   * Uncheck a moon phase within the NewRoutineCard context
+   * Uses click({ force: true }) because the checkbox is sr-only and wrapped in a label
+   * @param {string} phase
+   */
+  async deselectMoonPhaseInRoutine(phase) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    const checkbox = card.locator(`[data-testid="moon-phase-${phase}"]`)
+    const isChecked = await checkbox.isChecked()
+    if (isChecked) {
+      await checkbox.click({ force: true })
+    }
+  }
+
+  // ============================================================
+  // Action Methods (within NewRoutineCard)
+  // ============================================================
+
+  /**
+   * Click "Add Action" button within the NewRoutineCard
+   */
+  async clickAddActionInRoutine() {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="add-action"]').click()
+    await this.page.waitForTimeout(TIMEOUTS.TRANSITION)
+  }
+
+  /**
+   * Select action type for a specific action within the routine
+   * @param {number} index - Action index (0-based)
+   * @param {string} type - e.g., 'gpio', 'camera', 'gps_sync', 'service'
+   */
+  async selectActionTypeInRoutine(index, type) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    // ActionForm uses data-testid="action-type" - we need to find the right one by index
+    await card.locator('[data-testid="action-type"]').nth(index).selectOption(type)
+  }
+
+  /**
+   * Select action name for a specific action within the routine
+   * @param {number} index - Action index (0-based)
+   * @param {string} name - e.g., 'attract_on', 'attract_off', 'takephoto'
+   */
+  async selectActionNameInRoutine(index, name) {
+    const card = this.page.locator('[data-testid="new-routine-card"]')
+    await card.locator('[data-testid="action-name"]').nth(index).selectOption(name)
+  }
+
+  // ============================================================
   // Delete Confirmation Dialog
   // ============================================================
 
@@ -503,10 +951,15 @@ export class SchedulerPage {
 
   /**
    * Confirm delete in dialog
+   * Waits for both the dialog and editor to close after deletion
    */
   async confirmDelete() {
     await this.page.click(this.selectors.confirmDeleteButton)
     await this.page.waitForLoadState('networkidle')
+    // Wait for confirm dialog to close
+    await optionalWait(this.page.locator(this.selectors.confirmDialog).waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }))
+    // Also wait for editor drawer to close (delete closes the editor)
+    await optionalWait(this.page.locator(this.selectors.editorDrawer).waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM }))
   }
 
   /**
@@ -872,35 +1325,47 @@ export class SchedulerPage {
   // ============================================================
   // Date Range Section
   // ============================================================
+  // NOTE: Date range fields were removed in the per-routine architecture refactor.
+  // These methods are kept for backward compatibility but are no-ops.
 
   /**
    * Fill start date
    * @param {string} date - YYYY-MM-DD format
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
+  // eslint-disable-next-line no-unused-vars
   async fillStartDate(date) {
-    await this.page.fill('#start-date', date)
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('fillStartDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Fill end date
    * @param {string} date - YYYY-MM-DD format
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
+  // eslint-disable-next-line no-unused-vars
   async fillEndDate(date) {
-    await this.page.fill('#end-date', date)
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('fillEndDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Clear start date
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
   async clearStartDate() {
-    await this.page.click('button[aria-label="Clear start date"]')
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('clearStartDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   /**
    * Clear end date
+   * @deprecated Date range fields were removed in per-routine architecture. This is a no-op.
    */
   async clearEndDate() {
-    await this.page.click('button[aria-label="Clear end date"]')
+    // No-op: Date range fields removed in per-routine architecture
+    console.warn('clearEndDate is deprecated: Date range fields removed in per-routine architecture')
   }
 
   // ============================================================
@@ -1082,62 +1547,30 @@ export class SchedulerPage {
    * @param {Object} config - Schedule configuration
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
-   * @param {number} config.intervalMinutes - Interval in minutes
-   * @param {Object} config.timeWindow - Time window configuration
-   * @param {string} config.startDate - Start date (YYYY-MM-DD)
-   * @param {string} config.endDate - End date (YYYY-MM-DD)
+   * @param {number} config.interval - Interval in minutes (default: 15)
+   * @param {number} config.intervalMinutes - Alias for config.interval (deprecated)
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createIntervalSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select interval trigger
-    await this.selectTriggerType('interval')
-    await this.fillIntervalMinutes(config.intervalMinutes)
+    // Add routine with interval trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('interval')
+    await this.fillIntervalMinutesInRoutine(config.interval || config.intervalMinutes || 15)
 
-    // Configure time window
-    if (config.timeWindow) {
-      if (config.timeWindow.startType === 'solar') {
-        await this.selectStartTimeType('solar')
-        await this.selectStartSolarEvent(config.timeWindow.startEvent)
-        if (config.timeWindow.startOffset) {
-          await this.fillStartOffset(config.timeWindow.startOffset)
-        }
-      } else {
-        await this.fillStartTime(config.timeWindow.startTime)
-      }
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
 
-      if (config.timeWindow.endType === 'solar') {
-        await this.selectEndTimeType('solar')
-        await this.selectEndSolarEvent(config.timeWindow.endEvent)
-        if (config.timeWindow.endOffset) {
-          await this.fillEndOffset(config.timeWindow.endOffset)
-        }
-      } else {
-        await this.fillEndTime(config.timeWindow.endTime)
-      }
-    }
-
-    // Set date range
-    if (config.startDate) {
-      await this.fillStartDate(config.startDate)
-    }
-    if (config.endDate) {
-      await this.fillEndDate(config.endDate)
-    }
-
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
-
-    // Save
+    await this.saveRoutine()
     await this.clickSave()
+    await this.waitForLoad()
     return !(await this.isEditorOpen())
   }
 
@@ -1146,34 +1579,31 @@ export class SchedulerPage {
    * @param {Object} config - Schedule configuration
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
-   * @param {string} config.moonPhase - Moon phase (full, new, etc.)
-   * @param {string} config.timeOfDay - Time of day (HH:MM)
-   * @param {number} config.offsetDays - Offset days
+   * @param {string} config.moonPhase - Moon phase (full, new, first_quarter, last_quarter)
+   * @param {string} config.timeOfDay - Time of day (HH:MM) - currently not used in per-routine workflow
+   * @param {number} config.offsetDays - Offset days - currently not used in per-routine workflow
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createMoonPhaseSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select moon phase trigger
-    await this.selectTriggerType('moon_phase')
-    await this.selectMoonPhase(config.moonPhase)
-    await this.fillMoonPhaseTime(config.timeOfDay)
-    if (config.offsetDays !== undefined) {
-      await this.fillMoonPhaseOffset(config.offsetDays)
-    }
+    // Add routine with moon phase trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('moon_phase')
+    await this.selectMoonPhaseInRoutine(config.moonPhase || 'full')
 
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
 
-    // Save
+    await this.saveRoutine()
     await this.clickSave()
+    await this.waitForLoad()
     return !(await this.isEditorOpen())
   }
 
@@ -1183,34 +1613,129 @@ export class SchedulerPage {
    * @param {string} config.name - Schedule name
    * @param {string} config.description - Schedule description
    * @param {string} config.timeOfDay - Time of day (HH:MM)
-   * @param {Array<number>|null} config.daysOfWeek - Days of week (null for all days)
+   * @param {Array<number>|null} config.daysOfWeek - Days of week (null for all days) - currently not used
    * @returns {Promise<boolean>} True if schedule was created successfully
    */
   async createFixedTimeSchedule(config) {
     await this.clickNewSchedule()
-
-    // Fill basic info
     await this.fillScheduleName(config.name)
     if (config.description) {
       await this.fillScheduleDescription(config.description)
     }
 
-    // Select fixed time trigger
-    await this.selectTriggerType('fixed_time')
-    await this.fillFixedTimeOfDay(config.timeOfDay)
+    // Add routine with fixed time trigger
+    await this.clickAddRoutine()
+    await this.selectTriggerTypeInRoutine('fixed_time')
+    await this.fillFixedTimeInRoutine(config.timeOfDay || '21:00')
 
-    // Configure days of week if specified
-    if (config.daysOfWeek !== null && config.daysOfWeek !== undefined) {
-      // First click All Days to ensure we start fresh
-      await this.clickAllDays()
+    // Add at least one action (attract_on by default)
+    await this.clickAddActionInRoutine()
+    await this.selectActionTypeInRoutine(0, 'gpio')
+    await this.selectActionNameInRoutine(0, 'attract_on')
+
+    await this.saveRoutine()
+    await this.clickSave()
+    await this.waitForLoad()
+    return !(await this.isEditorOpen())
+  }
+
+  // ============================================================
+  // Conflict Detection Panel (Issue #331)
+  // ============================================================
+
+  /**
+   * Check if the conflict panel header is visible
+   * @returns {Promise<boolean>}
+   */
+  async isConflictPanelVisible() {
+    return this.page.locator(this.selectors.conflictPanelHeader).isVisible()
+  }
+
+  /**
+   * Check if conflict validation is in progress
+   * @returns {Promise<boolean>}
+   */
+  async isConflictValidating() {
+    return this.page.locator(this.selectors.conflictValidating).isVisible()
+  }
+
+  /**
+   * Check if "No conflicts detected" message is visible
+   * @returns {Promise<boolean>}
+   */
+  async hasNoConflicts() {
+    return this.page.locator(this.selectors.conflictNoConflicts).isVisible()
+  }
+
+  /**
+   * Wait for conflict validation to complete (loading spinner disappears)
+   * @param {number} timeout - Max wait time in ms (default: 5000)
+   * @returns {Promise<void>}
+   */
+  async waitForConflictValidation(timeout = 5000) {
+    // Wait for validation to start (optional, may be quick)
+    try {
+      await this.page.locator(this.selectors.conflictValidating).waitFor({
+        state: 'visible',
+        timeout: 1000,
+      })
+    } catch {
+      // May have already completed
     }
 
-    // Select routine (required)
-    const routineSelected = await this.selectFirstRoutine()
-    if (!routineSelected) return false
+    // Wait for validation to complete
+    try {
+      await this.page.locator(this.selectors.conflictValidating).waitFor({
+        state: 'hidden',
+        timeout,
+      })
+    } catch {
+      // May not have started or already done
+    }
 
-    // Save
-    await this.clickSave()
-    return !(await this.isEditorOpen())
+    // Additional wait for network to settle
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  /**
+   * Get the conflict panel text content
+   * @returns {Promise<string>}
+   */
+  async getConflictPanelText() {
+    const panel = this.page.locator(this.selectors.conflictPanel)
+    if (await panel.isVisible()) {
+      return panel.textContent()
+    }
+    return ''
+  }
+
+  /**
+   * Check if any conflicts are detected (text contains "conflict")
+   * @returns {Promise<boolean>}
+   */
+  async hasConflictsDetected() {
+    const panelText = await this.getConflictPanelText()
+    // Check for conflict indicators but not "No conflicts detected"
+    return panelText.includes('conflict') && !panelText.includes('No conflicts detected')
+  }
+
+  /**
+   * Check if blocking conflicts are detected
+   * @returns {Promise<boolean>}
+   */
+  async hasBlockingConflicts() {
+    const panelText = await this.getConflictPanelText()
+    return panelText.toLowerCase().includes('blocking')
+  }
+
+  /**
+   * Get the number of conflicts detected from panel text
+   * @returns {Promise<number>}
+   */
+  async getConflictCount() {
+    const panelText = await this.getConflictPanelText()
+    // Look for pattern like "2 conflicts detected" or "1 conflict detected"
+    const match = panelText.match(/(\d+)\s+conflicts?\s+detected/i)
+    return match ? parseInt(match[1], 10) : 0
   }
 }

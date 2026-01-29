@@ -61,7 +61,13 @@ function StackedPhotoCard({
   const stackedPhotos = photos.slice(0, 3)
 
   // Extract cover photo for stable useCallback dependency
-  const coverPhoto = stackedPhotos[0]
+  // Normalize to object format (series API returns strings, not objects)
+  const rawCoverPhoto = stackedPhotos[0]
+  const coverPhoto = rawCoverPhoto
+    ? (typeof rawCoverPhoto === 'string'
+        ? { path: rawCoverPhoto, filename: rawCoverPhoto.split('/').pop() }
+        : rawCoverPhoto)
+    : null
 
   // Selection mode state (with safe defaults)
   const isSelectMode = selectionState?.isSelectMode || false
@@ -215,12 +221,14 @@ function StackedPhotoCard({
         const offset = OFFSETS[actualIndex] || OFFSETS[0]
         const shadow = SHADOWS[actualIndex] || SHADOWS[0]
         const isFront = actualIndex === stackedPhotos.length - 1
-        // Handle both string paths and photo objects for key
-        const photoKey = typeof photo === 'string' ? photo : photo.path
+        // Normalize photo to object format (series API returns strings, not objects)
+        const photoObj = typeof photo === 'string'
+          ? { path: photo, filename: photo.split('/').pop() }
+          : photo
 
         return (
           <div
-            key={photoKey}
+            key={photoObj.path}
             className={`absolute inset-0 transform ${offset} rounded-lg overflow-hidden ${shadow} ${zIndex} ${
               isFront
                 ? 'transition-transform duration-200 group-hover:scale-[1.02] group-focus:scale-[1.02]'
@@ -228,9 +236,9 @@ function StackedPhotoCard({
             }`}
           >
             <LazyImage
-              photo={photo}
+              photo={photoObj}
               size={GALLERY_CONFIG.THUMBNAIL.SIZE}
-              alt={photo.filename}
+              alt={photoObj.filename}
               className="w-full h-full object-cover"
               aspectRatio={GALLERY_CONFIG.THUMBNAIL.ASPECT_RATIO}
             />
@@ -267,11 +275,14 @@ StackedPhotoCard.propTypes = {
     series_id: PropTypes.string.isRequired,
     series_type: PropTypes.string.isRequired,
     photos: PropTypes.arrayOf(
-      PropTypes.shape({
-        path: PropTypes.string.isRequired,
-        filename: PropTypes.string.isRequired,
-        date: PropTypes.string,
-      })
+      PropTypes.oneOfType([
+        PropTypes.string, // Series API returns paths as strings
+        PropTypes.shape({
+          path: PropTypes.string.isRequired,
+          filename: PropTypes.string.isRequired,
+          date: PropTypes.string,
+        }),
+      ])
     ).isRequired,
     count: PropTypes.number.isRequired,
     cover_photo: PropTypes.string,

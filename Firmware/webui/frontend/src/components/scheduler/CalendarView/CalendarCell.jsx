@@ -7,11 +7,36 @@
  * @module components/scheduler/CalendarView/CalendarCell
  */
 
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import PropTypes from 'prop-types'
 import MoonPhaseIcon from './MoonPhaseIcon'
-import ExecutionMarker from './ExecutionMarker'
 import { isToday } from './calendarUtils'
+import { getActionColor } from '@/utils/routineUtils'
+import { PANEL_STYLES } from '../constants'
+
+/**
+ * Extract unique action types from all executions.
+ * Returns one representative action per unique action type.
+ * @param {Array} executions - Array of execution objects
+ * @returns {Array} Array of unique action objects
+ */
+function getUniqueActionTypes(executions) {
+  const seen = new Set()
+  const uniqueActions = []
+
+  for (const exec of executions) {
+    if (!exec.actions) continue
+    for (const action of exec.actions) {
+      const actionType = action.action_type || action.type || 'unknown'
+      if (!seen.has(actionType)) {
+        seen.add(actionType)
+        uniqueActions.push(action)
+      }
+    }
+  }
+
+  return uniqueActions
+}
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -25,8 +50,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
  * @param {boolean} props.isCurrentMonth - Whether date is in the displayed month
  * @param {Array} props.executions - Executions for this date (from groupExecutionsByDate)
  * @param {Object|null} props.moonPhase - Moon phase data { phase, phase_name, illumination }
- * @param {Function} props.onClick - Cell click handler (receives date)
- * @param {Function} props.onExecutionClick - Execution click handler (receives execution)
+ * @param {Function} props.onClick - Cell click handler (receives date, navigates to day view)
  * @returns {JSX.Element} Calendar cell component
  *
  * @example
@@ -36,7 +60,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
  *   executions={[execution1, execution2]}
  *   moonPhase={{ phase: 'full', phase_name: 'Full Moon', illumination: 1.0 }}
  *   onClick={(date) => handleDateClick(date)}
- *   onExecutionClick={(exec) => handleExecutionClick(exec)}
  * />
  */
 function CalendarCell({
@@ -45,14 +68,12 @@ function CalendarCell({
   executions = [],
   moonPhase = null,
   onClick,
-  onExecutionClick,
 }) {
   // Check if this date is today
   const isTodayDate = isToday(date)
 
-  // Calculate how many executions are hidden
-  const visibleExecutions = executions.slice(0, 3)
-  const hiddenCount = executions.length - visibleExecutions.length
+  // Get unique action types for this day (one dot per action type)
+  const uniqueActions = useMemo(() => getUniqueActionTypes(executions), [executions])
 
   // Use stable primitive for date dependency (Date objects create new instances on each render)
   const dateTime = date.getTime()
@@ -62,11 +83,11 @@ function CalendarCell({
     onClick(date)
   }, [onClick, dateTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build cell classes
+  // Build cell classes (responsive: smaller on mobile, larger on desktop)
   const cellClasses = [
-    'min-h-24 p-1',
+    'min-h-20 sm:min-h-24 p-0.5 sm:p-1',
     'border-r border-b',
-    'border-gray-200 dark:border-gray-700',
+    PANEL_STYLES.grid,
     'relative cursor-pointer',
     'transition-colors duration-150',
     'hover:bg-gray-50 dark:hover:bg-gray-800',
@@ -94,8 +115,8 @@ function CalendarCell({
       role="button"
       tabIndex={0}
       aria-label={`${WEEKDAYS[date.getDay()]}, ${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}${
-  moonPhase ? `, ${moonPhase.phase_name}` : ''
-}${executions.length > 0 ? `, ${executions.length} scheduled execution${executions.length > 1 ? 's' : ''}` : ''}`}
+        moonPhase ? `, ${moonPhase.phase_name}` : ''
+      }${executions.length > 0 ? `, ${executions.length} scheduled execution${executions.length > 1 ? 's' : ''}` : ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
@@ -109,23 +130,19 @@ function CalendarCell({
         {moonPhase && <MoonPhaseIcon phase={moonPhase} size="sm" />}
       </div>
 
-      {/* Executions container */}
-      <div className="space-y-1 mt-1 overflow-y-auto max-h-16">
-        {visibleExecutions.map((exec, index) => (
-          <ExecutionMarker
-            key={exec.id || `${exec.pattern_id}-${exec.start_time}-${index}`}
-            execution={exec}
-            onClick={() => onExecutionClick(exec)}
-            compact
-          />
-        ))}
-
-        {/* "+N more" indicator */}
-        {hiddenCount > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            +{hiddenCount} more
-          </span>
-        )}
+      {/* Action type indicators - one dot per unique action type */}
+      <div className="flex flex-wrap gap-0.5 mt-1">
+        {uniqueActions.map((action, index) => {
+          const actionType = action.action_type || action.type || 'unknown'
+          const dotColor = getActionColor(action)
+          return (
+            <div
+              key={`${actionType}-${index}`}
+              className={`w-1.5 h-1.5 rounded-full ${dotColor}`}
+              title={actionType}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -140,6 +157,7 @@ CalendarCell.propTypes = {
       pattern_id: PropTypes.string.isRequired,
       pattern_name: PropTypes.string.isRequired,
       start_time: PropTypes.string.isRequired,
+      actions: PropTypes.array,
     })
   ),
   moonPhase: PropTypes.shape({
@@ -148,7 +166,6 @@ CalendarCell.propTypes = {
     illumination: PropTypes.number,
   }),
   onClick: PropTypes.func.isRequired,
-  onExecutionClick: PropTypes.func.isRequired,
 }
 
 export default memo(CalendarCell)

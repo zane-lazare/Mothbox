@@ -5,92 +5,63 @@
  * Dynamic class construction doesn't work with Tailwind's JIT compiler,
  * so we define all possible class combinations here.
  *
+ * Imports from shared scheduler constants for single source of truth.
+ *
  * @module components/scheduler/DayTimeline/dayTimelineConstants
  */
+
+import {
+  ACTION_TYPE_COLORS as SHARED_ACTION_TYPE_COLORS,
+  ACTION_TYPE_LABELS,
+  DEFAULT_ACTION_COLORS as SHARED_DEFAULT_ACTION_COLORS,
+  CONFLICT_COLORS,
+  ROW_CONFLICT_STYLES,
+  HDR_ACTION_NAMES,
+  isHdrAction,
+} from '../constants'
+
+// Re-export shared constants for use by DayTimeline components
+export { isHdrAction, HDR_ACTION_NAMES, ROW_CONFLICT_STYLES }
 
 /**
  * Action type color mapping for execution chips.
  * Maps action types to their Tailwind background/text classes.
+ * Re-exported from shared constants with DayTimeline-specific structure.
  */
-export const ACTION_TYPE_COLORS = {
-  camera: {
-    bg: 'bg-blue-500/20',
-    text: 'text-blue-400',
-  },
-  gpio: {
-    bg: 'bg-orange-500/20',
-    text: 'text-orange-400',
-  },
-  hdr: {
-    bg: 'bg-purple-500/20',
-    text: 'text-purple-400',
-  },
-  gps_sync: {
-    bg: 'bg-green-500/20',
-    text: 'text-green-400',
-  },
-  service: {
-    bg: 'bg-gray-500/20',
-    text: 'text-gray-400',
-  },
-}
+export const ACTION_TYPE_COLORS = Object.fromEntries(
+  Object.entries(SHARED_ACTION_TYPE_COLORS).map(([key, val]) => [
+    key,
+    { bg: val.bg, text: val.text },
+  ])
+)
 
 /**
  * Default colors for unknown action types.
  */
 export const DEFAULT_ACTION_COLORS = {
-  bg: 'bg-blue-500/20',
-  text: 'text-blue-400',
-}
-
-/**
- * Row background and label colors for conflict states.
- */
-export const ROW_CONFLICT_STYLES = {
-  error: {
-    bg: 'bg-red-950/20',
-    label: 'text-red-400',
-  },
-  warning: {
-    bg: 'bg-yellow-950/20',
-    label: 'text-yellow-400',
-  },
-  none: {
-    bg: '',
-    label: 'text-gray-600 dark:text-gray-600',
-  },
+  bg: SHARED_DEFAULT_ACTION_COLORS.bg,
+  text: SHARED_DEFAULT_ACTION_COLORS.text,
 }
 
 /**
  * Conflict ring styles for execution chips.
  */
 export const CHIP_CONFLICT_RINGS = {
-  error: 'ring-1 ring-red-400',
-  warning: 'ring-1 ring-yellow-400',
+  error: CONFLICT_COLORS.error.ring,
+  warning: CONFLICT_COLORS.warning.ring,
 }
 
 /**
  * Legend items for the timeline.
+ * Generated from shared constants to include all action types.
  */
 export const LEGEND_ITEMS = [
-  { color: 'bg-blue-400', label: 'Camera' },
-  { color: 'bg-orange-400', label: 'GPIO' },
-  { color: 'ring-1 ring-red-400', label: 'Collision', isRing: true },
-  { color: 'ring-1 ring-yellow-400', label: 'Warning', isRing: true },
+  // Action type indicators (from shared constants)
+  ...Object.entries(SHARED_ACTION_TYPE_COLORS).map(([type, colors]) => ({
+    color: colors.solid,
+    label: ACTION_TYPE_LABELS[type],
+  })),
+  // Conflict indicators
+  { color: CONFLICT_COLORS.error.ring, label: 'Collision', isRing: true },
+  { color: CONFLICT_COLORS.warning.ring, label: 'Warning', isRing: true },
 ]
-
-/**
- * Action names that indicate HDR mode.
- */
-export const HDR_ACTION_NAMES = ['hdr', 'hdr_bracket', 'bracket']
-
-/**
- * Checks if an action name indicates HDR mode.
- * @param {string} actionName - The action name to check
- * @returns {boolean} True if this is an HDR action
- */
-export function isHdrAction(actionName) {
-  if (!actionName) return false
-  const lower = actionName.toLowerCase()
-  return HDR_ACTION_NAMES.some((name) => lower.includes(name))
-}

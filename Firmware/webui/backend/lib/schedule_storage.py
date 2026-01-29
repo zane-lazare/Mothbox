@@ -58,8 +58,10 @@ Issue #209 - Scheduler Phase 1: Schedule Storage
 
 import json
 import logging
+import re
 import time
-from datetime import datetime
+import unicodedata
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mothbox_paths import (
@@ -83,6 +85,116 @@ logger = logging.getLogger(__name__)
 
 SCHEDULE_FILENAME_EXTENSION = ".json"
 BACKUP_EXTENSION = ".bak"
+
+# Whitelist of fields that can be updated via update_schedule()
+# Internal fields like schedule_id, created_at are protected
+ALLOWED_UPDATE_FIELDS: frozenset[str] = frozenset(
+    {
+        "name",
+        "description",
+        "routines",
+        "enabled",
+        "pre_conditions",
+        "tags",
+        "deployment_id",
+        "create_deployment",
+        "modified_by",
+    }
+)
+
+
+# =============================================================================
+# EXCEPTIONS
+# =============================================================================
+
+
+class ScheduleNameExistsError(Exception):
+    """Raised when a schedule name already exists (filename collision)."""
+
+    def __init__(self, name: str, existing_filename: str):
+        self.name = name
+        self.existing_filename = existing_filename
+        super().__init__(
+            f"A schedule with the name '{name}' already exists. Please choose a different name."
+        )
+
+
+# =============================================================================
+# FILENAME UTILITIES
+# =============================================================================
+
+
+def slugify_schedule_name(name: str) -> str | None:
+    """Convert schedule name to a valid filename slug.
+
+    Converts to lowercase, replaces spaces/special chars with hyphens,
+    removes consecutive hyphens, and strips leading/trailing hyphens.
+
+    Args:
+        name: Schedule name to slugify
+
+    Returns:
+        Valid filename slug, or None if name cannot be slugified
+
+    Example:
+        >>> slugify_schedule_name("Overnight Moth Survey")
+        'overnight-moth-survey'
+        >>> slugify_schedule_name("Test Schedule #1!")
+        'test-schedule-1'
+        >>> slugify_schedule_name("   ")
+        None
+    """
+    if not name or not name.strip():
+        return None
+
+    # Normalize unicode characters (é → e, etc.)
+    slug = unicodedata.normalize("NFKD", name)
+    slug = slug.encode("ascii", "ignore").decode("ascii")
+
+    # Convert to lowercase
+    slug = slug.lower()
+
+    # Replace spaces and special characters with hyphens
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+
+    # Remove consecutive hyphens
+    slug = re.sub(r"-+", "-", slug)
+
+    # Strip leading/trailing hyphens
+    slug = slug.strip("-")
+
+    # Must start with alphanumeric and be non-empty
+    if not slug or not re.match(r"^[a-z0-9]", slug):
+        return None
+
+    return slug
+
+
+def schedule_filename_exists(filename: str, exclude_schedule_id: str | None = None) -> bool:
+    """Check if a schedule filename already exists (for collision detection).
+
+    Args:
+        filename: Filename (without extension) to check
+        exclude_schedule_id: Schedule ID to exclude from check (for updates)
+
+    Returns:
+        True if filename exists and belongs to a different schedule
+    """
+    file_path = SCHEDULES_DIR / f"{filename}{SCHEDULE_FILENAME_EXTENSION}"
+    if not file_path.exists():
+        return False
+
+    # If we're excluding a schedule_id, check if this file belongs to it
+    if exclude_schedule_id:
+        try:
+            with open(file_path) as f:
+                data = json.load(f)
+                if data.get("schedule_id") == exclude_schedule_id:
+                    return False  # Same schedule, not a collision
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return True
 
 
 def schedule_exists(schedule_id: str, is_builtin: bool = False) -> bool:
@@ -140,10 +252,46 @@ def list_schedule_ids(is_builtin: bool = False) -> list[str]:
     return sorted(schedule_ids)
 
 
+def _scan_directory_for_schedule_id(directory: Path, schedule_id: str) -> Path | None:
+    """Scan directory for a JSON file containing matching schedule_id.
+
+    Args:
+        directory: Directory to scan
+        schedule_id: Schedule ID to find
+
+    Returns:
+        Path to matching file, or None if not found
+    """
+    if not directory.exists():
+        return None
+
+    for json_file in directory.glob(f"*{SCHEDULE_FILENAME_EXTENSION}"):
+        # Skip backup, lock, and state files
+        if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}{BACKUP_EXTENSION}"):
+            continue
+        if json_file.name.endswith(f"{SCHEDULE_FILENAME_EXTENSION}.lock"):
+            continue
+        if json_file.name == "active_state.json":
+            continue
+        try:
+            with open(json_file) as f:
+                data = json.load(f)
+                if data.get("schedule_id") == schedule_id:
+                    return json_file
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return None
+
+
 def find_schedule(schedule_id: str) -> tuple[Path, bool] | None:
     """Find schedule file in user or built-in directories.
 
     User schedules take precedence over built-in schedules with the same ID.
+    Supports both filename-based lookup (filename == schedule_id) and
+    content-based lookup (schedule_id field inside JSON matches).
+
+    This allows human-readable filenames for both user and built-in schedules.
 
     Args:
         schedule_id: Schedule identifier
@@ -157,15 +305,27 @@ def find_schedule(schedule_id: str) -> tuple[Path, bool] | None:
         >>> find_schedule("nonexistent")
         None
     """
-    # Check user directory first (precedence)
+    # Check user directory first (precedence) - by filename
     user_path = get_schedule_path(schedule_id, is_builtin=False)
     if user_path is not None and user_path.exists():
         return (user_path, False)
 
-    # Check built-in directory
+    # Check user directory by scanning for schedule_id in content
+    # This supports human-readable filenames for user schedules
+    user_match = _scan_directory_for_schedule_id(SCHEDULES_DIR, schedule_id)
+    if user_match:
+        return (user_match, False)
+
+    # Check built-in directory by filename
     builtin_path = get_schedule_path(schedule_id, is_builtin=True)
     if builtin_path is not None and builtin_path.exists():
         return (builtin_path, True)
+
+    # Scan built-in directory for matching schedule_id inside JSON
+    # This supports human-readable filenames for built-in schedules
+    builtin_match = _scan_directory_for_schedule_id(BUILTIN_SCHEDULES_DIR, schedule_id)
+    if builtin_match:
+        return (builtin_match, True)
 
     return None
 
@@ -201,7 +361,10 @@ def is_builtin_schedule(schedule_id: str) -> bool:
 
 
 def create_schedule(schedule: Schedule) -> bool:
-    """Create new schedule file.
+    """Create new schedule file with human-readable filename.
+
+    Uses the schedule name to generate a human-readable filename (slugified).
+    Falls back to schedule_id if name cannot be slugified.
 
     Validates schedule before writing. Creates schedules directory if it doesn't exist.
 
@@ -213,20 +376,31 @@ def create_schedule(schedule: Schedule) -> bool:
 
     Raises:
         ScheduleValidationError: If schedule validation fails
+        ScheduleNameExistsError: If a schedule with the same name already exists
 
     Example:
-        >>> schedule = Schedule(schedule_id="test", name="Test Schedule", ...)
+        >>> schedule = Schedule(schedule_id="abc-123", name="My Survey", ...)
         >>> create_schedule(schedule)
         True
+        # Creates file: my-survey.json
     """
     # Validate schedule first
     valid, error = validate_schedule(schedule)
     if not valid:
         raise ScheduleValidationError(error)
 
-    schedule_path = get_schedule_path(schedule.schedule_id, is_builtin=False)
-    if schedule_path is None:
-        raise ValueError(f"Invalid schedule ID: {schedule.schedule_id}")
+    # Generate filename from schedule name (human-readable)
+    filename = slugify_schedule_name(schedule.name) if schedule.name else None
+
+    # Fall back to schedule_id if name can't be slugified
+    if not filename:
+        filename = schedule.schedule_id
+
+    # Check for filename collision
+    if schedule_filename_exists(filename):
+        raise ScheduleNameExistsError(schedule.name, filename)
+
+    schedule_path = SCHEDULES_DIR / f"{filename}{SCHEDULE_FILENAME_EXTENSION}"
 
     try:
         # Ensure schedules directory exists
@@ -245,6 +419,8 @@ def create_schedule(schedule: Schedule) -> bool:
 
         return True
 
+    except ScheduleNameExistsError:
+        raise  # Re-raise collision errors
     except Exception as e:
         logger.error(f"Failed to create schedule {schedule.schedule_id}: {e}")
         return False
@@ -314,22 +490,27 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
         Updated Schedule object if successful, None if schedule doesn't exist
 
     Raises:
-        ValueError: If attempting to update built-in schedule
+        ValueError: If attempting to modify protected fields on built-in schedule
 
     Example:
         >>> update_schedule("nightly-survey", {"name": "Updated Name"})
         Schedule(schedule_id='nightly-survey', name='Updated Name', ...)
     """
-    # Protect built-in schedules
-    if is_builtin or is_builtin_schedule(schedule_id):
-        raise ValueError("Cannot modify built-in schedule")
-
-    schedule_path = get_schedule_path(schedule_id, is_builtin=False)
-    if schedule_path is None:
-        raise ValueError(f"Invalid schedule ID: {schedule_id}")
-
-    if not schedule_path.exists():
+    # Find the schedule file (supports human-readable filenames)
+    result = find_schedule(schedule_id)
+    if result is None:
         return None
+
+    schedule_path, found_is_builtin = result
+
+    # Built-in schedules are read-only (Issue #331 fix)
+    # enabled and is_active are now derived from active_state.json, not stored in files.
+    # This ensures firmware updates don't cause inconsistent state.
+    if is_builtin or found_is_builtin:
+        raise ValueError(
+            f"Cannot modify built-in schedule: {schedule_id}. "
+            "Use the service layer to enable/disable schedules."
+        )
 
     try:
         # Atomic read-modify-write with exclusive lock
@@ -343,13 +524,16 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
             data = json.load(f)
             schedule = Schedule.from_dict(data)
 
-            # Apply updates
+            # Apply updates (only for allowed fields)
             for key, value in updates.items():
+                if key not in ALLOWED_UPDATE_FIELDS:
+                    logger.warning(f"Ignoring update to protected field: {key}")
+                    continue
                 if hasattr(schedule, key):
                     setattr(schedule, key, value)
 
             # Update modified_at timestamp
-            schedule.modified_at = datetime.now().isoformat()
+            schedule.modified_at = datetime.now(UTC).isoformat()
 
             # Validate updated schedule
             valid, error = validate_schedule(schedule)
@@ -394,12 +578,14 @@ def delete_schedule(schedule_id: str, backup: bool = True, is_builtin: bool = Fa
     if is_builtin or is_builtin_schedule(schedule_id):
         raise ValueError("Cannot delete built-in schedule")
 
-    schedule_path = get_schedule_path(schedule_id, is_builtin=False)
-    if schedule_path is None:
-        raise ValueError(f"Invalid schedule ID: {schedule_id}")
-
-    if not schedule_path.exists():
+    # Find the schedule file (supports human-readable filenames)
+    result = find_schedule(schedule_id)
+    if result is None:
         return False
+
+    schedule_path, found_is_builtin = result
+    if found_is_builtin:
+        raise ValueError("Cannot delete built-in schedule")
 
     try:
         # Create backup if requested
@@ -565,8 +751,14 @@ def cleanup_temp_files(max_age_seconds: int = 3600) -> int:
 __all__ = [
     # Constants
     "SCHEDULE_FILENAME_EXTENSION",
+    "ALLOWED_UPDATE_FIELDS",
     "SCHEDULES_DIR",
     "BUILTIN_SCHEDULES_DIR",
+    # Exceptions
+    "ScheduleNameExistsError",
+    # Filename utilities
+    "slugify_schedule_name",
+    "schedule_filename_exists",
     # Path utilities
     "get_schedule_path",
     "schedule_exists",

@@ -1,8 +1,8 @@
 /**
  * ExecutionMarker - Visual marker for scheduled pattern executions (Issue #228)
  *
- * Displays pattern executions as colored pills/badges in the calendar view.
- * Supports both compact (month view) and full (week/day view) display modes.
+ * Displays pattern executions as small colored dots in the calendar view.
+ * Color indicates action type; details shown in tooltip on hover.
  * Supports conflict highlighting for schedule conflicts (Issue #229).
  *
  * @module components/scheduler/CalendarView/ExecutionMarker
@@ -10,22 +10,8 @@
 
 import { memo } from 'react'
 import PropTypes from 'prop-types'
-import { getPatternColor, formatTime } from './calendarUtils'
-
-/**
- * Static color class mappings for Tailwind JIT compatibility.
- * Dynamic class construction like `dark:bg-${color}-500` doesn't work with
- * Tailwind's JIT compiler, so we map each bg color to its corresponding
- * dark mode and focus ring classes.
- */
-const COLOR_CLASS_MAP = {
-  'bg-blue-500': { dark: 'dark:bg-blue-600', ring: 'focus:ring-blue-400' },
-  'bg-green-500': { dark: 'dark:bg-green-600', ring: 'focus:ring-green-400' },
-  'bg-purple-500': { dark: 'dark:bg-purple-600', ring: 'focus:ring-purple-400' },
-  'bg-orange-500': { dark: 'dark:bg-orange-600', ring: 'focus:ring-orange-400' },
-  'bg-pink-500': { dark: 'dark:bg-pink-600', ring: 'focus:ring-pink-400' },
-  'bg-cyan-500': { dark: 'dark:bg-cyan-600', ring: 'focus:ring-cyan-400' },
-}
+import { formatTime } from './calendarUtils'
+import { getActionColor } from '@/utils/routineUtils'
 
 /**
  * Conflict severity ring classes for highlighting conflicting executions (Issue #229).
@@ -37,47 +23,25 @@ const CONFLICT_RING_CLASSES = {
 }
 
 /**
- * Truncate text with ellipsis if longer than maxLength
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length before truncation
- * @returns {string} Truncated text with ellipsis if needed
- */
-function truncateText(text, maxLength) {
-  if (!text) return ''
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '...'
-}
-
-/**
  * ExecutionMarker component
  *
  * @param {Object} props - Component props
  * @param {Object} props.execution - Execution object
- * @param {string} props.execution.pattern_id - Pattern identifier for color selection
+ * @param {string} props.execution.pattern_id - Pattern identifier
  * @param {string} props.execution.pattern_name - Pattern display name
  * @param {string} props.execution.start_time - ISO datetime string
  * @param {string} [props.execution.end_time] - ISO datetime string
  * @param {string} [props.execution.trigger_info] - Trigger information
  * @param {Array} [props.execution.actions] - Array of action objects
  * @param {Function} props.onClick - Click handler
- * @param {boolean} [props.compact=false] - Compact display mode for month view
  * @param {string|null} [props.conflictSeverity=null] - Conflict severity for highlighting ('error'|'warning'|null)
  * @param {string} [props.conflictMessage] - Message describing the conflict
  * @returns {JSX.Element} Execution marker component
  *
  * @example
- * // Full mode (week/day view)
  * <ExecutionMarker
  *   execution={execution}
  *   onClick={() => handleClick(execution)}
- * />
- *
- * @example
- * // Compact mode (month view)
- * <ExecutionMarker
- *   execution={execution}
- *   onClick={() => handleClick(execution)}
- *   compact
  * />
  *
  * @example
@@ -89,44 +53,37 @@ function truncateText(text, maxLength) {
  *   conflictMessage="Camera resource conflict with Flash Photo"
  * />
  */
-function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity = null, conflictMessage = '' }) {
-  const { pattern_id, pattern_name, start_time } = execution
+function ExecutionMarker({
+  execution,
+  onClick,
+  conflictSeverity = null,
+  conflictMessage = '',
+}) {
+  const { pattern_name, start_time, actions } = execution
 
-  // Get consistent color for this pattern
-  const colorClass = getPatternColor(pattern_id)
-
-  // Get static dark mode and focus ring classes from mapping
-  // Falls back to blue if color not in map (defensive)
-  const colorMapping = COLOR_CLASS_MAP[colorClass] || COLOR_CLASS_MAP['bg-blue-500']
-
-  // Format time from start_time
+  // Format time for tooltip/aria-label
   const timeStr = formatTime(start_time)
 
-  // Prepare display text - truncate in both modes to prevent layout breaks
-  const displayName = compact
-    ? truncateText(pattern_name, 10)
-    : truncateText(pattern_name, 30)
+  // Get solid color class for the dot based on primary action (matches ScheduleCard style)
+  const primaryAction = actions?.[0]
+  const dotColor = getActionColor(primaryAction)
 
   // Get conflict ring classes if there's a conflict (Issue #229)
-  const conflictRingClass = conflictSeverity ? CONFLICT_RING_CLASSES[conflictSeverity] : ''
+  const conflictRingClass = conflictSeverity
+    ? CONFLICT_RING_CLASSES[conflictSeverity]
+    : ''
 
-  // Base classes for the marker - using static classes for Tailwind JIT
-  const baseClasses = [
-    'inline-flex items-center gap-1.5',
-    'rounded-full px-2 py-1',
-    'text-white',
-    colorClass,
-    colorMapping.dark,
+  // Build class string for small colored dot
+  const dotClasses = [
+    'w-1.5 h-1.5 rounded-full',
+    dotColor,
+    conflictRingClass,
     'cursor-pointer transition-all duration-150',
-    'hover:brightness-110 hover:scale-105',
-    'focus:outline-none focus:ring-2 focus:ring-offset-1',
-    colorMapping.ring,
-    conflictRingClass, // Add conflict highlighting if present
-  ].filter(Boolean).join(' ')
-
-  const textClasses = compact
-    ? 'text-xs font-medium truncate max-w-[80px]'
-    : 'text-sm font-medium truncate max-w-[200px]'
+    'hover:brightness-110',
+    'focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const handleClick = (e) => {
     e.stopPropagation()
@@ -145,7 +102,9 @@ function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity
   const baseTitle = `${pattern_name} at ${timeStr}`
   const baseAriaLabel = `Scheduled execution: ${pattern_name} at ${timeStr}`
 
-  const title = conflictMessage ? `${baseTitle} - ${conflictMessage}` : baseTitle
+  const title = conflictMessage
+    ? `${baseTitle} - ${conflictMessage}`
+    : baseTitle
   const ariaLabel = conflictSeverity
     ? `${baseAriaLabel} - conflict: ${conflictMessage || conflictSeverity}`
     : baseAriaLabel
@@ -155,18 +114,10 @@ function ExecutionMarker({ execution, onClick, compact = false, conflictSeverity
       type="button"
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className={baseClasses}
+      className={dotClasses}
       title={title}
       aria-label={ariaLabel}
-    >
-      {/* Time display (hidden in compact mode) */}
-      {!compact && (
-        <span className="text-xs font-semibold whitespace-nowrap">{timeStr}</span>
-      )}
-
-      {/* Pattern name */}
-      <span className={textClasses}>{displayName}</span>
-    </button>
+    />
   )
 }
 
@@ -182,8 +133,6 @@ ExecutionMarker.propTypes = {
   }).isRequired,
   /** Click handler for when marker is selected */
   onClick: PropTypes.func.isRequired,
-  /** Compact display mode for month view */
-  compact: PropTypes.bool,
   /** Conflict severity for highlighting ('error'|'warning'|null) - Issue #229 */
   conflictSeverity: PropTypes.oneOf(['error', 'warning', null]),
   /** Message describing the conflict - Issue #229 */

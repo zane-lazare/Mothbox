@@ -1,135 +1,30 @@
 /**
- * ScheduleCard - Display schedule with trigger info and action buttons (Issue #266)
+ * ScheduleCard - Display schedule with routine indicators and action buttons (Issue #266)
  *
  * Displays a schedule card with:
- * - Schedule name and description
+ * - Schedule name and auto-generated description
  * - Active status badge
- * - Trigger type icon and summary
- * - Action buttons (Edit, Activate/Deactivate, Delete)
+ * - Colored routine indicator dots (orange=GPIO, blue=camera, purple=HDR)
+ * - Routine count
+ * - Action buttons (View, Enable/Disable)
  * - Loading states for async operations
+ *
+ * Note: Delete functionality moved to ScheduleEditor (view-first paradigm)
  *
  * @module components/scheduler/ScheduleList/ScheduleCard
  */
 
-import { memo, useMemo } from 'react'
+import { memo, useCallback } from 'react'
 import PropTypes from 'prop-types'
-import {
-  ClockIcon,
-  SunIcon,
-  MoonIcon,
-  BoltIcon,
-  PencilIcon,
-  PlayIcon,
-  StopIcon,
-  TrashIcon,
-} from '@heroicons/react/24/outline'
+import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import { SchedulePropType } from '../ScheduleEditor/propTypes'
-import { MOON_PHASES } from '../ScheduleEditor/constants'
-
-/** Base button styles shared across all action buttons */
-const BUTTON_BASE = [
-  'inline-flex items-center gap-1.5 px-3 py-1.5',
-  'text-sm font-medium rounded-md',
-  'focus:outline-none focus:ring-2 focus:ring-offset-2',
-  'disabled:opacity-50 disabled:cursor-not-allowed',
-].join(' ')
-
-/** Primary button style for Edit, Activate, Deactivate */
-const BUTTON_PRIMARY = [
-  BUTTON_BASE,
-  'text-gray-700 bg-white border border-gray-300',
-  'hover:bg-gray-50 focus:ring-blue-500',
-  'dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600',
-].join(' ')
-
-/** Danger button style for Delete */
-const BUTTON_DANGER = [
-  BUTTON_BASE,
-  'text-red-700 bg-white border border-red-300',
-  'hover:bg-red-50 focus:ring-red-500',
-  'dark:bg-gray-700 dark:text-red-400 dark:border-red-900 dark:hover:bg-red-900/20',
-].join(' ')
-
-/** Icon component map for trigger types */
-const TRIGGER_ICON_MAP = {
-  interval: ClockIcon,
-  solar: SunIcon,
-  moon_phase: MoonIcon,
-  fixed_time: ClockIcon,
-  sensor: BoltIcon,
-}
-
-/**
- * Format trigger summary text
- * @param {Object} trigger - Trigger configuration
- * @returns {string} Summary text
- */
-function formatTriggerSummary(trigger) {
-  if (!trigger) return ''
-
-  switch (trigger.trigger_type) {
-    case 'interval': {
-      const startTime = trigger.time_window?.start_time || '00:00'
-      const endTime = trigger.time_window?.end_time || '23:59'
-      return `Every ${trigger.interval_minutes} min, ${startTime} - ${endTime}`
-    }
-
-    case 'solar': {
-      const event = trigger.solar_event || 'sunset'
-      const offset = trigger.offset_minutes || 0
-      if (offset === 0) {
-        return `At ${event}`
-      }
-      const sign = offset >= 0 ? '+' : ''
-      return `At ${event} ${sign}${offset} min`
-    }
-
-    case 'moon_phase': {
-      const phase = trigger.moon_phase || 'full'
-      // Find label from MOON_PHASES constant
-      const phaseLabel =
-        MOON_PHASES.find((p) => p.value === phase)?.label || phase.replace('_', ' ')
-      const time = trigger.time_of_day || '20:00'
-      return `${phaseLabel}, at ${time}`
-    }
-
-    case 'fixed_time': {
-      const time = trigger.time_of_day || '12:00'
-      return `Daily at ${time}`
-    }
-
-    case 'sensor': {
-      const sensorType = trigger.sensor_type || 'light'
-      const comparison = trigger.comparison || 'lt'
-      const threshold = trigger.threshold || 0
-      const compSymbol = {
-        gt: '>',
-        lt: '<',
-        eq: '=',
-        gte: '≥',
-        lte: '≤',
-      }[comparison]
-      return `When ${sensorType} ${compSymbol} ${threshold}`
-    }
-
-    default:
-      return ''
-  }
-}
-
-/**
- * Format schedule summary from routines (Schema 3.0)
- * Shows first routine's trigger with count indicator for multi-routine schedules
- * @param {Array} routines - Array of routine objects
- * @returns {string} Summary text (e.g., "At dusk (+2 more)")
- */
-function formatScheduleSummary(routines) {
-  if (!routines?.length) return ''
-  const firstTriggerSummary = formatTriggerSummary(routines[0]?.trigger)
-  if (routines.length === 1) return firstTriggerSummary
-  return `${firstTriggerSummary} (+${routines.length - 1} more)`
-}
+import {
+  getActionColor,
+  generateRoutineName,
+  generateScheduleDescription,
+} from '../../../utils/routineUtils'
+import { CARD_STYLES, TEXT_STYLES, BUTTON_STYLES } from '../constants'
 
 /**
  * ScheduleCard component
@@ -137,141 +32,140 @@ function formatScheduleSummary(routines) {
  * @param {Object} props - Component props
  * @param {Object} props.schedule - Schedule object
  * @param {boolean} props.isActive - Whether this schedule is active
- * @param {Function} props.onEdit - Callback when Edit button clicked
- * @param {Function} props.onActivate - Callback when Activate button clicked
- * @param {Function} props.onDeactivate - Callback when Deactivate button clicked
- * @param {Function} props.onDelete - Callback when Delete button clicked
- * @param {boolean} [props.isEditing] - Loading state for edit
- * @param {boolean} [props.isActivating] - Loading state for activation
- * @param {boolean} [props.isDeactivating] - Loading state for deactivation
- * @param {boolean} [props.isDeleting] - Loading state for deletion
+ * @param {Function} props.onView - Callback when View button clicked
+ * @param {Function} props.onToggleEnabled - Callback when Enable/Disable button clicked
+ * @param {boolean} [props.isTogglingEnabled] - Loading state for enable/disable toggle
  * @returns {JSX.Element} Schedule card component
  *
  * @example
  * <ScheduleCard
  *   schedule={schedule}
  *   isActive={false}
- *   onEdit={handleEdit}
- *   onActivate={handleActivate}
- *   onDeactivate={handleDeactivate}
- *   onDelete={handleDelete}
+ *   onView={handleView}
+ *   onToggleEnabled={handleToggleEnabled}
  * />
  */
 function ScheduleCard({
   schedule,
   isActive,
-  onEdit,
-  onActivate,
-  onDeactivate,
-  onDelete,
-  isEditing = false,
-  isActivating = false,
-  isDeactivating = false,
-  isDeleting = false,
+  onView,
+  onToggleEnabled,
+  isTogglingEnabled = false,
 }) {
   const nameId = `schedule-name-${schedule.schedule_id}`
+  const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
 
-  // Schema 3.0: Get first routine's trigger type for icon
-  const firstTriggerType = schedule.routines?.[0]?.trigger?.trigger_type
+  // Memoize handlers to preserve memo() optimization (Issue #385)
+  // Use schedule.schedule_id instead of schedule object to prevent breaking memo()
+  // when parent passes new schedule object references with same data
+  const handleView = useCallback(() => {
+    onView(schedule)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally use ID, not object
+  }, [onView, schedule.schedule_id])
 
-  // Memoize schedule summary to avoid recalculating on every render
-  const triggerSummary = useMemo(
-    () => formatScheduleSummary(schedule.routines),
-    [schedule.routines]
-  )
+  const handleToggleEnabled = useCallback(() => {
+    if (onToggleEnabled) {
+      onToggleEnabled(schedule)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally use ID, not object
+  }, [onToggleEnabled, schedule.schedule_id])
 
-  // Memoize icon to avoid recreating on every render
-  const triggerIcon = useMemo(() => {
-    const Icon = TRIGGER_ICON_MAP[firstTriggerType] || ClockIcon
-    return <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
-  }, [firstTriggerType])
-
-  const handleEdit = () => {
-    onEdit(schedule)
-  }
-
-  const handleActivate = () => {
-    onActivate(schedule)
-  }
-
-  const handleDeactivate = () => {
-    onDeactivate(schedule)
-  }
-
-  const handleDelete = () => {
-    onDelete(schedule)
-  }
+  // Build card classes based on state
+  const cardClasses = [
+    CARD_STYLES.base,
+    isActive && CARD_STYLES.active,
+    !isEnabled && CARD_STYLES.disabled,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <article
-      role="article"
-      aria-labelledby={nameId}
-      className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
-    >
-      {/* Header: Name and Active Badge */}
-      <div className="flex items-start justify-between gap-3 mb-2">
+    <article role="article" aria-labelledby={nameId} className={cardClasses}>
+      {/* Header: Name and Badges */}
+      <div className="flex items-start justify-between gap-3 mb-1">
         <div className="flex-1 min-w-0">
-          <h3 id={nameId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h3 id={nameId} className={TEXT_STYLES.title}>
             {schedule.name}
           </h3>
         </div>
-        <ActiveScheduleBadge isActive={isActive} />
+        <div className="flex items-center gap-2">
+          {!isEnabled && (
+            <span className={TEXT_STYLES.meta}>Disabled</span>
+          )}
+          <ActiveScheduleBadge isActive={isActive} />
+        </div>
       </div>
 
-      {/* Description */}
-      {schedule.description && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{schedule.description}</p>
+      {/* Description - manual or auto-generated */}
+      {(schedule.description || schedule.routines?.length > 0) && (
+        <p className={`${TEXT_STYLES.description} mb-3`}>
+          {schedule.description || generateScheduleDescription(schedule.routines)}
+        </p>
       )}
 
-      {/* Trigger Info */}
-      <div className="flex items-center gap-2 mb-4">
-        {triggerIcon}
-        <span className="text-sm text-gray-700 dark:text-gray-300">{triggerSummary}</span>
-      </div>
+      {/* Routine Indicators - shows all actions per routine, enclosed in pipes */}
+      {schedule.routines?.length > 0 && (
+        <div className="flex items-center gap-1 mb-3 flex-wrap">
+          {/* Opening pipe */}
+          <span className="text-gray-300 dark:text-gray-600 text-xs">|</span>
+          {schedule.routines.map((routine, routineIndex) => (
+            <div
+              key={routine.routine_id || routineIndex}
+              className="flex items-center gap-1"
+              title={generateRoutineName(routine)}
+            >
+              {/* Pipe separator between routines */}
+              {routineIndex > 0 && (
+                <span className="text-gray-300 dark:text-gray-600 mx-1 text-xs">|</span>
+              )}
+              {/* Action dots for this routine */}
+              {routine.actions?.map((action, actionIndex) => (
+                <div
+                  key={actionIndex}
+                  className={`w-1.5 h-1.5 rounded-full ${getActionColor(action)}`}
+                  title={action.action_name || action.name || 'Action'}
+                />
+              ))}
+            </div>
+          ))}
+          {/* Closing pipe */}
+          <span className="text-gray-300 dark:text-gray-600 ml-1 text-xs">|</span>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           type="button"
-          onClick={handleEdit}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting}
-          className={BUTTON_PRIMARY}
+          onClick={handleView}
+          disabled={isTogglingEnabled}
+          className={`${BUTTON_STYLES.base} ${BUTTON_STYLES.primary}`}
         >
-          <PencilIcon className="h-4 w-4" aria-hidden="true" />
-          {isEditing ? 'Editing...' : 'Edit'}
+          <EyeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          View
         </button>
 
-        {isActive ? (
+        {/* Enable/Disable toggle - only show when not active */}
+        {!isActive && onToggleEnabled && (
           <button
             type="button"
-            onClick={handleDeactivate}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting}
-            className={BUTTON_PRIMARY}
+            onClick={handleToggleEnabled}
+            disabled={isTogglingEnabled}
+            className={`${BUTTON_STYLES.base} ${isEnabled ? BUTTON_STYLES.primary : BUTTON_STYLES.success}`}
           >
-            <StopIcon className="h-4 w-4" aria-hidden="true" />
-            {isDeactivating ? 'Deactivating...' : 'Deactivate'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleActivate}
-            disabled={isEditing || isActivating || isDeactivating || isDeleting}
-            className={BUTTON_PRIMARY}
-          >
-            <PlayIcon className="h-4 w-4" aria-hidden="true" />
-            {isActivating ? 'Activating...' : 'Activate'}
+            {isEnabled ? (
+              <>
+                <XMarkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                {isTogglingEnabled ? 'Disabling...' : 'Disable'}
+              </>
+            ) : (
+              <>
+                <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                {isTogglingEnabled ? 'Enabling...' : 'Enable'}
+              </>
+            )}
           </button>
         )}
-
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={isEditing || isActivating || isDeactivating || isDeleting}
-          className={BUTTON_DANGER}
-        >
-          <TrashIcon className="h-4 w-4" aria-hidden="true" />
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </button>
       </div>
     </article>
   )
@@ -280,14 +174,9 @@ function ScheduleCard({
 ScheduleCard.propTypes = {
   schedule: SchedulePropType.isRequired,
   isActive: PropTypes.bool,
-  onEdit: PropTypes.func.isRequired,
-  onActivate: PropTypes.func.isRequired,
-  onDeactivate: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  isEditing: PropTypes.bool,
-  isActivating: PropTypes.bool,
-  isDeactivating: PropTypes.bool,
-  isDeleting: PropTypes.bool,
+  onView: PropTypes.func.isRequired,
+  onToggleEnabled: PropTypes.func,
+  isTogglingEnabled: PropTypes.bool,
 }
 
 export default memo(ScheduleCard)

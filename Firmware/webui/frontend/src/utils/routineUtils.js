@@ -3,6 +3,11 @@
  * @module utils/routineUtils
  */
 
+import {
+  ACTION_TYPE_COLORS,
+  isHdrAction,
+} from '@/components/scheduler/constants'
+
 /**
  * Trigger type labels for display
  */
@@ -17,14 +22,11 @@ export const TRIGGER_LABELS = {
 
 /**
  * Action type color classes for display dots
+ * Derived from shared constants for single source of truth
  */
-export const ACTION_COLORS = {
-  gpio: 'bg-orange-400',
-  camera: 'bg-blue-400',
-  hdr: 'bg-purple-400',
-  gps_sync: 'bg-green-400',
-  service: 'bg-gray-400',
-}
+export const ACTION_COLORS = Object.fromEntries(
+  Object.entries(ACTION_TYPE_COLORS).map(([key, val]) => [key, val.solid])
+)
 
 /**
  * Action name mappings for readable display
@@ -42,6 +44,21 @@ const ACTION_NAME_MAP = {
   take_photo: 'Take Photo',
   // GPS actions
   gps_sync: 'GPS Sync',
+}
+
+/**
+ * Short labels for action summary (used when combining multiple actions)
+ */
+const ACTION_SHORT_LABELS = {
+  attract_on: 'Attract',
+  attract_off: 'Attract',
+  flash_on: 'Flash',
+  flash_off: 'Flash',
+  uv_on: 'UV',
+  uv_off: 'UV',
+  takephoto: 'Photo',
+  take_photo: 'Photo',
+  gps_sync: 'GPS',
 }
 
 /**
@@ -73,14 +90,15 @@ export function getTriggerLabel(trigger) {
 
 /**
  * Get the action color class based on action type
+ * Uses shared constants for single source of truth
  * @param {Object} action - Action object
  * @returns {string} Tailwind color class
  */
 export function getActionColor(action) {
   if (!action?.action_type) return ACTION_COLORS.service
 
-  // Check for HDR-specific camera actions
-  if (action.action_type === 'camera' && action.action_name?.toLowerCase().includes('hdr')) {
+  // Check for HDR-specific camera actions using shared utility
+  if (isHdrAction(action.action_name)) {
     return ACTION_COLORS.hdr
   }
 
@@ -105,14 +123,27 @@ export function getPrimaryActionColor(actions) {
 export function summarizeActions(actions) {
   if (!actions?.length) return ''
 
-  const firstAction = actions[0]
-  const actionName = firstAction.action_name || firstAction.name || ''
+  // For single action, use full name
+  if (actions.length === 1) {
+    const actionName = actions[0].action_name || actions[0].name || ''
+    const readableName = ACTION_NAME_MAP[actionName.toLowerCase()] || actionName
+    return readableName.charAt(0).toUpperCase() + readableName.slice(1)
+  }
 
-  // Look up readable name
-  const readableName = ACTION_NAME_MAP[actionName.toLowerCase()] || actionName
+  // For multiple actions, use short labels and deduplicate
+  const shortLabels = actions.map(action => {
+    const actionName = action.action_name || action.name || ''
+    return ACTION_SHORT_LABELS[actionName.toLowerCase()] || actionName
+  })
 
-  // Capitalize first letter if needed
-  return readableName.charAt(0).toUpperCase() + readableName.slice(1)
+  // Remove duplicates while preserving order
+  const uniqueLabels = [...new Set(shortLabels)].filter(Boolean)
+
+  if (uniqueLabels.length === 0) return ''
+  if (uniqueLabels.length === 1) return uniqueLabels[0]
+
+  // Join with " + " for readability: "Flash + Photo"
+  return uniqueLabels.join(' + ')
 }
 
 /**
@@ -195,4 +226,23 @@ export function generateRoutineName(routine) {
   }
 
   return 'New Routine'
+}
+
+/**
+ * Generate a human-readable description for a schedule from its routines
+ * Reuses generateRoutineName for each routine and joins them.
+ * @param {Array} routines - Array of routine objects
+ * @returns {string} Generated description like "Take Photo every 15 min, Attract On at Dusk"
+ */
+export function generateScheduleDescription(routines) {
+  if (!routines?.length) return ''
+
+  // Reuse generateRoutineName for each routine
+  const descriptions = routines.map(r => generateRoutineName(r)).filter(Boolean)
+
+  // Join with commas, limiting to first 2-3 for brevity
+  if (descriptions.length <= 3) {
+    return descriptions.join(', ')
+  }
+  return `${descriptions.slice(0, 2).join(', ')} (+${descriptions.length - 2} more)`
 }

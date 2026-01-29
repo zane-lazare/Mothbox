@@ -12,13 +12,13 @@ import { useMemo } from 'react'
 import PropTypes from 'prop-types'
 import CalendarCell from './CalendarCell'
 import DayTimeline from '../DayTimeline'
+import WeekHourlyTimeline from '../WeekHourlyTimeline'
 import {
   getMonthGridDates,
-  getWeekDates,
   groupExecutionsByDate,
-  isToday,
   getDateKey,
 } from './calendarUtils'
+import { PANEL_STYLES } from '../constants'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -51,8 +51,10 @@ function CalendarGrid({
   executions = [],
   conflicts = [],
   moonPhases = {},
+  cycleInfo = null,
   onCellClick,
   onExecutionClick,
+  patternOffset = null,
 }) {
   // Group executions by date (memoized for performance)
   const executionsByDate = useMemo(
@@ -78,13 +80,13 @@ function CalendarGrid({
         </a>
         <div
           id="calendar-grid-content"
-          className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700"
+          className={`grid grid-cols-7 border-t border-l ${PANEL_STYLES.grid}`}
         >
           {/* Day-of-week headers */}
           {DAYS.map((day) => (
             <div
               key={day}
-              className="py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b border-gray-200 dark:border-gray-700"
+              className={`py-2 text-center text-sm font-medium text-gray-500 dark:text-gray-400 border-r border-b ${PANEL_STYLES.grid}`}
             >
               {day}
             </div>
@@ -105,7 +107,6 @@ function CalendarGrid({
               executions={executionsByDate[dateKey] || []}
               moonPhase={moonPhases[dateKey] || null}
               onClick={onCellClick}
-              onExecutionClick={onExecutionClick}
             />
           )
         })}
@@ -114,67 +115,62 @@ function CalendarGrid({
     )
   }
 
-  // Week View: 7 columns with date headers
+  // Week View: Cycle-aware hourly timeline (Issue #XXX)
   if (viewMode === 'week') {
-    const weekDates = getWeekDates(currentDate)
-
     return (
-      <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700">
-        {/* Day-of-week headers with dates */}
-        {weekDates.map((date) => {
-          const isTodayDate = isToday(date)
-
-          return (
-            <div
-              key={getDateKey(date)}
-              className="py-2 text-center border-r border-b border-gray-200 dark:border-gray-700"
-            >
-              <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                {DAYS[date.getDay()]}
-              </div>
-              <div
-                className={
-                  isTodayDate
-                    ? 'bg-blue-500 text-white rounded-full w-8 h-8 mx-auto flex items-center justify-center font-semibold'
-                    : 'text-lg dark:text-gray-200'
-                }
-              >
-                {date.getDate()}
-              </div>
-            </div>
-          )
-        })}
-
-        {/* Week cells */}
-        {weekDates.map((date) => {
-          const dateKey = getDateKey(date)
-
-          return (
-            <CalendarCell
-              key={dateKey}
-              date={date}
-              isCurrentMonth={true}
-              executions={executionsByDate[dateKey] || []}
-              moonPhase={moonPhases[dateKey] || null}
-              onClick={onCellClick}
-              onExecutionClick={onExecutionClick}
-            />
-          )
-        })}
-      </div>
+      <WeekHourlyTimeline
+        currentDate={currentDate}
+        executions={executions}
+        conflicts={conflicts}
+        moonPhases={moonPhases}
+        cycleInfo={cycleInfo}
+        onCellClick={onCellClick}
+        onExecutionClick={onExecutionClick}
+        patternOffset={patternOffset}
+      />
     )
   }
 
   // Day View: Uses DayTimeline for hourly display with conflict highlighting (Issue #326)
+  // Show only the first complete cycle of the schedule (from start_hour to end_hour)
   if (viewMode === 'day') {
     const currentDateKey = getDateKey(currentDate)
-    const dayExecutions = executionsByDate[currentDateKey] || []
+
+    // Extract first complete cycle from executions
+    // A cycle runs from start_hour to end_hour (may span midnight)
+    // cycleInfo hours are already in local time (backend converts based on tz param)
+    let firstCycleExecutions = executions
+    if (executions.length > 0 && cycleInfo?.end_hour != null) {
+      // Hours are already in local time from the API
+      const endHour = cycleInfo.end_hour
+
+      // Find the first execution's timestamp as cycle start reference
+      const sortedExecs = [...executions].sort(
+        (a, b) => new Date(a.start_time) - new Date(b.start_time)
+      )
+      const firstExecTime = new Date(sortedExecs[0].start_time)
+
+      // Calculate when the first cycle ends (next occurrence of endHour after first exec)
+      let cycleEnd = new Date(firstExecTime)
+      cycleEnd.setHours(endHour, 0, 0, 0)
+
+      // If cycle end is before first exec, it's the next day
+      if (cycleEnd <= firstExecTime) {
+        cycleEnd.setDate(cycleEnd.getDate() + 1)
+      }
+
+      // Filter to only executions within the first cycle
+      firstCycleExecutions = sortedExecs.filter(
+        (exec) => new Date(exec.start_time) < cycleEnd
+      )
+    }
 
     return (
       <DayTimeline
         date={currentDateKey}
-        executions={dayExecutions}
+        executions={firstCycleExecutions}
         conflicts={conflicts}
+        cycleInfo={cycleInfo}
         onExecutionClick={onExecutionClick}
       />
     )
@@ -211,8 +207,17 @@ CalendarGrid.propTypes = {
       illumination: PropTypes.number,
     })
   ),
+  /** Cycle info from preview API for day view cycle-aware rendering */
+  cycleInfo: PropTypes.shape({
+    start_hour: PropTypes.number,
+    end_hour: PropTypes.number,
+    spans_midnight: PropTypes.bool,
+    suggested_preview_days: PropTypes.number,
+  }),
   onCellClick: PropTypes.func.isRequired,
   onExecutionClick: PropTypes.func.isRequired,
+  /** Pattern offset for week view pattern mode (null for calendar mode) */
+  patternOffset: PropTypes.number,
 }
 
 export default CalendarGrid

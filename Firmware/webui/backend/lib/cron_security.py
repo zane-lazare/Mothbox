@@ -16,7 +16,7 @@ Example usage:
     >>> if valid:
     ...     command = get_validated_command("takephoto")
     ...     print(command)
-    /usr/bin/python3 /opt/mothbox/TakePhoto.py
+    systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/TakePhoto.py
 
     >>> # Get script key for a scheduler action
     >>> key = get_script_key_for_action("gpio", "attract_on")
@@ -30,6 +30,7 @@ Example usage:
 Issue #207 - Scheduler Phase 0: Extract Cron Security Library
 """
 
+import shlex
 from typing import Final, TypeAlias
 
 from mothbox_paths import MOTHBOX_HOME, get_script_path
@@ -168,19 +169,25 @@ def get_validated_command(script_key: str) -> str:
     Get validated command string for a script key.
 
     Constructs a cron-compatible command using the Python 3 interpreter
-    and the validated script path.
+    and the validated script path. Commands are wrapped with systemd-cat
+    to capture stdout/stderr in journald.
+
+    View logs with: journalctl -t mothbox
 
     Args:
         script_key: The script key to validate and build command for
 
     Returns:
-        Full command string (e.g., "/usr/bin/python3 /opt/mothbox/TakePhoto.py")
+        Full command string wrapped with systemd-cat
+        (e.g., "systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/TakePhoto.py")
 
     Raises:
         ValueError: If script_key is not in whitelist
     """
     script_path = get_validated_script_path(script_key)
-    return f"/usr/bin/python3 {script_path}"
+    # Defense in depth: shlex.quote protects against injection even though
+    # script_path is already validated via whitelist
+    return f"systemd-cat -t mothbox /usr/bin/python3 {shlex.quote(script_path)}"
 
 
 def get_script_key_for_action(action_type: str, action_name: str) -> str | None:

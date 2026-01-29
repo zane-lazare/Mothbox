@@ -347,28 +347,29 @@ class IntervalTrigger:
 
     Attributes:
         interval_minutes: Interval in minutes (1 to 10080, i.e., 1 min to 7 days)
-        time_window: When executions can occur
+        time_window: When executions can occur (None = all day)
         days_of_week: 0=Mon..6=Sun, None=every day
     """
 
     interval_minutes: int
-    time_window: TimeWindow
+    time_window: TimeWindow | None = None
     days_of_week: list[int] | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "interval_minutes": self.interval_minutes,
-            "time_window": self.time_window.to_dict(),
+            "time_window": self.time_window.to_dict() if self.time_window else None,
             "days_of_week": self.days_of_week,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "IntervalTrigger":
         """Create from dictionary."""
+        time_window_data = data.get("time_window")
         return cls(
             interval_minutes=data["interval_minutes"],
-            time_window=TimeWindow.from_dict(data["time_window"]),
+            time_window=TimeWindow.from_dict(time_window_data) if time_window_data else None,
             days_of_week=data.get("days_of_week"),
         )
 
@@ -469,9 +470,30 @@ class FixedTimeTrigger:
 
     @classmethod
     def from_dict(cls, data: dict) -> "FixedTimeTrigger":
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Accepts either:
+        - "time": "HH:MM" (single string, per API contract)
+        - "times": ["HH:MM", ...] (array from frontend, uses first value)
+        - "times": [{"id": "...", "value": "HH:MM"}, ...] (ID-keyed from frontend)
+        """
+        # Handle 'times' array from frontend (backward compatibility)
+        if "times" in data and data["times"]:
+            times_val = data["times"]
+            if isinstance(times_val, list) and len(times_val) > 0:
+                first_time = times_val[0]
+                # Handle both string and object formats
+                if isinstance(first_time, dict):
+                    time = first_time.get("value", "00:00")
+                else:
+                    time = first_time
+            else:
+                time = data.get("time", "00:00")
+        else:
+            time = data["time"]
+
         return cls(
-            time=data["time"],
+            time=time,
             days_of_week=data.get("days_of_week"),
         )
 
@@ -901,7 +923,7 @@ class Schedule:
     create_deployment: bool = False
 
     # State
-    enabled: bool = True
+    enabled: bool = False  # Default disabled - user must explicitly enable
     is_active: bool = False
 
     # Metadata
@@ -985,7 +1007,7 @@ class Schedule:
             use_seconds_timing=data.get("use_seconds_timing", False),
             deployment_id=data.get("deployment_id"),
             create_deployment=data.get("create_deployment", False),
-            enabled=data.get("enabled", True),
+            enabled=data.get("enabled", False),
             is_active=data.get("is_active", False),
             created_at=data.get("created_at", ""),
             modified_at=data.get("modified_at", ""),
@@ -1275,10 +1297,11 @@ def validate_interval_trigger(trigger: IntervalTrigger) -> tuple[bool, str | Non
             f"Interval exceeds {MAX_INTERVAL_MINUTES} minutes (7 days)",
         )
 
-    # Validate time_window
-    valid, error = validate_time_window(trigger.time_window)
-    if not valid:
-        return False, f"Time window: {error}"
+    # Validate time_window if present
+    if trigger.time_window is not None:
+        valid, error = validate_time_window(trigger.time_window)
+        if not valid:
+            return False, f"Time window: {error}"
 
     # Validate days_of_week
     valid, error = _validate_days_of_week(trigger.days_of_week)

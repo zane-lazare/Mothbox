@@ -2,7 +2,8 @@
  * Tests for ScheduleCard component (Issue #266)
  *
  * ScheduleCard displays a schedule with trigger information, active status,
- * and action buttons (Edit, Activate/Deactivate, Delete).
+ * and action buttons (View, Enable/Disable).
+ * Note: Delete functionality moved to ScheduleEditor (view-first paradigm).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -11,16 +12,12 @@ import userEvent from '@testing-library/user-event'
 import ScheduleCard from '../ScheduleCard'
 
 describe('ScheduleCard', () => {
-  const mockOnEdit = vi.fn()
-  const mockOnActivate = vi.fn()
-  const mockOnDeactivate = vi.fn()
-  const mockOnDelete = vi.fn()
+  const mockOnView = vi.fn()
+  const mockOnToggleEnabled = vi.fn()
 
   beforeEach(() => {
-    mockOnEdit.mockClear()
-    mockOnActivate.mockClear()
-    mockOnDeactivate.mockClear()
-    mockOnDelete.mockClear()
+    mockOnView.mockClear()
+    mockOnToggleEnabled.mockClear()
   })
 
   // ==========================================================================
@@ -54,10 +51,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.getByText('Summer Moth Survey')).toBeInTheDocument()
@@ -72,10 +66,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.getByText('Nightly captures')).toBeInTheDocument()
@@ -87,10 +78,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.getByText('Summer Moth Survey')).toBeInTheDocument()
@@ -102,10 +90,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={true}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.getByText('Active')).toBeInTheDocument()
@@ -117,10 +102,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.queryByText('Active')).not.toBeInTheDocument()
@@ -131,8 +113,11 @@ describe('ScheduleCard', () => {
   // Trigger Summaries (Schema 3.0 - uses routines)
   // ==========================================================================
 
-  describe('Trigger Summaries', () => {
-    it('renders interval trigger summary', () => {
+  describe('Auto-Generated Descriptions', () => {
+    // These tests verify the auto-generated descriptions from generateScheduleDescription()
+    // which combines action names with trigger descriptions (e.g., "Take Photo every 60 min")
+
+    it('renders interval trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Interval Schedule',
         routines: [
@@ -151,16 +136,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('Every 60 min, 21:00 - 05:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo every 60 min"
+      expect(screen.getByText('Take Photo every 60 min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary', () => {
+    it('renders solar trigger with action name and offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -179,16 +162,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('At sunset +30 min')).toBeInTheDocument()
+      // generateRoutineName returns: "Attract On at Sunset +30min"
+      expect(screen.getByText('Attract On at Sunset +30min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary with negative offset', () => {
+    it('renders solar trigger with negative offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -207,16 +188,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('At sunrise -15 min')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo at Sunrise -15min"
+      expect(screen.getByText('Take Photo at Sunrise -15min')).toBeInTheDocument()
     })
 
-    it('renders solar trigger summary with zero offset', () => {
+    it('renders solar trigger with zero offset', () => {
       const schedule = createSchedule({
         name: 'Solar Schedule',
         routines: [
@@ -235,16 +214,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('At sunset')).toBeInTheDocument()
+      // generateRoutineName returns: "Attract On at Sunset"
+      expect(screen.getByText('Attract On at Sunset')).toBeInTheDocument()
     })
 
-    it('renders moon phase trigger summary', () => {
+    it('renders moon phase trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Moon Phase Schedule',
         routines: [
@@ -263,16 +240,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('Full Moon, at 20:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo on full moon"
+      expect(screen.getByText('Take Photo on full moon')).toBeInTheDocument()
     })
 
-    it('renders fixed time trigger summary', () => {
+    it('renders fixed time trigger with action name', () => {
       const schedule = createSchedule({
         name: 'Fixed Time Schedule',
         routines: [
@@ -290,16 +265,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('Daily at 21:00')).toBeInTheDocument()
+      // generateRoutineName returns: "Take Photo at 21:00"
+      expect(screen.getByText('Take Photo at 21:00')).toBeInTheDocument()
     })
 
-    it('renders sensor trigger summary', () => {
+    it('renders sensor trigger (falls back to action only since sensor not in describeTrigger)', () => {
       const schedule = createSchedule({
         name: 'Sensor Schedule',
         routines: [
@@ -319,16 +292,14 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('When light < 100')).toBeInTheDocument()
+      // sensor is not in describeTrigger, so only action name is shown
+      expect(screen.getByText('Take Photo')).toBeInTheDocument()
     })
 
-    it('renders multi-routine summary with count indicator', () => {
+    it('renders multi-routine summary with comma-separated list', () => {
       const schedule = createSchedule({
         name: 'Overnight Moth Survey',
         routines: [
@@ -357,13 +328,13 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByText('At dusk (+2 more)')).toBeInTheDocument()
+      // 3 routines: all shown with comma separation
+      expect(
+        screen.getByText('Attract On at Dusk, Take Photo every 15 min, Attract Off at Dawn')
+      ).toBeInTheDocument()
     })
 
     it('handles schedule with no routines gracefully', () => {
@@ -375,10 +346,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       // Should render without crashing, empty summary
@@ -387,146 +355,264 @@ describe('ScheduleCard', () => {
   })
 
   // ==========================================================================
+  // Routine Indicators (Issue #266 - show all actions with pipe separators)
+  // ==========================================================================
+
+  describe('Routine Indicators', () => {
+    it('renders action dots for all actions in a single routine', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [
+              { action_type: 'gpio', action_name: 'flash_on' },
+              { action_type: 'camera', action_name: 'takephoto' },
+              { action_type: 'gpio', action_name: 'flash_off' },
+            ],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+        />
+      )
+      // Should have 3 action dots (2 orange for gpio, 1 blue for camera)
+      const orangeDots = container.querySelectorAll('.bg-orange-400')
+      const blueDots = container.querySelectorAll('.bg-blue-400')
+      expect(orangeDots).toHaveLength(2)
+      expect(blueDots).toHaveLength(1)
+    })
+
+    it('renders pipe separators between multiple routines with opening and closing pipes', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'solar', solar_event: 'sunset' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+          {
+            routine_id: 'r2',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+          {
+            routine_id: 'r3',
+            trigger: { trigger_type: 'solar', solar_event: 'sunrise' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_off' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+        />
+      )
+      // Should have 4 pipes: opening + 2 between routines + closing
+      const pipes = screen.getAllByText('|')
+      expect(pipes).toHaveLength(4)
+    })
+
+    it('renders opening and closing pipes for single routine', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'camera', action_name: 'takephoto' }],
+          },
+        ],
+      })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+        />
+      )
+      // Should have 2 pipes: opening + closing
+      const pipes = screen.getAllByText('|')
+      expect(pipes).toHaveLength(2)
+    })
+
+    it('shows correct colors for different action types', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [
+              { action_type: 'gpio', action_name: 'attract_on' },
+              { action_type: 'camera', action_name: 'takephoto' },
+              { action_type: 'gps_sync', action_name: 'gps_sync' },
+            ],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+        />
+      )
+      // Orange for GPIO, Blue for camera, Green for GPS
+      expect(container.querySelectorAll('.bg-orange-400')).toHaveLength(1)
+      expect(container.querySelectorAll('.bg-blue-400')).toHaveLength(1)
+      expect(container.querySelectorAll('.bg-green-400')).toHaveLength(1)
+    })
+
+    it('action dots have title attributes for tooltips', () => {
+      const schedule = createSchedule({
+        name: 'Test Schedule',
+        routines: [
+          {
+            routine_id: 'r1',
+            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
+          },
+        ],
+      })
+      const { container } = render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+        />
+      )
+      const actionDot = container.querySelector('.bg-orange-400')
+      expect(actionDot).toHaveAttribute('title', 'attract_on')
+    })
+  })
+
+  // ==========================================================================
   // Action Buttons
   // ==========================================================================
 
   describe('Action Buttons', () => {
-    it('renders Edit button', () => {
+    it('renders View button', () => {
       const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /view/i })).toBeInTheDocument()
     })
 
-    it('calls onEdit when Edit button is clicked', async () => {
+    it('calls onView when View button is clicked', async () => {
       const schedule = createSchedule()
       const user = userEvent.setup()
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      const editButton = screen.getByRole('button', { name: /edit/i })
-      await user.click(editButton)
-      expect(mockOnEdit).toHaveBeenCalledTimes(1)
-      expect(mockOnEdit).toHaveBeenCalledWith(schedule)
+      const viewButton = screen.getByRole('button', { name: /view/i })
+      await user.click(viewButton)
+      expect(mockOnView).toHaveBeenCalledTimes(1)
+      expect(mockOnView).toHaveBeenCalledWith(schedule)
     })
 
-    it('renders Activate button when schedule is not active', () => {
+    it('does not render Enable/Disable when no onToggleEnabled provided', () => {
       const schedule = createSchedule()
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
-      expect(screen.getByRole('button', { name: /activate/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /deactivate/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /enable/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /disable/i })).not.toBeInTheDocument()
     })
 
-    it('renders Deactivate button when schedule is active', () => {
-      const schedule = createSchedule()
+    it('renders Disable button when schedule is enabled and not active', () => {
+      const schedule = createSchedule({ enabled: true })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
+        />
+      )
+      expect(screen.getByRole('button', { name: /disable/i })).toBeInTheDocument()
+    })
+
+    it('renders Enable button when schedule is disabled', () => {
+      const schedule = createSchedule({ enabled: false })
+      render(
+        <ScheduleCard
+          schedule={schedule}
+          isActive={false}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
+        />
+      )
+      expect(screen.getByRole('button', { name: /enable/i })).toBeInTheDocument()
+    })
+
+    it('does not render Enable/Disable toggle when schedule is active', () => {
+      const schedule = createSchedule({ enabled: true })
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={true}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
         />
       )
-      expect(screen.getByRole('button', { name: /deactivate/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /^activate$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /enable/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /disable/i })).not.toBeInTheDocument()
     })
 
-    it('calls onActivate when Activate button is clicked', async () => {
-      const schedule = createSchedule()
+    it('calls onToggleEnabled when Disable button is clicked', async () => {
+      const schedule = createSchedule({ enabled: true })
       const user = userEvent.setup()
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
         />
       )
-      const activateButton = screen.getByRole('button', { name: /activate/i })
-      await user.click(activateButton)
-      expect(mockOnActivate).toHaveBeenCalledTimes(1)
-      expect(mockOnActivate).toHaveBeenCalledWith(schedule)
+      const disableButton = screen.getByRole('button', { name: /disable/i })
+      await user.click(disableButton)
+      expect(mockOnToggleEnabled).toHaveBeenCalledTimes(1)
+      expect(mockOnToggleEnabled).toHaveBeenCalledWith(schedule)
     })
 
-    it('calls onDeactivate when Deactivate button is clicked', async () => {
-      const schedule = createSchedule()
-      const user = userEvent.setup()
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={true}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-        />
-      )
-      const deactivateButton = screen.getByRole('button', { name: /deactivate/i })
-      await user.click(deactivateButton)
-      expect(mockOnDeactivate).toHaveBeenCalledTimes(1)
-      expect(mockOnDeactivate).toHaveBeenCalledWith(schedule)
-    })
-
-    it('renders Delete button', () => {
-      const schedule = createSchedule()
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-        />
-      )
-      expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
-    })
-
-    it('calls onDelete when Delete button is clicked', async () => {
-      const schedule = createSchedule()
+    it('calls onToggleEnabled when Enable button is clicked', async () => {
+      const schedule = createSchedule({ enabled: false })
       const user = userEvent.setup()
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
         />
       )
-      const deleteButton = screen.getByRole('button', { name: /delete/i })
-      await user.click(deleteButton)
-      expect(mockOnDelete).toHaveBeenCalledTimes(1)
-      expect(mockOnDelete).toHaveBeenCalledWith(schedule)
+      const enableButton = screen.getByRole('button', { name: /enable/i })
+      await user.click(enableButton)
+      expect(mockOnToggleEnabled).toHaveBeenCalledTimes(1)
+      expect(mockOnToggleEnabled).toHaveBeenCalledWith(schedule)
     })
   })
 
@@ -535,96 +621,38 @@ describe('ScheduleCard', () => {
   // ==========================================================================
 
   describe('Loading States', () => {
-    it('disables and shows "Editing..." on Edit button when isEditing is true', () => {
-      const schedule = createSchedule()
+    it('disables buttons when isTogglingEnabled is true', () => {
+      const schedule = createSchedule({ enabled: true })
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-          isEditing={true}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
+          isTogglingEnabled={true}
         />
       )
-      const editButton = screen.getByRole('button', { name: /editing/i })
-      expect(editButton).toBeDisabled()
-      expect(editButton).toHaveTextContent('Editing...')
+      const viewButton = screen.getByRole('button', { name: /view/i })
+      const disableButton = screen.getByRole('button', { name: /disabling/i })
+      expect(viewButton).toBeDisabled()
+      expect(disableButton).toBeDisabled()
+      expect(disableButton).toHaveTextContent('Disabling...')
     })
 
-    it('disables and shows "Activating..." on Activate button when isActivating is true', () => {
-      const schedule = createSchedule()
+    it('shows "Enabling..." when isTogglingEnabled and schedule is disabled', () => {
+      const schedule = createSchedule({ enabled: false })
       render(
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-          isActivating={true}
+          onView={mockOnView}
+          onToggleEnabled={mockOnToggleEnabled}
+          isTogglingEnabled={true}
         />
       )
-      const activateButton = screen.getByRole('button', { name: /activating/i })
-      expect(activateButton).toBeDisabled()
-      expect(activateButton).toHaveTextContent('Activating...')
-    })
-
-    it('disables and shows "Deactivating..." on Deactivate button when isDeactivating is true', () => {
-      const schedule = createSchedule()
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={true}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-          isDeactivating={true}
-        />
-      )
-      const deactivateButton = screen.getByRole('button', { name: /deactivating/i })
-      expect(deactivateButton).toBeDisabled()
-      expect(deactivateButton).toHaveTextContent('Deactivating...')
-    })
-
-    it('disables and shows "Deleting..." on Delete button when isDeleting is true', () => {
-      const schedule = createSchedule()
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-          isDeleting={true}
-        />
-      )
-      const deleteButton = screen.getByRole('button', { name: /deleting/i })
-      expect(deleteButton).toBeDisabled()
-      expect(deleteButton).toHaveTextContent('Deleting...')
-    })
-
-    it('disables all buttons when multiple loading states are true', () => {
-      const schedule = createSchedule()
-      render(
-        <ScheduleCard
-          schedule={schedule}
-          isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
-          isActivating={true}
-          isDeleting={true}
-        />
-      )
-      const buttons = screen.getAllByRole('button')
-      buttons.forEach((button) => {
-        expect(button).toBeDisabled()
-      })
+      const enableButton = screen.getByRole('button', { name: /enabling/i })
+      expect(enableButton).toBeDisabled()
+      expect(enableButton).toHaveTextContent('Enabling...')
     })
   })
 
@@ -639,10 +667,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       expect(screen.getByRole('article')).toBeInTheDocument()
@@ -654,10 +679,7 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       const article = screen.getByRole('article')
@@ -680,15 +702,13 @@ describe('ScheduleCard', () => {
         <ScheduleCard
           schedule={schedule}
           isActive={false}
-          onEdit={mockOnEdit}
-          onActivate={mockOnActivate}
-          onDeactivate={mockOnDeactivate}
-          onDelete={mockOnDelete}
+          onView={mockOnView}
         />
       )
       const article = screen.getByRole('article')
-      expect(article).toHaveClass('dark:bg-gray-800')
-      expect(article).toHaveClass('dark:border-gray-700')
+      // CARD_STYLES.base uses dark:border-gray-800 and border-gray-200
+      expect(article).toHaveClass('dark:border-gray-800')
+      expect(article).toHaveClass('border-gray-200')
     })
   })
 })

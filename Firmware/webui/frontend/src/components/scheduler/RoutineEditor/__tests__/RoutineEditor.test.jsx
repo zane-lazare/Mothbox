@@ -5,11 +5,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import RoutineEditor from '../RoutineEditor'
 import { ROUTINE_LIMITS } from '../constants'
 
-// Mock the hooks
+// Extended timeout for async operations under heavy test load
+const ASYNC_TIMEOUT = { timeout: 3000 }
+
+// Create hoisted mocks that can be controlled per-test
+const mockMutateAsync = vi.hoisted(() => vi.fn())
+const mockIsPending = vi.hoisted(() => ({ value: false }))
+
+// Mock the hooks using the hoisted mocks
 vi.mock('@/hooks/useRoutines', () => ({
   useValidateRoutine: () => ({
-    mutateAsync: vi.fn().mockResolvedValue({ valid: true }),
-    isPending: false,
+    mutateAsync: mockMutateAsync,
+    isPending: mockIsPending.value,
     error: null
   }),
   useRoutineDuration: () => 30
@@ -60,6 +67,9 @@ describe('RoutineEditor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default to successful validation
+    mockMutateAsync.mockResolvedValue({ valid: true })
+    mockIsPending.value = false
   })
 
   describe('Create Mode', () => {
@@ -380,14 +390,7 @@ describe('RoutineEditor', () => {
 
   describe('Save Functionality', () => {
     it('calls useValidateRoutine before saving', async () => {
-      const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: false,
-        error: null
-      })
-
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -401,18 +404,11 @@ describe('RoutineEditor', () => {
 
       await waitFor(() => {
         expect(mockMutateAsync).toHaveBeenCalled()
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('calls onSave with routine data on successful validation', async () => {
-      const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: false,
-        error: null
-      })
-
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -436,22 +432,15 @@ describe('RoutineEditor', () => {
             tags: []
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('generates routine_id for new routines', async () => {
-      const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: false,
-        error: null
-      })
-
       // Mock crypto.randomUUID
       const mockUUID = 'test-uuid-123'
       const randomUUIDSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue(mockUUID)
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -469,26 +458,19 @@ describe('RoutineEditor', () => {
             routine_id: mockUUID
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
 
       randomUUIDSpy.mockRestore()
     })
 
     it('preserves routine_id for existing routines', async () => {
-      const mockMutateAsync = vi.fn().mockResolvedValue({ valid: true })
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: false,
-        error: null
-      })
-
       const existingRoutine = {
         routine_id: 'existing-123',
         name: 'Existing',
         actions: []
       }
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor
           routine={existingRoutine}
@@ -507,21 +489,17 @@ describe('RoutineEditor', () => {
             routine_id: 'existing-123'
           })
         )
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('shows validation error message on save failure', async () => {
-      const mockMutateAsync = vi.fn().mockResolvedValue({
+      // Configure mock to return validation failure
+      mockMutateAsync.mockResolvedValue({
         valid: false,
         errors: ['Invalid action offset']
       })
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: false,
-        error: null
-      })
 
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,
         { wrapper: createWrapper() }
@@ -536,16 +514,13 @@ describe('RoutineEditor', () => {
       await waitFor(() => {
         expect(screen.getByText(/invalid action offset/i)).toBeInTheDocument()
         expect(mockOnSave).not.toHaveBeenCalled()
-      })
+      }, ASYNC_TIMEOUT)
     })
 
     it('disables save button while validation is pending', async () => {
-      const mockMutateAsync = vi.fn(() => new Promise(() => {})) // Never resolves
-      vi.mocked(await import('@/hooks/useRoutines')).useValidateRoutine = () => ({
-        mutateAsync: mockMutateAsync,
-        isPending: true,
-        error: null
-      })
+      // Configure isPending to be true for this test
+      mockIsPending.value = true
+      mockMutateAsync.mockImplementation(() => new Promise(() => {})) // Never resolves
 
       render(
         <RoutineEditor onSave={mockOnSave} onCancel={mockOnCancel} />,

@@ -20,8 +20,9 @@ import CalendarHeader from './CalendarHeader'
 import CalendarGrid from './CalendarGrid'
 import ExecutionDetailModal from './ExecutionDetailModal'
 import LoadingSpinner from '../../LoadingSpinner'
-import { useSchedules, useSchedulePreview } from '../../../hooks/useSchedules'
+import { useSchedules, useSchedulePreview, useActiveSchedule } from '../../../hooks/useSchedules'
 import { getDateKey } from './calendarUtils'
+import { PANEL_STYLES } from '../constants'
 
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
@@ -34,11 +35,12 @@ const VALID_VIEW_MODES = ['month', 'week', 'day']
 /**
  * Number of days to fetch for each view mode.
  * Month: 42 days covers full 6-week grid (7 days × 6 weeks)
+ * Day: 2 days to capture overnight schedules that span midnight
  */
 const PREVIEW_DAYS = {
   month: 42,
   week: 7,
-  day: 1,
+  day: 2,
 }
 
 /**
@@ -59,15 +61,41 @@ export function CalendarView() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(null)
   const [selectedExecution, setSelectedExecution] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  // Pattern offset for week view (0, 7, 14, etc.) - tracks which 7-day window we're viewing
+  const [patternOffset, setPatternOffset] = useState(0)
 
-  // Fetch schedules list
-  const { data: schedulesData, isLoading: schedulesLoading } = useSchedules()
+  // Fetch schedules list (include built-in schedules for dropdown)
+  const { data: schedulesData, isLoading: schedulesLoading } = useSchedules({ include_builtin: true })
   const schedules = schedulesData?.schedules || []
+
+  // Fetch active schedule for auto-selection
+  const { data: activeData } = useActiveSchedule()
+
+  // Auto-select schedule on mount: prefer active, fall back to enabled
+  useEffect(() => {
+    // Don't override if user has already selected a schedule
+    if (selectedScheduleId) return
+
+    // Prefer active schedule
+    if (activeData?.active_schedule?.schedule_id) {
+      setSelectedScheduleId(activeData.active_schedule.schedule_id)
+      return
+    }
+
+    // Fall back to first enabled schedule
+    const enabledSchedule = schedules.find((s) => s.enabled)
+    if (enabledSchedule?.schedule_id) {
+      setSelectedScheduleId(enabledSchedule.schedule_id)
+    }
+  }, [activeData?.active_schedule?.schedule_id, schedules, selectedScheduleId])
 
   // Calculate preview days based on view mode
   const previewDays = useMemo(() => {
     return PREVIEW_DAYS[viewMode] || PREVIEW_DAYS.month
   }, [viewMode])
+
+  // Get browser timezone for cycle detection
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
   // Fetch schedule preview (only when schedule is selected)
   const {
@@ -78,7 +106,7 @@ export function CalendarView() {
     refetch: refetchPreview,
   } = useSchedulePreview(
     selectedScheduleId,
-    { days: previewDays },
+    { days: previewDays, tz: browserTimezone },
     { enabled: !!selectedScheduleId }
   )
 
@@ -87,6 +115,16 @@ export function CalendarView() {
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode)
   }, [viewMode])
 
+  // Compute max pattern days from cycle info (for week view navigation bounds)
+  const maxPatternDays = useMemo(() => {
+    return previewData?.cycle_info?.suggested_preview_days ?? 7
+  }, [previewData?.cycle_info])
+
+  // Reset pattern offset when schedule changes
+  useEffect(() => {
+    setPatternOffset(0)
+  }, [selectedScheduleId])
+
   // Handlers
   const handleViewModeChange = useCallback((mode) => {
     setViewMode(mode)
@@ -94,6 +132,18 @@ export function CalendarView() {
 
   const handleNavigate = useCallback(
     (direction) => {
+      // Week view uses pattern offset instead of date navigation
+      if (viewMode === 'week') {
+        if (direction === 'prev') {
+          setPatternOffset(prev => Math.max(0, prev - 7))
+        } else if (direction === 'next') {
+          setPatternOffset(prev => Math.min(maxPatternDays - 7, prev + 7))
+        }
+        // 'today' is not applicable in week view (no Today button shown)
+        return
+      }
+
+      // Month and day views use date navigation
       setCurrentDate((prev) => {
         const newDate = new Date(prev)
         switch (direction) {
@@ -108,8 +158,6 @@ export function CalendarView() {
               // Clamp to last day of month if original day exceeds it
               const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
               newDate.setDate(Math.min(originalDay, lastDayOfMonth))
-            } else if (viewMode === 'week') {
-              newDate.setDate(newDate.getDate() - 7)
             } else {
               newDate.setDate(newDate.getDate() - 1)
             }
@@ -123,8 +171,6 @@ export function CalendarView() {
               // Clamp to last day of month if original day exceeds it
               const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
               newDate.setDate(Math.min(originalDay, lastDayOfMonth))
-            } else if (viewMode === 'week') {
-              newDate.setDate(newDate.getDate() + 7)
             } else {
               newDate.setDate(newDate.getDate() + 1)
             }
@@ -134,7 +180,7 @@ export function CalendarView() {
         }
       })
     },
-    [viewMode]
+    [viewMode, maxPatternDays]
   )
 
   const handleScheduleSelect = useCallback((id) => {
@@ -184,7 +230,7 @@ export function CalendarView() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow" aria-hidden={isModalOpen}>
+    <div className={PANEL_STYLES.container} aria-hidden={isModalOpen}>
       <CalendarHeader
         viewMode={viewMode}
         currentDate={currentDate}
@@ -193,6 +239,8 @@ export function CalendarView() {
         schedules={schedules}
         selectedScheduleId={selectedScheduleId}
         onScheduleSelect={handleScheduleSelect}
+        patternOffset={patternOffset}
+        maxPatternDays={maxPatternDays}
       />
 
       {!selectedScheduleId && (
@@ -239,8 +287,10 @@ export function CalendarView() {
           executions={previewData?.executions || []}
           conflicts={previewData?.conflicts || []}
           moonPhases={previewData?.moon_phases || {}}
+          cycleInfo={previewData?.cycle_info || null}
           onCellClick={handleCellClick}
           onExecutionClick={handleExecutionClick}
+          patternOffset={patternOffset}
         />
       )}
 

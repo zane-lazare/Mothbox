@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types'
-import { INTERVAL_UNITS } from './constants'
+import { INTERVAL_UNITS, TRIGGER_FORM_BORDER } from './constants'
+import TimeWindowInput from '../ScheduleEditor/TimeWindowInput'
 
 // Maximum interval values
 const MAX_MINUTES = 1440 // 24 hours
@@ -24,12 +25,6 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
   const displayValue = displayUnit === 'hours'
     ? intervalMinutes / 60
     : intervalMinutes
-
-  // Check if time window spans overnight (start > end)
-  const isOvernightWindow = timeWindow &&
-    timeWindow.start_time &&
-    timeWindow.end_time &&
-    timeWindow.start_time > timeWindow.end_time
 
   /**
    * Handle value change with min/max validation
@@ -78,6 +73,8 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
         time_window: {
           start_time: '18:00',
           end_time: '06:00',
+          start_offset_minutes: 0,
+          end_offset_minutes: 0,
         },
       })
     } else {
@@ -89,36 +86,20 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
   }
 
   /**
-   * Handle time window start change
+   * Handle time window change from TimeWindowInput component
    */
-  const handleStartTimeChange = (e) => {
+  const handleTimeWindowChange = (newTimeWindow) => {
     onChange({
       ...trigger,
-      time_window: {
-        ...timeWindow,
-        start_time: e.target.value,
-      },
-    })
-  }
-
-  /**
-   * Handle time window end change
-   */
-  const handleEndTimeChange = (e) => {
-    onChange({
-      ...trigger,
-      time_window: {
-        ...timeWindow,
-        end_time: e.target.value,
-      },
+      time_window: newTimeWindow,
     })
   }
 
   return (
-    <div className="border border-gray-800 rounded-lg p-4" data-testid="interval-trigger-form">
+    <div className={TRIGGER_FORM_BORDER} data-testid="interval-trigger-form">
       <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-white">Interval</span>
-        <span className="text-xs text-gray-600">repeat at fixed intervals</span>
+        <span className="text-sm text-gray-900 dark:text-white">Interval</span>
+        <span className="text-xs text-gray-500 dark:text-gray-600">repeat at fixed intervals</span>
       </div>
 
       <div className="space-y-4">
@@ -132,18 +113,18 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
             value={displayValue}
             onChange={handleValueChange}
             disabled={disabled}
-            className={`w-16 bg-transparent border rounded px-2 py-1 text-white text-center
+            className={`w-16 bg-transparent border rounded px-2 py-1 text-gray-900 dark:text-white text-center
                        focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-gray-600'}`}
-            data-testid="interval-value"
+                       ${error ? 'border-red-500 focus:border-red-400' : 'border-gray-300 dark:border-gray-800 focus:border-gray-500 dark:focus:border-gray-600'}`}
+            data-testid="interval-minutes"
           />
           <select
             value={displayUnit}
             onChange={handleUnitChange}
             disabled={disabled}
-            className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                       focus:border-gray-600 focus:outline-none
+            className="bg-transparent border border-gray-300 dark:border-gray-800 rounded px-2 py-1 text-gray-900 dark:text-white
+                       focus:border-gray-500 dark:focus:border-gray-600 focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="interval-unit"
           >
@@ -181,36 +162,13 @@ function IntervalTriggerForm({ trigger, onChange, disabled = false, error = null
 
         {/* Time Window Inputs */}
         {timeWindow && (
-          <div className="space-y-2 pl-6">
-            <div className="flex items-center gap-3 text-sm">
-              <input
-                type="time"
-                value={timeWindow.start_time || '18:00'}
-                onChange={handleStartTimeChange}
-                disabled={disabled}
-                className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                           focus:border-gray-600 focus:outline-none
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="time-window-start"
-              />
-              <span className="text-gray-600">to</span>
-              <input
-                type="time"
-                value={timeWindow.end_time || '06:00'}
-                onChange={handleEndTimeChange}
-                disabled={disabled}
-                className="bg-transparent border border-gray-800 rounded px-2 py-1 text-white
-                           focus:border-gray-600 focus:outline-none
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="time-window-end"
-              />
-            </div>
-            {/* Overnight window indicator */}
-            {isOvernightWindow && (
-              <div className="text-xs text-gray-500" data-testid="overnight-indicator">
-                Overnight window active (spans midnight)
-              </div>
-            )}
+          <div className="pl-6" data-testid="time-window-section">
+            <TimeWindowInput
+              value={timeWindow}
+              onChange={handleTimeWindowChange}
+              disabled={disabled}
+              showSolarEvents={true}
+            />
           </div>
         )}
       </div>
@@ -225,6 +183,8 @@ IntervalTriggerForm.propTypes = {
     time_window: PropTypes.shape({
       start_time: PropTypes.string,
       end_time: PropTypes.string,
+      start_offset_minutes: PropTypes.number,
+      end_offset_minutes: PropTypes.number,
     }),
   }),
   onChange: PropTypes.func.isRequired,

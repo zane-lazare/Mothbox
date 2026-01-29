@@ -23,6 +23,10 @@ coverage/
 *.backup.*
 test_debug.py
 Firmware/photos/
+Firmware/webui/frontend/e2e/temp-*.spec.js
+
+# Runtime state files
+Firmware/active_state.json.lock
 
 # Runtime logs
 Firmware/logs/

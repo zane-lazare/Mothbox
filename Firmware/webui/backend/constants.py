@@ -149,3 +149,8 @@ EXPORT_JOB_MAX_HISTORY: Final[int] = 50  # Maximum completed jobs to keep
 # SCHEDULER SETTINGS (Issue #218)
 # =============================================================================
 MAX_BUILTIN_SCHEDULE_FILES: Final[int] = 20  # Safety limit for built-in schedules
+
+# Cron expansion limits
+CRON_PREVIEW_DAYS_AHEAD: Final[int] = 60  # Default days to expand cron entries
+MAX_CRON_ENTRIES: Final[int] = 10000  # System crontab line limit
+CRON_ENTRY_WARNING_THRESHOLD: Final[int] = 7500  # 75% of max - warn user

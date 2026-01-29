@@ -89,6 +89,8 @@ def mock_scheduler_service():
     """
     module = _get_scheduler_ui_module()
     mock_service = MagicMock()
+    # Default return value for entry count warning (no warning by default)
+    mock_service.get_entry_count_warning.return_value = None
     module._scheduler_service = mock_service
     yield mock_service
 
@@ -107,7 +109,18 @@ def schedule_factory():
     def _create_schedule(**overrides):
         # Handle routine_count specially
         routine_count = overrides.pop("routine_count", 1)
-        routines = [MagicMock() for _ in range(routine_count)]
+
+        # Create mock routines with working to_dict() methods
+        routines = []
+        for i in range(routine_count):
+            routine = MagicMock()
+            routine.to_dict.return_value = {
+                "routine_id": f"routine-{i}",
+                "name": f"Test Routine {i}",
+                "trigger": {"trigger_type": "interval", "interval_minutes": 15},
+                "actions": [{"action_type": "gpio", "action_name": "attract_on", "offset_minutes": 0}],
+            }
+            routines.append(routine)
 
         defaults = {
             "schedule_id": "test-schedule",
@@ -129,7 +142,7 @@ def schedule_factory():
         schedule.to_dict.return_value = {
             "schedule_id": defaults["schedule_id"],
             "name": defaults["name"],
-            "routines": [{"name": "Test Routine"}] * routine_count,
+            "routines": [r.to_dict() for r in routines],
         }
         return schedule
 
@@ -438,25 +451,43 @@ class TestGetActiveScheduleEndpoint:
     def test_get_active_schedule_none(self, client, mock_scheduler_service):
         """Test when no schedule is active."""
         mock_scheduler_service.get_active_schedule.return_value = None
+        mock_scheduler_service.get_active_coordinates_source.return_value = None
+        mock_scheduler_service.get_active_coordinates.return_value = None
+        mock_scheduler_service.get_active_timezone_name.return_value = None
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert data["active"] is False
-        assert data["schedule"] is None
+        assert data["active_schedule"] is None
+        assert data["coordinates_source"] is None
+        assert data["latitude"] is None
+        assert data["longitude"] is None
+        assert data["timezone_name"] is None
 
     def test_get_active_schedule_exists(self, client, mock_scheduler_service, sample_schedule):
         """Test when a schedule is active."""
+        sample_schedule.to_dict.return_value = {
+            "schedule_id": "test-schedule",
+            "name": "Test Schedule",
+            "enabled": True,
+            "is_active": True,
+        }
         mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_active_coordinates_source.return_value = "gps"
+        mock_scheduler_service.get_active_coordinates.return_value = (-36.848, 174.763)
+        mock_scheduler_service.get_active_timezone_name.return_value = None
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert data["active"] is True
-        assert data["schedule"] is not None
-        assert data["schedule"]["schedule_id"] == "test-schedule"
+        assert data["active_schedule"] is not None
+        assert data["active_schedule"]["schedule_id"] == "test-schedule"
+        assert data["coordinates_source"] == "gps"
+        assert data["latitude"] == -36.848
+        assert data["longitude"] == 174.763
+        assert data["timezone_name"] is None
 
     def test_get_active_schedule_full_object(self, client, mock_scheduler_service, sample_schedule):
         """Test that full schedule object is returned."""
@@ -468,13 +499,18 @@ class TestGetActiveScheduleEndpoint:
             "is_active": True,
         }
         mock_scheduler_service.get_active_schedule.return_value = sample_schedule
+        mock_scheduler_service.get_active_coordinates_source.return_value = "timezone"
+        mock_scheduler_service.get_active_coordinates.return_value = (-41.286, 174.776)
+        mock_scheduler_service.get_active_timezone_name.return_value = "Pacific/Auckland"
 
         response = client.get("/api/scheduler/ui/schedules/active")
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "routines" in data["schedule"]
-        assert "enabled" in data["schedule"]
+        assert "routines" in data["active_schedule"]
+        assert "enabled" in data["active_schedule"]
+        assert data["coordinates_source"] == "timezone"
+        assert data["timezone_name"] == "Pacific/Auckland"
 
     def test_get_active_schedule_error(self, client, mock_scheduler_service):
         """Test error handling."""
@@ -1197,6 +1233,54 @@ class TestActivateScheduleEndpoint:
 
         assert response.status_code == 200
 
+    def test_activate_rejects_invalid_gps_latitude_from_controls(
+        self, client, mock_scheduler_service, sample_schedule
+    ):
+        """Test activation rejects invalid GPS latitude from controls.txt (Issue #385)."""
+        module = _get_scheduler_ui_module()
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        # Mock get_control_values to return invalid latitude (out of range)
+        with patch.object(
+            module,
+            "get_control_values",
+            return_value={"lat": "91.0", "lon": "0.0"},  # Invalid: lat > 90
+        ):
+            response = client.post(
+                "/api/scheduler/ui/schedules/test-schedule/activate",
+                json={},  # No explicit coordinates - will use GPS fallback
+                content_type="application/json",
+            )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid coordinates" in data["error"]
+
+    def test_activate_rejects_invalid_gps_longitude_from_controls(
+        self, client, mock_scheduler_service, sample_schedule
+    ):
+        """Test activation rejects invalid GPS longitude from controls.txt (Issue #385)."""
+        module = _get_scheduler_ui_module()
+
+        mock_scheduler_service.get_schedule.return_value = sample_schedule
+
+        # Mock get_control_values to return invalid longitude (out of range)
+        with patch.object(
+            module,
+            "get_control_values",
+            return_value={"lat": "45.0", "lon": "181.0"},  # Invalid: lon > 180
+        ):
+            response = client.post(
+                "/api/scheduler/ui/schedules/test-schedule/activate",
+                json={},  # No explicit coordinates - will use GPS fallback
+                content_type="application/json",
+            )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "Invalid coordinates" in data["error"]
+
 
 # ============================================================================
 # Deactivate Schedule Endpoint Tests (Issue #218)
@@ -1429,3 +1513,147 @@ class TestCSRFProtection:
         response = client.delete("/api/scheduler/ui/schedules/test-id")
 
         assert response.status_code in (400, 403)
+
+
+# ============================================================================
+# Test Next Actions Endpoint (Issue #331)
+# ============================================================================
+
+
+class TestNextActionsEndpoint:
+    """Tests for GET /api/scheduler/ui/active/next-actions endpoint."""
+
+    @pytest.fixture
+    def mock_scheduler_with_entries(self):
+        """Create mock scheduler service with active entries."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+
+        now = datetime.now()
+        entries = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),
+                action_name="Attract On",
+                action_type="attract_on",
+                routine_id="routine-1",
+            ),
+            CronEntry(
+                expression="5 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1, minutes=5),
+                action_name="Take Photo",
+                action_type="takephoto",
+                routine_id="routine-1",
+            ),
+        ]
+
+        mock_service = MagicMock()
+        mock_service.get_active_schedule_id.return_value = "test-schedule"
+        mock_service.get_active_coordinates_source.return_value = "gps"
+        mock_service.get_active_entries.return_value = entries
+        mock_service.get_next_actions.return_value = entries
+
+        return mock_service
+
+    def test_next_actions_success(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions returns next actions."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "actions" in data
+        assert len(data["actions"]) == 2
+        assert data["actions"][0]["action_name"] == "Attract On"
+        assert data["actions"][1]["action_type"] == "takephoto"
+        assert data["schedule_id"] == "test-schedule"
+        assert data["coordinates_source"] == "gps"
+
+    def test_next_actions_with_limit(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions respects limit parameter."""
+        from datetime import datetime, timedelta
+        from webui.backend.lib.cron_bridge import CronEntry
+
+        now = datetime.now()
+        single_entry = [
+            CronEntry(
+                expression="0 21 * * *",
+                command="cmd",
+                execution_time=now + timedelta(hours=1),
+                action_name="First",
+                action_type="first",
+                routine_id="routine-1",
+            ),
+        ]
+        mock_scheduler_with_entries.get_next_actions.return_value = single_entry
+
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=1")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # Verify limit was passed to service
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=1)
+
+    def test_next_actions_empty_when_no_active(self, client):
+        """GET /active/next-actions returns empty when no active schedule."""
+        mock_service = MagicMock()
+        mock_service.get_active_schedule_id.return_value = None
+        mock_service.get_active_coordinates_source.return_value = None
+        mock_service.get_active_entries.return_value = []
+        mock_service.get_next_actions.return_value = []
+
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_service
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["actions"] == []
+        assert data["schedule_id"] is None
+        assert data["total_stored"] == 0
+
+    def test_next_actions_invalid_limit(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions with invalid limit returns 400."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=invalid")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_next_actions_limit_clamped(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions clamps limit to valid range."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        # Test limit > 100 is clamped
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=200")
+        assert response.status_code == 200
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=100)
+
+        # Test limit < 1 is clamped
+        response = client.get("/api/scheduler/ui/active/next-actions?limit=0")
+        assert response.status_code == 200
+        mock_scheduler_with_entries.get_next_actions.assert_called_with(limit=1)
+
+    def test_next_actions_includes_total_stored(self, client, mock_scheduler_with_entries):
+        """GET /active/next-actions includes total_stored count."""
+        module = _get_scheduler_ui_module()
+        module._scheduler_service = mock_scheduler_with_entries
+
+        response = client.get("/api/scheduler/ui/active/next-actions")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "total_stored" in data
+        assert data["total_stored"] == 2  # 2 entries in mock

@@ -22,8 +22,24 @@ describe('DayTimeline', () => {
       expect(screen.getByTestId('day-timeline')).toBeInTheDocument()
     })
 
-    it('renders 24 hour rows', () => {
+    it('renders hour rows for hours with executions (cycle-aware)', () => {
       render(<DayTimeline date={mockDate} executions={mockExecutions} />)
+      // Hours 18 and 19 have executions, so they should be visible
+      expect(screen.getByTestId('hour-row-18')).toBeInTheDocument()
+      expect(screen.getByTestId('hour-row-19')).toBeInTheDocument()
+    })
+
+    it('renders all 24 hour rows when cycleInfo spans all hours', () => {
+      // Provide cycleInfo that spans all 24 hours (no collapsing needed)
+      const fullDayCycleInfo = { start_hour: 0, end_hour: 23, spans_midnight: false }
+      // Create executions spread across all hours to prevent collapsing
+      const spreadExecutions = Array.from({ length: 24 }, (_, hour) => ({
+        pattern_id: `routine-${hour}`,
+        pattern_name: `Hour ${hour} Task`,
+        start_time: `2025-12-17T${String(hour).padStart(2, '0')}:00:00`,
+        actions: [{ action_name: 'Task', action_type: hour % 2 === 0 ? 'camera' : 'gpio' }],
+      }))
+      render(<DayTimeline date={mockDate} executions={spreadExecutions} cycleInfo={fullDayCycleInfo} />)
       for (let hour = 0; hour < 24; hour++) {
         expect(screen.getByTestId(`hour-row-${hour}`)).toBeInTheDocument()
       }
@@ -60,28 +76,6 @@ describe('DayTimeline', () => {
         'aria-label',
         'Day timeline for 2025-12-17'
       )
-    })
-  })
-
-  describe('Legend', () => {
-    it('renders legend with Camera label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Camera')).toBeInTheDocument()
-    })
-
-    it('renders legend with GPIO label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('GPIO')).toBeInTheDocument()
-    })
-
-    it('renders legend with Collision label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Collision')).toBeInTheDocument()
-    })
-
-    it('renders legend with Warning label', () => {
-      render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      expect(screen.getByText('Warning')).toBeInTheDocument()
     })
   })
 
@@ -225,9 +219,9 @@ describe('DayTimeline', () => {
   describe('Timeline Grid Styling', () => {
     it('has border around timeline grid', () => {
       render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      // Find the grid container (parent of hour rows)
-      const row0 = screen.getByTestId('hour-row-0')
-      const grid = row0.parentElement
+      // Find the grid container (parent of hour rows) - use hour 18 which has executions
+      const row18 = screen.getByTestId('hour-row-18')
+      const grid = row18.parentElement
       expect(grid).toHaveClass('border')
       expect(grid).toHaveClass('border-gray-800')
       expect(grid).toHaveClass('rounded-lg')
@@ -235,8 +229,9 @@ describe('DayTimeline', () => {
 
     it('has dividers between hours', () => {
       render(<DayTimeline date={mockDate} executions={mockExecutions} />)
-      const row0 = screen.getByTestId('hour-row-0')
-      const grid = row0.parentElement
+      // Use hour 18 which has executions
+      const row18 = screen.getByTestId('hour-row-18')
+      const grid = row18.parentElement
       expect(grid).toHaveClass('divide-y')
       expect(grid).toHaveClass('divide-gray-800')
     })

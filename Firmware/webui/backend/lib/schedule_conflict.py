@@ -13,6 +13,7 @@ Issue #213 - Scheduler Phase 3: Conflict Detection
 """
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Final
@@ -368,6 +369,39 @@ def get_resource_type(action: Action) -> str:
 # ============================================================================
 
 
+def _check_time_overlap(start1: datetime, end1: datetime, start2: datetime, end2: datetime) -> bool:
+    """
+    Check if two time ranges overlap, handling instant actions.
+
+    Instant actions have start == end. They overlap with ranges if they fall
+    within the range (inclusive of boundaries). Two instants only overlap if
+    they occur at the exact same time.
+
+    Args:
+        start1: Start time of first range
+        end1: End time of first range (equals start1 for instant actions)
+        start2: Start time of second range
+        end2: End time of second range (equals start2 for instant actions)
+
+    Returns:
+        True if the time ranges overlap, False otherwise
+
+    Issue #385 review: Extracted from _check_resource_conflict for testability.
+    """
+    if start1 == end1 and start2 == end2:
+        # Both are instant - only conflict if at exact same time
+        return start1 == start2
+    elif start1 == end1:
+        # usage1 is instant - check if it falls within usage2 (inclusive end)
+        return start2 <= start1 <= end2
+    elif start2 == end2:
+        # usage2 is instant - check if it falls within usage1 (inclusive end)
+        return start1 <= start2 <= end1
+    else:
+        # Both have duration - standard overlap check
+        return start1 < end2 and start2 < end1
+
+
 def check_resource_contention(
     usage1: ResourceUsage,
     usage2: ResourceUsage,
@@ -387,20 +421,10 @@ def check_resource_contention(
         Tuple of (conflicts: bool, conflict_type: str)
         conflict_type is "resource_contention" or "gpio_state_conflict" or ""
     """
-    # Check time overlap first
-    # Handle instant actions (start == end) specially
-    if usage1.start_time == usage1.end_time and usage2.start_time == usage2.end_time:
-        # Both are instant - only conflict if at exact same time
-        times_overlap = usage1.start_time == usage2.start_time
-    elif usage1.start_time == usage1.end_time:
-        # usage1 is instant - check if it falls within usage2 (inclusive end)
-        times_overlap = usage2.start_time <= usage1.start_time <= usage2.end_time
-    elif usage2.start_time == usage2.end_time:
-        # usage2 is instant - check if it falls within usage1 (inclusive end)
-        times_overlap = usage1.start_time <= usage2.start_time <= usage1.end_time
-    else:
-        # Both have duration - standard overlap check
-        times_overlap = usage1.start_time < usage2.end_time and usage2.start_time < usage1.end_time
+    # Check time overlap first (handles instant actions specially)
+    times_overlap = _check_time_overlap(
+        usage1.start_time, usage1.end_time, usage2.start_time, usage2.end_time
+    )
 
     if not times_overlap:
         return False, ""
@@ -522,44 +546,48 @@ def _get_routine_trigger_times_for_day(
         return trigger_times
 
     if isinstance(trigger, IntervalTrigger):
-        # Parse time window
-        try:
-            window_start_time = _parse_time_string(trigger.time_window.start_time)
-            window_start = datetime.combine(target_date, window_start_time)
-        except (ValueError, AttributeError):
+        # Parse time window (defaults to all day if not specified)
+        if trigger.time_window is None:
+            window_start = datetime.combine(target_date, time(0, 0))
+            window_end = datetime.combine(target_date, time(23, 59))
+        else:
             try:
-                from webui.backend.lib.solar_time import parse_time_spec
+                window_start_time = _parse_time_string(trigger.time_window.start_time)
+                window_start = datetime.combine(target_date, window_start_time)
+            except (ValueError, AttributeError):
+                try:
+                    from webui.backend.lib.solar_time import parse_time_spec
 
-                window_start = parse_time_spec(
-                    trigger.time_window.start_time,
-                    target_date,
-                    latitude,
-                    longitude,
-                    timezone_name,
-                )
-            except (ImportError, ValueError):
-                window_start = datetime.combine(target_date, time(0, 0))
+                    window_start = parse_time_spec(
+                        trigger.time_window.start_time,
+                        target_date,
+                        latitude,
+                        longitude,
+                        timezone_name,
+                    )
+                except (ImportError, ValueError):
+                    window_start = datetime.combine(target_date, time(0, 0))
 
-        window_start += timedelta(minutes=trigger.time_window.start_offset_minutes)
+            window_start += timedelta(minutes=trigger.time_window.start_offset_minutes)
 
-        try:
-            window_end_time = _parse_time_string(trigger.time_window.end_time)
-            window_end = datetime.combine(target_date, window_end_time)
-        except (ValueError, AttributeError):
             try:
-                from webui.backend.lib.solar_time import parse_time_spec
+                window_end_time = _parse_time_string(trigger.time_window.end_time)
+                window_end = datetime.combine(target_date, window_end_time)
+            except (ValueError, AttributeError):
+                try:
+                    from webui.backend.lib.solar_time import parse_time_spec
 
-                window_end = parse_time_spec(
-                    trigger.time_window.end_time,
-                    target_date,
-                    latitude,
-                    longitude,
-                    timezone_name,
-                )
-            except (ImportError, ValueError):
-                window_end = datetime.combine(target_date, time(23, 59))
+                    window_end = parse_time_spec(
+                        trigger.time_window.end_time,
+                        target_date,
+                        latitude,
+                        longitude,
+                        timezone_name,
+                    )
+                except (ImportError, ValueError):
+                    window_end = datetime.combine(target_date, time(23, 59))
 
-        window_end += timedelta(minutes=trigger.time_window.end_offset_minutes)
+            window_end += timedelta(minutes=trigger.time_window.end_offset_minutes)
 
         if window_end <= window_start:
             window_end += timedelta(days=1)
@@ -666,7 +694,7 @@ def _create_routine_execution(
 
     return RoutineExecution(
         routine_id=routine.routine_id,
-        routine_name=routine.name,
+        routine_name=routine.name or routine.routine_id,
         start_time=trigger_time,
         end_time=end_time,
         resource_usages=resource_usages,
@@ -783,6 +811,9 @@ def detect_conflicts(
     latitude: float = 0.0,
     longitude: float = 0.0,
     timezone_name: str = "UTC",
+    executions: list[RoutineExecution] | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> ConflictReport:
     """
     Detect all conflicts in a schedule over a preview period.
@@ -796,19 +827,27 @@ def detect_conflicts(
         latitude: Location latitude for solar calculations
         longitude: Location longitude for solar calculations
         timezone_name: Timezone for time resolution
+        executions: Pre-generated executions (optional). If provided along with
+            start_date and end_date, skips regeneration for consistency.
+        start_date: Start date for preview window (required if executions provided)
+        end_date: End date for preview window (required if executions provided)
 
     Returns:
         ConflictReport with all detected conflicts
     """
     logger.debug(f"Analyzing schedule {schedule.schedule_id} for conflicts...")
 
-    start_date = date.today()
-    end_date = start_date + timedelta(days=preview_days - 1)
-
-    # Generate all routine executions
-    executions = generate_routine_executions(
-        schedule, start_date, end_date, latitude, longitude, timezone_name
-    )
+    # Use provided executions or generate new ones
+    if executions is not None and start_date is not None and end_date is not None:
+        # Use pre-generated executions for consistency
+        pass
+    else:
+        # Generate executions from scratch
+        start_date = date.today()
+        end_date = start_date + timedelta(days=preview_days - 1)
+        executions = generate_routine_executions(
+            schedule, start_date, end_date, latitude, longitude, timezone_name
+        )
 
     conflicts: list[Conflict] = []
 
@@ -861,6 +900,49 @@ def detect_conflicts(
                                 severity=SEVERITY_ERROR,
                             )
                             conflicts.append(resource_conflict)
+
+    # Check instant action collisions (zero-duration executions at same time)
+    # These are skipped by check_time_overlap() but still cause resource conflicts
+    # Filter instant actions first - skip section if empty (common case) (Issue #385)
+    instant_actions = [e for e in executions if e.start_time == e.end_time]
+
+    if instant_actions:
+        time_groups: dict[datetime, list[RoutineExecution]] = defaultdict(list)
+        for execution in instant_actions:
+            time_groups[execution.start_time].append(execution)
+
+        # Check resource contention within each time group
+        for collision_time, colliding_execs in time_groups.items():
+            if len(colliding_execs) < 2:
+                continue
+
+            # Check all pairs for resource contention
+            for i, exec1 in enumerate(colliding_execs):
+                for exec2 in colliding_execs[i + 1 :]:
+                    for usage1 in exec1.resource_usages:
+                        for usage2 in exec2.resource_usages:
+                            contends, conflict_type = check_resource_contention(usage1, usage2)
+                            if contends:
+                                instant_conflict = Conflict(
+                                    conflict_type=conflict_type,
+                                    event1_id=exec1.routine_id,
+                                    event1_name=exec1.routine_name,
+                                    event2_id=exec2.routine_id,
+                                    event2_name=exec2.routine_name,
+                                    start_time=collision_time,
+                                    end_time=collision_time,
+                                    resource=usage1.resource_type,
+                                    message=(
+                                        f"'{exec1.routine_name}' and '{exec2.routine_name}' "
+                                        f"both use {usage1.resource_type} at "
+                                        f"{collision_time.strftime('%H:%M:%S')}"
+                                    ),
+                                    suggested_resolution=(
+                                        "Stagger trigger times or combine into single routine"
+                                    ),
+                                    severity=SEVERITY_ERROR,
+                                )
+                                conflicts.append(instant_conflict)
 
     has_blocking = any(c.severity == SEVERITY_ERROR for c in conflicts)
     blocking_count = sum(1 for c in conflicts if c.severity == SEVERITY_ERROR)

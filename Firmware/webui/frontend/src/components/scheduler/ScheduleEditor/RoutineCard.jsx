@@ -14,7 +14,7 @@ import { ChevronDownIcon, TrashIcon } from '@heroicons/react/24/outline'
 import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
 import TriggerLabel from './TriggerLabel'
-import { generateRoutineName, getPrimaryActionColor } from '@/utils/routineUtils'
+import { generateRoutineName, getActionColor } from '@/utils/routineUtils'
 import { RoutinePropType } from './propTypes'
 
 /**
@@ -51,11 +51,13 @@ function RoutineCard({
   // Memoize display name to avoid recalculating on every render
   const displayName = useMemo(() => generateRoutineName(routine), [routine])
 
-  // Memoize action color
-  const actionColorClass = useMemo(
-    () => getPrimaryActionColor(routine.actions),
-    [routine.actions]
-  )
+  // Memoize action colors for all actions (deduplicated)
+  const actionColors = useMemo(() => {
+    if (!routine.actions?.length) return ['bg-gray-400']
+    const colors = routine.actions.map(action => getActionColor(action))
+    // Remove duplicates while preserving order
+    return [...new Set(colors)]
+  }, [routine.actions])
 
   /**
    * Toggle card expansion
@@ -124,16 +126,20 @@ function RoutineCard({
           }
         }}
       >
-        {/* Left side: color dot + name */}
+        {/* Left side: color dots + name */}
         <div className="flex items-center gap-3 min-w-0">
-          {/* Action type color dot */}
-          <div
-            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${actionColorClass}`}
-            aria-hidden="true"
-          />
+          {/* Action type color dots */}
+          <div className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+            {actionColors.map((colorClass, i) => (
+              <div
+                key={i}
+                className={`w-1.5 h-1.5 rounded-full ${colorClass}`}
+              />
+            ))}
+          </div>
           {/* Auto-generated name */}
           <span
-            className="text-sm text-white dark:text-gray-100 truncate"
+            className="text-sm text-gray-900 dark:text-gray-100 truncate"
             data-testid="routine-name"
           >
             {displayName}
