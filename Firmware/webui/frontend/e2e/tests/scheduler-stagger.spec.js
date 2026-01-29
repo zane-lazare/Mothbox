@@ -347,4 +347,202 @@ test.describe('Scheduler Stagger Actions', () => {
       }
     })
   })
+
+  // ============================================================
+  // Group D: Crontab Command Verification
+  // ============================================================
+
+  test.describe('Crontab Command Verification', () => {
+    /**
+     * Helper: Get CSRF token for API requests
+     * @param {import('@playwright/test').Page} page
+     * @returns {Promise<string>}
+     */
+    async function getCsrfToken(page) {
+      const response = await page.request.get('/api/csrf-token')
+      const data = await response.json()
+      return data.csrf_token
+    }
+
+    /**
+     * Helper: Create schedule via API, activate it, and get crontab entries
+     * @param {import('@playwright/test').Page} page
+     * @param {object} config - Schedule configuration
+     * @returns {Promise<{scheduleId: string, jobs: Array}>}
+     */
+    async function activateAndInspectCron(page, config) {
+      // Get CSRF token for POST requests
+      const csrfToken = await getCsrfToken(page)
+      const headers = { 'X-CSRFToken': csrfToken }
+
+      // Create schedule
+      const createResp = await page.request.post('/api/scheduler/ui/schedules', {
+        data: config,
+        headers
+      })
+      if (!createResp.ok()) {
+        const errorBody = await createResp.text()
+        console.error('Schedule creation failed:', createResp.status(), errorBody)
+        throw new Error(`Schedule creation failed: ${createResp.status()} - ${errorBody}`)
+      }
+      const { schedule_id } = await createResp.json()
+
+      // Activate schedule (writes to crontab)
+      const activateResp = await page.request.post(
+        `/api/scheduler/ui/schedules/${schedule_id}/activate`,
+        { headers }
+      )
+      expect(activateResp.ok()).toBeTruthy()
+
+      // Read actual crontab entries
+      const jobsResp = await page.request.get('/api/scheduler/jobs')
+      expect(jobsResp.ok()).toBeTruthy()
+      const { jobs } = await jobsResp.json()
+
+      return { scheduleId: schedule_id, jobs }
+    }
+
+    /**
+     * Helper: Cleanup - deactivate and delete schedule
+     * @param {import('@playwright/test').Page} page
+     * @param {string} scheduleId
+     */
+    async function cleanup(page, scheduleId) {
+      const csrfToken = await getCsrfToken(page)
+      const headers = { 'X-CSRFToken': csrfToken }
+      await page.request.post('/api/scheduler/ui/schedules/deactivate', { headers })
+      await page.request.delete(`/api/scheduler/ui/schedules/${scheduleId}`, { headers })
+    }
+
+    test('D1: auto-stagger adds sleep prefix in crontab', async ({ page }) => {
+      const routineName = `Stagger Test ${Date.now()}`
+      const config = {
+        name: `Cron Stagger Test ${Date.now()}`,
+        use_seconds_timing: false,
+        routines: [{
+          routine_id: crypto.randomUUID(),
+          name: routineName,
+          trigger: { trigger_type: 'fixed_time', time: '21:00' },
+          actions: [
+            { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
+            { action_type: 'gpio', action_name: 'flash_on', offset_minutes: 0 },
+          ]
+        }]
+      }
+
+      const { scheduleId, jobs } = await activateAndInspectCron(page, config)
+
+      try {
+        // Filter to only jobs from our test routine (by comment containing routine name)
+        const ourJobs = jobs.filter(j => j.comment?.includes(routineName))
+        expect(ourJobs.length).toBeGreaterThan(0)
+
+        // Find jobs by command (script name is in command, not comment)
+        const attractJob = ourJobs.find(j => j.command?.includes('Attract_On'))
+        const flashJob = ourJobs.find(j => j.command?.includes('Flash_On'))
+
+        expect(attractJob).toBeDefined()
+        expect(flashJob).toBeDefined()
+
+        // First action: no sleep prefix
+        expect(attractJob.command).not.toContain('sleep')
+
+        // Second action: sleep 5 && prefix (DEFAULT_STAGGER_SECONDS = 5)
+        expect(flashJob.command).toContain('sleep 5 &&')
+      } finally {
+        await cleanup(page, scheduleId)
+      }
+    })
+
+    test('D2: explicit seconds uses offset_seconds in crontab', async ({ page }) => {
+      const routineName = `Seconds Test ${Date.now()}`
+      const config = {
+        name: `Explicit Seconds Test ${Date.now()}`,
+        use_seconds_timing: true,
+        routines: [{
+          routine_id: crypto.randomUUID(),
+          name: routineName,
+          trigger: { trigger_type: 'fixed_time', time: '21:00' },
+          actions: [
+            { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0, offset_seconds: 0 },
+            { action_type: 'gpio', action_name: 'flash_on', offset_minutes: 0, offset_seconds: 15 },
+            { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 0, offset_seconds: 30 },
+          ]
+        }]
+      }
+
+      const { scheduleId, jobs } = await activateAndInspectCron(page, config)
+
+      try {
+        // Filter to only jobs from our test routine
+        const ourJobs = jobs.filter(j => j.comment?.includes(routineName))
+        expect(ourJobs.length).toBeGreaterThan(0)
+
+        // Find jobs by command (script name is in command, not comment)
+        const attractOn = ourJobs.find(j => j.command?.includes('Attract_On'))
+        const flashOn = ourJobs.find(j => j.command?.includes('Flash_On'))
+        const attractOff = ourJobs.find(j => j.command?.includes('Attract_Off'))
+
+        expect(attractOn).toBeDefined()
+        expect(flashOn).toBeDefined()
+        expect(attractOff).toBeDefined()
+
+        // offset_seconds=0: no sleep prefix
+        expect(attractOn.command).not.toContain('sleep')
+
+        // offset_seconds=15: sleep 15 && prefix
+        expect(flashOn.command).toContain('sleep 15 &&')
+
+        // offset_seconds=30: sleep 30 && prefix
+        expect(attractOff.command).toContain('sleep 30 &&')
+      } finally {
+        await cleanup(page, scheduleId)
+      }
+    })
+
+    test('D3: different minutes have no sleep in crontab', async ({ page }) => {
+      const routineName = `No Stagger Test ${Date.now()}`
+      const config = {
+        name: `Different Minutes Test ${Date.now()}`,
+        use_seconds_timing: false,
+        routines: [{
+          routine_id: crypto.randomUUID(),
+          name: routineName,
+          trigger: { trigger_type: 'fixed_time', time: '21:00' },
+          actions: [
+            { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
+            { action_type: 'gpio', action_name: 'flash_on', offset_minutes: 5 },
+            { action_type: 'gpio', action_name: 'attract_off', offset_minutes: 10 },
+          ]
+        }]
+      }
+
+      const { scheduleId, jobs } = await activateAndInspectCron(page, config)
+
+      try {
+        // Filter to only our test jobs
+        const testJobs = jobs.filter(j => j.comment?.includes(routineName))
+
+        // Should have jobs (at least one per day in preview period)
+        expect(testJobs.length).toBeGreaterThan(0)
+
+        // All actions at different minutes - no staggering needed
+        // Verify that our specific action jobs have no sleep prefix
+        const attractOn = testJobs.find(j => j.command?.includes('Attract_On'))
+        const flashOn = testJobs.find(j => j.command?.includes('Flash_On'))
+        const attractOff = testJobs.find(j => j.command?.includes('Attract_Off'))
+
+        expect(attractOn).toBeDefined()
+        expect(flashOn).toBeDefined()
+        expect(attractOff).toBeDefined()
+
+        // None should have sleep prefix since they're at different minutes
+        expect(attractOn.command).not.toContain('sleep')
+        expect(flashOn.command).not.toContain('sleep')
+        expect(attractOff.command).not.toContain('sleep')
+      } finally {
+        await cleanup(page, scheduleId)
+      }
+    })
+  })
 })
