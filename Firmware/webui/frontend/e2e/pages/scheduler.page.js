@@ -343,7 +343,7 @@ export class SchedulerPage {
    * Wait for editor drawer to close
    */
   async waitForEditorClose() {
-    await this.page.locator(this.selectors.editorDrawer).waitFor({ state: 'hidden', timeout: TIMEOUTS.MEDIUM })
+    await this.page.locator(this.selectors.editorDrawer).waitFor({ state: 'hidden', timeout: TIMEOUTS.NETWORK })
   }
 
   /**

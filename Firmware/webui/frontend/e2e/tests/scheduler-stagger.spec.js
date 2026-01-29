@@ -140,8 +140,8 @@ test.describe('Scheduler Stagger Actions', () => {
         const secondsInput = page.locator('#offset_seconds')
         await expect(secondsInput).toBeVisible()
 
-        // Close action form
-        const cancelActionButton = page.locator('[role="dialog"] button:has-text("Cancel")')
+        // Close action form (use specific selector to avoid matching nested dialogs)
+        const cancelActionButton = page.locator('[aria-labelledby="action-form-title"] button:has-text("Cancel")')
         if (await cancelActionButton.isVisible()) {
           await cancelActionButton.click()
         }
@@ -194,8 +194,8 @@ test.describe('Scheduler Stagger Actions', () => {
         // Action form should close on success
         await page.waitForTimeout(TIMEOUTS.SAVE)
 
-        // Close action form if still open
-        const cancelActionButton = page.locator('[role="dialog"] button:has-text("Cancel")')
+        // Close action form if still open (use specific selector to avoid matching nested dialogs)
+        const cancelActionButton = page.locator('[aria-labelledby="action-form-title"] button:has-text("Cancel")')
         if (await cancelActionButton.isVisible()) {
           await cancelActionButton.click()
         }
