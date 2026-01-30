@@ -26,12 +26,13 @@ Related:
 - Lines covered: 502-529 (28 lines with ZERO prior coverage)
 """
 
-import pytest
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add backend to path (standard pattern)
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'webui' / 'backend'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "webui" / "backend"))
 
 
 class TestGetScriptPathSecurity:
@@ -53,19 +54,51 @@ class TestGetScriptPathSecurity:
         ValueError: If script_name contains security violations
     """
 
-    def test_returns_valid_script_path_for_simple_name(self, tmp_path, monkeypatch):
-        """Test normal case: simple script name returns valid path"""
-        # Create firmware directory
+    @pytest.fixture
+    def patch_firmware_paths(self, tmp_path, monkeypatch):
+        """
+        Fixture to patch FIRMWARE_DIR, MOTHBOX_HOME, and get_firmware_version.
+
+        get_script_path() now checks version-specific directories first,
+        so we need to patch all three for test isolation.
+
+        Returns the firmware_dir for use in tests.
+        """
         firmware_dir = tmp_path / "firmware"
         firmware_dir.mkdir()
 
-        # Patch FIRMWARE_DIR
+        # Create version-specific directory structure
+        version_dir = firmware_dir / "5.x"
+        version_dir.mkdir()
+
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "get_firmware_version", lambda: 5)
+
+        return firmware_dir
+
+    def test_returns_valid_script_path_for_simple_name(self, tmp_path, monkeypatch):
+        """Test normal case: simple script name returns valid path"""
+        # Create firmware directory structure
+        firmware_dir = tmp_path / "firmware"
+        firmware_dir.mkdir()
+
+        # Create version-specific directory (get_script_path now checks this first)
+        version_dir = firmware_dir / "5.x"
+        version_dir.mkdir()
+
+        # Patch FIRMWARE_DIR, MOTHBOX_HOME, and get_firmware_version
+        import mothbox_paths
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "get_firmware_version", lambda: 5)
 
         from mothbox_paths import get_script_path
 
-        # Test simple script name
+        # Test simple script name - falls back to FIRMWARE_DIR since 5.x/TakePhoto.py doesn't exist
         script_path = get_script_path("TakePhoto.py")
 
         assert script_path == firmware_dir / "TakePhoto.py"
@@ -84,7 +117,10 @@ class TestGetScriptPathSecurity:
         script_file.write_text("# Script")
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "get_firmware_version", lambda: 5)
 
         from mothbox_paths import get_script_path
 
@@ -100,7 +136,8 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -117,7 +154,8 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -128,10 +166,9 @@ class TestGetScriptPathSecurity:
         assert "path traversal" in str(exc_info.value).lower()
         print("✓ Absolute path injection blocked (/etc/passwd)")
 
-    def test_prevents_symlink_escape_attacks(self, tmp_path, monkeypatch):
+    def test_prevents_symlink_escape_attacks(self, tmp_path, patch_firmware_paths):
         """Test that symlinks pointing outside firmware dir are blocked"""
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
+        firmware_dir = patch_firmware_paths
 
         # Create target directory outside firmware
         evil_dir = tmp_path / "evil"
@@ -143,22 +180,20 @@ class TestGetScriptPathSecurity:
         symlink = firmware_dir / "innocent.py"
         symlink.symlink_to(evil_script)
 
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
-
         from mothbox_paths import get_script_path
 
         # Attempt to access via symlink
         with pytest.raises(ValueError) as exc_info:
             get_script_path("innocent.py")
 
-        assert "outside firmware directory" in str(exc_info.value).lower()
+        assert (
+            "outside" in str(exc_info.value).lower() and "directory" in str(exc_info.value).lower()
+        )
         print("✓ Symlink escape attack blocked (symlink → outside)")
 
-    def test_allows_symlinks_within_firmware_dir(self, tmp_path, monkeypatch):
+    def test_allows_symlinks_within_firmware_dir(self, tmp_path, patch_firmware_paths):
         """Test that symlinks within firmware dir are allowed"""
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
+        firmware_dir = patch_firmware_paths
 
         # Create real script inside firmware
         real_script = firmware_dir / "real_script.py"
@@ -167,9 +202,6 @@ class TestGetScriptPathSecurity:
         # Create symlink inside firmware pointing to another file in firmware
         symlink = firmware_dir / "symlink_script.py"
         symlink.symlink_to(real_script)
-
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -187,7 +219,8 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -199,19 +232,14 @@ class TestGetScriptPathSecurity:
         assert "path traversal" in str(exc_info.value).lower()
         print("✓ Encoded path traversal blocked (..%2Fetc)")
 
-    def test_prevents_partial_directory_name_matching(self, tmp_path, monkeypatch):
+    def test_prevents_partial_directory_name_matching(self, tmp_path, patch_firmware_paths):
         """Test that /firmware-evil is not confused with /firmware"""
-        # Create two directories: firmware and firmware-evil
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
+        firmware_dir = patch_firmware_paths
 
         evil_dir = tmp_path / "firmware-evil"
         evil_dir.mkdir()
         evil_script = evil_dir / "malicious.py"
         evil_script.write_text("# Evil script")
-
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -223,33 +251,28 @@ class TestGetScriptPathSecurity:
         with pytest.raises(ValueError) as exc_info:
             get_script_path("evil_link.py")
 
-        assert "outside firmware directory" in str(exc_info.value).lower()
+        assert (
+            "outside" in str(exc_info.value).lower() and "directory" in str(exc_info.value).lower()
+        )
         print("✓ Partial name matching prevented (firmware vs firmware-evil)")
 
-    def test_handles_nonexistent_paths_gracefully(self, tmp_path, monkeypatch):
+    def test_handles_nonexistent_paths_gracefully(self, tmp_path, patch_firmware_paths):
         """Test that nonexistent paths are handled (path doesn't exist yet)"""
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
-
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+        firmware_dir = patch_firmware_paths
 
         from mothbox_paths import get_script_path
 
         # Request nonexistent script (should return path without error)
+        # Falls back to FIRMWARE_DIR since version-specific doesn't exist
         script_path = get_script_path("future_script.py")
 
         # Path should be constructed correctly even if file doesn't exist
         assert script_path == firmware_dir / "future_script.py"
         print("✓ Nonexistent paths handled gracefully")
 
-    def test_handles_resolve_oserror(self, tmp_path, monkeypatch):
+    def test_handles_resolve_oserror(self, tmp_path, patch_firmware_paths):
         """Test that broken symlinks pointing outside are blocked"""
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
-
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+        firmware_dir = patch_firmware_paths
 
         from mothbox_paths import get_script_path
 
@@ -261,7 +284,9 @@ class TestGetScriptPathSecurity:
         with pytest.raises(ValueError) as exc_info:
             get_script_path("broken.py")
 
-        assert "outside firmware directory" in str(exc_info.value).lower()
+        assert (
+            "outside" in str(exc_info.value).lower() and "directory" in str(exc_info.value).lower()
+        )
         print("✓ Broken symlink pointing outside blocked (security)")
 
     def test_handles_resolve_runtimeerror(self, tmp_path, monkeypatch):
@@ -270,10 +295,10 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
-        from unittest.mock import Mock
 
         # Mock resolve() to raise RuntimeError
         original_resolve = Path.resolve
@@ -283,7 +308,7 @@ class TestGetScriptPathSecurity:
                 raise RuntimeError("Circular symlink detected")
             return original_resolve(self, *args, **kwargs)
 
-        monkeypatch.setattr(Path, 'resolve', mock_resolve)
+        monkeypatch.setattr(Path, "resolve", mock_resolve)
 
         # Should not raise error (catches RuntimeError)
         script_path = get_script_path("circular_symlink.py")
@@ -297,7 +322,8 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -311,12 +337,16 @@ class TestGetScriptPathSecurity:
 
     def test_works_with_different_firmware_dirs(self, tmp_path, monkeypatch):
         """Test that function works with different firmware directories"""
+        import mothbox_paths
+
         # Test with /opt/mothbox structure
         opt_firmware = tmp_path / "opt" / "mothbox"
         opt_firmware.mkdir(parents=True)
+        (opt_firmware / "5.x").mkdir()
 
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', opt_firmware)
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", opt_firmware)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", opt_firmware)
+        monkeypatch.setattr(mothbox_paths, "get_firmware_version", lambda: 5)
 
         from mothbox_paths import get_script_path
 
@@ -327,7 +357,10 @@ class TestGetScriptPathSecurity:
         # Test with legacy Desktop structure
         desktop_firmware = tmp_path / "home" / "pi" / "Desktop" / "Mothbox"
         desktop_firmware.mkdir(parents=True)
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', desktop_firmware)
+        (desktop_firmware / "5.x").mkdir()
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", desktop_firmware)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", desktop_firmware)
 
         script_path = get_script_path("TakePhoto.py")
         assert script_path == desktop_firmware / "TakePhoto.py"
@@ -339,7 +372,8 @@ class TestGetScriptPathSecurity:
         firmware_dir.mkdir()
 
         import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
 
         from mothbox_paths import get_script_path
 
@@ -358,13 +392,9 @@ class TestGetScriptPathSecurity:
             get_script_path("../../../etc/passwd")
         print("✓ Multiple traversals blocked")
 
-    def test_windows_path_separators(self, tmp_path, monkeypatch):
+    def test_windows_path_separators(self, tmp_path, patch_firmware_paths):
         """Test that Windows path separators don't bypass validation"""
-        firmware_dir = tmp_path / "firmware"
-        firmware_dir.mkdir()
-
-        import mothbox_paths
-        monkeypatch.setattr(mothbox_paths, 'FIRMWARE_DIR', firmware_dir)
+        firmware_dir = patch_firmware_paths
 
         from mothbox_paths import get_script_path
 
@@ -376,3 +406,32 @@ class TestGetScriptPathSecurity:
         # Path construction works, but verify it's within firmware
         assert str(firmware_dir) in str(script_path)
         print("✓ Windows separators handled (cross-platform security)")
+
+    def test_prefers_version_specific_path(self, tmp_path, monkeypatch):
+        """Test that version-specific scripts are preferred over root-level scripts"""
+        firmware_dir = tmp_path / "firmware"
+        firmware_dir.mkdir()
+
+        # Create both root-level and version-specific scripts
+        root_script = firmware_dir / "GPS.py"
+        root_script.write_text("# Old root-level script")
+
+        version_dir = firmware_dir / "5.x"
+        version_dir.mkdir()
+        version_script = version_dir / "GPS.py"
+        version_script.write_text("# Version-specific script with fixes")
+
+        import mothbox_paths
+
+        monkeypatch.setattr(mothbox_paths, "FIRMWARE_DIR", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "MOTHBOX_HOME", firmware_dir)
+        monkeypatch.setattr(mothbox_paths, "get_firmware_version", lambda: 5)
+
+        from mothbox_paths import get_script_path
+
+        # Should return version-specific path, not root-level
+        script_path = get_script_path("GPS.py")
+
+        assert script_path == version_dir / "GPS.py"
+        assert "5.x" in str(script_path)
+        print("✓ Version-specific scripts preferred over root-level (Issue #392)")

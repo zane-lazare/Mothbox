@@ -579,7 +579,10 @@ def get_hardware_config() -> dict[str, Any]:
 # Script paths (commonly referenced scripts)
 def get_script_path(script_name):
     """
-    Get the full path to a firmware script.
+    Get the full path to a firmware script, preferring version-specific directories.
+
+    Checks for the script in the version-specific directory first (e.g., 5.x/GPS.py),
+    then falls back to the base firmware directory for backwards compatibility.
 
     Args:
         script_name: Name of the script (e.g., "TakePhoto.py", "GPS.py")
@@ -601,23 +604,32 @@ def get_script_path(script_name):
     if ".." in script_name or script_name.startswith("/"):
         raise ValueError(f"Invalid script name (path traversal attempt): {script_name}")
 
-    script_path = FIRMWARE_DIR / script_name
+    # Check version-specific directory first (e.g., 5.x/GPS.py)
+    # This matches how get_takephoto_script() works
+    firmware_version = get_firmware_version()
+    version_script_path = MOTHBOX_HOME / f"{firmware_version}.x" / script_name
 
-    # Security: Resolve symlinks and verify final path stays within FIRMWARE_DIR
+    if version_script_path.exists():
+        script_path = version_script_path
+    else:
+        # Fall back to base firmware directory for backwards compatibility
+        script_path = FIRMWARE_DIR / script_name
+
+    # Security: Resolve symlinks and verify final path stays within MOTHBOX_HOME
     # This catches:
     # - Symlink attacks (follows links to real destination)
     # - Encoded paths (Path.resolve() normalizes these)
     # - Partial directory name matches (relative_to() requires exact containment)
     try:
         resolved_path = script_path.resolve()
-        firmware_base = FIRMWARE_DIR.resolve()
+        mothbox_base = MOTHBOX_HOME.resolve()
 
         # Use relative_to() which raises ValueError if path is not within base
         # This prevents partial path matching (e.g., /firmware vs /firmware-evil)
-        resolved_path.relative_to(firmware_base)
+        resolved_path.relative_to(mothbox_base)
     except ValueError:
         raise ValueError(
-            f"Security: Script path resolves outside firmware directory. Script: {script_name}"
+            f"Security: Script path resolves outside mothbox directory. Script: {script_name}"
         ) from None
     except (OSError, RuntimeError):
         # Handle cases where resolve() fails (e.g., path doesn't exist yet)
