@@ -230,7 +230,7 @@ try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%SZ")
         dt = dt.replace(tzinfo=timezone.utc)  # Mark as UTC before converting to epoch
         epoch_time = int(dt.timestamp())
-        logger.info("Epoch time:", epoch_time)
+        logger.info("Epoch time: %s", epoch_time)
 
         # Set system UTC time
         formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -243,7 +243,7 @@ try:
         if latitude is not None and longitude is not None:
             timezone = tf.timezone_at(lat=latitude, lng=longitude)
             if timezone:
-                logger.info("Setting system timezone to:", timezone)
+                logger.info("Setting system timezone to: %s", timezone)
                 os.system(f"sudo timedatectl set-timezone {timezone}")  # nosec B605 - Timezone from timezonefinder library lookup
 
                 # Now calculate the UTC offset
@@ -251,7 +251,7 @@ try:
 
                 local_time = datetime.now(ZoneInfo(timezone))
                 utc_offset_hours = int(local_time.utcoffset().total_seconds() // 3600)
-                logger.info("UTC Offset (hours):", utc_offset_hours)
+                logger.info("UTC Offset (hours): %s", utc_offset_hours)
 
                 # Atomically update all GPS values in one locked operation
                 update_gps_values(
