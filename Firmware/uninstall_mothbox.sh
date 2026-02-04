@@ -354,6 +354,22 @@ if [[ $REMOVE_NODEJS =~ ^[Yy]$ ]]; then
     echo -e "${GREEN}✓ Node.js and npm removed${NC}"
 fi
 
+# Optionally remove memory tuning configuration
+if [ -f "/etc/sysctl.d/99-mothbox-memory.conf" ]; then
+    echo ""
+    echo -e "${YELLOW}Remove Mothbox memory tuning configuration?${NC}"
+    echo "This will restore default kernel memory settings."
+    read -p "(y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo rm /etc/sysctl.d/99-mothbox-memory.conf
+        sudo sysctl -w vm.watermark_boost_factor=15000 > /dev/null
+        echo -e "${GREEN}✓ Memory tuning removed, default restored${NC}"
+    else
+        echo "Memory tuning configuration kept"
+    fi
+fi
+
 # Remove Python packages
 REMOVE_PYTHON_PACKAGES="n"
 echo ""
