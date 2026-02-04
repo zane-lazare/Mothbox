@@ -338,6 +338,13 @@ Located in `CONFIG_DIR` (via `mothbox_paths.py`):
 
 Parser: `get_control_values()` in `mothbox_paths.py` handles comments, whitespace, Unicode.
 
+### Memory Tuning (Pi 5)
+
+On Raspberry Pi 5 with `numa=fake=8`, the installer creates `/etc/sysctl.d/99-mothbox-memory.conf`:
+- Sets `vm.watermark_boost_factor=0` to prevent OOM during photo capture
+- Only applied when fake NUMA detected in `/proc/cmdline`
+- See issue #393 for technical details
+
 ### Hardware Configuration
 
 `get_hardware_config()` returns dict with 32+ keys covering:
