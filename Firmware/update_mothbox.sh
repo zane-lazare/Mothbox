@@ -41,6 +41,31 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Ensure memory tuning is applied (for existing installations)
+ensure_memory_tuning() {
+    SYSCTL_FILE="/etc/sysctl.d/99-mothbox-memory.conf"
+
+    # Only apply on Pi 5 with fake NUMA
+    if grep -q "numa=fake" /proc/cmdline 2>/dev/null; then
+        if [ ! -f "$SYSCTL_FILE" ]; then
+            echo -e "${YELLOW}Applying memory tuning for Pi 5...${NC}"
+
+            sudo tee "$SYSCTL_FILE" > /dev/null <<EOF
+# Mothbox memory tuning for Raspberry Pi 5
+# Disables watermark boost to prevent OOM during photo capture
+# See: https://github.com/zane-lazare/Mothbox/issues/393
+
+vm.watermark_boost_factor = 0
+EOF
+
+            sudo sysctl -p "$SYSCTL_FILE" > /dev/null
+            echo -e "${GREEN}✓ Memory tuning configured${NC}"
+        else
+            echo -e "${GREEN}✓ Memory tuning already configured${NC}"
+        fi
+    fi
+}
+
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOTHBOX_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -1319,6 +1344,9 @@ set_last_update_commit "$FINAL_COMMIT"
 echo -e "${BLUE}Updated tracker file${NC}"
 echo -e "${CYAN}Last processed commit set to:${NC} $(git rev-parse --short HEAD)"
 echo ""
+
+# Ensure memory tuning for Pi 5
+ensure_memory_tuning
 
 # Summary
 echo -e "${GREEN}================================================================================${NC}"
