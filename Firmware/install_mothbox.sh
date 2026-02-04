@@ -90,6 +90,37 @@ validate_positive_integer() {
     return 0
 }
 
+# Configure kernel memory parameters for Pi 5 NUMA compatibility
+configure_memory_tuning() {
+    echo ""
+    echo -e "${BLUE}Configuring kernel memory parameters...${NC}"
+
+    # Only apply on Pi 5 with fake NUMA
+    if grep -q "numa=fake" /proc/cmdline 2>/dev/null; then
+        echo "Detected Pi 5 with fake NUMA - applying memory tuning"
+
+        SYSCTL_FILE="/etc/sysctl.d/99-mothbox-memory.conf"
+
+        sudo tee "$SYSCTL_FILE" > /dev/null <<EOF
+# Mothbox memory tuning for Raspberry Pi 5
+# Disables watermark boost to prevent OOM during photo capture
+# See: https://github.com/zane-lazare/Mothbox/issues/393
+#
+# The Pi 5 uses numa=fake=8 for performance, but the default
+# watermark_boost_factor (15000) reserves too much memory per
+# NUMA node during memory pressure, causing OOM accumulation.
+
+vm.watermark_boost_factor = 0
+EOF
+
+        # Apply immediately
+        sudo sysctl -p "$SYSCTL_FILE" > /dev/null
+
+        echo -e "${GREEN}✓ Memory tuning configured: $SYSCTL_FILE${NC}"
+    else
+        echo "Not a Pi 5 with fake NUMA - skipping memory tuning"
+    fi
+}
 
 # Default values
 INSTALL_TYPE="legacy"
@@ -1356,6 +1387,9 @@ if [ "$GPS_ENABLED" = "true" ]; then
         echo -e "${YELLOW}  ⚠ gpsd configuration may be incomplete${NC}"
     fi
 fi
+
+# Configure memory tuning for Pi 5
+configure_memory_tuning
 
 echo ""
 if [ $VALIDATION_ERRORS -gt 0 ]; then
