@@ -180,14 +180,13 @@ class ThumbnailCache:
                     if not photo_path.exists():
                         raise ThumbnailError(f"Source photo not found: {photo_path}")
 
-                    # Open and resize
-                    img = Image.open(photo_path)
+                    # Open and resize with explicit resource cleanup
+                    with Image.open(photo_path) as img:
+                        # Preserve aspect ratio, fit within size
+                        img.thumbnail((size, size), Image.LANCZOS)
 
-                    # Preserve aspect ratio, fit within size
-                    img.thumbnail((size, size), Image.LANCZOS)
-
-                    # Save as JPEG with quality 85
-                    img.save(cache_path, format="JPEG", quality=85)
+                        # Save as JPEG with quality 85
+                        img.save(cache_path, format="JPEG", quality=85)
 
                 except (OSError, Exception):
                     # Error opening/processing image - create placeholder
