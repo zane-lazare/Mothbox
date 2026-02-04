@@ -902,6 +902,13 @@ try:
     )  # might as well ensure attract is on because new wiring dictates that
 
 finally:
+    # Cleanup camera resources to prevent memory leaks
+    try:
+        picam2.close()
+        print("Camera closed successfully")
+    except Exception as e:
+        print(f"Warning: Camera close failed: {e}")
+
     # Cleanup flash relay (Relay_Ch2) on exit to ensure it's off
     # Note: We don't cleanup Relay_Ch3 (attractor) as it's intentionally left on
     try:
