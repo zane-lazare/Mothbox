@@ -8,7 +8,7 @@ from flask import Blueprint, jsonify, request
 from preset_manager import PresetManager
 
 # Import validation from utils
-from utils import ALLOWED_CAMERA_SETTINGS
+from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS
 
 from mothbox_paths import (
     BUILTIN_PRESET_DIR,
@@ -247,11 +247,18 @@ def apply_preset(name):
         if apply_to in ["capture", "both"] and camera_settings:
             # Validate all camera settings
             for key, value in camera_settings.items():
-                if key not in ALLOWED_CAMERA_SETTINGS:
+                # Accept both picamera2 settings and webui workflow settings
+                # (HDR, FocusBracket, etc.) — TakePhoto.py reads all from
+                # camera_settings.csv and pops workflow keys before set_controls()
+                if key in ALLOWED_CAMERA_SETTINGS:
+                    validator = ALLOWED_CAMERA_SETTINGS[key]
+                elif key in ALLOWED_WEBUI_SETTINGS:
+                    validator = ALLOWED_WEBUI_SETTINGS[key]
+                else:
                     return jsonify({"error": f"Invalid camera setting: {key}"}), 400
 
                 try:
-                    if not ALLOWED_CAMERA_SETTINGS[key](value):
+                    if not validator(value):
                         return jsonify(
                             {"error": f"Invalid value for camera setting {key}: {value}"}
                         ), 400

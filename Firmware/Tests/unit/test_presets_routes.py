@@ -624,6 +624,44 @@ class TestApplyPresetValidationRules:
         data = response.get_json()
         assert 'Invalid' in data['error']
 
+    def test_apply_preset_accepts_webui_settings_in_camera_section(self, client, tmp_path, monkeypatch, mock_preset_manager):
+        """Presets with HDR/FocusBracket in camera section should apply successfully"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        camera_file = tmp_path / "camera_settings.csv"
+        camera_file.write_text("SETTING,VALUE,DETAILS\n")
+        patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', camera_file)
+
+        mock_preset_manager.get_preset.return_value = {
+            'name': 'balanced',
+            'display_name': 'Balanced',
+            'workflow': 'both',
+            'settings': {
+                'camera': {
+                    'Sharpness': 1.5,
+                    'ExposureTime': 10000,
+                    'HDR': 1,
+                    'FocusBracket': 1,
+                    'ImageFileType': 0,
+                    'VerticalFlip': 0,
+                }
+            }
+        }
+
+        response = client.post('/api/presets/balanced/apply', json={
+            'apply_to': 'capture'
+        })
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+
+        # Verify ALL settings were written to camera_settings.csv
+        content = camera_file.read_text()
+        assert 'HDR,1' in content
+        assert 'FocusBracket,1' in content
+        assert 'Sharpness,1.5' in content
+
 
 class TestApplyPresetFileOperations:
     """File I/O edge case tests"""
