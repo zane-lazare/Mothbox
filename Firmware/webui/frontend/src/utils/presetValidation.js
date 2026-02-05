@@ -9,10 +9,9 @@
  * - Provide clear, user-friendly error messages
  * - Prevent confusing backend validation errors
  *
- * IMPORTANT - Boolean String Requirement:
- * Boolean settings must be string literals "true" or "false", NOT actual boolean values.
- * This matches the backend behavior where settings are stored as CSV strings.
- * Example: awb_enable: "true" (valid), awb_enable: true (INVALID)
+ * Boolean Settings:
+ * Boolean settings accept both actual booleans (true/false) from form state
+ * and string literals ("true"/"false") from backend CSV storage.
  *
  * Usage:
  * ```js
@@ -42,9 +41,9 @@ import { toBackendKey } from './cameraControlMapping'
  */
 const createBooleanValidator = () => {
   return (value) => {
-    // Reject actual boolean values - backend expects string "true" or "false"
+    // Accept actual booleans (from form state) and string "true"/"false" (from backend)
     if (typeof value === 'boolean') {
-      return false
+      return true
     }
     const strValue = String(value).toLowerCase()
     return strValue === 'true' || strValue === 'false'
