@@ -380,6 +380,41 @@ class TestPostCameraSettings:
             # The sanitizer should prevent raw formulas
             assert content.count('=2.0+1.0') == 0 or "'=2.0+1.0" in content
 
+    def test_post_settings_accepts_webui_settings(self, client, temp_camera_settings):
+        """Webui workflow settings (HDR, FocusBracket, etc.) are accepted"""
+        temp_camera_settings.write_text("SETTING,VALUE,DETAILS\n")
+
+        update_data = {
+            'HDR': '1',
+            'FocusBracket': '1',
+            'AutoCalibration': '0',
+            'ImageFileType': '0',
+            'VerticalFlip': '0',
+        }
+        response = client.post('/api/camera/settings', json=update_data)
+        assert response.status_code == 200
+
+        content = temp_camera_settings.read_text()
+        assert 'HDR,1' in content
+        assert 'AutoCalibration,0' in content
+
+    def test_post_settings_coerces_boolean_values(self, client, temp_camera_settings):
+        """Boolean values are coerced to correct CSV types"""
+        temp_camera_settings.write_text("SETTING,VALUE,DETAILS\n")
+
+        update_data = {
+            'HDR': True,
+            'ImageFileType': False,
+            'AeEnable': True,
+        }
+        response = client.post('/api/camera/settings', json=update_data)
+        assert response.status_code == 200
+
+        content = temp_camera_settings.read_text()
+        assert 'HDR,1' in content
+        assert 'ImageFileType,0' in content
+        assert 'AeEnable,True' in content
+
     def test_post_settings_exposure_mode_conversion(self):
         """Handle ExposureMode enum conversion"""
         pytest.skip("ExposureMode not used in camera_settings.csv - uses discrete controls instead")

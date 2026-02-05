@@ -42,7 +42,7 @@ from constants import (
 from flask import Blueprint, current_app, jsonify, request
 
 # Import shared utilities
-from utils import ALLOWED_CAMERA_SETTINGS, sanitize_csv_value
+from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS, coerce_for_csv, sanitize_csv_value
 
 from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 
@@ -680,10 +680,17 @@ def update_camera_settings():
 
         # Validate camera settings
         for key, value in new_settings.items():
-            if key not in ALLOWED_CAMERA_SETTINGS:
+            # Accept both picamera2 settings and webui workflow settings
+            # (HDR, FocusBracket, etc.) — TakePhoto.py reads all from
+            # camera_settings.csv and pops workflow keys before set_controls()
+            if key in ALLOWED_CAMERA_SETTINGS:
+                validator = ALLOWED_CAMERA_SETTINGS[key]
+            elif key in ALLOWED_WEBUI_SETTINGS:
+                validator = ALLOWED_WEBUI_SETTINGS[key]
+            else:
                 return jsonify({"error": f"Invalid setting: {key}"}), 400
             try:
-                if not ALLOWED_CAMERA_SETTINGS[key](value):
+                if not validator(value):
                     return jsonify({"error": f"Invalid value for {key}"}), 400
             except (ValueError, TypeError):
                 return jsonify({"error": f"Invalid type for {key}"}), 400
@@ -705,14 +712,14 @@ def update_camera_settings():
             found = False
             for row in csv_rows:
                 if row["SETTING"].strip() == setting_name:
-                    row["VALUE"] = str(setting_value)
+                    row["VALUE"] = coerce_for_csv(setting_name, setting_value)
                     found = True
                     break
 
             # If setting doesn't exist, add a new row
             if not found:
                 csv_rows.append(
-                    {"SETTING": setting_name, "VALUE": str(setting_value), "DETAILS": ""}
+                    {"SETTING": setting_name, "VALUE": coerce_for_csv(setting_name, setting_value), "DETAILS": ""}
                 )
 
         # Write back all settings in vertical format
