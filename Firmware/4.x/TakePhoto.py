@@ -192,7 +192,14 @@ APPLICATION_SETTINGS = {
     "AutoCalibrationPeriod",
     "ImageFileType",
     "VerticalFlip",
+    "ColourGainRed",
+    "ColourGainBlue",
+    "FocusBracket",
 }
+
+# Tuned colour gains for plain white LEDs (overnight field testing)
+DEFAULT_COLOUR_GAIN_RED = 2.25943877696990967
+DEFAULT_COLOUR_GAIN_BLUE = 1.500129925489425659
 
 
 def load_camera_settings():
@@ -542,9 +549,8 @@ def takePhoto_Manual():
     min_exp, max_exp, default_exp = picam2.camera_controls["ExposureTime"]
     # print(min_exp,"   ", max_exp,"   ", default_exp)
 
-    # important note, to actually 100% lock down an AWB you need to set ColourGains! (0,0) works well for plain white LEDS
-    cgains = 2.25943877696990967, 1.500129925489425659
-    picam2.set_controls({"ColourGains": cgains})
+    # Lock down AWB with colour gains from CSV (defaults: tuned values from field testing)
+    picam2.set_controls({"ColourGains": (colour_gain_red, colour_gain_blue)})
 
     middleexposure = camera_settings["ExposureTime"]
     exposure_times = list_exposuretimes(middleexposure, num_photos, exposuretime_width)
@@ -861,6 +867,14 @@ try:
         camera_settings.pop("HDR", num_photos)
     )  # defaults to what is set above if not in the files being read
     exposuretime_width = int(camera_settings.pop("HDR_width", exposuretime_width))
+
+    # Colour gains (webui stores as separate CSV keys; picamera2 needs ColourGains tuple)
+    colour_gain_red = float(camera_settings.pop("ColourGainRed", DEFAULT_COLOUR_GAIN_RED))
+    colour_gain_blue = float(camera_settings.pop("ColourGainBlue", DEFAULT_COLOUR_GAIN_BLUE))
+
+    # Focus bracket (handled by webui capture endpoint, not TakePhoto.py directly)
+    camera_settings.pop("FocusBracket", None)
+
     if num_photos < 1 or num_photos == 2:
         num_photos = 1
 
