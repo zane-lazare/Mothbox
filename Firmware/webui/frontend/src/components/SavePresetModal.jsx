@@ -48,11 +48,14 @@ export default function SavePresetModal({ isOpen, onClose, onSave, isSaving, def
       return
     }
 
-    // Validate settings values
-    const settingsErrors = validatePresetSettings(currentSettings)
-    if (settingsErrors.length > 0) {
-      setValidationErrors(settingsErrors)
-      return
+    // Validate liveview settings values (only when workflow includes liveview)
+    // Photo-only presets don't use liveview settings, so skip validation
+    if (workflow !== 'photo') {
+      const settingsErrors = validatePresetSettings(currentSettings)
+      if (settingsErrors.length > 0) {
+        setValidationErrors(settingsErrors)
+        return
+      }
     }
 
     const presetData = {
