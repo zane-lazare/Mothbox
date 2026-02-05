@@ -405,13 +405,12 @@ class TestBuiltInPresets:
                 print(f"✓ Valid fields: {preset_file.name}")
 
 
-@pytest.mark.skip(reason="Built-in presets contain settings (HDR, FocusBracket, etc) without validators yet")
 class TestPresetSettingsValidation:
-    """Test that preset settings are validated against camera settings rules"""
+    """Test that preset settings are validated against both camera and webui settings rules"""
 
     def test_preset_camera_settings_validated(self):
-        """Preset camera settings should be validated against ALLOWED_CAMERA_SETTINGS"""
-        from routes.camera import ALLOWED_CAMERA_SETTINGS
+        """Preset camera settings should be validated against ALLOWED_CAMERA_SETTINGS and ALLOWED_WEBUI_SETTINGS"""
+        from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS
         from pathlib import Path
 
         builtin_dir = Path(__file__).parent.parent.parent / 'webui' / 'backend' / 'presets_builtin'
@@ -427,11 +426,16 @@ class TestPresetSettingsValidation:
                     camera_settings = data['settings']['camera']
 
                     for setting_name, setting_value in camera_settings.items():
-                        assert setting_name in ALLOWED_CAMERA_SETTINGS, \
-                            f"{preset_file.name}: Unknown setting '{setting_name}'"
+                        if setting_name in ALLOWED_CAMERA_SETTINGS:
+                            validator = ALLOWED_CAMERA_SETTINGS[setting_name]
+                        elif setting_name in ALLOWED_WEBUI_SETTINGS:
+                            validator = ALLOWED_WEBUI_SETTINGS[setting_name]
+                        else:
+                            pytest.fail(
+                                f"{preset_file.name}: Unknown setting '{setting_name}'"
+                            )
 
                         # Validate the value
-                        validator = ALLOWED_CAMERA_SETTINGS[setting_name]
                         try:
                             is_valid = validator(setting_value)
                             assert is_valid, \
@@ -441,4 +445,4 @@ class TestPresetSettingsValidation:
                                 f"{preset_file.name}: Validation error for '{setting_name}={setting_value}': {e}"
                             )
 
-                    print(f"✓ Camera settings validated: {preset_file.name}")
+                    print(f"  Camera settings validated: {preset_file.name}")
