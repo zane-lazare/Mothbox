@@ -286,7 +286,16 @@ def load_camera_settings():
                 elif setting in APPLICATION_SETTINGS:
                     pass  # Keep as string, application handles these
                 else:
-                    print(f"Warning: Unknown setting: {setting}. Ignoring.")
+                    # Coerce unknown settings to numeric types for picamera2
+                    # (webui may write valid controls not explicitly listed above)
+                    try:
+                        value = int(value)
+                    except (ValueError, TypeError):
+                        try:
+                            value = float(value)
+                        except (ValueError, TypeError):
+                            print(f"Warning: Unknown non-numeric setting: {setting}. Skipping.")
+                            continue
 
                 the_camera_settings[setting] = value
 
