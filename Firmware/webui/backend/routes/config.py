@@ -19,6 +19,8 @@ from flask import Blueprint, jsonify, request
 from utils import (
     ALLOWED_CAMERA_SETTINGS,
     ALLOWED_LIVEVIEW_SETTINGS,
+    ALLOWED_WEBUI_SETTINGS,
+    coerce_for_csv,
     create_backup,
     sanitize_csv_value,
 )
@@ -818,7 +820,19 @@ def copy_settings():
                                 # Update the corresponding row
                                 for row in csv_rows:
                                     if row["SETTING"] == capture_key:
-                                        row["VALUE"] = str(capture_value)
+                                        row["VALUE"] = coerce_for_csv(capture_key, capture_value)
+                                        break
+
+                                copied.append(f"{preview_key} → {capture_key}")
+                            else:
+                                skipped.append(f"{preview_key} (validation failed)")
+                        elif capture_key in ALLOWED_WEBUI_SETTINGS:
+                            if ALLOWED_WEBUI_SETTINGS[capture_key](capture_value):
+                                capture_settings_dict[capture_key] = capture_value
+
+                                for row in csv_rows:
+                                    if row["SETTING"] == capture_key:
+                                        row["VALUE"] = coerce_for_csv(capture_key, capture_value)
                                         break
 
                                 copied.append(f"{preview_key} → {capture_key}")

@@ -42,7 +42,12 @@ from constants import (
 from flask import Blueprint, current_app, jsonify, request
 
 # Import shared utilities
-from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS, coerce_for_csv, sanitize_csv_value
+from utils import (
+    ALLOWED_CAMERA_SETTINGS,
+    ALLOWED_WEBUI_SETTINGS,
+    coerce_for_csv,
+    sanitize_csv_value,
+)
 
 from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
 
