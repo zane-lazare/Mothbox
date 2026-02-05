@@ -8,7 +8,7 @@ from flask import Blueprint, jsonify, request
 from preset_manager import PresetManager
 
 # Import validation from utils
-from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS
+from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_WEBUI_SETTINGS, coerce_for_csv
 
 from mothbox_paths import (
     BUILTIN_PRESET_DIR,
@@ -280,13 +280,13 @@ def apply_preset(name):
                 found = False
                 for row in csv_rows:
                     if row["SETTING"].strip() == setting_name:
-                        row["VALUE"] = str(setting_value)
+                        row["VALUE"] = coerce_for_csv(setting_name, setting_value)
                         found = True
                         break
 
                 if not found:
                     csv_rows.append(
-                        {"SETTING": setting_name, "VALUE": str(setting_value), "DETAILS": ""}
+                        {"SETTING": setting_name, "VALUE": coerce_for_csv(setting_name, setting_value), "DETAILS": ""}
                     )
 
             # Write back to camera_settings.csv

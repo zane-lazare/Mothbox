@@ -662,6 +662,44 @@ class TestApplyPresetValidationRules:
         assert 'FocusBracket,1' in content
         assert 'Sharpness,1.5' in content
 
+    def test_apply_preset_coerces_boolean_values_to_integers(self, client, tmp_path, monkeypatch, mock_preset_manager):
+        """Boolean values in preset camera settings are coerced to integers in CSV"""
+        from Tests.conftest import patch_path_constant_everywhere
+
+        camera_file = tmp_path / "camera_settings.csv"
+        camera_file.write_text("SETTING,VALUE,DETAILS\n")
+        patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', camera_file)
+
+        mock_preset_manager.get_preset.return_value = {
+            'name': 'test_preset',
+            'display_name': 'Test',
+            'workflow': 'both',
+            'settings': {
+                'camera': {
+                    'HDR': True,
+                    'FocusBracket': True,
+                    'ImageFileType': False,
+                    'VerticalFlip': False,
+                    'AeEnable': True,
+                }
+            }
+        }
+
+        response = client.post('/api/presets/test_preset/apply', json={
+            'apply_to': 'capture'
+        })
+
+        assert response.status_code == 200
+
+        content = camera_file.read_text()
+        # Integer settings: bool coerced to 0/1
+        assert 'HDR,1' in content
+        assert 'FocusBracket,1' in content
+        assert 'ImageFileType,0' in content
+        assert 'VerticalFlip,0' in content
+        # Bool-string settings: preserved as "True"/"False"
+        assert 'AeEnable,True' in content
+
 
 class TestApplyPresetFileOperations:
     """File I/O edge case tests"""
