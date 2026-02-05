@@ -134,9 +134,11 @@ export default function Settings() {
       // No toast here - let individual handlers control when to show toasts
       // This allows silent initialization vs. user-action feedback
     },
-    onError: (error) => {
-      const message = error.response?.data?.error || 'Failed to apply preset'
-      toast.error(`Error: ${message}`)
+    onError: () => {
+      // Error toasts handled by individual callers (initializePhotoPreset,
+      // initializeVideoPreset, handlePhotoPresetChange, handleVideoPresetChange)
+      // which provide context-specific messages. Showing a toast here would
+      // duplicate because mutateAsync fires both onError and promise rejection.
     },
   })
 
