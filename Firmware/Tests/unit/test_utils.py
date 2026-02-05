@@ -999,3 +999,56 @@ class TestGetLastCalibrationTime:
             mock_open.side_effect = PermissionError("Access denied")
             result = get_last_calibration_time(Path("/some/settings.csv"))
             assert result is None
+
+
+class TestCoerceForCsv:
+    """Test coerce_for_csv converts values to correct CSV types"""
+
+    def test_boolean_true_to_int(self):
+        """Python True coerced to '1' for integer settings"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("HDR", True) == "1"
+
+    def test_boolean_false_to_int(self):
+        """Python False coerced to '0' for integer settings"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("ImageFileType", False) == "0"
+
+    def test_string_true_to_int(self):
+        """String 'True' coerced to '1' for integer settings"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("FocusBracket", "True") == "1"
+
+    def test_string_false_to_int(self):
+        """String 'False' coerced to '0' for integer settings"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("VerticalFlip", "False") == "0"
+
+    def test_int_passthrough(self):
+        """Integer values pass through correctly"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("HDR", 3) == "3"
+        assert coerce_for_csv("ImageFileType", 1) == "1"
+
+    def test_float_passthrough(self):
+        """Float values for float settings"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("Sharpness", 1.5) == "1.5"
+        assert coerce_for_csv("FocusBracket_Start", 2.0) == "2.0"
+
+    def test_bool_string_settings_preserve(self):
+        """AeEnable/AwbEnable keep string 'True'/'False'"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("AeEnable", True) == "True"
+        assert coerce_for_csv("AeEnable", "True") == "True"
+        assert coerce_for_csv("AwbEnable", False) == "False"
+
+    def test_unknown_setting_passthrough(self):
+        """Unknown settings pass through as str()"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("SomeNewSetting", 42) == "42"
+
+    def test_name_string_passthrough(self):
+        """Name setting stays as string"""
+        from utils import coerce_for_csv
+        assert coerce_for_csv("Name", "mothbox") == "mothbox"

@@ -38,6 +38,7 @@ create_backup = _backend_utils.create_backup
 validate_path_within_directory = _backend_utils.validate_path_within_directory
 check_disk_space = _backend_utils.check_disk_space
 get_last_calibration_time = _backend_utils.get_last_calibration_time
+coerce_for_csv = _backend_utils.coerce_for_csv
 
 # Re-export private validation functions (used by tests)
 _validate_int_enum = _backend_utils._validate_int_enum
@@ -103,6 +104,7 @@ __all__ = [
     "validate_path_within_directory",
     "check_disk_space",
     "get_last_calibration_time",
+    "coerce_for_csv",
     # From this package
     "decimal_to_dms",
     "dms_to_decimal",

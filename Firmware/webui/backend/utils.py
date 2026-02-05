@@ -303,6 +303,73 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 
 
 # ============================================================================
+# CSV VALUE COERCION
+# ============================================================================
+# TakePhoto.py reads camera_settings.csv and expects specific types:
+#   - Integer settings (HDR, FocusBracket, ImageFileType, etc.): "1", "3", "0"
+#   - Float settings (Sharpness, LensPosition, etc.): "1.5", "2.0"
+#   - Bool-string settings (AeEnable, AwbEnable): "True", "False"
+#   - String settings (Name): "mothbox"
+#
+# The webui form may pass Python booleans (True/False) or strings ("True"/"False")
+# for integer settings. This function normalizes values before CSV write.
+
+# Settings that TakePhoto.py reads with int()
+_INT_SETTINGS = {
+    "HDR", "HDR_width", "FocusBracket", "ImageFileType", "VerticalFlip",
+    "AutoCalibration", "AutoCalibrationPeriod",
+    "FlashDelay_BeforeCapture", "FlashDelay_AfterCapture",
+    "FocusBracket_SettleDelay", "FocusBracket_LockColorGains",
+    "ExposureTime", "AfMode", "AfSpeed", "AfRange", "AfMetering",
+    "AeMeteringMode", "AwbMode", "NoiseReductionMode",
+    "FocusPeakingIntensity",
+}
+
+# Settings that TakePhoto.py reads with float()
+_FLOAT_SETTINGS = {
+    "Sharpness", "Brightness", "Contrast", "Saturation",
+    "LensPosition", "ExposureValue", "AnalogueGain",
+    "ColourGainRed", "ColourGainBlue",
+    "FocusBracket_Start", "FocusBracket_End",
+    "FocusBracket_ColorGainRed", "FocusBracket_ColorGainBlue",
+}
+
+# Settings that TakePhoto.py reads as bool strings ("True"/"False")
+_BOOL_STRING_SETTINGS = {
+    "AeEnable", "AwbEnable", "LensShadingEnable",
+    "DefectCorrectionEnable", "UseCustomTuning",
+    "FocusPeakingEnabled",
+}
+
+
+def coerce_for_csv(key: str, value) -> str:
+    """Coerce a setting value to the correct string representation for CSV.
+
+    Ensures TakePhoto.py receives values in the types it expects.
+    Python booleans and string "True"/"False" are converted to "1"/"0"
+    for integer settings, preserving "True"/"False" only for settings
+    that TakePhoto.py reads as boolean strings.
+    """
+    if key in _INT_SETTINGS:
+        # Convert bool -> int first (True=1, False=0), then to string
+        if isinstance(value, bool):
+            return str(int(value))
+        # Handle string "True"/"False" for int settings
+        if isinstance(value, str) and value.lower() in ("true", "false"):
+            return "1" if value.lower() == "true" else "0"
+        return str(int(value))
+    elif key in _FLOAT_SETTINGS:
+        return str(float(value))
+    elif key in _BOOL_STRING_SETTINGS:
+        # Normalize to capitalized "True"/"False"
+        if isinstance(value, bool):
+            return str(value)
+        return str(value).capitalize() if str(value).lower() in ("true", "false") else str(value)
+    else:
+        return str(value)
+
+
+# ============================================================================
 # File Management Utilities
 # ============================================================================
 
