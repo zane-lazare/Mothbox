@@ -724,7 +724,11 @@ def update_camera_settings():
             # If setting doesn't exist, add a new row
             if not found:
                 csv_rows.append(
-                    {"SETTING": setting_name, "VALUE": coerce_for_csv(setting_name, setting_value), "DETAILS": ""}
+                    {
+                        "SETTING": setting_name,
+                        "VALUE": coerce_for_csv(setting_name, setting_value),
+                        "DETAILS": "",
+                    }
                 )
 
         # Write back all settings in vertical format

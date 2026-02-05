@@ -316,28 +316,52 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 
 # Settings that TakePhoto.py reads with int()
 _INT_SETTINGS = {
-    "HDR", "HDR_width", "FocusBracket", "ImageFileType", "VerticalFlip",
-    "AutoCalibration", "AutoCalibrationPeriod",
-    "FlashDelay_BeforeCapture", "FlashDelay_AfterCapture",
-    "FocusBracket_SettleDelay", "FocusBracket_LockColorGains",
-    "ExposureTime", "AfMode", "AfSpeed", "AfRange", "AfMetering",
-    "AeMeteringMode", "AwbMode", "NoiseReductionMode",
+    "HDR",
+    "HDR_width",
+    "FocusBracket",
+    "ImageFileType",
+    "VerticalFlip",
+    "AutoCalibration",
+    "AutoCalibrationPeriod",
+    "FlashDelay_BeforeCapture",
+    "FlashDelay_AfterCapture",
+    "FocusBracket_SettleDelay",
+    "FocusBracket_LockColorGains",
+    "ExposureTime",
+    "AfMode",
+    "AfSpeed",
+    "AfRange",
+    "AfMetering",
+    "AeMeteringMode",
+    "AwbMode",
+    "NoiseReductionMode",
     "FocusPeakingIntensity",
 }
 
 # Settings that TakePhoto.py reads with float()
 _FLOAT_SETTINGS = {
-    "Sharpness", "Brightness", "Contrast", "Saturation",
-    "LensPosition", "ExposureValue", "AnalogueGain",
-    "ColourGainRed", "ColourGainBlue",
-    "FocusBracket_Start", "FocusBracket_End",
-    "FocusBracket_ColorGainRed", "FocusBracket_ColorGainBlue",
+    "Sharpness",
+    "Brightness",
+    "Contrast",
+    "Saturation",
+    "LensPosition",
+    "ExposureValue",
+    "AnalogueGain",
+    "ColourGainRed",
+    "ColourGainBlue",
+    "FocusBracket_Start",
+    "FocusBracket_End",
+    "FocusBracket_ColorGainRed",
+    "FocusBracket_ColorGainBlue",
 }
 
 # Settings that TakePhoto.py reads as bool strings ("True"/"False")
 _BOOL_STRING_SETTINGS = {
-    "AeEnable", "AwbEnable", "LensShadingEnable",
-    "DefectCorrectionEnable", "UseCustomTuning",
+    "AeEnable",
+    "AwbEnable",
+    "LensShadingEnable",
+    "DefectCorrectionEnable",
+    "UseCustomTuning",
     "FocusPeakingEnabled",
 }
 

@@ -286,7 +286,11 @@ def apply_preset(name):
 
                 if not found:
                     csv_rows.append(
-                        {"SETTING": setting_name, "VALUE": coerce_for_csv(setting_name, setting_value), "DETAILS": ""}
+                        {
+                            "SETTING": setting_name,
+                            "VALUE": coerce_for_csv(setting_name, setting_value),
+                            "DETAILS": "",
+                        }
                     )
 
             # Write back to camera_settings.csv

@@ -1049,7 +1049,9 @@ def _has_solar_time_window(trigger: IntervalTrigger) -> bool:
     return bool(end and end.lower() in SOLAR_TIME_KEYWORDS)
 
 
-def _routine_interval_to_cron(routine: Routine, use_seconds_timing: bool = False) -> list[CronEntry]:
+def _routine_interval_to_cron(
+    routine: Routine, use_seconds_timing: bool = False
+) -> list[CronEntry]:
     """Generate pattern-based cron entries for interval trigger.
 
     Uses efficient cron expressions like "0 21 * * *" instead of
@@ -1105,7 +1107,9 @@ def _routine_interval_to_cron(routine: Routine, use_seconds_timing: bool = False
     return entries
 
 
-def _routine_fixed_time_to_cron(routine: Routine, use_seconds_timing: bool = False) -> list[CronEntry]:
+def _routine_fixed_time_to_cron(
+    routine: Routine, use_seconds_timing: bool = False
+) -> list[CronEntry]:
     """Generate pattern-based cron entries for fixed_time trigger.
 
     Uses efficient cron expressions like "0 21 * * 1,2,3,4,5".
@@ -1147,7 +1151,9 @@ def _routine_fixed_time_to_cron(routine: Routine, use_seconds_timing: bool = Fal
     return entries
 
 
-def _routine_cron_trigger_to_cron(routine: Routine, use_seconds_timing: bool = False) -> list[CronEntry]:
+def _routine_cron_trigger_to_cron(
+    routine: Routine, use_seconds_timing: bool = False
+) -> list[CronEntry]:
     """Generate cron entries for expert-mode cron trigger.
 
     Uses the raw cron expression provided by the user.
@@ -1233,7 +1239,9 @@ def routine_to_cron(
     if isinstance(trigger, IntervalTrigger):
         if _has_solar_time_window(trigger):
             # Solar-based window requires date-specific entries
-            return routine_to_dated_cron(routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing)
+            return routine_to_dated_cron(
+                routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing
+            )
         return _routine_interval_to_cron(routine, use_seconds_timing)
     elif isinstance(trigger, FixedTimeTrigger):
         return _routine_fixed_time_to_cron(routine, use_seconds_timing)
@@ -1242,10 +1250,14 @@ def routine_to_cron(
 
     # Date-specific triggers - times vary daily or use specific dates
     elif isinstance(trigger, (SolarTrigger, MoonPhaseTrigger)):
-        return routine_to_dated_cron(routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing)
+        return routine_to_dated_cron(
+            routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing
+        )
     elif isinstance(trigger, RecurringDaysTrigger):
         # RecurringDays uses "every N days" which requires date-specific
-        return routine_to_dated_cron(routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing)
+        return routine_to_dated_cron(
+            routine, latitude, longitude, timezone_name, days_ahead, use_seconds_timing
+        )
     elif isinstance(trigger, SensorTrigger):
         # Sensor triggers are event-driven, not cron-based
         raise ValueError("Sensor trigger is event-driven and cannot be converted to cron")
