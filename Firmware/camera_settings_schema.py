@@ -5,8 +5,9 @@ When adding a new setting, add it to the appropriate type set below
 and to WEBUI_ONLY_SETTINGS if it should not be passed to picamera2.
 """
 
+
 # picamera2 expects int
-INT_SETTINGS = {
+INT_SETTINGS: set[str] = {
     "ExposureTime",
     "AfMode",
     "AfSpeed",
@@ -31,7 +32,7 @@ INT_SETTINGS = {
 }
 
 # picamera2 expects float
-FLOAT_SETTINGS = {
+FLOAT_SETTINGS: set[str] = {
     "Sharpness",
     "Brightness",
     "Contrast",
@@ -49,7 +50,7 @@ FLOAT_SETTINGS = {
 }
 
 # Stored as "True"/"False" strings, read with value.lower() == "true"
-BOOL_STRING_SETTINGS = {
+BOOL_STRING_SETTINGS: set[str] = {
     "AeEnable",
     "AwbEnable",
     "LensShadingEnable",
@@ -59,7 +60,7 @@ BOOL_STRING_SETTINGS = {
 }
 
 # Plain string settings (no type coercion needed)
-STRING_SETTINGS = {
+STRING_SETTINGS: set[str] = {
     "Name",
     "FocusPeakingColour",
     "FocusPeakingColor",
@@ -70,7 +71,7 @@ STRING_SETTINGS = {
 # TakePhoto.py pops these before calling set_controls().
 # Some are used by TakePhoto.py logic (HDR, Name, etc.),
 # others are webui-only (FocusBracket_Start, FocusPeaking*, etc.).
-WEBUI_ONLY_SETTINGS = {
+WEBUI_ONLY_SETTINGS: set[str] = {
     # Used by TakePhoto.py logic
     "Name",
     "HDR",
@@ -102,3 +103,8 @@ WEBUI_ONLY_SETTINGS = {
     "FocusPeakingColor",
     "FocusPeakingAlgorithm",
 }
+
+# Union of all type sets — used for unknown setting detection
+ALL_KNOWN_SETTINGS: set[str] = (
+    INT_SETTINGS | FLOAT_SETTINGS | BOOL_STRING_SETTINGS | STRING_SETTINGS
+)

@@ -41,9 +41,11 @@ import RPi.GPIO as GPIO
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from camera_settings_schema import (
+    ALL_KNOWN_SETTINGS,
     BOOL_STRING_SETTINGS,
     FLOAT_SETTINGS,
     INT_SETTINGS,
+    STRING_SETTINGS,
     WEBUI_ONLY_SETTINGS,
 )
 from mothbox_paths import (
@@ -90,7 +92,7 @@ def debug_connected_to_ground():
 # Define GPIO pin for checking
 off_pin = 16
 debug_pin = 12
-mode = "ACTIVE"  # possible modes are OFF or DEBUG or ARMED
+mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)
 GPIO.setup(debug_pin, GPIO.IN)
@@ -251,6 +253,8 @@ def load_camera_settings():
                     value = float(value)
                 elif setting in BOOL_STRING_SETTINGS:
                     value = value.lower() == "true"
+                elif setting not in STRING_SETTINGS and setting not in ALL_KNOWN_SETTINGS:
+                    print(f"WARNING: Unknown setting '{setting}' in camera_settings.csv")
 
                 # Special handling: ExposureTime sets a global
                 if setting == "ExposureTime":
