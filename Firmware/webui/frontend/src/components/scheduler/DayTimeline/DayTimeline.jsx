@@ -27,6 +27,8 @@ import {
   getCycleHours,
   collapseRepetitiveHours,
   getLocalDateFromIso,
+  getNextDateKey,
+  getHourFromIsoTime,
 } from './dayTimelineUtils'
 
 /**
@@ -81,14 +83,26 @@ function DayTimeline({
     [cycleInfo]
   )
 
-  // Filter executions to only those matching the specified date
+  // Filter executions to those matching the specified date.
+  // For overnight schedules (spans_midnight), also include next-day entries
+  // up to end_hour so the full dusk-to-dawn cycle appears on one day.
   const filteredExecutions = useMemo(() => {
     if (!executions || !date) return executions
+
+    const nextDate =
+      cycleInfo?.spans_midnight ? getNextDateKey(date) : null
+    const endHour = cycleInfo?.end_hour ?? 24
+
     return executions.filter((exec) => {
       const execDate = getLocalDateFromIso(exec.start_time)
-      return execDate === date
+      if (execDate === date) return true
+      if (nextDate && execDate === nextDate) {
+        const hour = getHourFromIsoTime(exec.start_time)
+        return hour <= endHour
+      }
+      return false
     })
-  }, [executions, date])
+  }, [executions, date, cycleInfo])
 
   // Group executions by hour (cycle-aware)
   const executionsByHour = useMemo(

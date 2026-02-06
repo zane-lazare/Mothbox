@@ -132,6 +132,19 @@ export function getLocalDateFromIso(isoString) {
 }
 
 /**
+ * Get the next calendar date key (YYYY-MM-DD) from a given date string.
+ * Handles month/year boundaries correctly by using Date arithmetic.
+ *
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {string} Next date in YYYY-MM-DD format
+ */
+export function getNextDateKey(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00') // noon avoids DST edge cases
+  d.setDate(d.getDate() + 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
  * Groups executions by hour (0-23) for a given local date.
  *
  * @param {Array} executions - Array of execution objects with start_time
