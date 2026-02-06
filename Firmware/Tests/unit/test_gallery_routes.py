@@ -272,40 +272,27 @@ class TestGalleryThumbnailEndpoint:
 
     def test_thumbnail_generation(self, gallery_client, sample_photos, temp_photos_dir):
         """GET /thumbnail/<path> generates and returns thumbnail"""
-        # Use first sample photo
         photo_path = sample_photos[0].relative_to(temp_photos_dir)
-
-        # Mock PIL module at import time
-        import sys
-        mock_pil = MagicMock()
         mock_img = MagicMock()
-        mock_pil.Image.open.return_value = mock_img
 
-        # Mock the save operation
         def mock_save(io_buf, format, quality=None):
-            io_buf.write(b'\xFF\xD8\xFF\xE0' + b'\x00' * 50)  # Fake thumbnail data
+            io_buf.write(b'\xFF\xD8\xFF\xE0' + b'\x00' * 50)
         mock_img.save = mock_save
 
-        with patch.dict(sys.modules, {'PIL': mock_pil, 'PIL.Image': mock_pil.Image}):
+        with patch('PIL.Image.open', return_value=mock_img):
             response = gallery_client.get(f'/api/gallery/thumbnail/{photo_path}')
 
             assert response.status_code == 200
             assert response.mimetype == 'image/jpeg'
-
-            # Verify thumbnail() was called with correct size
             mock_img.thumbnail.assert_called_once_with((300, 300))
 
     def test_thumbnail_not_found(self, gallery_client):
         """GET /thumbnail/<path> returns 404 for non-existent photo"""
-        # Mock PIL to isolate path checking logic
-        import sys
-        mock_pil = MagicMock()
-        with patch.dict(sys.modules, {'PIL': mock_pil, 'PIL.Image': mock_pil.Image}):
-            response = gallery_client.get('/api/gallery/thumbnail/nonexistent.jpg')
+        response = gallery_client.get('/api/gallery/thumbnail/nonexistent.jpg')
 
-            assert response.status_code == 404
-            data = json.loads(response.data)
-            assert 'error' in data
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert 'error' in data
 
     def test_thumbnail_path_traversal_blocked(self, gallery_client):
         """GET /thumbnail/<path> blocks path traversal attempts"""
@@ -314,15 +301,11 @@ class TestGalleryThumbnailEndpoint:
             '../../secrets.txt',
         ]
 
-        # Mock PIL to isolate path checking logic
-        import sys
-        mock_pil = MagicMock()
-        with patch.dict(sys.modules, {'PIL': mock_pil, 'PIL.Image': mock_pil.Image}):
-            for malicious_path in traversal_attempts:
-                response = gallery_client.get(f'/api/gallery/thumbnail/{malicious_path}')
+        for malicious_path in traversal_attempts:
+            response = gallery_client.get(f'/api/gallery/thumbnail/{malicious_path}')
 
-                assert response.status_code in [400, 404], \
-                    f"Path traversal should be blocked in thumbnail: {malicious_path}"
+            assert response.status_code in [400, 404], \
+                f"Path traversal should be blocked in thumbnail: {malicious_path}"
 
     @pytest.mark.skip(reason="PIL import happens at runtime inside function - difficult to mock without PIL installed")
     def test_thumbnail_invalid_image_handled(self, gallery_client, temp_photos_dir):
@@ -513,31 +496,21 @@ class TestThumbnailCacheIntegration:
 
     def test_thumbnail_falls_back_without_cache(self, gallery_app, sample_photos, temp_photos_dir):
         """GET /thumbnail/<path> falls back to PIL when cache unavailable"""
-        import sys
-        from unittest.mock import MagicMock, patch
-
         photo_path = sample_photos[0].relative_to(temp_photos_dir)
-
-        # Mock PIL module
-        mock_pil = MagicMock()
         mock_img = MagicMock()
-        mock_pil.Image.open.return_value = mock_img
 
         def mock_save(io_buf, format, quality=None):
             io_buf.write(b'\xFF\xD8\xFF\xE0' + b'\x00' * 50)
         mock_img.save = mock_save
 
-        # Set cache to None in app config
         gallery_app.config['THUMBNAIL_CACHE'] = None
 
-        with patch.dict(sys.modules, {'PIL': mock_pil, 'PIL.Image': mock_pil.Image}):
+        with patch('PIL.Image.open', return_value=mock_img):
             with gallery_app.test_client() as client:
                 response = client.get(f'/api/gallery/thumbnail/{photo_path}')
 
                 assert response.status_code == 200
                 assert response.mimetype == 'image/jpeg'
-
-                # Verify PIL was used instead
                 mock_img.thumbnail.assert_called_once()
 
     def test_cache_statistics_endpoint(self, gallery_app):

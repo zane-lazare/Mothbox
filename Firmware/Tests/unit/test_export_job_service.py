@@ -1254,6 +1254,8 @@ def test_cleanup_preserves_non_expired_legacy_jobs(db_path, mock_export_service,
 
 def test_progress_phases_during_execution(service, photos_dir):
     """Test that progress phases transition correctly during job execution."""
+    import threading
+
     job = service.create_job(
         format=ExportJobFormat.DARWIN_CORE,
         filter=ExportJobFilter(),
@@ -1264,16 +1266,28 @@ def test_progress_phases_during_execution(service, photos_dir):
 
     photo_paths = list(photos_dir.glob("*.jpg"))
     observed_phases = []
+    polling_started = threading.Event()
 
     def capture_phase():
         current_job = service.get_job(job.job_id)
         if current_job and current_job.progress.phase not in observed_phases:
             observed_phases.append(current_job.progress.phase)
 
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
+    # Slow down photo collection so the polling loop can observe phases
+    original_collect = service._collect_photos
+
+    def slow_collect(*args, **kwargs):
+        polling_started.wait(timeout=5)
+        return photo_paths
+
+    with patch.object(service, '_collect_photos', side_effect=slow_collect), \
          patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
          patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
         service.start()
+
+        # Capture initial phase, then unblock the worker
+        capture_phase()
+        polling_started.set()
 
         # Poll for completion while capturing phases
         for _ in range(50):
@@ -1289,8 +1303,6 @@ def test_progress_phases_during_execution(service, photos_dir):
     assert final_job.status == ExportJobStatus.COMPLETED
     assert final_job.progress.phase == "completed"
 
-    # Verify expected phases were observed (order may vary due to timing)
-    expected_phases = {"initializing", "collecting", "exporting", "finalizing", "completed"}
     # At minimum, we should see initializing and completed
     assert "initializing" in observed_phases
     assert "completed" in observed_phases or final_job.progress.phase == "completed"
