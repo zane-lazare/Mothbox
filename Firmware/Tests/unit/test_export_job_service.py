@@ -25,14 +25,14 @@ def mock_export_service():
     service = Mock()
     # transform_batch_to_darwin_core_csv returns (headers, rows) tuple
     service.transform_batch_to_darwin_core_csv.return_value = (
-        ['header1', 'header2'],
-        [['row1val1', 'row1val2'], ['row2val1', 'row2val2']]
+        ["header1", "header2"],
+        [["row1val1", "row1val2"], ["row2val1", "row2val2"]],
     )
     service.transform_batch_to_inaturalist_zip.return_value = None  # Writes to output_path directly
-    service.transform_to_generic.return_value = {'key': 'value'}
+    service.transform_to_generic.return_value = {"key": "value"}
     # get_export_metadata returns an object with to_dict method and required attributes
     mock_metadata = Mock()
-    mock_metadata.to_dict.return_value = {'filename': 'test.jpg'}
+    mock_metadata.to_dict.return_value = {"filename": "test.jpg"}
     # Required attributes for is_valid_for_export() and transform_to_csv_row()
     mock_metadata.latitude = 35.9606
     mock_metadata.longitude = -83.9207
@@ -126,7 +126,7 @@ def test_create_job_with_custom_ttl(service):
     )
 
     assert job is not None
-    assert job.options.get('_ttl_seconds') == 7200
+    assert job.options.get("_ttl_seconds") == 7200
 
 
 def test_create_job_default_ttl(service):
@@ -137,7 +137,7 @@ def test_create_job_default_ttl(service):
     )
 
     # Should not have custom TTL in options
-    assert '_ttl_seconds' not in job.options
+    assert "_ttl_seconds" not in job.options
 
 
 def test_create_job_with_ttl_preserves_other_options(service):
@@ -149,9 +149,9 @@ def test_create_job_with_ttl_preserves_other_options(service):
         ttl_seconds=3600,
     )
 
-    assert job.options.get('validate') is True
-    assert job.options.get('custom_key') == "value"
-    assert job.options.get('_ttl_seconds') == 3600
+    assert job.options.get("validate") is True
+    assert job.options.get("custom_key") == "value"
+    assert job.options.get("_ttl_seconds") == 3600
 
 
 # =============================================================================
@@ -187,7 +187,7 @@ def test_list_jobs_empty(service):
 
 def test_list_jobs_all(service):
     """Test listing all jobs."""
-    for i in range(3):
+    for _i in range(3):
         service.create_job(
             format=ExportJobFormat.DARWIN_CORE,
             filter=ExportJobFilter(),
@@ -200,7 +200,7 @@ def test_list_jobs_all(service):
 
 def test_list_jobs_pagination(service):
     """Test listing jobs with pagination."""
-    for i in range(5):
+    for _i in range(5):
         service.create_job(
             format=ExportJobFormat.DARWIN_CORE,
             filter=ExportJobFilter(),
@@ -378,9 +378,14 @@ def test_job_execution_success(service, mock_export_service, photos_dir):
 
     photo_paths = list(photos_dir.glob("*.jpg"))
     # Patch Darwin Core functions to bypass real transformation logic
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+    with (
+        patch.object(service, "_collect_photos", return_value=photo_paths),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            return_value=["val1", "val2"],
+        ),
+    ):
         service.start()
 
         # Wait for job to complete
@@ -406,9 +411,14 @@ def test_job_execution_failure(service, mock_export_service):
     )
 
     # Patch Darwin Core functions - make transform_to_csv_row raise an error
-    with patch.object(service, '_collect_photos', return_value=[Path("/tmp/photo.jpg")]), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', side_effect=Exception("Export failed")):
+    with (
+        patch.object(service, "_collect_photos", return_value=[Path("/tmp/photo.jpg")]),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            side_effect=Exception("Export failed"),
+        ),
+    ):
         service.start()
 
         # Wait for job to fail
@@ -433,9 +443,9 @@ def test_job_execution_failure(service, mock_export_service):
 def test_get_statistics_empty(service):
     """Test statistics when no jobs exist."""
     stats = service.get_statistics()
-    assert stats['total_jobs'] == 0
-    assert stats['pending_jobs'] == 0
-    assert stats['worker_running'] is False
+    assert stats["total_jobs"] == 0
+    assert stats["pending_jobs"] == 0
+    assert stats["worker_running"] is False
 
 
 def test_get_statistics_with_jobs(service):
@@ -444,8 +454,8 @@ def test_get_statistics_with_jobs(service):
     service.create_job(format=ExportJobFormat.JSON, filter=ExportJobFilter())
 
     stats = service.get_statistics()
-    assert stats['total_jobs'] == 2
-    assert stats['pending_jobs'] == 2
+    assert stats["total_jobs"] == 2
+    assert stats["pending_jobs"] == 2
 
 
 # =============================================================================
@@ -1048,9 +1058,14 @@ def test_expires_at_set_on_job_completion(service, photos_dir):
     )
 
     photo_paths = list(photos_dir.glob("*.jpg"))
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+    with (
+        patch.object(service, "_collect_photos", return_value=photo_paths),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            return_value=["val1", "val2"],
+        ),
+    ):
         service.start()
 
         # Wait for job to complete
@@ -1080,9 +1095,14 @@ def test_expires_at_uses_custom_ttl(service, photos_dir):
     )
 
     photo_paths = list(photos_dir.glob("*.jpg"))
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+    with (
+        patch.object(service, "_collect_photos", return_value=photo_paths),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            return_value=["val1", "val2"],
+        ),
+    ):
         service.start()
 
         for _ in range(30):
@@ -1107,9 +1127,14 @@ def test_expires_at_set_on_job_failure(service, mock_export_service):
         filter=ExportJobFilter(),
     )
 
-    with patch.object(service, '_collect_photos', return_value=[Path("/tmp/photo.jpg")]), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', side_effect=Exception("Export failed")):
+    with (
+        patch.object(service, "_collect_photos", return_value=[Path("/tmp/photo.jpg")]),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            side_effect=Exception("Export failed"),
+        ),
+    ):
         service.start()
 
         for _ in range(30):
@@ -1216,7 +1241,9 @@ def test_cleanup_legacy_jobs_without_expires_at(db_path, mock_export_service, ph
     service.stop()
 
 
-def test_cleanup_preserves_non_expired_legacy_jobs(db_path, mock_export_service, photos_dir, temp_dir):
+def test_cleanup_preserves_non_expired_legacy_jobs(
+    db_path, mock_export_service, photos_dir, temp_dir
+):
     """Test that cleanup preserves legacy jobs within TTL based on created_at."""
     service = ExportJobService(
         db_path=db_path,
@@ -1274,15 +1301,18 @@ def test_progress_phases_during_execution(service, photos_dir):
             observed_phases.append(current_job.progress.phase)
 
     # Slow down photo collection so the polling loop can observe phases
-    original_collect = service._collect_photos
-
     def slow_collect(*args, **kwargs):
         polling_started.wait(timeout=5)
         return photo_paths
 
-    with patch.object(service, '_collect_photos', side_effect=slow_collect), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+    with (
+        patch.object(service, "_collect_photos", side_effect=slow_collect),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            return_value=["val1", "val2"],
+        ),
+    ):
         service.start()
 
         # Capture initial phase, then unblock the worker
@@ -1316,9 +1346,14 @@ def test_progress_current_and_total_set_correctly(service, photos_dir):
     )
 
     photo_paths = list(photos_dir.glob("*.jpg"))
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', return_value=['val1', 'val2']):
+    with (
+        patch.object(service, "_collect_photos", return_value=photo_paths),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row",
+            return_value=["val1", "val2"],
+        ),
+    ):
         service.start()
 
         for _ in range(30):
@@ -1431,23 +1466,29 @@ def test_progress_visible_via_api_during_execution(service, photos_dir):
     def slow_transform(*args):
         """Slow down transform to allow capturing progress."""
         time.sleep(0.05)  # 50ms per photo
-        return ['val1', 'val2']
+        return ["val1", "val2"]
 
-    with patch.object(service, '_collect_photos', return_value=photo_paths), \
-         patch('webui.backend.lib.darwin_core_mapping.is_valid_for_export', return_value=True), \
-         patch('webui.backend.lib.darwin_core_mapping.transform_to_csv_row', side_effect=slow_transform):
+    with (
+        patch.object(service, "_collect_photos", return_value=photo_paths),
+        patch("webui.backend.lib.darwin_core_mapping.is_valid_for_export", return_value=True),
+        patch(
+            "webui.backend.lib.darwin_core_mapping.transform_to_csv_row", side_effect=slow_transform
+        ),
+    ):
         service.start()
 
         # Poll and capture progress
         for _ in range(100):
             current_job = service.get_job(job.job_id)
             if current_job:
-                progress_snapshots.append({
-                    'phase': current_job.progress.phase,
-                    'current': current_job.progress.current,
-                    'total': current_job.progress.total,
-                    'percent': current_job.progress.percent,
-                })
+                progress_snapshots.append(
+                    {
+                        "phase": current_job.progress.phase,
+                        "current": current_job.progress.current,
+                        "total": current_job.progress.total,
+                        "percent": current_job.progress.percent,
+                    }
+                )
                 if current_job.status == ExportJobStatus.COMPLETED:
                     break
             time.sleep(0.05)
@@ -1457,7 +1498,7 @@ def test_progress_visible_via_api_during_execution(service, photos_dir):
     # Should have multiple snapshots showing progress
     assert len(progress_snapshots) > 1
     # Should see increasing current values in some snapshots
-    currents = [s['current'] for s in progress_snapshots if s['current'] > 0]
+    currents = [s["current"] for s in progress_snapshots if s["current"] > 0]
     if len(currents) > 1:
         # At least some progress should be visible
         assert max(currents) > 0

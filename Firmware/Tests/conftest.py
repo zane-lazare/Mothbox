@@ -10,6 +10,7 @@ Usage:
     - camera_streamer fixture handles proper resource cleanup
 """
 
+import contextlib
 import gc
 import os
 import sys
@@ -23,14 +24,15 @@ if TYPE_CHECKING:
     from webui.backend.lib.schedule_schema import Routine
 
 # Setup path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'webui' / 'backend'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "webui" / "backend"))
 
 
 # ============================================================================
 # Test Environment Setup
 # ============================================================================
 
-@pytest.fixture(scope='session', autouse=True)
+
+@pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
     """
     Set MOTHBOX_ENV=test for all test sessions
@@ -48,13 +50,13 @@ def setup_test_environment():
 
     This fixture runs once per test session before any tests execute.
     """
-    if 'MOTHBOX_ENV' not in os.environ:
-        os.environ['MOTHBOX_ENV'] = 'test'
+    if "MOTHBOX_ENV" not in os.environ:
+        os.environ["MOTHBOX_ENV"] = "test"
 
     # Also set MOTHBOX_HOME explicitly for clarity (optional, test mode uses __file__ parent)
-    if 'MOTHBOX_HOME' not in os.environ:
+    if "MOTHBOX_HOME" not in os.environ:
         test_root = Path(__file__).parent.parent
-        os.environ['MOTHBOX_HOME'] = str(test_root)
+        os.environ["MOTHBOX_HOME"] = str(test_root)
         print(f"\n🧪 Test Mode: MOTHBOX_HOME={test_root}")
 
     yield
@@ -66,43 +68,35 @@ def setup_test_environment():
 # Pytest Markers
 # ============================================================================
 
+
 def pytest_configure(config):
     """Register custom pytest markers (Issue #46 Solution #5)"""
     config.addinivalue_line(
-        "markers",
-        "hardware: mark test as requiring real Raspberry Pi hardware (camera, GPIO)"
+        "markers", "hardware: mark test as requiring real Raspberry Pi hardware (camera, GPIO)"
+    )
+    config.addinivalue_line("markers", "photo: test uses photo workflow (subprocess/TakePhoto.py)")
+    config.addinivalue_line(
+        "markers", "stream: test uses stream workflow (live CameraStreamer instance)"
+    )
+    config.addinivalue_line(
+        "markers", "both: test uses both photo and stream workflows (needs splitting in Issue #45)"
+    )
+    config.addinivalue_line(
+        "markers", "websocket: test uses WebSocket layer for real-time communication"
+    )
+    config.addinivalue_line(
+        "markers", "performance: performance/benchmark test (CPU-bound, not hardware-dependent)"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test (multi-component interaction)"
     )
     config.addinivalue_line(
         "markers",
-        "photo: test uses photo workflow (subprocess/TakePhoto.py)"
+        "calibration: test calibration functionality (photo/stream autofocus and exposure)",
     )
     config.addinivalue_line(
         "markers",
-        "stream: test uses stream workflow (live CameraStreamer instance)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "both: test uses both photo and stream workflows (needs splitting in Issue #45)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "websocket: test uses WebSocket layer for real-time communication"
-    )
-    config.addinivalue_line(
-        "markers",
-        "performance: performance/benchmark test (CPU-bound, not hardware-dependent)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: mark test as integration test (multi-component interaction)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "calibration: test calibration functionality (photo/stream autofocus and exposure)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "xdist_group(name): Group tests to run on same worker (pytest-xdist parallel execution)"
+        "xdist_group(name): Group tests to run on same worker (pytest-xdist parallel execution)",
     )
 
 
@@ -110,7 +104,8 @@ def pytest_configure(config):
 # Camera Fixtures
 # ============================================================================
 
-@pytest.fixture(scope='module')
+
+@pytest.fixture(scope="module")
 def camera_streamer():
     """
     Module-scoped camera streamer fixture
@@ -127,6 +122,7 @@ def camera_streamer():
 
     class MockSocketIO:
         """Mock SocketIO for testing"""
+
         def emit(self, event, data, **kwargs):
             pass
 
@@ -143,7 +139,7 @@ def camera_streamer():
         print(f"⚠️  Warning: Cleanup error: {e}")
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def camera_streamer_func(tmp_path, monkeypatch):
     """
     Function-scoped camera streamer fixture with isolated config
@@ -166,10 +162,11 @@ def camera_streamer_func(tmp_path, monkeypatch):
     temp_liveview.write_text("")  # Empty file
 
     # Patch path everywhere using established helper
-    patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_liveview)
+    patch_path_constant_everywhere(monkeypatch, "LIVEVIEW_SETTINGS_FILE", temp_liveview)
 
     class MockSocketIO:
         """Mock SocketIO for testing"""
+
         def emit(self, event, data, **kwargs):
             pass
 
@@ -185,7 +182,7 @@ def camera_streamer_func(tmp_path, monkeypatch):
         print(f"⚠️  Warning: Cleanup error: {e}")
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def camera_streamer_unit(monkeypatch):
     """
     Unit test fixture for LiveViewStreamer with fully mocked Picamera2
@@ -223,29 +220,29 @@ def camera_streamer_unit(monkeypatch):
 
     # Configure mock camera with realistic defaults
     mock_camera_instance.capture_metadata.return_value = {
-        'LensPosition': 5.0,
-        'ExposureTime': 10000,
-        'AnalogueGain': 8.0,
-        'ColourTemperature': 5000,
-        'AfState': 2,  # Focused
+        "LensPosition": 5.0,
+        "ExposureTime": 10000,
+        "AnalogueGain": 8.0,
+        "ColourTemperature": 5000,
+        "AfState": 2,  # Focused
     }
-    mock_camera_instance.camera_properties = {'Model': 'ov64a40'}
+    mock_camera_instance.camera_properties = {"Model": "ov64a40"}
 
     # Picamera2() constructor returns our mock instance
     mock_picamera2_module.Picamera2.return_value = mock_camera_instance
 
     # Inject into sys.modules BEFORE import
-    original_picamera2 = sys.modules.get('picamera2')
-    sys.modules['picamera2'] = mock_picamera2_module
+    original_picamera2 = sys.modules.get("picamera2")
+    sys.modules["picamera2"] = mock_picamera2_module
 
     # Also need to handle the specific imports liveview_stream does
-    sys.modules['picamera2.encoders'] = MagicMock()
-    sys.modules['picamera2.outputs'] = MagicMock()
+    sys.modules["picamera2.encoders"] = MagicMock()
+    sys.modules["picamera2.outputs"] = MagicMock()
 
     try:
         # Force reimport of liveview_stream to pick up mocked picamera2
-        if 'liveview_stream' in sys.modules:
-            del sys.modules['liveview_stream']
+        if "liveview_stream" in sys.modules:
+            del sys.modules["liveview_stream"]
 
         from liveview_stream import LiveViewStreamer
 
@@ -284,31 +281,30 @@ def camera_streamer_unit(monkeypatch):
         yield streamer
 
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             streamer.cleanup()
-        except Exception:
-            pass
 
     finally:
         # Restore original sys.modules state
         if original_picamera2 is not None:
-            sys.modules['picamera2'] = original_picamera2
-        elif 'picamera2' in sys.modules:
-            del sys.modules['picamera2']
+            sys.modules["picamera2"] = original_picamera2
+        elif "picamera2" in sys.modules:
+            del sys.modules["picamera2"]
 
         # Clean up submodule mocks
-        sys.modules.pop('picamera2.encoders', None)
-        sys.modules.pop('picamera2.outputs', None)
+        sys.modules.pop("picamera2.encoders", None)
+        sys.modules.pop("picamera2.outputs", None)
 
         # Force reimport on next use
-        sys.modules.pop('liveview_stream', None)
+        sys.modules.pop("liveview_stream", None)
 
 
 # ============================================================================
 # Flask App Fixtures
 # ============================================================================
 
-@pytest.fixture(scope='module')
+
+@pytest.fixture(scope="module")
 def app():
     """
     Module-scoped Flask app fixture with proper context setup
@@ -326,24 +322,24 @@ def app():
                 response = client.post('/api/camera/autofocus')
     """
     from flask import Flask
+    from liveview_stream import LiveViewStreamer
     from routes.camera import camera_bp
     from routes.config import config_bp
-    from routes.presets import presets_bp
     from routes.gpio import gpio_bp
     from routes.gps import gps_bp
-    from liveview_stream import LiveViewStreamer
+    from routes.presets import presets_bp
 
     # Create Flask app
     app = Flask(__name__)
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
 
     # Register blueprints with /api prefix to match production
-    app.register_blueprint(camera_bp, url_prefix='/api/camera')
-    app.register_blueprint(config_bp, url_prefix='/api/config')
-    app.register_blueprint(presets_bp, url_prefix='/api/presets')
-    app.register_blueprint(gpio_bp, url_prefix='/api/gpio')
-    app.register_blueprint(gps_bp, url_prefix='/api/gps')
+    app.register_blueprint(camera_bp, url_prefix="/api/camera")
+    app.register_blueprint(config_bp, url_prefix="/api/config")
+    app.register_blueprint(presets_bp, url_prefix="/api/presets")
+    app.register_blueprint(gpio_bp, url_prefix="/api/gpio")
+    app.register_blueprint(gps_bp, url_prefix="/api/gps")
 
     # Create camera_streamer and register in app config
     # This is critical - many endpoints expect this
@@ -352,7 +348,7 @@ def app():
             pass
 
     camera_streamer = LiveViewStreamer(MockSocketIO())
-    app.config['CAMERA_STREAMER'] = camera_streamer
+    app.config["CAMERA_STREAMER"] = camera_streamer
 
     yield app
 
@@ -363,7 +359,7 @@ def app():
         print(f"⚠️  Warning: App cleanup error: {e}")
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def client(app):
     """
     Module-scoped Flask test client
@@ -378,7 +374,7 @@ def client(app):
     return app.test_client()
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def socketio_app():
     """
     Module-scoped Flask app with SocketIO and WebSocket handlers
@@ -400,40 +396,42 @@ def socketio_app():
             received = client.get_received()
     """
     import os
+
     from flask import Flask
     from flask_socketio import SocketIO
+    from liveview_stream import LiveViewStreamer
     from routes.camera import camera_bp
     from routes.config import config_bp
-    from liveview_stream import LiveViewStreamer
     from websocket_handlers import register_handlers
 
     # Set MOTHBOX_ENV to development for testing
     # This prevents config from requiring SECRET_KEY when handlers import it
     # Save original value for restoration
-    original_env = os.environ.get('MOTHBOX_ENV')
-    os.environ['MOTHBOX_ENV'] = 'development'
+    original_env = os.environ.get("MOTHBOX_ENV")
+    os.environ["MOTHBOX_ENV"] = "development"
 
     try:
         # Create Flask app
         app = Flask(__name__)
-        app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
+        app.config["TESTING"] = True
+        app.config["WTF_CSRF_ENABLED"] = False
 
         # Create SocketIO
-        socketio = SocketIO(app, cors_allowed_origins='*')
+        socketio = SocketIO(app, cors_allowed_origins="*")
 
         # Register HTTP blueprints
-        app.register_blueprint(camera_bp, url_prefix='/api/camera')
-        app.register_blueprint(config_bp, url_prefix='/api/config')
+        app.register_blueprint(camera_bp, url_prefix="/api/camera")
+        app.register_blueprint(config_bp, url_prefix="/api/config")
 
         # Create camera streamer (uses real SocketIO for testing)
         class MockSocketIO:
             """Mock SocketIO for camera streamer initialization"""
+
             def emit(self, event, data, **kwargs):
                 pass
 
         camera_streamer = LiveViewStreamer(MockSocketIO())
-        app.config['CAMERA_STREAMER'] = camera_streamer
+        app.config["CAMERA_STREAMER"] = camera_streamer
 
         # Register WebSocket handlers (same as production!)
         register_handlers(socketio, camera_streamer)
@@ -449,14 +447,15 @@ def socketio_app():
 
         # Restore original MOTHBOX_ENV value
         if original_env is not None:
-            os.environ['MOTHBOX_ENV'] = original_env
+            os.environ["MOTHBOX_ENV"] = original_env
         else:
-            os.environ.pop('MOTHBOX_ENV', None)
+            os.environ.pop("MOTHBOX_ENV", None)
 
 
 # ============================================================================
 # Test Isolation Fixtures (Issue #46)
 # ============================================================================
+
 
 @pytest.fixture
 def mock_socketio():
@@ -471,8 +470,10 @@ def mock_socketio():
             streamer = CameraStreamer(mock_socketio)
             # ... test code ...
     """
+
     class MockSocketIO:
         """Mock SocketIO that silently accepts all emit() calls"""
+
         def emit(self, event, data, **kwargs):
             pass
 
@@ -504,6 +505,7 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
     Related: Issue #13 - Path constant patching (73 affected tests)
     """
     import sys
+
     import mothbox_paths
 
     # Step 1: Patch the source module
@@ -511,50 +513,50 @@ def patch_path_constant_everywhere(monkeypatch, constant_name, temp_path):
 
     # Step 2: Define modules that might have imported this constant
     # Map constant name to list of module paths that import it
-    MODULE_IMPORT_MAP = {
-        'LIVEVIEW_SETTINGS_FILE': [
-            'routes.config',
-            'routes.camera',
-            'routes.presets',
+    module_import_map = {
+        "LIVEVIEW_SETTINGS_FILE": [
+            "routes.config",
+            "routes.camera",
+            "routes.presets",
             # Note: liveview_stream uses mothbox_paths.LIVEVIEW_SETTINGS_FILE (qualified)
             # so it doesn't need patching - it reads from source module
         ],
-        'WEBUI_SETTINGS_FILE': [
+        "WEBUI_SETTINGS_FILE": [
             # WEBUI_SETTINGS_FILE is an alias for LIVEVIEW_SETTINGS_FILE
             # Same modules, handled together
-            'routes.config',
-            'routes.camera',
-            'routes.presets',
+            "routes.config",
+            "routes.camera",
+            "routes.presets",
         ],
-        'CAMERA_SETTINGS_FILE': [
-            'routes.config',
-            'routes.camera',
-            'routes.presets',
-            'routes.system',
+        "CAMERA_SETTINGS_FILE": [
+            "routes.config",
+            "routes.camera",
+            "routes.presets",
+            "routes.system",
         ],
-        'CONTROLS_FILE': [
-            'routes.config',
-            'routes.camera',
-            'routes.gps',
-            'routes.gpio',
-            'routes.system',
-            'webui.backend.lib.gps_exif_lib',  # Issue #98 - GPS EXIF embedding
+        "CONTROLS_FILE": [
+            "routes.config",
+            "routes.camera",
+            "routes.gps",
+            "routes.gpio",
+            "routes.system",
+            "webui.backend.lib.gps_exif_lib",  # Issue #98 - GPS EXIF embedding
         ],
-        'DATA_DIR': [
-            'routes.gpio',  # Issue #78 - GPIO state file
+        "DATA_DIR": [
+            "routes.gpio",  # Issue #78 - GPIO state file
         ],
-        'SCHEDULE_SETTINGS_FILE': [
-            'routes.config',  # Issue #78 - Schedule settings
+        "SCHEDULE_SETTINGS_FILE": [
+            "routes.config",  # Issue #78 - Schedule settings
         ],
-        'PHOTOS_DIR': [
-            'routes.camera',  # Issue #134 - Thumbnail cache testing
-            'routes.gallery',  # Issue #134 - Thumbnail cache testing
-            'routes.metadata',  # Issue #99 - Metadata API testing
+        "PHOTOS_DIR": [
+            "routes.camera",  # Issue #134 - Thumbnail cache testing
+            "routes.gallery",  # Issue #134 - Thumbnail cache testing
+            "routes.metadata",  # Issue #99 - Metadata API testing
         ],
     }
 
     # Step 3: Get list of modules to patch for this constant
-    modules_to_patch = MODULE_IMPORT_MAP.get(constant_name, [])
+    modules_to_patch = module_import_map.get(constant_name, [])
 
     # Step 4: Patch each module IF it's already loaded in sys.modules
     patched_count = 0
@@ -587,15 +589,14 @@ def temp_webui_settings(tmp_path, monkeypatch):
 
     Related: Issue #13 - Path constant patching fix
     """
-    import mothbox_paths
 
     # Create temporary file
     temp_file = tmp_path / "webui_settings.txt"
     temp_file.touch()
 
     # Patch both aliases everywhere (WEBUI_SETTINGS_FILE and LIVEVIEW_SETTINGS_FILE are the same)
-    patch_path_constant_everywhere(monkeypatch, 'WEBUI_SETTINGS_FILE', temp_file)
-    patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, "WEBUI_SETTINGS_FILE", temp_file)
+    patch_path_constant_everywhere(monkeypatch, "LIVEVIEW_SETTINGS_FILE", temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -621,14 +622,13 @@ def temp_camera_settings(tmp_path, monkeypatch):
 
     Related: Issue #13 - Path constant patching fix
     """
-    import mothbox_paths
 
     # Create temporary file with CSV header
     temp_file = tmp_path / "camera_settings.csv"
     temp_file.write_text("SETTING,VALUE,DETAILS\n")
 
     # Patch everywhere (source module + imported modules)
-    patch_path_constant_everywhere(monkeypatch, 'CAMERA_SETTINGS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, "CAMERA_SETTINGS_FILE", temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -654,14 +654,13 @@ def temp_liveview_settings(tmp_path, monkeypatch):
 
     Related: Issue #78 - Test capture workflows
     """
-    import mothbox_paths
 
     # Create temporary file (empty by default)
     temp_file = tmp_path / "liveview_settings.txt"
     temp_file.write_text("")
 
     # Patch everywhere (source module + imported modules)
-    patch_path_constant_everywhere(monkeypatch, 'LIVEVIEW_SETTINGS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, "LIVEVIEW_SETTINGS_FILE", temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -683,14 +682,13 @@ def temp_schedule_settings(tmp_path, monkeypatch):
 
     Related: Issue #78 - Config routes testing
     """
-    import mothbox_paths
 
     # Create temporary file with CSV header
     temp_file = tmp_path / "schedule_settings.csv"
     temp_file.write_text("weekdays,hours,minutes,runtime\n")
 
     # Patch everywhere (source module + imported modules)
-    patch_path_constant_everywhere(monkeypatch, 'SCHEDULE_SETTINGS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, "SCHEDULE_SETTINGS_FILE", temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -720,15 +718,21 @@ def temp_preferences_file(tmp_path, monkeypatch):
 
     # Create temporary file with default preferences
     temp_file = tmp_path / "user_preferences.json"
-    temp_file.write_text(json.dumps({
-        "default_capture_preset": None,
-        "default_preview_preset": None,
-        "default_liveview_preset": None
-    }, indent=2))
+    temp_file.write_text(
+        json.dumps(
+            {
+                "default_capture_preset": None,
+                "default_preview_preset": None,
+                "default_liveview_preset": None,
+            },
+            indent=2,
+        )
+    )
 
     # Patch the constant in mothbox_paths
     import mothbox_paths
-    monkeypatch.setattr(mothbox_paths, 'USER_PREFERENCES_FILE', temp_file)
+
+    monkeypatch.setattr(mothbox_paths, "USER_PREFERENCES_FILE", temp_file)
 
     # Recreate the global preferences_manager instance with temp path
     # This is needed because the manager was already instantiated at module import time
@@ -736,12 +740,13 @@ def temp_preferences_file(tmp_path, monkeypatch):
     from webui.backend.user_preferences import UserPreferencesManager
 
     new_manager = UserPreferencesManager(temp_file)
-    monkeypatch.setattr(user_preferences, 'preferences_manager', new_manager)
+    monkeypatch.setattr(user_preferences, "preferences_manager", new_manager)
 
     # Also patch in routes.preferences if already loaded
     import sys
-    if 'routes.preferences' in sys.modules:
-        monkeypatch.setattr('routes.preferences.preferences_manager', new_manager)
+
+    if "routes.preferences" in sys.modules:
+        monkeypatch.setattr("routes.preferences.preferences_manager", new_manager)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -750,6 +755,7 @@ def temp_preferences_file(tmp_path, monkeypatch):
 # ============================================================================
 # AF Window Test Fixtures (Click-to-Focus Feature)
 # ============================================================================
+
 
 @pytest.fixture
 def af_window_test_positions():
@@ -787,6 +793,7 @@ def af_window_test_positions():
 # ============================================================================
 # Module-Level Instance Mocking Fixtures (Issue #78)
 # ============================================================================
+
 
 @pytest.fixture
 def mock_picamera2():
@@ -832,8 +839,8 @@ def mock_picamera2():
 
     Related: Issue #78 - Camera testing infrastructure
     """
-    from unittest.mock import MagicMock, Mock
     import sys
+    from unittest.mock import MagicMock
 
     # Create mock module
     mock_picamera2_module = MagicMock()
@@ -842,7 +849,7 @@ def mock_picamera2():
     mock_instance = MagicMock()
 
     # Track camera state for realistic behavior
-    mock_instance.camera_state = 'stopped'
+    mock_instance.camera_state = "stopped"
     mock_instance.controls_history = []
     mock_instance.config_history = []
 
@@ -852,24 +859,24 @@ def mock_picamera2():
 
     def mock_configure(config):
         """Mock configure() - transitions to 'configured' state"""
-        mock_instance.camera_state = 'configured'
+        mock_instance.camera_state = "configured"
         mock_instance.config_history.append(config)
 
     def mock_start():
         """Mock start() - transitions to 'started' state"""
-        if mock_instance.camera_state != 'configured':
+        if mock_instance.camera_state != "configured":
             raise RuntimeError("Camera must be configured before starting")
-        mock_instance.camera_state = 'started'
+        mock_instance.camera_state = "started"
 
     def mock_stop():
         """Mock stop() - transitions back to 'configured' state"""
-        if mock_instance.camera_state != 'started':
+        if mock_instance.camera_state != "started":
             raise RuntimeError("Camera not started")
-        mock_instance.camera_state = 'configured'
+        mock_instance.camera_state = "configured"
 
     def mock_close():
         """Mock close() - transitions to 'stopped' state"""
-        mock_instance.camera_state = 'stopped'
+        mock_instance.camera_state = "stopped"
 
     # Attach state-tracking methods
     mock_instance.configure.side_effect = mock_configure
@@ -884,28 +891,28 @@ def mock_picamera2():
     def mock_create_preview_configuration(**kwargs):
         """Mock create_preview_configuration() - returns mock config dict"""
         return {
-            'type': 'preview',
-            'main': kwargs.get('main', {}),
-            'lores': kwargs.get('lores', {}),
-            'raw': kwargs.get('raw', {})
+            "type": "preview",
+            "main": kwargs.get("main", {}),
+            "lores": kwargs.get("lores", {}),
+            "raw": kwargs.get("raw", {}),
         }
 
     def mock_create_still_configuration(**kwargs):
         """Mock create_still_configuration() - returns mock config dict"""
         return {
-            'type': 'still',
-            'main': kwargs.get('main', {}),
-            'lores': kwargs.get('lores', {}),
-            'raw': kwargs.get('raw', {})
+            "type": "still",
+            "main": kwargs.get("main", {}),
+            "lores": kwargs.get("lores", {}),
+            "raw": kwargs.get("raw", {}),
         }
 
     def mock_create_video_configuration(**kwargs):
         """Mock create_video_configuration() - returns mock config dict"""
         return {
-            'type': 'video',
-            'main': kwargs.get('main', {}),
-            'lores': kwargs.get('lores', {}),
-            'raw': kwargs.get('raw', {})
+            "type": "video",
+            "main": kwargs.get("main", {}),
+            "lores": kwargs.get("lores", {}),
+            "raw": kwargs.get("raw", {}),
         }
 
     mock_instance.create_preview_configuration.side_effect = mock_create_preview_configuration
@@ -928,30 +935,32 @@ def mock_picamera2():
 
     # Default metadata for capture_metadata()
     mock_instance.capture_metadata.return_value = {
-        'LensPosition': 5.0,
-        'AfState': 2,  # Success
-        'ExposureTime': 10000,
-        'AnalogueGain': 1.0,
-        'ColourTemperature': 5500,
-        'Sharpness': 1.0,
-        'Contrast': 1.0,
-        'Brightness': 0.0,
-        'Saturation': 1.0
+        "LensPosition": 5.0,
+        "AfState": 2,  # Success
+        "ExposureTime": 10000,
+        "AnalogueGain": 1.0,
+        "ColourTemperature": 5500,
+        "Sharpness": 1.0,
+        "Contrast": 1.0,
+        "Brightness": 0.0,
+        "Saturation": 1.0,
     }
 
     # Default behavior for capture_file()
-    def mock_capture_file(path, name='main', wait=True):
+    def mock_capture_file(path, name="main", wait=True):
         """Mock capture_file() - creates empty file at path"""
         from pathlib import Path
+
         Path(path).touch()
         return path
 
     mock_instance.capture_file.side_effect = mock_capture_file
 
     # Default behavior for capture_array()
-    def mock_capture_array(name='main'):
+    def mock_capture_array(name="main"):
         """Mock capture_array() - returns dummy numpy array"""
         import numpy as np
+
         return np.zeros((1080, 1920, 3), dtype=np.uint8)
 
     mock_instance.capture_array.side_effect = mock_capture_array
@@ -970,7 +979,7 @@ def mock_picamera2():
     def mock_picamera2_constructor(camera_num=0):
         """Mock Picamera2 constructor - can simulate 'busy' errors"""
         # Reset state for new instance
-        mock_instance.camera_state = 'stopped'
+        mock_instance.camera_state = "stopped"
         mock_instance.controls_history = []
         mock_instance.config_history = []
         return mock_instance
@@ -983,8 +992,8 @@ def mock_picamera2():
     yield mock_picamera2_module
 
     # Cleanup: remove from sys.modules if it was injected
-    if 'picamera2' in sys.modules and sys.modules['picamera2'] == mock_picamera2_module:
-        del sys.modules['picamera2']
+    if "picamera2" in sys.modules and sys.modules["picamera2"] == mock_picamera2_module:
+        del sys.modules["picamera2"]
 
 
 @pytest.fixture
@@ -1018,7 +1027,6 @@ def mock_pi_version(monkeypatch, tmp_path):
 
     Related: Issue #78 - Camera testing infrastructure
     """
-    from pathlib import Path
 
     # Create temporary cpuinfo file
     cpuinfo_file = tmp_path / "cpuinfo"
@@ -1030,7 +1038,7 @@ def mock_pi_version(monkeypatch, tmp_path):
         Args:
             version: str - '4' for Pi 4, '5' for Pi 5
         """
-        if version == '4':
+        if version == "4":
             content = """processor\t: 0
 Model\t\t: Raspberry Pi 4 Model B Rev 1.5
 BogoMIPS\t: 108.00
@@ -1041,7 +1049,7 @@ CPU variant\t: 0x0
 CPU part\t: 0xd08
 CPU revision\t: 3
 """
-        elif version == '5':
+        elif version == "5":
             content = """processor\t: 0
 Model\t\t: Raspberry Pi 5 Model B Rev 1.0
 BogoMIPS\t: 108.00
@@ -1066,7 +1074,7 @@ CPU revision\t: 1
                 return original_open(cpuinfo_file, *args, **kwargs)
             return original_open(file, *args, **kwargs)
 
-        monkeypatch.setattr('builtins.open', patched_open)
+        monkeypatch.setattr("builtins.open", patched_open)
 
     # Return the setter function
     yield set_pi_version
@@ -1107,8 +1115,8 @@ def mock_subprocess_run():
 
     Related: Issue #78 - Camera testing infrastructure
     """
-    from unittest.mock import MagicMock
     import subprocess
+    from unittest.mock import MagicMock
 
     def factory(script_name, returncode=0, stdout=None, stderr=None, timeout=False):
         """
@@ -1126,11 +1134,11 @@ def mock_subprocess_run():
         """
         # Default outputs based on script type
         if stdout is None:
-            if script_name == 'TakePhoto.py' or script_name == 'TakePhoto_HDR.py':
+            if script_name == "TakePhoto.py" or script_name == "TakePhoto_HDR.py":
                 stdout = "Photo captured successfully\nFilename: photo_001.jpg\n"
-            elif script_name == 'capture_focus_bracket.py':
+            elif script_name == "capture_focus_bracket.py":
                 stdout = "Focus bracket completed: 5 images captured\n"
-            elif script_name == 'run_calibration.py':
+            elif script_name == "run_calibration.py":
                 stdout = """Calibration started...
 Autofocus completed: Success at 5.2 diopters
 Running test exposures...
@@ -1148,16 +1156,12 @@ Calibration complete!
         if timeout:
             # Simulate timeout
             mock_run.side_effect = subprocess.TimeoutExpired(
-                cmd=['python3', script_name],
-                timeout=30
+                cmd=["python3", script_name], timeout=30
             )
         else:
             # Return CompletedProcess
             mock_run.return_value = subprocess.CompletedProcess(
-                args=['python3', script_name],
-                returncode=returncode,
-                stdout=stdout,
-                stderr=stderr
+                args=["python3", script_name], returncode=returncode, stdout=stdout, stderr=stderr
             )
 
         return mock_run
@@ -1195,8 +1199,8 @@ def mock_camera_streamer(app):
 
     Related: Issue #78 - Camera testing infrastructure
     """
-    from unittest.mock import MagicMock
     from contextlib import contextmanager
+    from unittest.mock import MagicMock
 
     mock_streamer = MagicMock()
 
@@ -1247,33 +1251,33 @@ def mock_camera_streamer(app):
     # Mock get_current_settings() - returns realistic camera settings
     # Tests can override this by setting mock_streamer.get_current_settings.return_value
     mock_streamer.get_current_settings.return_value = {
-        'sharpness': 1.0,
-        'brightness': 0.0,
-        'contrast': 1.0,
-        'saturation': 1.0,
-        'af_mode': 2,  # Continuous
-        'af_speed': 0,  # Normal
-        'af_range': 0,  # Full
-        'af_metering': 0,  # Auto
-        'ae_enable': True,
-        'ae_metering_mode': 0,  # Centre-weighted
-        'awb_enable': True,
-        'awb_mode': 0,  # Auto
-        'exposure_time': 10000,
-        'analogue_gain': 8.0,
-        'noise_reduction_mode': 2,  # High quality
-        'colour_gains_red': 2.259,
-        'colour_gains_blue': 1.500,
-        'lens_position': 7.0,
+        "sharpness": 1.0,
+        "brightness": 0.0,
+        "contrast": 1.0,
+        "saturation": 1.0,
+        "af_mode": 2,  # Continuous
+        "af_speed": 0,  # Normal
+        "af_range": 0,  # Full
+        "af_metering": 0,  # Auto
+        "ae_enable": True,
+        "ae_metering_mode": 0,  # Centre-weighted
+        "awb_enable": True,
+        "awb_mode": 0,  # Auto
+        "exposure_time": 10000,
+        "analogue_gain": 8.0,
+        "noise_reduction_mode": 2,  # High quality
+        "colour_gains_red": 2.259,
+        "colour_gains_blue": 1.500,
+        "lens_position": 7.0,
     }
 
     # Register in app config (routes expect this)
-    app.config['CAMERA_STREAMER'] = mock_streamer
+    app.config["CAMERA_STREAMER"] = mock_streamer
 
     yield mock_streamer
 
     # Cleanup
-    app.config.pop('CAMERA_STREAMER', None)
+    app.config.pop("CAMERA_STREAMER", None)
 
 
 @pytest.fixture
@@ -1302,7 +1306,7 @@ def temp_photos_dir(tmp_path, monkeypatch):
     photos_dir.mkdir()
 
     # Patch PHOTOS_DIR everywhere
-    patch_path_constant_everywhere(monkeypatch, 'PHOTOS_DIR', photos_dir)
+    patch_path_constant_everywhere(monkeypatch, "PHOTOS_DIR", photos_dir)
 
     yield photos_dir
 
@@ -1355,12 +1359,12 @@ def mock_socketio_emit(app, monkeypatch):
     mock_socketio.emit_history = emit_history
 
     # Register in app extensions
-    app.extensions['socketio'] = mock_socketio
+    app.extensions["socketio"] = mock_socketio
 
     yield mock_socketio
 
     # Cleanup
-    app.extensions.pop('socketio', None)
+    app.extensions.pop("socketio", None)
 
 
 @pytest.fixture
@@ -1398,17 +1402,17 @@ def mock_preset_manager(monkeypatch):
 
     # Set default return values (can be overridden in tests)
     mock_pm.list_presets.return_value = []
-    mock_pm.get_preset_count.return_value = {'built-in': 0, 'user': 0, 'total': 0}
+    mock_pm.get_preset_count.return_value = {"built-in": 0, "user": 0, "total": 0}
     mock_pm.get_preset.return_value = None
     mock_pm.create_preset.return_value = True
     mock_pm.delete_preset.return_value = True
-    mock_pm.apply_preset.return_value = {'success': True}
+    mock_pm.apply_preset.return_value = {"success": True}
 
     # Import routes.presets (already imported by app fixture, but safe to re-import)
     from routes import presets
 
     # Replace the module-level instance with our mock
-    monkeypatch.setattr(presets, 'preset_manager', mock_pm)
+    monkeypatch.setattr(presets, "preset_manager", mock_pm)
 
     yield mock_pm
 
@@ -1418,6 +1422,7 @@ def mock_preset_manager(monkeypatch):
 # ============================================================================
 # Workflow-Specific Fixtures (Issue #46)
 # ============================================================================
+
 
 @pytest.fixture
 def photo_ready(app):
@@ -1434,7 +1439,7 @@ def photo_ready(app):
         def test_photo_calibration(client, photo_ready):
             response = client.post('/api/camera/calibrate-photo')
     """
-    camera_streamer = app.config.get('CAMERA_STREAMER')
+    camera_streamer = app.config.get("CAMERA_STREAMER")
 
     # BEFORE test: Release camera if held
     if camera_streamer and camera_streamer.camera:
@@ -1466,7 +1471,7 @@ def stream_ready(app):
         def test_stream_calibration(client, stream_ready):
             response = client.post('/api/camera/calibrate-stream')
     """
-    camera_streamer = app.config.get('CAMERA_STREAMER')
+    camera_streamer = app.config.get("CAMERA_STREAMER")
 
     if not camera_streamer:
         pytest.skip("Camera streamer not available")
@@ -1506,7 +1511,7 @@ def integration_ready(app):
         def test_camera_operation(client, integration_ready):
             response = client.post('/api/camera/autofocus')
     """
-    camera_streamer = app.config.get('CAMERA_STREAMER')
+    camera_streamer = app.config.get("CAMERA_STREAMER")
 
     if not camera_streamer:
         pytest.skip("Camera streamer not available")
@@ -1530,6 +1535,7 @@ def integration_ready(app):
 # ============================================================================
 # Pytest Hooks
 # ============================================================================
+
 
 def pytest_collection_modifyitems(config, items):
     """
@@ -1560,37 +1566,37 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         # Mark integration tests (except manual verification and installer) as hardware tests
         fspath_str = str(item.fspath)
-        is_integration = 'integration' in fspath_str
+        is_integration = "integration" in fspath_str
 
         # Integration tests that DON'T require Pi hardware
         # (use mocks, tmp_path, Flask test client, threading, PIL, etc.)
         non_hardware_tests = (
-            'manual_verification',
-            'installer',  # installer_workflows or installer_helpers
-            'test_focus_bracket_integration',  # Uses mocks only
-            'test_gallery_pagination',  # Filesystem only, no Pi hardware
-            'test_gps_exif_workflow',  # Uses mocks/PIL, no camera/GPIO
-            'test_verification_workflow',  # Uses subprocess/PIL, no camera/GPIO
-            'test_batch_tagging_workflow',  # Uses subprocess/PIL, no camera/GPIO
-            'test_map_locations_integration',  # Uses mocks/PIL/Flask test client, no camera/GPIO
-            'test_clustering_workflow',  # Uses mocks/Flask test client, no camera/GPIO
-            'test_sidecar_concurrent',  # Uses threading/tmp_path, no camera/GPIO
-            'test_sidecar_search_integration',  # Uses mocks/tmp_path, no camera/GPIO
-            'test_search_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
-            'test_deployment_workflow',  # Uses threading/tmp_path, no camera/GPIO
-            'test_inaturalist_export_workflow',  # Uses tmp_path/zipfile, no camera/GPIO
-            'test_export_job_workflow',  # Uses tmp_path/Flask test client/threading, no camera/GPIO
-            'test_export_preset_workflow',  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
-            'test_zip_export_integration',  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
-            'test_export_no_deployment_workflow',  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
-            'test_schedule_storage_workflow',  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
-            'test_scheduler_workflow',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
-            'test_scheduler_activation',  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
-            'test_scheduler_api_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #218)
-            'test_builtin_patterns_api',  # Uses Flask test client, no camera/GPIO (Issue #219)
-            'test_sensor_workflow',  # Uses mocks/I2C mocking, no camera/GPIO (Issue #232)
-            'test_expert_mode_workflow',  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #233)
-            'test_export_job_gps_precision',  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #288)
+            "manual_verification",
+            "installer",  # installer_workflows or installer_helpers
+            "test_focus_bracket_integration",  # Uses mocks only
+            "test_gallery_pagination",  # Filesystem only, no Pi hardware
+            "test_gps_exif_workflow",  # Uses mocks/PIL, no camera/GPIO
+            "test_verification_workflow",  # Uses subprocess/PIL, no camera/GPIO
+            "test_batch_tagging_workflow",  # Uses subprocess/PIL, no camera/GPIO
+            "test_map_locations_integration",  # Uses mocks/PIL/Flask test client, no camera/GPIO
+            "test_clustering_workflow",  # Uses mocks/Flask test client, no camera/GPIO
+            "test_sidecar_concurrent",  # Uses threading/tmp_path, no camera/GPIO
+            "test_sidecar_search_integration",  # Uses mocks/tmp_path, no camera/GPIO
+            "test_search_workflow",  # Uses mocks/tmp_path/Flask test client, no camera/GPIO
+            "test_deployment_workflow",  # Uses threading/tmp_path, no camera/GPIO
+            "test_inaturalist_export_workflow",  # Uses tmp_path/zipfile, no camera/GPIO
+            "test_export_job_workflow",  # Uses tmp_path/Flask test client/threading, no camera/GPIO
+            "test_export_preset_workflow",  # Uses tmp_path/Flask test client, no camera/GPIO (Issue #123)
+            "test_zip_export_integration",  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #128)
+            "test_export_no_deployment_workflow",  # Uses tmp_path/PIL/Flask test client, no camera/GPIO (Issue #200)
+            "test_schedule_storage_workflow",  # Uses tmp_path/threading, no camera/GPIO (Issue #209)
+            "test_scheduler_workflow",  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            "test_scheduler_activation",  # Uses mocks/tmp_path, no camera/GPIO (Issue #216)
+            "test_scheduler_api_workflow",  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #218)
+            "test_builtin_patterns_api",  # Uses Flask test client, no camera/GPIO (Issue #219)
+            "test_sensor_workflow",  # Uses mocks/I2C mocking, no camera/GPIO (Issue #232)
+            "test_expert_mode_workflow",  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #233)
+            "test_export_job_gps_precision",  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #288)
         )
 
         is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)
@@ -1599,7 +1605,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.hardware)
 
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def camera_session_setup():
     """
     Session-level camera management for integration tests (Issue #46 Solution #6)
@@ -1607,15 +1613,15 @@ def camera_session_setup():
     Announces test session start/end and ensures proper cleanup.
     Actual camera release happens per-test in pytest_runtest_setup.
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("🧪 Starting test session - camera will be released before integration tests")
-    print("="*70)
+    print("=" * 70)
 
     yield
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("🧹 Test session complete - all camera resources released")
-    print("="*70)
+    print("=" * 70)
 
 
 def pytest_runtest_setup(item):
@@ -1626,13 +1632,13 @@ def pytest_runtest_setup(item):
     2. Release camera before integration tests to prevent "Pipeline handler in use" errors
     3. Handles module-scoped camera_streamer conflicts
     """
-    hardware_marker = item.get_closest_marker('hardware')
+    hardware_marker = item.get_closest_marker("hardware")
     if hardware_marker:
         # Check if running on Raspberry Pi
         try:
-            with open('/proc/cpuinfo', 'r') as f:
+            with open("/proc/cpuinfo") as f:
                 cpuinfo = f.read()
-                if 'Raspberry Pi' not in cpuinfo:
+                if "Raspberry Pi" not in cpuinfo:
                     pytest.skip("Hardware tests require Raspberry Pi")
         except FileNotFoundError:
             pytest.skip("Hardware tests require Raspberry Pi")
@@ -1644,17 +1650,17 @@ def pytest_runtest_setup(item):
 
     # NEW: Release camera before tests using camera_streamer fixture
     # This handles both unit and integration tests with module-scoped camera_streamer
-    if 'camera_streamer' in item.fixturenames:
+    if "camera_streamer" in item.fixturenames:
         try:
             # Get camera_streamer fixture (works for both unit and integration tests)
-            camera_streamer = item.getfixturevalue('camera_streamer')
+            camera_streamer = item.getfixturevalue("camera_streamer")
 
             if camera_streamer and (camera_streamer.camera or camera_streamer.streaming):
                 print(f"\n🔄 Pre-test setup: Releasing camera for {item.name}...")
                 camera_streamer.release_camera()
                 time.sleep(2.0)  # Ensure hardware fully released (Issue #46)
                 print("   ✓ Camera released and ready")
-        except Exception as e:
+        except Exception:
             # Fixture may not be available yet or camera not initialized - that's OK
             pass
 
@@ -1676,27 +1682,25 @@ def verify_camera_state(request):
     camera_streamer = None
 
     # Integration tests: Get from app.config
-    if 'app' in request.fixturenames:
+    if "app" in request.fixturenames:
         try:
-            app = request.getfixturevalue('app')
-            camera_streamer = app.config.get('CAMERA_STREAMER')
+            app = request.getfixturevalue("app")
+            camera_streamer = app.config.get("CAMERA_STREAMER")
         except Exception:
             pass
 
     # Unit tests: Get camera_streamer fixture directly
-    if not camera_streamer and 'camera_streamer' in request.fixturenames:
-        try:
-            camera_streamer = request.getfixturevalue('camera_streamer')
-        except Exception:
-            pass
+    if not camera_streamer and "camera_streamer" in request.fixturenames:
+        with contextlib.suppress(Exception):
+            camera_streamer = request.getfixturevalue("camera_streamer")
 
     if not camera_streamer:
         yield
         return
 
     # BEFORE test: Prepare camera based on test markers
-    photo_marker = request.node.get_closest_marker('photo')
-    stream_marker = request.node.get_closest_marker('stream')
+    photo_marker = request.node.get_closest_marker("photo")
+    stream_marker = request.node.get_closest_marker("stream")
 
     if photo_marker:
         # Photo tests need clean slate
@@ -1704,11 +1708,10 @@ def verify_camera_state(request):
             print(f"📸 Photo test {request.node.name} - releasing camera from previous test...")
             camera_streamer.release_camera()
             time.sleep(2.0)
-    elif stream_marker:
+    elif stream_marker and not camera_streamer.camera:
         # Stream tests need initialized camera
-        if not camera_streamer.camera:
-            print(f"📹 Stream test {request.node.name} - initializing camera...")
-            camera_streamer.initialize_camera()
+        print(f"📹 Stream test {request.node.name} - initializing camera...")
+        camera_streamer.initialize_camera()
 
     yield  # Run the test
 
@@ -1719,11 +1722,10 @@ def verify_camera_state(request):
             print(f"⚠️  WARNING: Photo test {request.node.name} left camera open!")
             camera_streamer.release_camera()
             time.sleep(2.0)
-    elif stream_marker:
+    elif stream_marker and camera_streamer.streaming:
         # Stream tests should stop streaming
-        if camera_streamer.streaming:
-            print(f"⚠️  WARNING: Stream test {request.node.name} left streaming active!")
-            camera_streamer.stop_streaming()
+        print(f"⚠️  WARNING: Stream test {request.node.name} left streaming active!")
+        camera_streamer.stop_streaming()
 
 
 @pytest.fixture
@@ -1747,14 +1749,13 @@ def temp_controls_file(tmp_path, monkeypatch):
 
     Related: Issue #13 - Path constant patching fix
     """
-    import mothbox_paths
 
     # Create temporary file
     temp_file = tmp_path / "controls.txt"
     temp_file.touch()
 
     # Patch everywhere (source module + imported modules)
-    patch_path_constant_everywhere(monkeypatch, 'CONTROLS_FILE', temp_file)
+    patch_path_constant_everywhere(monkeypatch, "CONTROLS_FILE", temp_file)
 
     yield temp_file
     # Cleanup happens automatically with tmp_path and monkeypatch
@@ -1775,6 +1776,7 @@ def controls_file_factory(tmp_path):
 
     Related: Issue #13 (hardware configuration testing)
     """
+
     def _create_controls(content: str) -> Path:
         """Create a controls file with the given content"""
         controls = tmp_path / f"controls_{id(content)}.txt"
@@ -1800,12 +1802,14 @@ def assert_gpio_pins_equal():
 
     Related: Issue #13 (hardware configuration testing)
     """
+
     def _assert_equal(actual, expected, message=""):
         """Compare two GPIO pin dictionaries with detailed error messages"""
         for key in expected:
             assert key in actual, f"{message}: Missing key {key}"
-            assert actual[key] == expected[key], \
+            assert actual[key] == expected[key], (
                 f"{message}: {key} mismatch - expected {expected[key]}, got {actual[key]}"
+            )
 
     return _assert_equal
 
@@ -1813,6 +1817,7 @@ def assert_gpio_pins_equal():
 # ============================================================================
 # Unit Test Mocking Fixtures (Issue #78 - Backend Route Testing)
 # ============================================================================
+
 
 @pytest.fixture
 def temp_gpio_state_file(tmp_path, monkeypatch):
@@ -1834,12 +1839,13 @@ def temp_gpio_state_file(tmp_path, monkeypatch):
     state_file.write_text('{"Relay_Ch1": false, "Relay_Ch2": false, "Relay_Ch3": false}')
 
     # Patch DATA_DIR to point to tmp_path
-    patch_path_constant_everywhere(monkeypatch, 'DATA_DIR', tmp_path)
+    patch_path_constant_everywhere(monkeypatch, "DATA_DIR", tmp_path)
 
     # Also directly patch STATE_FILE in routes.gpio if already loaded
     import sys
-    if 'routes.gpio' in sys.modules:
-        monkeypatch.setattr('routes.gpio.STATE_FILE', state_file)
+
+    if "routes.gpio" in sys.modules:
+        monkeypatch.setattr("routes.gpio.STATE_FILE", state_file)
 
     yield state_file
     # Cleanup automatic with tmp_path
@@ -1861,9 +1867,10 @@ def mock_rpi_gpio(monkeypatch):
 
     Related: Issue #78 - GPIO routes testing
     """
+
     class MockGPIO:
-        BCM = 'BCM'
-        OUT = 'OUT'
+        BCM = "BCM"
+        OUT = "OUT"
         HIGH = 1
         LOW = 0
 
@@ -1899,28 +1906,29 @@ def mock_rpi_gpio(monkeypatch):
 
     # Inject mock into sys.modules and patch routes.gpio
     import sys
-    sys.modules['RPi'] = type(sys)('RPi')
-    sys.modules['RPi.GPIO'] = MockGPIO
+
+    sys.modules["RPi"] = type(sys)("RPi")
+    sys.modules["RPi.GPIO"] = MockGPIO
 
     # Patch module-level constants in routes.gpio if already loaded
-    if 'routes.gpio' in sys.modules:
+    if "routes.gpio" in sys.modules:
         # Set GPIO attribute if it doesn't exist
-        if not hasattr(sys.modules['routes.gpio'], 'GPIO'):
-            setattr(sys.modules['routes.gpio'], 'GPIO', MockGPIO)
+        if not hasattr(sys.modules["routes.gpio"], "GPIO"):
+            sys.modules["routes.gpio"].GPIO = MockGPIO
         else:
-            monkeypatch.setattr('routes.gpio.GPIO', MockGPIO)
+            monkeypatch.setattr("routes.gpio.GPIO", MockGPIO)
 
-        monkeypatch.setattr('routes.gpio.GPIO_AVAILABLE', True)
-        monkeypatch.setattr('routes.gpio.GPIO_PERMISSIONS_OK', True)
+        monkeypatch.setattr("routes.gpio.GPIO_AVAILABLE", True)
+        monkeypatch.setattr("routes.gpio.GPIO_PERMISSIONS_OK", True)
 
     yield MockGPIO
 
     # Cleanup
     MockGPIO.reset_tracking()
-    if 'RPi' in sys.modules:
-        del sys.modules['RPi']
-    if 'RPi.GPIO' in sys.modules:
-        del sys.modules['RPi.GPIO']
+    if "RPi" in sys.modules:
+        del sys.modules["RPi"]
+    if "RPi.GPIO" in sys.modules:
+        del sys.modules["RPi.GPIO"]
 
 
 @pytest.fixture
@@ -1942,67 +1950,65 @@ def mock_opencv(monkeypatch):
 
     Related: Issue #78 - Focus peaking algorithm testing
     """
-    import numpy as np
     from unittest.mock import MagicMock
+
+    import numpy as np
 
     mock_cv2 = MagicMock()
 
     # cvtColor: RGB ↔ Grayscale conversion
-    def mock_cvtColor(frame, code):
+    def mock_cvtColor(frame, code):  # noqa: N802
         """Convert between color spaces using luminosity method"""
         if code in (6,):  # COLOR_RGB2GRAY, COLOR_BGR2GRAY
             if len(frame.shape) == 3:
                 # Luminosity method (more realistic than simple averaging)
-                return np.dot(frame[...,:3], [0.299, 0.587, 0.114]).astype(np.uint8)
+                return np.dot(frame[..., :3], [0.299, 0.587, 0.114]).astype(np.uint8)
             return frame
-        elif code in (8,):  # COLOR_GRAY2RGB, COLOR_GRAY2BGR
+        if code in (8,):  # COLOR_GRAY2RGB, COLOR_GRAY2BGR
             if len(frame.shape) == 2:
                 return np.stack([frame, frame, frame], axis=2)
             return frame
         return frame
+
     mock_cv2.cvtColor = mock_cvtColor
 
     # Laplacian: Edge detection using convolution
-    def mock_Laplacian(src, ddepth, ksize=1):
+    def mock_Laplacian(src, ddepth, ksize=1):  # noqa: N802
         """Laplacian edge detection with scipy convolution"""
         from scipy.ndimage import convolve
 
         # Standard Laplacian kernel
-        kernel = np.array([[0, 1, 0],
-                          [1, -4, 1],
-                          [0, 1, 0]])
+        kernel = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
 
         # Apply convolution
-        result = convolve(src.astype(float), kernel, mode='reflect')
+        result = convolve(src.astype(float), kernel, mode="reflect")
 
         # Return absolute value as uint8
         return np.abs(result).astype(np.uint8)
+
     mock_cv2.Laplacian = mock_Laplacian
 
     # Sobel: Directional edge detection with convolution
-    def mock_Sobel(src, ddepth, dx, dy, ksize=3):
+    def mock_Sobel(src, ddepth, dx, dy, ksize=3):  # noqa: N802
         """Sobel edge detection with proper gradient kernels"""
         from scipy.ndimage import convolve
 
         if dx == 1 and dy == 0:
             # Horizontal gradient (Sobel X)
-            kernel = np.array([[-1, 0, 1],
-                              [-2, 0, 2],
-                              [-1, 0, 1]])
+            kernel = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
         elif dx == 0 and dy == 1:
             # Vertical gradient (Sobel Y)
-            kernel = np.array([[-1, -2, -1],
-                              [0, 0, 0],
-                              [1, 2, 1]])
+            kernel = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
         else:
             return np.zeros_like(src, dtype=np.int16)
 
-        result = convolve(src.astype(float), kernel, mode='reflect')
+        result = convolve(src.astype(float), kernel, mode="reflect")
         return result.astype(np.int16)  # Sobel returns signed int16
+
     mock_cv2.Sobel = mock_Sobel
 
     # Canny: Two-threshold edge detection
-    def mock_Canny(image, threshold1, threshold2):
+    def mock_Canny(image, threshold1, threshold2):  # noqa: N802
         """Canny edge detection using gradient magnitude"""
         from scipy.ndimage import convolve
 
@@ -2010,8 +2016,8 @@ def mock_opencv(monkeypatch):
         kernel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
         kernel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
 
-        grad_x = convolve(image.astype(float), kernel_x, mode='reflect')
-        grad_y = convolve(image.astype(float), kernel_y, mode='reflect')
+        grad_x = convolve(image.astype(float), kernel_x, mode="reflect")
+        grad_y = convolve(image.astype(float), kernel_y, mode="reflect")
 
         # Gradient magnitude
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
@@ -2021,40 +2027,44 @@ def mock_opencv(monkeypatch):
         edges[magnitude > threshold2] = 255
 
         return edges
+
     mock_cv2.Canny = mock_Canny
 
     # getStructuringElement: Morphological kernels
-    def mock_getStructuringElement(shape, ksize):
+    def mock_getStructuringElement(shape, ksize):  # noqa: N802
         """Create morphological structuring element"""
         h, w = ksize
         if shape == 2:  # MORPH_ELLIPSE
             # Create elliptical kernel
-            y, x = np.ogrid[-h//2:h//2+1, -w//2:w//2+1]
-            kernel = ((x**2 / (w/2)**2) + (y**2 / (h/2)**2)) <= 1
+            y, x = np.ogrid[-h // 2 : h // 2 + 1, -w // 2 : w // 2 + 1]
+            kernel = ((x**2 / (w / 2) ** 2) + (y**2 / (h / 2) ** 2)) <= 1
             return kernel.astype(np.uint8)
-        else:
-            # Rectangular kernel
-            return np.ones(ksize, dtype=np.uint8)
+        # Rectangular kernel
+        return np.ones(ksize, dtype=np.uint8)
+
     mock_cv2.getStructuringElement = mock_getStructuringElement
 
     # morphologyEx: Morphological operations
-    def mock_morphologyEx(src, op, kernel):
+    def mock_morphologyEx(src, op, kernel):  # noqa: N802
         """Morphological operations (closing)"""
         if op == 3:  # MORPH_CLOSE
             from scipy.ndimage import binary_dilation, binary_erosion
+
             dilated = binary_dilation(src > 0, structure=kernel)
             closed = binary_erosion(dilated, structure=kernel)
             return (closed * 255).astype(np.uint8)
         return src
+
     mock_cv2.morphologyEx = mock_morphologyEx
 
     # addWeighted: Blend overlay with frame
-    def mock_addWeighted(src1, alpha, src2, beta, gamma):
+    def mock_addWeighted(src1, alpha, src2, beta, gamma):  # noqa: N802
         """Weighted blend of two images"""
         # Ensure proper type handling and clipping
-        result = (src1.astype(np.float32) * alpha + src2.astype(np.float32) * beta + gamma)
+        result = src1.astype(np.float32) * alpha + src2.astype(np.float32) * beta + gamma
         result = np.clip(result, 0, 255).astype(np.uint8)
         return result
+
     mock_cv2.addWeighted = mock_addWeighted
 
     # Constants
@@ -2071,7 +2081,8 @@ def mock_opencv(monkeypatch):
 
     # Inject into sys.modules for automatic availability
     import sys
-    monkeypatch.setitem(sys.modules, 'cv2', mock_cv2)
+
+    monkeypatch.setitem(sys.modules, "cv2", mock_cv2)
 
     yield mock_cv2
 
@@ -2093,7 +2104,7 @@ def mock_simplejpeg(monkeypatch):
 
     mock_sj = MagicMock()
 
-    def mock_encode_jpeg(frame, quality=85, colorspace='RGB'):
+    def mock_encode_jpeg(frame, quality=85, colorspace="RGB"):
         """
         Simulate JPEG encoding
 
@@ -2110,10 +2121,10 @@ def mock_simplejpeg(monkeypatch):
         jpeg_size = int(base_size * (0.05 + compression_ratio * 0.25))  # 5-30% of original
 
         # Generate realistic JPEG structure
-        jpeg_bytes = b'\xff\xd8'  # SOI (Start of Image)
-        jpeg_bytes += b'\xff\xe0'  # APP0 marker
-        jpeg_bytes += b'\x00' * (jpeg_size - 4)  # Compressed data
-        jpeg_bytes += b'\xff\xd9'  # EOI (End of Image)
+        jpeg_bytes = b"\xff\xd8"  # SOI (Start of Image)
+        jpeg_bytes += b"\xff\xe0"  # APP0 marker
+        jpeg_bytes += b"\x00" * (jpeg_size - 4)  # Compressed data
+        jpeg_bytes += b"\xff\xd9"  # EOI (End of Image)
 
         return jpeg_bytes
 
@@ -2121,7 +2132,8 @@ def mock_simplejpeg(monkeypatch):
 
     # Inject into sys.modules
     import sys
-    monkeypatch.setitem(sys.modules, 'simplejpeg', mock_sj)
+
+    monkeypatch.setitem(sys.modules, "simplejpeg", mock_sj)
 
     yield mock_sj
 
@@ -2138,11 +2150,11 @@ def mock_mjpeg_encoder(monkeypatch):
             # MJPEGEncoder and WebSocketOutput are mocked
             # Test hardware encoding path without actual encoder
     """
-    from unittest.mock import MagicMock, Mock
 
     # Mock FileOutput base class
     class MockFileOutput:
         """Mock FileOutput base class"""
+
         def __init__(self):
             self.frames_written = 0
 
@@ -2153,6 +2165,7 @@ def mock_mjpeg_encoder(monkeypatch):
     # Mock MJPEGEncoder
     class MockMJPEGEncoder:
         """Mock hardware MJPEG encoder"""
+
         def __init__(self, qp=None):
             self.qp = qp  # Quality parameter (1-25, lower is higher quality)
             self.enabled = True
@@ -2164,21 +2177,18 @@ def mock_mjpeg_encoder(monkeypatch):
     import sys
 
     # Mock picamera2.outputs module
-    mock_outputs = type(sys)('picamera2.outputs')
+    mock_outputs = type(sys)("picamera2.outputs")
     mock_outputs.FileOutput = MockFileOutput
 
     # Mock picamera2.encoders module
-    mock_encoders = type(sys)('picamera2.encoders')
+    mock_encoders = type(sys)("picamera2.encoders")
     mock_encoders.MJPEGEncoder = MockMJPEGEncoder
 
     # Inject into sys.modules
-    monkeypatch.setitem(sys.modules, 'picamera2.outputs', mock_outputs)
-    monkeypatch.setitem(sys.modules, 'picamera2.encoders', mock_encoders)
+    monkeypatch.setitem(sys.modules, "picamera2.outputs", mock_outputs)
+    monkeypatch.setitem(sys.modules, "picamera2.encoders", mock_encoders)
 
-    yield {
-        'FileOutput': MockFileOutput,
-        'MJPEGEncoder': MockMJPEGEncoder
-    }
+    yield {"FileOutput": MockFileOutput, "MJPEGEncoder": MockMJPEGEncoder}
 
 
 @pytest.fixture
@@ -2193,33 +2203,33 @@ def mock_isp_tuning(monkeypatch, tmp_path):
             # get_tuning_path() and apply_isp_controls() are mocked
             # Test ISP tuning without actual tuning files
     """
-    from unittest.mock import MagicMock
     import json
+    from unittest.mock import MagicMock
 
     # Create fake tuning files
     arducam_tuning = tmp_path / "arducam_64mp.json"
-    arducam_tuning.write_text(json.dumps({
-        "version": 2.0,
-        "target": "arducam_64mp",
-        "algorithms": [
-            {"name": "lens_shading", "enabled": True},
-            {"name": "defect_correction", "enabled": True}
-        ]
-    }))
+    arducam_tuning.write_text(
+        json.dumps(
+            {
+                "version": 2.0,
+                "target": "arducam_64mp",
+                "algorithms": [
+                    {"name": "lens_shading", "enabled": True},
+                    {"name": "defect_correction", "enabled": True},
+                ],
+            }
+        )
+    )
 
     imx477_tuning = tmp_path / "imx477.json"
-    imx477_tuning.write_text(json.dumps({
-        "version": 2.0,
-        "target": "imx477",
-        "algorithms": []
-    }))
+    imx477_tuning.write_text(json.dumps({"version": 2.0, "target": "imx477", "algorithms": []}))
 
     # Mock tuning_loader functions
     def mock_get_tuning_path(tuning_name):
         """Return path to fake tuning file"""
         if "arducam" in tuning_name.lower():
             return str(arducam_tuning)
-        elif "imx477" in tuning_name.lower():
+        if "imx477" in tuning_name.lower():
             return str(imx477_tuning)
         return None
 
@@ -2233,14 +2243,17 @@ def mock_isp_tuning(monkeypatch, tmp_path):
 
     # Patch in liveview_stream module (if already loaded)
     import sys
-    if 'liveview_stream' in sys.modules:
-        monkeypatch.setattr('liveview_stream.get_tuning_path', mock_get_tuning_path, raising=False)
-        monkeypatch.setattr('liveview_stream.apply_isp_controls', mock_apply_isp_controls, raising=False)
+
+    if "liveview_stream" in sys.modules:
+        monkeypatch.setattr("liveview_stream.get_tuning_path", mock_get_tuning_path, raising=False)
+        monkeypatch.setattr(
+            "liveview_stream.apply_isp_controls", mock_apply_isp_controls, raising=False
+        )
 
     yield mock_loader
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def mock_picamera2_for_streamer():
     """
     Comprehensive Picamera2 mock for LiveViewStreamer tests.
@@ -2282,6 +2295,7 @@ def mock_picamera2_for_streamer():
     Related: Issue #78 - LiveView streamer testing, Issue #13 Phase 1
     """
     from unittest.mock import MagicMock
+
     import numpy as np
 
     class MockPicamera2:
@@ -2295,9 +2309,9 @@ def mock_picamera2_for_streamer():
             self.control_history = []  # Track all set_controls calls
             self.config = None  # Initialized by configure()
             self.sensor_modes = [
-                {'size': (1920, 1080)},
-                {'size': (2304, 1736)},
-                {'size': (4608, 2592)}
+                {"size": (1920, 1080)},
+                {"size": (2304, 1736)},
+                {"size": (4608, 2592)},
             ]
             self.scaler_crop_maximum = (0, 0, 4056, 3040)  # Arducam 64MP
             self._simulate_busy = False
@@ -2313,33 +2327,32 @@ def mock_picamera2_for_streamer():
         def state(self):
             """Current camera state"""
             if self.streaming:
-                return 'streaming'
-            elif self.started:
-                return 'started'
-            else:
-                return 'stopped'
+                return "streaming"
+            if self.started:
+                return "started"
+            return "stopped"
 
         @property
         def camera_controls(self):
             """Available camera controls"""
             return {
-                'AfMode': (0, 2, 2),
-                'AfSpeed': (0, 1, 0),
-                'AfRange': (0, 2, 0),
-                'AfMetering': (0, 1, 0),
-                'AfWindows': [(0, 0, 0, 0)],
-                'Sharpness': (0.0, 16.0, 1.0),
-                'Brightness': (-1.0, 1.0, 0.0),
-                'Contrast': (0.0, 32.0, 1.0),
-                'Saturation': (0.0, 32.0, 1.0),
-                'AwbEnable': (False, True, True),
-                'AwbMode': (0, 7, 0),
-                'AeEnable': (False, True, True),
-                'AeMeteringMode': (0, 3, 0),
-                'ExposureTime': (0, 1000000, 0),
-                'AnalogueGain': (1.0, 16.0, 1.0),
-                'ColourGains': (0.0, 32.0, 0.0),
-                'NoiseReductionMode': (0, 4, 0)
+                "AfMode": (0, 2, 2),
+                "AfSpeed": (0, 1, 0),
+                "AfRange": (0, 2, 0),
+                "AfMetering": (0, 1, 0),
+                "AfWindows": [(0, 0, 0, 0)],
+                "Sharpness": (0.0, 16.0, 1.0),
+                "Brightness": (-1.0, 1.0, 0.0),
+                "Contrast": (0.0, 32.0, 1.0),
+                "Saturation": (0.0, 32.0, 1.0),
+                "AwbEnable": (False, True, True),
+                "AwbMode": (0, 7, 0),
+                "AeEnable": (False, True, True),
+                "AeMeteringMode": (0, 3, 0),
+                "ExposureTime": (0, 1000000, 0),
+                "AnalogueGain": (1.0, 16.0, 1.0),
+                "ColourGains": (0.0, 32.0, 0.0),
+                "NoiseReductionMode": (0, 4, 0),
             }
 
         @property
@@ -2350,10 +2363,10 @@ def mock_picamera2_for_streamer():
                 return self._camera_properties
             # Otherwise, return dynamic properties based on scaler_crop_maximum
             return {
-                'ScalerCropMaximum': self.scaler_crop_maximum,
-                'Model': 'Arducam 64MP',
-                'UnitCellSize': (1120, 1120),  # 1.12µm pixels
-                'PixelArraySize': (9248, 6944)
+                "ScalerCropMaximum": self.scaler_crop_maximum,
+                "Model": "Arducam 64MP",
+                "UnitCellSize": (1120, 1120),  # 1.12µm pixels
+                "PixelArraySize": (9248, 6944),
             }
 
         @camera_properties.setter
@@ -2374,10 +2387,10 @@ def mock_picamera2_for_streamer():
             else:
                 # Merge with defaults
                 defaults = {
-                    'ScalerCropMaximum': self.scaler_crop_maximum,
-                    'Model': 'Arducam 64MP',
-                    'UnitCellSize': (1120, 1120),
-                    'PixelArraySize': (9248, 6944)
+                    "ScalerCropMaximum": self.scaler_crop_maximum,
+                    "Model": "Arducam 64MP",
+                    "UnitCellSize": (1120, 1120),
+                    "PixelArraySize": (9248, 6944),
                 }
                 self._camera_properties = {**defaults, **value}
 
@@ -2389,8 +2402,8 @@ def mock_picamera2_for_streamer():
             # ----------------------------------------------------------------
             def default_create_video_configuration(main=None, raw=None, encode=None):
                 if raw is None:
-                    raw = {'size': (2304, 1736)}  # Default 4:3 mode
-                return {'main': main, 'raw': raw, 'encode': encode}
+                    raw = {"size": (2304, 1736)}  # Default 4:3 mode
+                return {"main": main, "raw": raw, "encode": encode}
 
             self.create_video_configuration = MagicMock(
                 side_effect=default_create_video_configuration
@@ -2446,16 +2459,12 @@ def mock_picamera2_for_streamer():
             def default_start_recording(encoder, output):
                 self.streaming = True
 
-            self.start_recording = MagicMock(
-                side_effect=default_start_recording
-            )
+            self.start_recording = MagicMock(side_effect=default_start_recording)
 
             def default_stop_recording():
                 self.streaming = False
 
-            self.stop_recording = MagicMock(
-                side_effect=default_stop_recording
-            )
+            self.stop_recording = MagicMock(side_effect=default_stop_recording)
 
             # ----------------------------------------------------------------
             # Capture methods
@@ -2463,50 +2472,41 @@ def mock_picamera2_for_streamer():
             def default_capture_array():
                 return np.zeros((768, 1024, 3), dtype=np.uint8)
 
-            self.capture_array = MagicMock(
-                side_effect=default_capture_array
-            )
+            self.capture_array = MagicMock(side_effect=default_capture_array)
 
             def default_capture_metadata():
                 return {
-                    'AfState': 2,  # Focused
-                    'ExposureTime': 500,
-                    'AnalogueGain': 8.0,
-                    'LensPosition': 1.5
+                    "AfState": 2,  # Focused
+                    "ExposureTime": 500,
+                    "AnalogueGain": 8.0,
+                    "LensPosition": 1.5,
                 }
 
-            self.capture_metadata = MagicMock(
-                side_effect=default_capture_metadata
-            )
+            self.capture_metadata = MagicMock(side_effect=default_capture_metadata)
 
             def default_capture_request():
                 class MockRequest:
                     def get_metadata(self):
-                        return {
-                            'AfState': 2,
-                            'ExposureTime': 500
-                        }
+                        return {"AfState": 2, "ExposureTime": 500}
+
                     def release(self):
                         pass
+
                 return MockRequest()
 
-            self.capture_request = MagicMock(
-                side_effect=default_capture_request
-            )
+            self.capture_request = MagicMock(side_effect=default_capture_request)
 
             # ----------------------------------------------------------------
             # Control methods
             # ----------------------------------------------------------------
             def default_set_controls(controls):
-                if self.state == 'stopped':
+                if self.state == "stopped":
                     raise RuntimeError("Camera not started")
                 self.control_history.append(controls.copy())
                 self.current_controls.update(controls)
                 self.controls.update(controls)
 
-            self.set_controls = MagicMock(
-                side_effect=default_set_controls
-            )
+            self.set_controls = MagicMock(side_effect=default_set_controls)
 
         def simulate_camera_busy_error(self):
             """Make next operation raise 'camera busy' error"""
@@ -2539,7 +2539,7 @@ def mock_file_locking(monkeypatch):
         import fcntl as real_fcntl
     except ImportError:
         # Not available on Windows - create stub
-        class real_fcntl:
+        class real_fcntl:  # noqa: N801 — mimics `fcntl` module interface
             LOCK_EX = 2
             LOCK_SH = 1
             LOCK_UN = 8
@@ -2555,9 +2555,9 @@ def mock_file_locking(monkeypatch):
             if operation & real_fcntl.LOCK_EX:
                 if cls.should_block:
                     raise BlockingIOError("Resource temporarily unavailable")
-                cls.locks_acquired.append(('exclusive', fd))
+                cls.locks_acquired.append(("exclusive", fd))
             elif operation & real_fcntl.LOCK_SH:
-                cls.locks_acquired.append(('shared', fd))
+                cls.locks_acquired.append(("shared", fd))
             elif operation & real_fcntl.LOCK_UN:
                 cls.locks_released.append(fd)
 
@@ -2567,7 +2567,7 @@ def mock_file_locking(monkeypatch):
             cls.locks_released.clear()
             cls.should_block = False
 
-    monkeypatch.setattr('fcntl.flock', MockFlock.flock)
+    monkeypatch.setattr("fcntl.flock", MockFlock.flock)
 
     yield MockFlock
 
@@ -2586,12 +2586,13 @@ def clear_gps_cache(request):
     This fixture only clears the cache if the test module is testing GPS routes.
     """
     # Only clear cache for GPS route tests
-    if 'test_gps_routes' in request.node.nodeid:
+    if "test_gps_routes" in request.node.nodeid:
         try:
             from routes.gps import _gps_status_cache
-            with _gps_status_cache['lock']:
-                _gps_status_cache['data'] = None
-                _gps_status_cache['timestamp'] = 0
+
+            with _gps_status_cache["lock"]:
+                _gps_status_cache["data"] = None
+                _gps_status_cache["timestamp"] = 0
         except (ImportError, KeyError):
             # Module not imported yet or cache structure changed - safe to ignore
             pass
@@ -2599,12 +2600,13 @@ def clear_gps_cache(request):
     yield
 
     # Clear cache after test as well
-    if 'test_gps_routes' in request.node.nodeid:
+    if "test_gps_routes" in request.node.nodeid:
         try:
             from routes.gps import _gps_status_cache
-            with _gps_status_cache['lock']:
-                _gps_status_cache['data'] = None
-                _gps_status_cache['timestamp'] = 0
+
+            with _gps_status_cache["lock"]:
+                _gps_status_cache["data"] = None
+                _gps_status_cache["timestamp"] = 0
         except (ImportError, KeyError):
             pass
 
@@ -2635,17 +2637,21 @@ def patch_cv2_for_focus_peaking(mock_opencv):
             with patch_cv2_for_focus_peaking():
                 result = streamer._apply_focus_peaking_laplacian(frame)
     """
-    from unittest.mock import patch
     from contextlib import contextmanager
+    from unittest.mock import patch
+
     import numpy as np
 
     @contextmanager
     def patcher():
         import liveview_stream as ls_module
-        with patch.object(ls_module, 'cv2', mock_opencv, create=True):
-            with patch.object(ls_module, 'np', np, create=True):
-                with patch.object(ls_module, 'CV2_AVAILABLE', True):
-                    yield
+
+        with (
+            patch.object(ls_module, "cv2", mock_opencv, create=True),
+            patch.object(ls_module, "np", np, create=True),
+            patch.object(ls_module, "CV2_AVAILABLE", True),
+        ):
+            yield
 
     return patcher
 
@@ -2653,6 +2659,7 @@ def patch_cv2_for_focus_peaking(mock_opencv):
 # ============================================================================
 # WebSocket Handler Testing Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_config_cors(monkeypatch):
@@ -2674,25 +2681,26 @@ def mock_config_cors(monkeypatch):
 
     Related: Origin validation security tests
     """
+
     def set_cors_origins(cors_origins):
         """Set CORS_ORIGINS in config module"""
         import sys
-        if 'config' in sys.modules:
+
+        if "config" in sys.modules:
             # Patch the module-level get_config function
             from unittest.mock import MagicMock
+
             mock_config = MagicMock()
             mock_config.CORS_ORIGINS = cors_origins
-
-            original_get_config = sys.modules['config'].get_config
 
             def mock_get_config():
                 return mock_config
 
-            monkeypatch.setattr('config.get_config', mock_get_config)
+            monkeypatch.setattr("config.get_config", mock_get_config)
 
             # Also patch in websocket_handlers if already loaded
-            if 'websocket_handlers' in sys.modules:
-                monkeypatch.setattr('websocket_handlers.get_config', mock_get_config)
+            if "websocket_handlers" in sys.modules:
+                monkeypatch.setattr("websocket_handlers.get_config", mock_get_config)
 
         return cors_origins
 
@@ -2721,23 +2729,26 @@ def mock_request_origin(monkeypatch):
 
     Related: Origin validation security tests
     """
-    def set_request_headers(origin=None, host='localhost:5000', is_secure=False, remote_addr='127.0.0.1'):
+
+    def set_request_headers(
+        origin=None, host="localhost:5000", is_secure=False, remote_addr="127.0.0.1"
+    ):
         """Set Flask request headers"""
-        from unittest.mock import MagicMock
         import sys
+        from unittest.mock import MagicMock
 
         # Create mock request
         mock_request = MagicMock()
         mock_request.headers.get.side_effect = lambda key, default=None: {
-            'Origin': origin,
-            'Host': host
+            "Origin": origin,
+            "Host": host,
         }.get(key, default)
         mock_request.is_secure = is_secure
         mock_request.remote_addr = remote_addr
 
         # Patch flask.request
-        if 'flask' in sys.modules:
-            monkeypatch.setattr('flask.request', mock_request)
+        if "flask" in sys.modules:
+            monkeypatch.setattr("flask.request", mock_request)
 
         return mock_request
 
@@ -2771,8 +2782,8 @@ def temp_schedules_env(tmp_path, monkeypatch):
     # Patch in both mothbox_paths (for get_schedule_path) and schedule_storage (for direct refs)
     import webui.backend.lib.schedule_storage as ss
 
-    monkeypatch.setattr('mothbox_paths.SCHEDULES_DIR', user_schedules_dir)
-    monkeypatch.setattr('mothbox_paths.BUILTIN_SCHEDULES_DIR', builtin_schedules_dir)
+    monkeypatch.setattr("mothbox_paths.SCHEDULES_DIR", user_schedules_dir)
+    monkeypatch.setattr("mothbox_paths.BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
     monkeypatch.setattr(ss, "SCHEDULES_DIR", user_schedules_dir)
     monkeypatch.setattr(ss, "BUILTIN_SCHEDULES_DIR", builtin_schedules_dir)
 
@@ -2794,9 +2805,9 @@ def sample_schedule_factory():
     Related: Issue #216 - Scheduler integration tests
     """
     from webui.backend.lib.schedule_schema import (
+        Action,
         FixedTimeTrigger,
         IntervalTrigger,
-        Action,
         Routine,
         Schedule,
         SolarTrigger,
@@ -3292,7 +3303,7 @@ def _make_routine_impl(
         >>> routine = make_routine(
         ...     "interval",
         ...     interval_minutes=30,
-        ...     actions=[{"action_type": "camera", "action_name": "takephoto"}]
+        ...     actions=[{"action_type": "camera", "action_name": "takephoto"}],
         ... )
         >>> routine.trigger.interval_minutes
         30
@@ -3325,8 +3336,7 @@ def _make_routine_impl(
 
     if trigger_type not in trigger_classes:
         raise ValueError(
-            f"Unknown trigger_type: {trigger_type}. "
-            f"Valid types: {list(trigger_classes.keys())}"
+            f"Unknown trigger_type: {trigger_type}. Valid types: {list(trigger_classes.keys())}"
         )
 
     trigger_cls = trigger_classes[trigger_type]
@@ -3334,9 +3344,7 @@ def _make_routine_impl(
     # Apply default required kwargs for certain trigger types
     if trigger_type == "interval":
         if "time_window" not in trigger_kwargs:
-            trigger_kwargs["time_window"] = TimeWindow(
-                start_time="22:00", end_time="06:00"
-            )
+            trigger_kwargs["time_window"] = TimeWindow(start_time="22:00", end_time="06:00")
         if "interval_minutes" not in trigger_kwargs:
             trigger_kwargs["interval_minutes"] = 15
     elif trigger_type == "moon_phase":
