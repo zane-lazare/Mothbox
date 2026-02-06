@@ -314,56 +314,10 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 # The webui form may pass Python booleans (True/False) or strings ("True"/"False")
 # for integer settings. This function normalizes values before CSV write.
 
-# Settings that TakePhoto.py reads with int()
-_INT_SETTINGS = {
-    "HDR",
-    "HDR_width",
-    "FocusBracket",
-    "ImageFileType",
-    "VerticalFlip",
-    "AutoCalibration",
-    "AutoCalibrationPeriod",
-    "FlashDelay_BeforeCapture",
-    "FlashDelay_AfterCapture",
-    "FocusBracket_SettleDelay",
-    "FocusBracket_LockColorGains",
-    "ExposureTime",
-    "AfMode",
-    "AfSpeed",
-    "AfRange",
-    "AfMetering",
-    "AeMeteringMode",
-    "AwbMode",
-    "NoiseReductionMode",
-    "FocusPeakingIntensity",
-}
-
-# Settings that TakePhoto.py reads with float()
-_FLOAT_SETTINGS = {
-    "Sharpness",
-    "Brightness",
-    "Contrast",
-    "Saturation",
-    "LensPosition",
-    "ExposureValue",
-    "AnalogueGain",
-    "ColourGainRed",
-    "ColourGainBlue",
-    "FocusBracket_Start",
-    "FocusBracket_End",
-    "FocusBracket_ColorGainRed",
-    "FocusBracket_ColorGainBlue",
-}
-
-# Settings that TakePhoto.py reads as bool strings ("True"/"False")
-_BOOL_STRING_SETTINGS = {
-    "AeEnable",
-    "AwbEnable",
-    "LensShadingEnable",
-    "DefectCorrectionEnable",
-    "UseCustomTuning",
-    "FocusPeakingEnabled",
-}
+# Import type sets from shared schema (single source of truth)
+from camera_settings_schema import BOOL_STRING_SETTINGS as _BOOL_STRING_SETTINGS
+from camera_settings_schema import FLOAT_SETTINGS as _FLOAT_SETTINGS
+from camera_settings_schema import INT_SETTINGS as _INT_SETTINGS
 
 
 def coerce_for_csv(key: str, value) -> str:

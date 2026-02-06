@@ -40,6 +40,12 @@ import RPi.GPIO as GPIO
 
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from camera_settings_schema import (
+    BOOL_STRING_SETTINGS,
+    FLOAT_SETTINGS,
+    INT_SETTINGS,
+    WEBUI_ONLY_SETTINGS,
+)
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     CONTROLS_FILE,
@@ -179,20 +185,6 @@ def flashOn():
     print("Flash On\n")
 
 
-# Application-level settings (not Picamera2 controls, but used by TakePhoto.py)
-APPLICATION_SETTINGS = {
-    "Name",
-    "HDR",
-    "HDR_width",
-    "AutoCalibration",
-    "AutoCalibrationPeriod",
-    "ImageFileType",
-    "VerticalFlip",
-    "ColourGainRed",
-    "ColourGainBlue",
-    "FocusBracket",
-}
-
 # Tuned colour gains for plain white LEDs (overnight field testing)
 DEFAULT_COLOUR_GAIN_RED = 2.25943877696990967
 DEFAULT_COLOUR_GAIN_BLUE = 1.500129925489425659
@@ -252,50 +244,18 @@ def load_camera_settings():
             for row in reader:
                 setting, value, details = row["SETTING"], row["VALUE"], row["DETAILS"]
 
-                # Convert data types based on setting name (adjust as needed)
-                if setting == "LensPosition":
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for LensPosition: {value}")
-                elif setting == "AnalogueGain" or setting == "ExposureValue":
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for AnalogueGain: {value}")
-                elif setting == "AeEnable" or setting == "AwbEnable":
-                    value = value.lower() == "true"  # Convert to bool (adjust logic if needed)
-                elif (
-                    setting == "AwbMode"
-                    or setting == "AfTrigger"
-                    or setting == "AfRange"
-                    or setting == "AfSpeed"
-                    or setting == "AfMode"
-                ):
+                # Coerce CSV strings to correct types using shared schema
+                if setting in INT_SETTINGS:
                     value = int(value)
-                    # value = getattr(controls.AwbModeEnum, value)  # Access enum value
-                    # Assuming AwbMode is a string representing an enum value
-                    # pass  # No conversion needed for string
-                elif setting == "ExposureTime":
-                    try:
-                        value = int(value)
-                        middleexposure = value
-                        print("middleexposurevalue ", middleexposure)
-                    except ValueError:
-                        raise ValueError(f"Invalid value for ExposureTime: {value}")
-                elif setting in APPLICATION_SETTINGS:
-                    pass  # Keep as string, application handles these
-                else:
-                    # Coerce unknown settings to numeric types for picamera2
-                    # (webui may write valid controls not explicitly listed above)
-                    try:
-                        value = int(value)
-                    except (ValueError, TypeError):
-                        try:
-                            value = float(value)
-                        except (ValueError, TypeError):
-                            print(f"Warning: Unknown non-numeric setting: {setting}. Skipping.")
-                            continue
+                elif setting in FLOAT_SETTINGS:
+                    value = float(value)
+                elif setting in BOOL_STRING_SETTINGS:
+                    value = value.lower() == "true"
+
+                # Special handling: ExposureTime sets a global
+                if setting == "ExposureTime":
+                    middleexposure = value
+                    print("middleexposurevalue ", middleexposure)
 
                 the_camera_settings[setting] = value
 
@@ -877,8 +837,9 @@ try:
     colour_gain_red = float(camera_settings.pop("ColourGainRed", DEFAULT_COLOUR_GAIN_RED))
     colour_gain_blue = float(camera_settings.pop("ColourGainBlue", DEFAULT_COLOUR_GAIN_BLUE))
 
-    # Focus bracket (handled by webui capture endpoint, not TakePhoto.py directly)
-    camera_settings.pop("FocusBracket", None)
+    # Pop remaining webui-only settings not used by TakePhoto.py
+    for key in WEBUI_ONLY_SETTINGS:
+        camera_settings.pop(key, None)
 
     if num_photos < 1 or num_photos == 2:
         num_photos = 1
