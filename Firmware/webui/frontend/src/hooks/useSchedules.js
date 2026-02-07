@@ -41,6 +41,7 @@ import {
   createSchedule,
   updateSchedule,
   deleteSchedule,
+  cloneSchedule,
   activateSchedule,
   deactivateSchedule,
   validateSchedule,
@@ -460,6 +461,32 @@ export function useDeleteSchedule() {
       ])
     },
     onError: (error) => handleMutationError(error, 'delete'),
+  })
+}
+
+/**
+ * Clone schedule mutation
+ *
+ * Creates a copy of an existing schedule. Invalidates schedules list cache on success.
+ *
+ * @returns {Object} React Query mutation result
+ * @returns {Function} mutateAsync - Async mutation function with { id, name? } parameter
+ * @returns {boolean} isPending - Whether mutation is in progress
+ *
+ * @example
+ * const { mutateAsync, isPending } = useCloneSchedule()
+ * const response = await mutateAsync({ id: 'schedule_1' })
+ * const clonedSchedule = response.data.schedule
+ */
+export function useCloneSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, name }) => cloneSchedule(id, name ? { name } : {}),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
+    },
+    onError: (error) => handleMutationError(error, 'clone'),
   })
 }
 

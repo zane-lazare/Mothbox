@@ -8,7 +8,7 @@ import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
 import CalendarView from '../components/scheduler/CalendarView'
 import SchedulerLegend from '../components/scheduler/SchedulerLegend'
 import ErrorBoundary from '../components/ErrorBoundary'
-import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule } from '../hooks/useSchedules'
+import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule, useCloneSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
 
 function SchedulerUIContent() {
@@ -18,6 +18,7 @@ function SchedulerUIContent() {
   const { mutateAsync: createSchedule, isPending: isCreating } = useCreateSchedule()
   const { mutateAsync: updateSchedule, isPending: isUpdating } = useUpdateSchedule()
   const { mutateAsync: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
+  const { mutateAsync: cloneScheduleMutation, isPending: isCloning } = useCloneSchedule()
 
   /**
    * Handle viewing an existing schedule
@@ -86,6 +87,23 @@ function SchedulerUIContent() {
     }
   }, [deleteSchedule])
 
+  /**
+   * Handle cloning a schedule from the editor
+   * Clones the schedule, then opens the clone in the editor
+   */
+  const handleCloneSchedule = useCallback(async (scheduleId) => {
+    try {
+      const response = await cloneScheduleMutation({ id: scheduleId })
+      const clonedSchedule = response.data.schedule
+      toast.success(`Schedule "${clonedSchedule.name}" cloned`)
+      // Open the clone in the editor (loads in view mode, user clicks Edit)
+      setEditingSchedule(clonedSchedule)
+      setEditorOpen(true)
+    } catch (error) {
+      toast.error(`Failed to clone schedule: ${error.message}`)
+    }
+  }, [cloneScheduleMutation])
+
   return (
     <div className="max-w-7xl mx-auto space-y-4 px-4 py-2">
       <SchedulerHeader>
@@ -124,8 +142,10 @@ function SchedulerUIContent() {
         onSave={handleSaveSchedule}
         onCancel={handleCancelEditor}
         onDelete={handleDeleteSchedule}
+        onClone={handleCloneSchedule}
         isSaving={isCreating || isUpdating}
         isDeleting={isDeleting}
+        isCloning={isCloning}
       />
     </div>
   )

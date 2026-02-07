@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import PropTypes from 'prop-types';
-import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
 import ActivationPanel from './ActivationPanel';
@@ -97,7 +97,9 @@ const ScheduleEditor = ({
   onSave,
   onCancel,
   onDelete,
+  onClone,
   isDeleting = false,
+  isCloning = false,
 }) => {
   // Refs
   const nameInputRef = useRef(null);
@@ -493,6 +495,15 @@ const ScheduleEditor = ({
     setShowDeleteConfirm(false);
   }, []);
 
+  /**
+   * Handle clone button click (non-destructive, no confirmation needed)
+   */
+  const handleCloneClick = useCallback(() => {
+    if (onClone && schedule?.schedule_id) {
+      onClone(schedule.schedule_id);
+    }
+  }, [onClone, schedule?.schedule_id]);
+
   // Don't render if not open
   if (!isOpen) {
     return null;
@@ -704,8 +715,23 @@ const ScheduleEditor = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          {/* Left side - Delete button (only for existing schedules) */}
-          <div>
+          {/* Left side - Clone and Delete buttons (only for existing schedules) */}
+          <div className="flex items-center gap-2">
+            {isEditMode && isViewMode && onClone && (
+              <button
+                type="button"
+                onClick={handleCloneClick}
+                disabled={isCloning || isLoadingSchedule}
+                className="inline-flex items-center gap-1.5 px-4 py-2
+                           text-gray-700 bg-white border border-gray-300 rounded-md
+                           hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                           dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <DocumentDuplicateIcon className="h-4 w-4" aria-hidden="true" />
+                {isCloning ? 'Cloning...' : 'Clone'}
+              </button>
+            )}
             {isEditMode && onDelete && (
               <button
                 type="button"
@@ -795,8 +821,12 @@ ScheduleEditor.propTypes = {
   onCancel: PropTypes.func.isRequired,
   /** Callback when schedule is deleted. Receives schedule_id. */
   onDelete: PropTypes.func,
+  /** Callback when schedule is cloned. Receives schedule_id. */
+  onClone: PropTypes.func,
   /** Loading state for deletion */
   isDeleting: PropTypes.bool,
+  /** Loading state for cloning */
+  isCloning: PropTypes.bool,
 };
 
 export default ScheduleEditor;

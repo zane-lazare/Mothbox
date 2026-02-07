@@ -154,6 +154,22 @@ export const updateSchedule = (id, data) =>
 export const deleteSchedule = (id) =>
   api.delete(`${SCHEDULER_API_PREFIX}/schedules/${id}`, { timeout: API_TIMEOUT_MS })
 
+/**
+ * Clone an existing schedule
+ *
+ * @param {string} id - Schedule ID to clone
+ * @param {Object} [data] - Clone options
+ * @param {string} [data.name] - Custom name for the clone
+ * @returns {Promise<Object>} Axios response with cloned schedule
+ *
+ * Response: {
+ *   message: "Schedule cloned",
+ *   schedule: { ... }
+ * }
+ */
+export const cloneSchedule = (id, data = {}) =>
+  api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/clone`, data, { timeout: API_TIMEOUT_MS })
+
 // =============================================================================
 // Active Schedule
 // =============================================================================
