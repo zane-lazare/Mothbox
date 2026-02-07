@@ -501,7 +501,7 @@ def create_dated_folder(base_path):
 
 
 def takePhoto_Manual():
-    global middleexposure, calib_lens_position, calib_exposure
+    global middleexposure, calib_lens_position, calib_exposure, original_af_mode
     # LensPosition: Manual focus, Set the lens position.
     now = datetime.now()
     timestamp = now.strftime("%Y_%m_%d__%H_%M_%S")  # Adjust the format as needed
@@ -529,6 +529,12 @@ def takePhoto_Manual():
     picam2.start()
 
     time.sleep(3)
+
+    # Trigger autofocus if AfMode was Auto Single and AutoCalibration is OFF
+    if not AutoCalibration and original_af_mode == 1:
+        print("Running autofocus (Auto Single mode)...")
+        success = picam2.autofocus_cycle()
+        print(f"Autofocus completed: {'success' if success else 'failed'}")
 
     start = time.time()
 
@@ -747,6 +753,7 @@ try:
 
     global onlyflash
     onlyflash = False
+    original_af_mode = 0  # default, set properly after settings are loaded
 
     control_values_fpath = str(CONTROLS_FILE)
     control_values = get_control_values(control_values_fpath)
@@ -844,6 +851,24 @@ try:
     # Pop remaining webui-only settings not used by TakePhoto.py
     for key in WEBUI_ONLY_SETTINGS:
         camera_settings.pop(key, None)
+
+    # --- Focus mode handling ---
+    # When AutoCalibration is ON, calibration already ran autofocus and saved
+    # the optimal LensPosition to the CSV. Switch to Manual (0) so picamera2
+    # actually uses the calibrated LensPosition value.
+    # When AutoCalibration is OFF, respect the user's AfMode setting.
+    af_mode = camera_settings.get("AfMode", 0)
+    if AutoCalibration:
+        print(f"AutoCalibration enabled: overriding AfMode={af_mode} to Manual (0) "
+              f"with calibrated LensPosition={camera_settings.get('LensPosition')}")
+        camera_settings["AfMode"] = 0
+    elif af_mode == 1:
+        # Auto Single without AutoCalibration: will trigger autofocus_cycle()
+        # before capture in takePhoto_Manual()
+        print("AfMode=Auto Single, AutoCalibration OFF: will trigger AF before capture")
+
+    # Store original af_mode for takePhoto_Manual() to check
+    original_af_mode = af_mode
 
     if num_photos < 1 or num_photos == 2:
         num_photos = 1

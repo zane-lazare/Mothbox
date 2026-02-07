@@ -978,7 +978,7 @@ export default function Settings() {
                 {(cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1) && (
                   <div>
                     <label className="settings-label">
-                      Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} photos
+                      Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} seconds
                     </label>
                     <input
                       type="range"
