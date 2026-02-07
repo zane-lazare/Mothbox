@@ -104,7 +104,11 @@ EXIF_RATIONAL_MAX: Final[int] = 1_000_000  # Covers exposures down to 1µs
 # PHOTO FILE PATTERNS
 # =============================================================================
 # Glob patterns for all supported photo extensions (case variations)
-PHOTO_PATTERNS: Final[tuple[str, ...]] = ("*.jpg", "*.JPG", "*.jpeg", "*.JPEG")
+PHOTO_PATTERNS: Final[tuple[str, ...]] = (
+    "*.jpg", "*.JPG", "*.jpeg", "*.JPEG",
+    "*.png", "*.PNG",
+    "*.bmp", "*.BMP",
+)
 
 # Sidecar file patterns (photo filename + .json)
 SIDECAR_PATTERNS: Final[tuple[str, ...]] = (
@@ -112,6 +116,10 @@ SIDECAR_PATTERNS: Final[tuple[str, ...]] = (
     "*.JPG.json",
     "*.jpeg.json",
     "*.JPEG.json",
+    "*.png.json",
+    "*.PNG.json",
+    "*.bmp.json",
+    "*.BMP.json",
 )
 
 # =============================================================================

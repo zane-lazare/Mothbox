@@ -31,6 +31,7 @@ Endpoints:
 """
 
 import logging
+import mimetypes
 import threading
 import time
 from datetime import datetime
@@ -164,7 +165,8 @@ def get_photo(photo_path):
         if not full_path.exists():
             return jsonify({"error": "Photo not found"}), 404
 
-        return send_file(full_path, mimetype="image/jpeg")
+        mimetype = mimetypes.guess_type(str(full_path))[0] or "image/jpeg"
+        return send_file(full_path, mimetype=mimetype)
     except Exception as e:
         logger.error(f"Error serving photo {photo_path}: {e}", exc_info=True)
         return jsonify({"error": "Failed to serve photo"}), 500

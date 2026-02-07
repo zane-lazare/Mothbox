@@ -160,8 +160,8 @@ class TestGalleryListEndpoint:
         assert "nested_photo.jpg" in nested_photo["path"]
         assert nested_photo["filename"] == "nested_photo.jpg"
 
-    def test_list_photos_filters_non_jpg_files(self, gallery_client, temp_photos_dir):
-        """GET /photos only includes .jpg files, ignoring other file types"""
+    def test_list_photos_filters_non_image_files(self, gallery_client, temp_photos_dir):
+        """GET /photos includes jpg/png/bmp but ignores non-image files"""
         # Create various file types
         (temp_photos_dir / "photo.jpg").write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
         (temp_photos_dir / "photo.png").write_bytes(b"PNG data")
@@ -173,9 +173,11 @@ class TestGalleryListEndpoint:
         assert response.status_code == 200
         data = json.loads(response.data)
 
-        # Should only have 1 JPG file
-        assert len(data["photos"]) == 1
-        assert data["photos"][0]["filename"] == "photo.jpg"
+        # Should have JPG and PNG (both are supported image formats)
+        filenames = {p["filename"] for p in data["photos"]}
+        assert len(data["photos"]) == 2
+        assert "photo.jpg" in filenames
+        assert "photo.png" in filenames
 
     def test_list_photos_handles_missing_photos_dir(
         self, gallery_client, temp_photos_dir, monkeypatch
