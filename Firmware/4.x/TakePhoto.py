@@ -404,10 +404,13 @@ def run_calibration():
 
     time.sleep(0.1)  # give a tiny bit of time to let the flash start up
 
-    # picam2.set_controls({"AfMode": 2})
-    # time.sleep(7)
+    # Apply user's AfRange and AfSpeed so autofocus searches the correct distance range
+    af_range = camera_settings.get("AfRange", 2)  # default Full (10cm-infinity)
+    af_speed = camera_settings.get("AfSpeed", 0)
+    picam2.set_controls({"AfRange": af_range, "AfSpeed": af_speed})
+    print(f"Calibration AF settings: AfRange={af_range}, AfSpeed={af_speed}")
+
     print("Running autofocus...")
-    # picam2.start(show_preview=True, ) #preview has to be on for some reason to work
     success = picam2.autofocus_cycle()
 
     # picam2.pre_callback = None
