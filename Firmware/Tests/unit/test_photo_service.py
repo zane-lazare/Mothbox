@@ -128,9 +128,9 @@ def mixed_files(temp_photos_dir):
     files['jpg2'] = temp_photos_dir / "photo2.jpg"
     files['jpg2'].write_text("Photo 2")
 
-    # PNG files (should be included)
-    files['png'] = temp_photos_dir / "image.png"
-    files['png'].write_text("PNG file")
+    # TIFF files (should be included)
+    files['tiff'] = temp_photos_dir / "image.tiff"
+    files['tiff'].write_text("TIFF file")
 
     # Non-image files (should be excluded)
     files['txt'] = temp_photos_dir / "readme.txt"
@@ -211,12 +211,12 @@ class TestGetAllPhotos:
         """Test _get_all_photos returns image files but not non-image files"""
         photos = photo_service._get_all_photos()
 
-        # Should find 2 JPG + 1 PNG = 3 image files
+        # Should find 2 JPG + 1 TIFF = 3 image files
         assert len(photos) == 3
 
         # Verify all returned files have supported image extensions
         for photo_path, _mtime, _size in photos:
-            assert photo_path.suffix.lower() in ('.jpg', '.png', '.bmp')
+            assert photo_path.suffix.lower() in ('.jpg', '.tiff', '.tif', '.png', '.bmp')
 
     def test_nested_subdirectories(self, photo_service, nested_photos):
         """Test _get_all_photos recursively finds photos in subdirectories"""
@@ -266,17 +266,17 @@ class TestGetAllPhotos:
         temp_photos_dir.joinpath("photo.jpg").write_text("JPG")
         temp_photos_dir.joinpath("photo.JPG").write_text("JPG uppercase")
         temp_photos_dir.joinpath("photo.jpeg").write_text("JPEG")
-        temp_photos_dir.joinpath("photo.png").write_text("PNG")
+        temp_photos_dir.joinpath("photo.tiff").write_text("TIFF")
         temp_photos_dir.joinpath("notes.txt").write_text("Not an image")
 
         photos = photo_service._get_all_photos()
 
-        # Should match jpg, jpeg, and png but not txt
-        assert len(photos) >= 2  # At least "photo.jpg" and "photo.png"
+        # Should match jpg, jpeg, and tiff but not txt
+        assert len(photos) >= 2  # At least "photo.jpg" and "photo.tiff"
 
         # All returned files should have supported image extensions
         for photo_path, _mtime, _size in photos:
-            assert photo_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']
+            assert photo_path.suffix.lower() in ['.jpg', '.jpeg', '.tiff', '.tif', '.png', '.bmp']
 
     def test_large_directory_handling(self, photo_service, temp_photos_dir):
         """Test _get_all_photos handles large directories efficiently"""

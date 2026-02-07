@@ -62,7 +62,7 @@ class SeriesInfo:
 # Matches: moth_2024_01_15__10_00_00_HDR0.jpg, mb12345_2024_01_15__10_00_00_HDR1.png
 # Groups: (1) base_name, (2) index, (3) extension
 HDR_PATTERN = re.compile(
-    r"^(.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$",
+    r"^(.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|tiff|tif|png|bmp)$",
     re.IGNORECASE,
 )
 
@@ -71,14 +71,14 @@ HDR_PATTERN = re.compile(
 # Also matches: ManFocus_moth_2024_01_15__11_00_00_FB0.jpg (without microseconds)
 # Groups: (1) base_name (including ManFocus prefix), (2) index, (3) extension
 FB_PATTERN = re.compile(
-    r"^(ManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2}(?:_\d+)?)_[Ff][Bb](\d+)\.(jpg|jpeg|png|bmp)$",
+    r"^(ManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2}(?:_\d+)?)_[Ff][Bb](\d+)\.(jpg|jpeg|tiff|tif|png|bmp)$",
     re.IGNORECASE,
 )
 
 # 16MP ManFocus with HDR suffix (from TakePhoto16mp.py)
 # Pattern: 16MPManFocus_{name}_{timestamp}_HDR{index}.jpg
 MP16_HDR_PATTERN = re.compile(
-    r"^(16MPManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|png|bmp)$",
+    r"^(16MPManFocus_.+_\d{4}_\d{2}_\d{2}__\d{2}_\d{2}_\d{2})_[Hh][Dd][Rr](\d+)\.(jpg|jpeg|tiff|tif|png|bmp)$",
     re.IGNORECASE,
 )
 

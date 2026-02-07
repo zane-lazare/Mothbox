@@ -249,7 +249,7 @@ ALLOWED_WEBUI_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "AutoCalibration": lambda v: int(v) in [0, 1],  # 0=Off, 1=On
     "AutoCalibrationPeriod": lambda v: 1 <= int(v) <= 10000,  # Photos between calibrations
     # Image format
-    "ImageFileType": lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=PNG, 2=BMP
+    "ImageFileType": lambda v: int(v) in [0, 1, 2],  # 0=JPEG, 1=TIFF, 2=BMP
     "VerticalFlip": lambda v: int(v) in [0, 1],  # 0=No flip, 1=Flip
     # Device naming
     "Name": lambda v: isinstance(v, str) and 1 <= len(v) <= 50,  # Device name

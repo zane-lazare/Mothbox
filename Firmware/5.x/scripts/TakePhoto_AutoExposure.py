@@ -521,9 +521,9 @@ def takePhoto_Manual():
         folderPath = str(PHOTOS_DIR) + "/"  # can't use relative directories with cron
 
         print(ImageFileType)
-        if ImageFileType == 1:  # png
+        if ImageFileType == 1:  # tiff
             filepath = (
-                folderPath + "mb" + lastfivedigits + "_" + timestamp + "_HDR" + str(i) + ".png"
+                folderPath + "mb" + lastfivedigits + "_" + timestamp + "_HDR" + str(i) + ".tiff"
             )
         elif ImageFileType == 0:  # jpeg
             filepath = (

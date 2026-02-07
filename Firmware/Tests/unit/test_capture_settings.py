@@ -226,7 +226,7 @@ class TestImageFormatSettings:
         print(f"\n🖼️  Testing ImageFileType validation:")
         formats = {
             0: "JPEG (fast, compressed)",
-            1: "PNG (slow, lossless)",
+            1: "TIFF (lossless, with EXIF)",
             2: "BMP (huge, fast)"
         }
 

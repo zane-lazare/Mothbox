@@ -1578,11 +1578,11 @@ export default function Settings() {
                   className="settings-select"
                 >
                   <option value="0">JPEG (Fast, compressed) - Recommended</option>
-                  <option value="1">PNG (Slow, lossless)</option>
+                  <option value="1">TIFF (Lossless, with EXIF metadata)</option>
                   <option value="2">BMP (Huge files, very fast)</option>
                 </select>
                 <p className="settings-help-text">
-                  JPEG is best for most uses. PNG preserves all detail but creates much larger files.
+                  JPEG is best for most uses. TIFF preserves all detail with full EXIF metadata for machine vision.
                 </p>
               </div>
 

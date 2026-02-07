@@ -589,8 +589,8 @@ def takePhoto_Manual():
         folderPath = create_dated_folder(folderPath)
 
         print(ImageFileType)
-        if ImageFileType == 1:  # png
-            filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".png"
+        if ImageFileType == 1:  # tiff
+            filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".tiff"
         elif ImageFileType == 0:  # jpeg
             filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".jpg"
         elif ImageFileType == 2:  # bmp
