@@ -1455,6 +1455,103 @@ class TestValidateScheduleEndpoint:
 
 
 # ============================================================================
+# Validate Draft Endpoint Tests
+# ============================================================================
+
+
+class TestValidateDraftEndpoint:
+    """Tests for POST /api/scheduler/ui/schedules/validate-draft."""
+
+    @pytest.fixture
+    def mock_conflict_report(self):
+        """Create a mock ConflictReport for validate-draft tests."""
+        report = MagicMock()
+        report.has_blocking_conflicts = False
+        report.total_executions = 0
+        report.conflicts = []
+        return report
+
+    def test_validate_draft_solar_trigger_no_coords_uses_fallback(
+        self, client, mock_conflict_report
+    ):
+        """Solar trigger without coordinates uses GPS/timezone fallback instead of 400."""
+        solar_routine = {
+            "routine_id": "solar-routine",
+            "name": "Solar Routine",
+            "trigger": {
+                "trigger_type": "solar",
+                "solar_event": "sunset",
+            },
+            "actions": [
+                {
+                    "action_type": "gpio",
+                    "action_name": "attract_on",
+                    "offset_minutes": 0,
+                }
+            ],
+        }
+
+        with patch(
+            "routes.scheduler_ui.get_control_values",
+            return_value={"lat": "9.5", "lon": "-84.0"},
+        ), patch(
+            "webui.backend.lib.schedule_conflict.detect_conflicts",
+            return_value=mock_conflict_report,
+        ):
+            response = client.post(
+                "/api/scheduler/ui/schedules/validate-draft",
+                json={"routines": [solar_routine], "timezone": "America/Costa_Rica"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["valid"] is True
+
+    def test_validate_draft_solar_trigger_no_gps_uses_timezone_fallback(
+        self, client, mock_conflict_report
+    ):
+        """Solar trigger with no GPS falls back to timezone approximation."""
+        solar_routine = {
+            "routine_id": "solar-routine",
+            "name": "Solar Routine",
+            "trigger": {
+                "trigger_type": "solar",
+                "solar_event": "sunrise",
+            },
+            "actions": [
+                {
+                    "action_type": "gpio",
+                    "action_name": "attract_on",
+                    "offset_minutes": 0,
+                }
+            ],
+        }
+
+        with patch(
+            "routes.scheduler_ui.get_control_values",
+            return_value={"lat": "n/a", "lon": "n/a"},
+        ), patch(
+            "routes.scheduler_ui.get_fallback_coordinates",
+            return_value=(40.0, -74.0, "America/New_York"),
+        ), patch(
+            "webui.backend.lib.schedule_conflict.detect_conflicts",
+            return_value=mock_conflict_report,
+        ) as mock_detect:
+            response = client.post(
+                "/api/scheduler/ui/schedules/validate-draft",
+                json={"routines": [solar_routine], "timezone": "UTC"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == 200
+        # Verify fallback coordinates were passed to conflict detection
+        call_kwargs = mock_detect.call_args.kwargs
+        assert call_kwargs["latitude"] == 40.0
+        assert call_kwargs["longitude"] == -74.0
+
+
+# ============================================================================
 # CSRF Protection Tests
 # ============================================================================
 

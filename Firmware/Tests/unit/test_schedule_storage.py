@@ -394,6 +394,39 @@ class TestCRUDOperations:
         assert updated_schedule.schedule_id == sample_schedule.schedule_id
         assert updated_schedule.enabled == sample_schedule.enabled
 
+    def test_update_schedule_with_raw_routine_dicts(self, temp_schedules_dir, sample_schedule):
+        """update_schedule deserializes raw routine dicts into Routine objects."""
+        from webui.backend.lib.schedule_schema import Routine
+
+        create_schedule(sample_schedule)
+
+        # Send routines as raw dicts (as the frontend does)
+        new_routine_id = _test_uuid("new-routine-1")
+        raw_routines = [
+            {
+                "routine_id": new_routine_id,
+                "name": "Updated Routine",
+                "trigger": {
+                    "trigger_type": "interval",
+                    "interval_minutes": 30,
+                },
+                "actions": [
+                    {
+                        "action_type": "gpio",
+                        "action_name": "attract_on",
+                        "offset_minutes": 0,
+                    }
+                ],
+            }
+        ]
+        updated = update_schedule(sample_schedule.schedule_id, {"routines": raw_routines})
+
+        assert updated is not None
+        assert len(updated.routines) == 1
+        assert isinstance(updated.routines[0], Routine)
+        assert updated.routines[0].routine_id == new_routine_id
+        assert updated.routines[0].name == "Updated Routine"
+
     def test_update_schedule_updates_modified_at(self, temp_schedules_dir, sample_schedule):
         """Update updates the modified_at timestamp."""
         import time

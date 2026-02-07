@@ -1580,10 +1580,20 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
             ), 400
 
         # Check if coordinates required but not provided (solar/moon triggers)
+        # Use same fallback chain as activation: device GPS → timezone approximation
         if not lat_provided and _requires_coordinates(routines):
-            return jsonify(
-                {"error": "Coordinates required for routines with solar or moon triggers"}
-            ), 400
+            control_values = get_control_values(CONTROLS_FILE)
+            device_lat = control_values.get("lat", "n/a")
+            device_lon = control_values.get("lon", "n/a")
+
+            if device_lat != "n/a" and device_lon != "n/a":
+                try:
+                    latitude = float(device_lat)
+                    longitude = float(device_lon)
+                except (ValueError, TypeError):
+                    latitude, longitude, _ = get_fallback_coordinates()
+            else:
+                latitude, longitude, _ = get_fallback_coordinates()
 
         # Create temporary schedule for conflict detection
         temp_schedule = Schedule(

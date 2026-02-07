@@ -70,6 +70,7 @@ from mothbox_paths import (
     get_schedule_path,
 )
 from webui.backend.lib.schedule_schema import (
+    Routine,
     Schedule,
     ScheduleValidationError,
     validate_schedule,
@@ -530,6 +531,8 @@ def update_schedule(schedule_id: str, updates: dict, is_builtin: bool = False) -
                     logger.warning(f"Ignoring update to protected field: {key}")
                     continue
                 if hasattr(schedule, key):
+                    if key == "routines" and isinstance(value, list):
+                        value = [Routine.from_dict(r) if isinstance(r, dict) else r for r in value]
                     setattr(schedule, key, value)
 
             # Update modified_at timestamp

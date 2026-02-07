@@ -5,7 +5,6 @@ When adding a new setting, add it to the appropriate type set below
 and to WEBUI_ONLY_SETTINGS if it should not be passed to picamera2.
 """
 
-
 # picamera2 expects int
 INT_SETTINGS: set[str] = {
     "ExposureTime",
