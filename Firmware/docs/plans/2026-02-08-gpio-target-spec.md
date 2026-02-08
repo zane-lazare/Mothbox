@@ -23,17 +23,18 @@ This specification defines the target state of the Mothbox GPIO system after res
 A new boolean key MUST be added to `controls.txt`:
 
 ```
-relay_active_low=true
+relay_active_low=false
 ```
 
 **Semantics**:
-- `relay_active_low=true` (default): Standard relay modules. `GPIO.LOW` energizes the relay (load ON). `GPIO.HIGH` de-energizes (load OFF).
-- `relay_active_low=false`: Inverted relay modules. `GPIO.HIGH` energizes the relay (load ON). `GPIO.LOW` de-energizes (load OFF).
+- `relay_active_low=false` (default): Active-HIGH relay module. `GPIO.HIGH` energizes the relay (load ON). `GPIO.LOW` de-energizes (load OFF).
+- `relay_active_low=true`: Active-LOW relay module. `GPIO.LOW` energizes the relay (load ON). `GPIO.HIGH` de-energizes (load OFF).
 
-The default MUST be `true` because:
-1. The 4.x firmware used active-low consistently and correctly for standard relay modules.
-2. Most commodity relay boards (SRD-05VDC-SL-C, HW-307, etc.) are active-low.
-3. The 5.x polarity reversal at commit `732e25c6` was incomplete and undocumented, creating the contradictions that this specification resolves.
+The default MUST be `false` (active-HIGH) because:
+1. **Hardware testing on 2026-02-08 confirmed** the production Mothbox relay module is active-HIGH: toggling GPIO pins with `pinctrl` while observing the physical relays showed HIGH = relay ON, LOW = relay OFF for all three channels (GPIO 5, 6, 13).
+2. The loads (UV LEDs, flash LEDs) are wired to the relay's **Normally Open (NO)** contacts. The relay module has active-HIGH inputs (HIGH = coil energized), so HIGH → NO closes → load ON.
+3. The 5.x top-level scripts (`Attract_On.py`, `Flash_On.py`) and the web UI already use active-HIGH (HIGH = ON), which matches the hardware.
+4. The `relay_active_low=true` option remains available for deployments using active-LOW relay modules (e.g., standard optocoupler-isolated boards like SRD-05VDC-SL-C).
 
 ### 2.2 Single Source of Truth
 
@@ -75,7 +76,7 @@ def get_relay_level(on: bool) -> int:
         GPIO.LOW or GPIO.HIGH based on relay_active_low config.
     """
     controls = get_control_values()
-    active_low = controls.get("relay_active_low", "true").lower() in ("true", "1", "yes")
+    active_low = controls.get("relay_active_low", "false").lower() in ("true", "1", "yes")
 
     if active_low:
         return GPIO.LOW if on else GPIO.HIGH
@@ -201,25 +202,11 @@ This MUST be documented with a comment at the end of each relay script:
 
 `ReadMuxAMuxB.py`, `Relay_Module.py`, and `CheckGPIOPin.py` MUST call `GPIO.cleanup()` in a `finally` block, as they are diagnostic tools that should leave the system in a clean state.
 
-### 5.4 Orphaned GPIO 6 Cleanup
+### 5.4 ~~Orphaned GPIO 6 Cleanup~~ (NOT APPLICABLE)
 
-**Addresses**: BUG-7
+~~**Addresses**: BUG-7~~
 
-GPIO 6 is currently configured as output driving HIGH on the production Pi. It was the original 5.x Relay_Ch2 pin (commit `732e25c6`) before the hardware revision changed Ch2 to pin 19. No current code references pin 6.
-
-The fix: `Scheduler.py` MUST reset GPIO 6 to input state during its startup sequence. This is a one-time cleanup that runs on every boot:
-
-```python
-# Clean up orphaned GPIO 6 (was Relay_Ch2 in early 5.x hardware revision).
-# Safe to remove this block after all deployed units have rebooted at least once.
-try:
-    GPIO.setup(6, GPIO.IN)
-    GPIO.cleanup(6)
-except Exception:
-    pass  # Pin may not be accessible; ignore
-```
-
-This cleanup SHOULD be placed in the `Scheduler.py` initialization, before the physical switch check.
+GPIO 6 was initially flagged as orphaned because the code default for Relay_Ch2 is pin 19. However, hardware testing on 2026-02-08 confirmed that the deployed system uses `Relay_Ch2=6` (set in `/etc/mothbox/controls.txt`) and GPIO 6 is actively wired to the flash relay. **GPIO 6 is not orphaned.** The code defaults simply reflect a different hardware revision. No cleanup action is needed.
 
 ---
 
@@ -559,10 +546,10 @@ def test_relay_level_active_high_off():
 **Default behavior test**:
 
 ```python
-def test_relay_level_missing_config_defaults_to_active_low():
-    """Missing relay_active_low should default to true (active-low)."""
+def test_relay_level_missing_config_defaults_to_active_high():
+    """Missing relay_active_low should default to false (active-high)."""
     with patch_controls({}):
-        assert get_relay_level(on=True) == GPIO.LOW
+        assert get_relay_level(on=True) == GPIO.HIGH
 ```
 
 **`setup_relay()` tests**:
@@ -570,25 +557,25 @@ def test_relay_level_missing_config_defaults_to_active_low():
 ```python
 def test_setup_relay_initializes_to_off():
     """setup_relay() should configure pin as OUTPUT with OFF level."""
-    with patch_controls({"relay_active_low": "true"}):
+    with patch_controls({"relay_active_low": "false"}):
         setup_relay(5)
-        GPIO.setup.assert_called_with(5, GPIO.OUT, initial=GPIO.HIGH)
+        GPIO.setup.assert_called_with(5, GPIO.OUT, initial=GPIO.LOW)
 ```
 
 **`relay_on()` / `relay_off()` tests**:
 
 ```python
 def test_relay_on_drives_correct_level():
-    """relay_on() should call GPIO.output with the ON level."""
-    with patch_controls({"relay_active_low": "true"}):
+    """relay_on() should call GPIO.output with the ON level (active-HIGH default)."""
+    with patch_controls({"relay_active_low": "false"}):
         relay_on(5)
-        GPIO.output.assert_called_with(5, GPIO.LOW)
+        GPIO.output.assert_called_with(5, GPIO.HIGH)
 
 def test_relay_off_drives_correct_level():
-    """relay_off() should call GPIO.output with the OFF level."""
-    with patch_controls({"relay_active_low": "true"}):
+    """relay_off() should call GPIO.output with the OFF level (active-HIGH default)."""
+    with patch_controls({"relay_active_low": "false"}):
         relay_off(5)
-        GPIO.output.assert_called_with(5, GPIO.HIGH)
+        GPIO.output.assert_called_with(5, GPIO.LOW)
 ```
 
 ### 11.2 State Synchronization Tests
@@ -662,9 +649,9 @@ def test_get_switch_pins_invalid_falls_back():
 
 ### 12.1 Configuration
 
-1. Add `relay_active_low=true` to the default `controls.txt` template.
+1. Add `relay_active_low=false` to the default `controls.txt` template.
 2. Add `off_pin=16` and `debug_pin=12` to the default `controls.txt` template.
-3. Deployed systems that already have a `controls.txt` without these keys will use the hardcoded defaults in the helper functions. No manual configuration edit is required.
+3. Deployed systems that already have a `controls.txt` without these keys will use the hardcoded defaults in the helper functions (active-HIGH). No manual configuration edit is required.
 
 ### 12.2 New Code
 
@@ -680,7 +667,7 @@ Each relay script MUST be updated to import and use `gpio_helpers`. The migratio
 3. `5.x/Attract_On.py` / `5.x/Attract_Off.py` -- establishes consistent pattern
 4. `5.x/Flash_On.py` / `5.x/Flash_Off.py` -- fixes BUG-4 (naming)
 5. `webui/backend/routes/gpio.py` -- fixes BUG-5 (state sync via helpers) and BUG-9 (startup side effect)
-6. `5.x/Scheduler.py` -- adds GPIO 6 cleanup (BUG-7) and switch pin migration (BUG-8)
+6. `5.x/Scheduler.py` -- switch pin migration (BUG-8)
 7. `5.x/FlashOn.py` -- deprecate or fix BUG-3 (BOARD mode)
 8. `webui/backend/scripts/capture_focus_bracket.py` -- align GPIOHandler with helpers
 9. Switch pin migration across all 8 files (BUG-8)
@@ -696,7 +683,7 @@ The 4.x firmware SHOULD receive the same `gpio_helpers` migration for consistenc
 ### 12.5 Deployment
 
 1. Run `update_mothbox.sh` on deployed systems. The update script copies new code and preserves existing `controls.txt`.
-2. The new `relay_active_low` default (`true`) applies automatically when the key is absent from `controls.txt`.
+2. The new `relay_active_low` default (`false`, active-HIGH) applies automatically when the key is absent from `controls.txt`. This matches the production relay hardware.
 3. No data migration is needed. Only code and configuration defaults change.
 4. Backward compatible: existing `controls.txt` files without the new keys use the correct defaults.
 
@@ -719,6 +706,6 @@ If a deployed system experiences issues:
 | BUG-4 | Flash_On/Off naming confusion | Section 7 (naming cleanup) |
 | BUG-5 | Web UI state desynchronization | Section 8 (state synchronization via helpers) |
 | BUG-6 | No GPIO.cleanup in relay scripts | Section 5 (cleanup contract -- intentional non-cleanup documented) |
-| BUG-7 | GPIO 6 orphaned output | Section 5.4 (Scheduler.py startup cleanup) |
+| ~~BUG-7~~ | ~~GPIO 6 orphaned output~~ | Not applicable -- GPIO 6 is active Relay_Ch2 in deployed config |
 | BUG-8 | Hardcoded switch pins in 8 files | Section 9 (configurable switch pins) |
 | BUG-9 | Startup permission check side effect | Section 10 (input mode permission test) |

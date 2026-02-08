@@ -3,7 +3,7 @@
 Comprehensive reference for the Mothbox firmware GPIO system. Covers every pin, signal path, library, and known issue. Intended as a self-contained document for developers working on GPIO-related code.
 
 **Last updated**: 2026-02-08
-**Based on**: GPIO System Audit (branch `dev`, production Pi 5 runtime capture)
+**Based on**: GPIO System Audit (branch `dev`, production Pi 5 runtime capture, hardware polarity test)
 
 ---
 
@@ -15,9 +15,11 @@ Every GPIO pin used by the Mothbox system.
 
 | BCM | Physical | controls.txt Key | Controls | Dir | Firmware | Used By |
 |-----|----------|------------------|----------|-----|----------|---------|
-| 5 | 29 | `Relay_Ch1=5` | UV / attract lights | OUT | 5.x production | Attract_On/Off.py, TakePhoto.py, DebugMode.py, gpio.py |
-| 19 | 35 | `Relay_Ch2=19` | Camera flash | OUT | 5.x production | Flash_On/Off.py, TakePhoto.py, gpio.py |
-| 9 | 21 | `Relay_Ch3=9` | 5V buck / auxiliary | OUT | 5.x production | Attract_On/Off.py, TakePhoto.py, DebugMode.py |
+| 5 | 29 | `Relay_Ch1=5` | UV / attract lights | OUT | 5.x (code default & deployed) | Attract_On/Off.py, TakePhoto.py, DebugMode.py, gpio.py |
+| 6 | 31 | `Relay_Ch2=6` | Camera flash | OUT | 5.x (deployed) | Flash_On/Off.py, TakePhoto.py, gpio.py |
+| 13 | 33 | `Relay_Ch3=13` | Spare relay | OUT | 5.x (deployed) | Attract_On/Off.py, TakePhoto.py, DebugMode.py |
+| 19 | 35 | `Relay_Ch2=19` | Camera flash | OUT | 5.x (code default) | Flash_On/Off.py, TakePhoto.py, gpio.py |
+| 9 | 21 | `Relay_Ch3=9` | 5V buck / auxiliary | OUT | 5.x (code default) | Attract_On/Off.py, TakePhoto.py, DebugMode.py |
 | 26 | 37 | `Relay_Ch1` (default) | UV / attract lights | OUT | 4.x (fallback) | 4.x/Attract_On/Off.py, 4.x/TakePhoto.py |
 | 20 | 38 | `Relay_Ch2` (default) | Camera flash | OUT | 4.x (fallback) | 4.x/Attract_On/Off.py, 4.x/TakePhoto.py |
 | 21 | 40 | `Relay_Ch3` (default) | 5V buck converter | OUT | 4.x (fallback) | 4.x/Attract_On/Off.py, 4.x/TakePhoto.py |
@@ -74,11 +76,16 @@ Used only by `ReadMuxAMuxB.py` (standalone CLI tool, not scheduled). Note: `get_
 
 Uses I2C pins GPIO 2 (SDA1) and GPIO 3 (SCL1) in alternate function mode. Not direct GPIO control.
 
-### 1.6 Historical / Orphaned Pins
+### 1.6 Deployed vs Code Default Pin Discrepancy
 
-| BCM | Physical | Notes |
-|-----|----------|-------|
-| 6 | 31 | Was Relay_Ch2 in the initial 5.x commit (`732e25c6`). Changed to pin 19 in a hardware revision. Remains orphaned as OUTPUT/HIGH on the production Pi with no controlling process. |
+The deployed production system (`/etc/mothbox/controls.txt`) uses `Relay_Ch2=6` and `Relay_Ch3=13`, while the code defaults in `mothbox_paths.py` are `Relay_Ch2=19` and `Relay_Ch3=9`. Hardware testing confirmed GPIO 6 is actively wired to the flash relay and GPIO 13 to the spare relay. The code defaults reflect a different hardware revision.
+
+| BCM | Code Default | Deployed | Status |
+|-----|-------------|----------|--------|
+| 6 | -- | Relay_Ch2 (Flash) | Active, confirmed by hardware test |
+| 13 | -- | Relay_Ch3 (Spare) | Active, confirmed by hardware test |
+| 19 | Relay_Ch2 | -- | Not wired on deployed hardware |
+| 9 | Relay_Ch3 | -- | Not wired on deployed hardware |
 
 ---
 
@@ -89,13 +96,29 @@ Uses I2C pins GPIO 2 (SDA1) and GPIO 3 (SCL1) in alternate function mode. Not di
 - **Active-low**: `GPIO.LOW` (0) on the pin energizes the relay, turning the connected load ON. `GPIO.HIGH` (1) de-energizes. This is the convention used by most commodity relay modules.
 - **Active-high**: `GPIO.HIGH` (1) energizes the relay. `GPIO.LOW` (0) de-energizes.
 
-### 2.2 Firmware Conventions
+### 2.2 Hardware-Confirmed Polarity (Production Pi 5)
 
-**4.x firmware**: Consistently uses **active-low** polarity across all scripts. LOW = relay ON, HIGH = relay OFF. This matches standard relay module behavior.
+**The production Mothbox relay module is active-HIGH.** This was confirmed by hardware testing on 2026-02-08 using `pinctrl` to toggle each relay pin while observing the physical hardware:
 
-**5.x firmware**: The top-level scripts (`Attract_On.py`, `Attract_Off.py`, `Flash_On.py`, `Flash_Off.py`) and the web UI (`gpio.py`) were changed to **active-high** in commit `732e25c6`. HIGH = relay ON, LOW = relay OFF.
+| GPIO | HIGH | LOW | Load |
+|------|------|-----|------|
+| 5 (Ch1) | UV ON | UV OFF | Active-HIGH |
+| 6 (Ch2) | Flash ON | Flash OFF | Active-HIGH |
+| 13 (Ch3) | Spare ON | Spare OFF | Active-HIGH |
 
-### 2.3 Current State: Polarity Is Inconsistent
+All three relay channels behave identically: HIGH energizes, LOW de-energizes.
+
+**Wiring**: Loads (UV LEDs, flash LEDs) are wired to the **Normally Open (NO)** contacts. When the relay coil is de-energized, the NO contact is open (load OFF). When energized, the NO contact closes (load ON). The relay module itself has active-HIGH inputs (HIGH = coil energized), which combined with NO wiring gives: HIGH = load ON.
+
+**Note**: The deployed pin assignments (5/6/13) differ from the code defaults in `mothbox_paths.py` (5/19/9). The production `controls.txt` at `/etc/mothbox/controls.txt` has `Relay_Ch2=6` and `Relay_Ch3=13`.
+
+### 2.3 Firmware Conventions
+
+**4.x firmware**: Consistently uses **active-low** polarity across all scripts. LOW = relay ON, HIGH = relay OFF. This was correct for the relay hardware used with 4.x.
+
+**5.x firmware**: The top-level scripts (`Attract_On.py`, `Attract_Off.py`, `Flash_On.py`, `Flash_Off.py`) and the web UI (`gpio.py`) were changed to **active-high** in commit `732e25c6`. HIGH = relay ON, LOW = relay OFF. **Hardware testing confirms this is correct for the production relay module.**
+
+### 2.4 Current State: Polarity Is Inconsistent
 
 **The 5.x polarity model is not uniformly applied.** The following files still use active-low (4.x) polarity:
 
@@ -481,11 +504,11 @@ Variable `Relay_Ch1` is aliased to `pins["Relay_Ch2"]`. Functions named `Attract
 
 On Pi 5 with rpi-lgpio, pin state persists after process exit. Relays remain in their last commanded state indefinitely. No safety mechanism to return pins to input state after a script crash.
 
-### BUG-7: GPIO 6 Orphaned Output
+### ~~BUG-7: GPIO 6 Orphaned Output~~ (RESOLVED)
 
 **Source**: Runtime observation on production Pi
 
-GPIO 6 is configured as output driving HIGH with consumer "lg", but pin 6 is not referenced in `controls.txt`. Leftover from when 5.x used pin 6 for Relay_Ch2 (before hardware revision changed it to pin 19).
+GPIO 6 was initially flagged as orphaned because the code default for Relay_Ch2 is pin 19. However, the deployed `controls.txt` at `/etc/mothbox/controls.txt` has `Relay_Ch2=6`, and **hardware testing confirmed GPIO 6 is actively wired to the flash relay**. GPIO 6 is not orphaned — the code defaults simply reflect a different hardware revision than what is deployed. The deployed config correctly overrides the defaults.
 
 ### BUG-8: Hardcoded Switch Pins in 8 Files
 
@@ -497,7 +520,7 @@ GPIO 6 is configured as output driving HIGH with consumer "lg", but pin 6 is not
 
 **File**: `webui/backend/routes/gpio.py:66`
 
-At module load, `_validate_gpio_permissions()` drives Relay_Ch1 LOW briefly (`GPIO.setup(test_pin, GPIO.OUT, initial=GPIO.LOW)`). On active-low hardware, this momentarily activates the relay. Cleanup follows immediately.
+At module load, `_validate_gpio_permissions()` drives Relay_Ch1 LOW briefly (`GPIO.setup(test_pin, GPIO.OUT, initial=GPIO.LOW)`). On the production active-HIGH hardware, this momentarily de-energizes the relay (safe direction). On active-LOW hardware, it would momentarily energize the relay. Cleanup follows immediately. Still a design issue — the permission check should use input mode to avoid driving pins at all.
 
 ### Additional Findings (Not Bugs)
 
