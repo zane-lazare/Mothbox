@@ -25,7 +25,10 @@ Relay_Ch1=5
 Relay_Ch2=19
 Relay_Ch3=9
 relay_enabled=true
+relay_active_low=false
 flash_duration_ms=100
+off_pin=16
+debug_pin=12
 jpeg_quality=96
 
 # ============================================================================
