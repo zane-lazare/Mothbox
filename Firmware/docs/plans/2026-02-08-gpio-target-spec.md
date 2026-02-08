@@ -57,7 +57,7 @@ This specification does NOT introduce per-channel polarity (e.g., `relay_ch1_act
 
 ### 3.1 Module Location
 
-A new file MUST be created: `gpio_helpers.py`, placed alongside `mothbox_paths.py` at the firmware root. This module MUST import from `mothbox_paths` for pin and configuration access, and MUST import `RPi.GPIO` with the standard `GPIO_AVAILABLE` guard pattern used by `gpio.py`.
+A new file MUST be created: `lib/gpio_helpers.py`, in a `lib/` package directory at the firmware root. This keeps the root clean and establishes a home for shared firmware utilities. Every script already adds the firmware root to `sys.path` (for `mothbox_paths`), so `from lib.gpio_helpers import relay_on` works without additional path setup. The `lib/` directory MUST contain an `__init__.py`. This module MUST import from `mothbox_paths` for pin and configuration access, and MUST import `RPi.GPIO` with the standard `GPIO_AVAILABLE` guard pattern used by `gpio.py`.
 
 ### 3.2 Functions
 
@@ -146,9 +146,9 @@ def write_gpio_state(pin_states: dict) -> None:
 
 ### 3.3 Usage Contract
 
-- All relay scripts MUST import from `gpio_helpers` instead of calling `GPIO.output()` directly for relay pins.
-- The `gpio_helpers` module MUST call `GPIO.setmode(GPIO.BCM)` internally if not already set.
-- The `gpio_helpers` module MUST call `GPIO.setwarnings(False)` to suppress duplicate setup warnings.
+- All relay scripts MUST import from `lib.gpio_helpers` instead of calling `GPIO.output()` directly for relay pins.
+- The `lib.gpio_helpers` module MUST call `GPIO.setmode(GPIO.BCM)` internally if not already set.
+- The `lib.gpio_helpers` module MUST call `GPIO.setwarnings(False)` to suppress duplicate setup warnings.
 - Non-relay GPIO operations (switch reading, e-paper, multiplexer) are NOT managed by this module and continue to use `RPi.GPIO` directly.
 
 ---
@@ -218,10 +218,10 @@ Each script MUST control only the pins it needs. The following defines the targe
 
 **Pins**: Relay_Ch1, Relay_Ch2, Relay_Ch3 (all three relay channels)
 **Purpose**: Turn all attraction hardware on or off
-**Implementation**: MUST use `relay_on()` / `relay_off()` from `gpio_helpers`
+**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`
 
 ```python
-from gpio_helpers import setup_relay, relay_on, relay_off
+from lib.gpio_helpers import setup_relay, relay_on, relay_off
 from mothbox_paths import get_gpio_pins
 
 pins = get_gpio_pins()
@@ -243,10 +243,10 @@ relay_off(pins["Relay_Ch3"])
 
 **Pin**: Relay_Ch2 only (flash relay)
 **Purpose**: Turn the camera flash on or off
-**Implementation**: MUST use `relay_on()` / `relay_off()` from `gpio_helpers`
+**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`
 
 ```python
-from gpio_helpers import setup_relay, relay_on, relay_off
+from lib.gpio_helpers import setup_relay, relay_on, relay_off
 from mothbox_paths import get_gpio_pins
 
 pins = get_gpio_pins()
@@ -266,7 +266,7 @@ Variable names MUST match the actual channel: `flash_pin = pins["Relay_Ch2"]`, n
 
 **Pins**: Relay_Ch2 (flash), Relay_Ch3 (attract UV)
 **Purpose**: Flash control during photo capture; maintain attract state
-**Implementation**: MUST use `relay_on()` / `relay_off()` from `gpio_helpers`
+**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`
 
 The `flashOn()` and `flashOff()` functions MUST be updated:
 
@@ -284,7 +284,7 @@ def flashOff():
 
 **Pins**: Relay_Ch1, Relay_Ch2, Relay_Ch3 (all three -- turning OFF)
 **Purpose**: Turn off all relays for safe debugging
-**Implementation**: MUST use `relay_off()` from `gpio_helpers`
+**Implementation**: MUST use `relay_off()` from `lib.gpio_helpers`
 
 ```python
 def AttractOff():
@@ -297,7 +297,7 @@ def AttractOff():
 
 **Pins**: Any relay pin (via API), Relay_Ch2 (flash trigger)
 **Purpose**: REST API for relay control and flash
-**Implementation**: MUST use `gpio_helpers` functions instead of raw `GPIO.output()` calls
+**Implementation**: MUST use `lib.gpio_helpers` functions instead of raw `GPIO.output()` calls
 
 The `control_gpio()` handler MUST call:
 ```python
@@ -321,17 +321,17 @@ relay_off(flash_pin)
 2. Removed from any documentation or script lists.
 3. It is already absent from `cron_security.py`'s `ALLOWED_SCRIPTS`, so no scheduler change is needed.
 
-If removal is not feasible, at minimum it MUST be fixed to use `GPIO.BCM` mode and `gpio_helpers`.
+If removal is not feasible, at minimum it MUST be fixed to use `GPIO.BCM` mode and `lib.gpio_helpers`.
 
 ### 6.7 capture_focus_bracket.py
 
 **Pins**: Relay_Ch1, Relay_Ch2, Relay_Ch3 (via GPIOHandler class)
 **Purpose**: Focus bracket capture with flash control
-**Implementation**: The `GPIOHandler` class MUST be updated to use `gpio_helpers` internally. Its `flash_on()` and `flash_off()` methods MUST call `relay_on()` / `relay_off()` instead of raw `GPIO.output()`.
+**Implementation**: The `GPIOHandler` class MUST be updated to use `lib.gpio_helpers` internally. Its `flash_on()` and `flash_off()` methods MUST call `relay_on()` / `relay_off()` instead of raw `GPIO.output()`.
 
 ### 6.8 5.x/scripts/ Subdirectory
 
-All TakePhoto variants and Flash scripts in `5.x/scripts/` currently use 4.x active-low polarity. After the `gpio_helpers` module is available, these scripts SHOULD be migrated to use `relay_on()` / `relay_off()`. This eliminates the polarity discrepancy with the top-level 5.x scripts.
+All TakePhoto variants and Flash scripts in `5.x/scripts/` currently use 4.x active-low polarity. After the `lib.gpio_helpers` module is available, these scripts SHOULD be migrated to use `relay_on()` / `relay_off()`. This eliminates the polarity discrepancy with the top-level 5.x scripts.
 
 Scripts that are rarely used MAY be left unchanged with a deprecation notice, provided they are not invoked by the scheduler or web UI.
 
@@ -383,16 +383,16 @@ The following dead code SHOULD be removed:
 
 The Web UI tracks relay state in `gpio_state.json`. This file is only written by `gpio.py:_save_state()`. When cron-triggered scripts (`Attract_On.py`, `TakePhoto.py`, etc.) change relay state, `gpio_state.json` is not updated and the Web UI shows stale toggle positions.
 
-### 8.2 Solution: Automatic State Persistence via `gpio_helpers`
+### 8.2 Solution: Automatic State Persistence via `lib.gpio_helpers`
 
-**Recommended**: Option A -- the `gpio_helpers` module automatically writes to `gpio_state.json` after every `relay_on()` / `relay_off()` call.
+**Recommended**: Option A -- the `lib.gpio_helpers` module automatically writes to `gpio_state.json` after every `relay_on()` / `relay_off()` call.
 
 The `relay_on()` and `relay_off()` functions MUST:
 1. Drive the GPIO pin to the correct level.
 2. Update the in-memory state.
 3. Write the updated state to `gpio_state.json` atomically (write to temp file, then rename).
 
-This means every script that uses `gpio_helpers` -- whether invoked by cron, CLI, or the Web UI -- automatically keeps the state file current.
+This means every script that uses `lib.gpio_helpers` -- whether invoked by cron, CLI, or the Web UI -- automatically keeps the state file current.
 
 ### 8.3 State File Format
 
@@ -410,7 +410,7 @@ Where `true` means relay is energized (load ON) and `false` means de-energized (
 
 ### 8.4 gpio.py Integration
 
-The `gpio.py:_save_state()` function SHOULD be replaced by a call to `gpio_helpers.write_gpio_state()` to avoid duplicate state-writing logic.
+The `gpio.py:_save_state()` function SHOULD be replaced by a call to `lib.gpio_helpers.write_gpio_state()` to avoid duplicate state-writing logic.
 
 The `gpio.py:_get_state()` function MAY remain unchanged -- it reads `gpio_state.json` as before, but now that file is also updated by external scripts.
 
@@ -517,7 +517,7 @@ This approach:
 
 ### 11.1 Unit Tests (Mock Hardware)
 
-Unit tests MUST mock `RPi.GPIO` and verify that the `gpio_helpers` module translates polarity correctly.
+Unit tests MUST mock `RPi.GPIO` and verify that the `lib.gpio_helpers` module translates polarity correctly.
 
 **`get_relay_level()` tests**:
 
@@ -583,14 +583,14 @@ def test_relay_off_drives_correct_level():
 ```python
 def test_relay_on_writes_state_file(tmp_path):
     """relay_on() should update gpio_state.json."""
-    with patch("gpio_helpers.DATA_DIR", tmp_path):
+    with patch("lib.gpio_helpers.DATA_DIR", tmp_path):
         relay_on(pins["Relay_Ch1"])
         state = json.loads((tmp_path / "gpio_state.json").read_text())
         assert state["Relay_Ch1"] is True
 
 def test_relay_off_writes_state_file(tmp_path):
     """relay_off() should update gpio_state.json."""
-    with patch("gpio_helpers.DATA_DIR", tmp_path):
+    with patch("lib.gpio_helpers.DATA_DIR", tmp_path):
         relay_off(pins["Relay_Ch1"])
         state = json.loads((tmp_path / "gpio_state.json").read_text())
         assert state["Relay_Ch1"] is False
@@ -655,12 +655,12 @@ def test_get_switch_pins_invalid_falls_back():
 
 ### 12.2 New Code
 
-1. Create `gpio_helpers.py` with the functions specified in Section 3.
+1. Create `lib/__init__.py` and `lib/gpio_helpers.py` with the functions specified in Section 3.
 2. Add `get_switch_pins()` to `mothbox_paths.py` as specified in Section 9.
 
 ### 12.3 Script Updates
 
-Each relay script MUST be updated to import and use `gpio_helpers`. The migration can proceed one script at a time. Recommended order (highest impact first):
+Each relay script MUST be updated to import and use `lib.gpio_helpers`. The migration can proceed one script at a time. Recommended order (highest impact first):
 
 1. `5.x/TakePhoto.py` -- fixes BUG-1 (the core Issue #399 polarity contradiction)
 2. `5.x/DebugMode.py` -- fixes BUG-2 (turns everything ON instead of OFF)
@@ -675,7 +675,7 @@ Each relay script MUST be updated to import and use `gpio_helpers`. The migratio
 
 ### 12.4 4.x Firmware
 
-The 4.x firmware SHOULD receive the same `gpio_helpers` migration for consistency, but at lower priority. 4.x polarity is already consistent (all active-low), so the bugs are less severe. The 4.x migration:
+The 4.x firmware SHOULD receive the same `lib.gpio_helpers` migration for consistency, but at lower priority. 4.x polarity is already consistent (all active-low), so the bugs are less severe. The 4.x migration:
 - Gains configurable switch pins (BUG-8)
 - Gains state synchronization (BUG-5)
 - Does NOT need polarity fixes (4.x is already uniform)
