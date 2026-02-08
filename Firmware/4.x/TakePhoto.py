@@ -58,6 +58,7 @@ from mothbox_paths import (
     MOTHBOX_HOME,
     PHOTOS_DIR,
     get_gpio_pins,
+    get_switch_pins,
 )
 
 # Load GPIO pins from configuration
@@ -94,8 +95,9 @@ def debug_connected_to_ground():
 
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ARMED"  # possible modes are OFF or DEBUG or ARMED
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)

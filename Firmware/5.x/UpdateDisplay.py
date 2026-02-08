@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 
-from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config, get_switch_pins
 
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
 # picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
@@ -74,8 +74,9 @@ def debug_connected_to_ground():
 GPIO.setmode(GPIO.BCM)
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ARMED
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)
