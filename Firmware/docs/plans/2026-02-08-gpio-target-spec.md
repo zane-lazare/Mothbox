@@ -127,6 +127,25 @@ def relay_off(pin: int) -> None:
     GPIO.output(pin, get_relay_level(on=False))
 ```
 
+#### `read_gpio_state() -> dict`
+
+Reads the current relay state from `gpio_state.json` in `DATA_DIR`. Used by scripts that need to check relay state before acting (e.g., TakePhoto.py checking if UV is already on).
+
+```python
+def read_gpio_state() -> dict:
+    """Read current relay state from gpio_state.json.
+
+    Returns:
+        Dict mapping relay names to boolean on/off state.
+        Example: {"Relay_Ch1": True, "Relay_Ch2": False, "Relay_Ch3": False}
+        Returns empty dict if file does not exist.
+    """
+    state_file = DATA_DIR / "gpio_state.json"
+    if not state_file.exists():
+        return {}
+    return json.loads(state_file.read_text())
+```
+
 #### `write_gpio_state(pin_states: dict) -> None`
 
 Persists the current relay state to `gpio_state.json` in `DATA_DIR`. This function is called internally by `relay_on()` and `relay_off()` to keep the Web UI state file synchronized. See Section 8.
@@ -216,27 +235,23 @@ Each script MUST control only the pins it needs. The following defines the targe
 
 ### 6.1 Attract_On.py / Attract_Off.py
 
-**Pins**: Relay_Ch1, Relay_Ch2, Relay_Ch3 (all three relay channels)
-**Purpose**: Turn all attraction hardware on or off
-**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`
+**Pins**: Relay_Ch1 only (UV attract lights)
+**Purpose**: Turn UV attract lights on or off
+**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`. MUST NOT touch Ch2 (flash) or Ch3 (spare).
 
 ```python
 from lib.gpio_helpers import setup_relay, relay_on, relay_off
 from mothbox_paths import get_gpio_pins
 
 pins = get_gpio_pins()
-for channel in ("Relay_Ch1", "Relay_Ch2", "Relay_Ch3"):
-    setup_relay(pins[channel])
+attract_pin = pins["Relay_Ch1"]
+setup_relay(attract_pin)
 
 # Attract_On.py calls:
-relay_on(pins["Relay_Ch1"])
-relay_on(pins["Relay_Ch2"])
-relay_on(pins["Relay_Ch3"])
+relay_on(attract_pin)
 
 # Attract_Off.py calls:
-relay_off(pins["Relay_Ch1"])
-relay_off(pins["Relay_Ch2"])
-relay_off(pins["Relay_Ch3"])
+relay_off(attract_pin)
 ```
 
 ### 6.2 Flash_On.py / Flash_Off.py
@@ -264,20 +279,38 @@ Variable names MUST match the actual channel: `flash_pin = pins["Relay_Ch2"]`, n
 
 ### 6.3 TakePhoto.py
 
-**Pins**: Relay_Ch2 (flash), Relay_Ch3 (attract UV)
-**Purpose**: Flash control during photo capture; maintain attract state
-**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`
+**Pins**: Relay_Ch2 (flash), Relay_Ch1 (UV attract -- conditional)
+**Purpose**: Flash control during photo capture; ensure UV is on during capture
+**Implementation**: MUST use `relay_on()` / `relay_off()` from `lib.gpio_helpers`. MUST NOT touch Ch3 (spare).
 
-The `flashOn()` and `flashOff()` functions MUST be updated:
+**UV logic**: Before capture begins, read `gpio_state.json` to check if UV (Ch1) is already on. If not, turn it on for the duration of capture, then restore it to off when done. If already on, leave it alone throughout.
 
 ```python
+from lib.gpio_helpers import setup_relay, relay_on, relay_off, read_gpio_state
+
+pins = get_gpio_pins()
+flash_pin = pins["Relay_Ch2"]   # Ch2 = flash
+uv_pin = pins["Relay_Ch1"]     # Ch1 = UV attract
+
+# Check if UV was already on before we started
+uv_was_on = read_gpio_state().get("Relay_Ch1", False)
+
+# If UV wasn't on, turn it on for capture
+if not uv_was_on:
+    setup_relay(uv_pin)
+    relay_on(uv_pin)
+
 def flashOn():
     relay_on(flash_pin)       # Flash ON
-    relay_on(attract_pin)     # Ensure attract stays on
 
 def flashOff():
     relay_off(flash_pin)      # Flash OFF
-    relay_on(attract_pin)     # Ensure attract stays on
+
+# ... capture loop ...
+
+# Restore UV state when done
+if not uv_was_on:
+    relay_off(uv_pin)
 ```
 
 ### 6.4 DebugMode.py
@@ -287,7 +320,7 @@ def flashOff():
 **Implementation**: MUST use `relay_off()` from `lib.gpio_helpers`
 
 ```python
-def AttractOff():
+def all_relays_off():
     relay_off(pins["Relay_Ch1"])
     relay_off(pins["Relay_Ch2"])
     relay_off(pins["Relay_Ch3"])
@@ -314,14 +347,9 @@ time.sleep(duration_sec)
 relay_off(flash_pin)
 ```
 
-### 6.6 FlashOn.py: Deprecation
+### 6.6 FlashOn.py: Removal
 
-`FlashOn.py` (both 4.x and 5.x) SHOULD be deprecated. It has two bugs (BUG-3: BOARD mode, and active-low polarity on 5.x) and duplicates the functionality of `Flash_On.py`. The file SHOULD be:
-1. Renamed to `FlashOn.py.deprecated` or removed entirely.
-2. Removed from any documentation or script lists.
-3. It is already absent from `cron_security.py`'s `ALLOWED_SCRIPTS`, so no scheduler change is needed.
-
-If removal is not feasible, at minimum it MUST be fixed to use `GPIO.BCM` mode and `lib.gpio_helpers`.
+`FlashOn.py` MUST be deleted from both `5.x/` and `4.x/`. It has two bugs (BUG-3: BOARD/BCM mode mismatch, and active-low polarity on 5.x hardware) and is fully replaced by `Flash_On.py` in 5.x. It is already absent from `cron_security.py`'s `ALLOWED_SCRIPTS`, so the scheduler never invokes it. No replacement is needed for 4.x as that firmware version is no longer deployed.
 
 ### 6.7 capture_focus_bracket.py
 
@@ -668,7 +696,7 @@ Each relay script MUST be updated to import and use `lib.gpio_helpers`. The migr
 4. `5.x/Flash_On.py` / `5.x/Flash_Off.py` -- fixes BUG-4 (naming)
 5. `webui/backend/routes/gpio.py` -- fixes BUG-5 (state sync via helpers) and BUG-9 (startup side effect)
 6. `5.x/Scheduler.py` -- switch pin migration (BUG-8)
-7. `5.x/FlashOn.py` -- deprecate or fix BUG-3 (BOARD mode)
+7. `5.x/FlashOn.py` and `4.x/FlashOn.py` -- delete (BUG-3, replaced by `Flash_On.py`)
 8. `webui/backend/scripts/capture_focus_bracket.py` -- align GPIOHandler with helpers
 9. Switch pin migration across all 8 files (BUG-8)
 10. `5.x/scripts/` subdirectory (lower priority, utility scripts)
@@ -702,7 +730,7 @@ If a deployed system experiences issues:
 |-----|-------------|-------------|
 | BUG-1 | TakePhoto Ch3 polarity contradicts Attract_On | Section 2 (polarity model), Section 3 (helpers), Section 6.3 (TakePhoto responsibilities) |
 | BUG-2 | DebugMode uses 4.x polarity on 5.x | Section 2 (polarity model), Section 3 (helpers), Section 6.4 (DebugMode responsibilities) |
-| BUG-3 | FlashOn.py BOARD/BCM mode mismatch | Section 4.2 (pin mode fix), Section 6.6 (deprecation) |
+| BUG-3 | FlashOn.py BOARD/BCM mode mismatch | Section 4.2 (pin mode fix), Section 6.6 (removal) |
 | BUG-4 | Flash_On/Off naming confusion | Section 7 (naming cleanup) |
 | BUG-5 | Web UI state desynchronization | Section 8 (state synchronization via helpers) |
 | BUG-6 | No GPIO.cleanup in relay scripts | Section 5 (cleanup contract -- intentional non-cleanup documented) |
