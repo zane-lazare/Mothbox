@@ -48,19 +48,20 @@ from camera_settings_schema import (
     STRING_SETTINGS,
     WEBUI_ONLY_SETTINGS,
 )
+from lib.gpio_helpers import read_gpio_state, relay_off, relay_on, setup_relay
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     CONTROLS_FILE,
     MOTHBOX_HOME,
     PHOTOS_DIR,
     get_gpio_pins,
+    get_switch_pins,
 )
 
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
-Relay_Ch1 = pins["Relay_Ch1"]
-Relay_Ch2 = pins["Relay_Ch2"]  # Photo flash
-Relay_Ch3 = pins["Relay_Ch3"]  # UV
+flash_pin = pins["Relay_Ch2"]  # Ch2 = photo flash
+uv_pin = pins["Relay_Ch1"]    # Ch1 = UV attract
 
 # IF the mothbox is supposed to be off, don't take a photo!
 GPIO.setmode(GPIO.BCM)
@@ -90,8 +91,9 @@ def debug_connected_to_ground():
 
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)
@@ -171,19 +173,12 @@ def set_last_calibration(filepath):
 
 
 def flashOff():
-    GPIO.output(
-        Relay_Ch3, GPIO.LOW
-    )  # might as well ensure attract is on because new wiring dictates that
-    GPIO.output(Relay_Ch2, GPIO.LOW)
+    relay_off(flash_pin)
     print("Flash Off\n")
 
 
 def flashOn():
-    GPIO.output(Relay_Ch2, GPIO.HIGH)
-    GPIO.output(
-        Relay_Ch3, GPIO.LOW
-    )  # might as well ensure attract is on because new wiring dictates that
-
+    relay_on(flash_pin)
     print("Flash On\n")
 
 
@@ -741,18 +736,20 @@ middleexposure = 500  # 500 #minimum exposure time for Hawkeye camera 64mp arduc
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-# GPIO.setup(Relay_Ch1,GPIO.OUT)
-GPIO.setup(Relay_Ch2, GPIO.OUT)
-GPIO.setup(Relay_Ch3, GPIO.OUT)
-
+setup_relay(flash_pin)
 print("Setup The Relay Module is [success]")
+
+# Check if UV was already on before we started
+uv_was_on = read_gpio_state().get("Relay_Ch1", False)
+
+# If UV wasn't on, turn it on for capture
+if not uv_was_on:
+    setup_relay(uv_pin)
+    relay_on(uv_pin)
 
 # Wrap GPIO operations in try/finally to ensure cleanup on crash
 try:
-    GPIO.output(Relay_Ch2, GPIO.HIGH)
-    GPIO.output(
-        Relay_Ch3, GPIO.LOW
-    )  # might as well ensure attract is on because new wiring dictates that
+    relay_on(flash_pin)
 
     global onlyflash
     onlyflash = False
@@ -906,10 +903,9 @@ try:
 
     picam2.stop()
 
-    # cannot call GPIO cleanup here because it will kill the relay turning on the attractor
-    GPIO.output(
-        Relay_Ch3, GPIO.LOW
-    )  # might as well ensure attract is on because new wiring dictates that
+    # Restore UV state — turn off if we turned it on
+    if not uv_was_on:
+        relay_off(uv_pin)
 
 finally:
     # Cleanup camera resources to prevent memory leaks
@@ -919,10 +915,10 @@ finally:
     except Exception as e:
         print(f"Warning: Camera close failed: {e}")
 
-    # Cleanup flash relay (Relay_Ch2) on exit to ensure it's off
-    # Note: We don't cleanup Relay_Ch3 (attractor) as it's intentionally left on
+    # Ensure flash is off on exit
     try:
-        GPIO.cleanup(Relay_Ch2)
+        relay_off(flash_pin)
+        GPIO.cleanup(flash_pin)
         print("GPIO cleanup completed for flash relay")
     except Exception as e:
         print(f"Warning: GPIO cleanup failed: {e}")
