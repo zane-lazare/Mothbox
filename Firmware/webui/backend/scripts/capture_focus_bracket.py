@@ -367,22 +367,27 @@ class GPIOHandler:
         self.relay_ch3 = relay_ch3
 
     def setup(self):
-        """Initialize GPIO pins for output"""
+        """Initialize GPIO pins for output using polarity-aware helpers"""
+        from lib.gpio_helpers import setup_relay
+
         self.gpio.setwarnings(False)
         self.gpio.setmode(self.gpio.BCM)
-        self.gpio.setup(self.relay_ch1, self.gpio.OUT)
-        self.gpio.setup(self.relay_ch2, self.gpio.OUT)
-        self.gpio.setup(self.relay_ch3, self.gpio.OUT)
+        setup_relay(self.relay_ch1)
+        setup_relay(self.relay_ch2)
+        setup_relay(self.relay_ch3)
 
     def flash_on(self):
-        """Turn flash on by setting relay channels LOW"""
-        self.gpio.output(self.relay_ch3, self.gpio.LOW)
-        self.gpio.output(self.relay_ch2, self.gpio.LOW)
+        """Turn flash on (Relay Ch2) using polarity-aware helper"""
+        from lib.gpio_helpers import relay_on
+
+        relay_on(self.relay_ch2)
         print("Flash On\n")
 
     def flash_off(self):
-        """Turn flash off by setting relay channel 2 HIGH"""
-        self.gpio.output(self.relay_ch2, self.gpio.HIGH)
+        """Turn flash off (Relay Ch2) using polarity-aware helper"""
+        from lib.gpio_helpers import relay_off
+
+        relay_off(self.relay_ch2)
         print("Flash Off\n")
 
 

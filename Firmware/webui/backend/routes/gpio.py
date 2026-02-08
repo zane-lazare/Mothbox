@@ -7,6 +7,7 @@ import logging
 # Setup path to import mothbox_paths
 from flask import Blueprint, jsonify, request
 
+from lib.gpio_helpers import relay_off, relay_on, setup_relay
 from mothbox_paths import CONTROLS_FILE, DATA_DIR, get_gpio_pins
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,8 @@ def _validate_gpio_permissions():
 
         # Try to setup the pin - this will fail with PermissionError if user lacks gpio access
         # Use LOW to avoid unintended activation
-        GPIO.setup(test_pin, GPIO.OUT, initial=GPIO.LOW)
+        GPIO.setup(test_pin, GPIO.IN)
+        GPIO.input(test_pin)  # Read to verify access
 
         # If we got here, permissions are OK
         return True, None
@@ -224,15 +226,11 @@ def control_gpio():
         pin = pins[relay]
         logger.info(f"GPIO control: {relay} (pin {pin}) -> {state}")
 
-        # Setup pin as output
-        GPIO.setup(pin, GPIO.OUT)
-        # Set state (HIGH=1/True, LOW=0/False)
-        GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
-
-        # Update state file
-        status = _get_state()
-        status[relay] = state
-        _save_state(status)
+        setup_relay(pin)
+        if state:
+            relay_on(pin)
+        else:
+            relay_off(pin)
 
         return jsonify({"success": True, "relay": relay, "state": state})
     except Exception:
@@ -266,13 +264,10 @@ def trigger_flash():
 
         logger.info(f"Triggering flash on pin {flash_pin} ({flash_duration_ms}ms pulse)")
 
-        # Setup pin as output
-        GPIO.setup(flash_pin, GPIO.OUT)
-        # Turn on
-        GPIO.output(flash_pin, GPIO.HIGH)
+        setup_relay(flash_pin)
+        relay_on(flash_pin)
         time.sleep(flash_duration_sec)
-        # Turn off
-        GPIO.output(flash_pin, GPIO.LOW)
+        relay_off(flash_pin)
 
         logger.info("Flash completed")
         return jsonify({"success": True})
