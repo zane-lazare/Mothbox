@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 
+from lib.gpio_client import read_switch
 from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config, get_switch_pins
 
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
@@ -46,41 +47,21 @@ def get_control_values(filepath):
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 # -----CHECK THE PHYSICAL SWITCH on the GPIO PINS--------------------
 
-
-# Set pin numbering mode (BCM or BOARD)
-GPIO.setmode(GPIO.BCM)
 
 # Define GPIO pin for checking
 switch_pins = get_switch_pins()
 off_pin = switch_pins["off_pin"]
 debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ARMED
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
