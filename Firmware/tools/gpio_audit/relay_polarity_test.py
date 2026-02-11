@@ -9,6 +9,7 @@ relay module should note when each relay clicks ON and OFF.
 Usage: python3 relay_polarity_test.py
 """
 
+import contextlib
 import sys
 import time
 
@@ -29,19 +30,17 @@ PAUSE = 3  # seconds between toggles
 
 def test_pin(chip, name, pin):
     """Toggle a single pin and report states."""
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Testing {name} -- GPIO {pin}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     # Claim as output, initial HIGH (safe for active-low)
     try:
         lgpio.gpio_claim_output(chip, pin, 1)  # initial HIGH
-    except lgpio.error as e:
+    except lgpio.error:
         # Pin might already be claimed — free it first
-        try:
+        with contextlib.suppress(Exception):
             lgpio.gpio_free(chip, pin)
-        except Exception:
-            pass
         lgpio.gpio_claim_output(chip, pin, 1)
 
     state = lgpio.gpio_read(chip, pin)
@@ -96,9 +95,9 @@ def main():
         for name, pin in RELAY_PINS.items():
             test_pin(chip, name, pin)
 
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print("  TEST COMPLETE")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         print()
         print("Results interpretation:")
         print("  If relay clicks ON when pin goes LOW  -> Active-LOW (standard)")
@@ -108,7 +107,7 @@ def main():
 
     except KeyboardInterrupt:
         print("\n\nInterrupted! Setting all pins HIGH...")
-        for name, pin in RELAY_PINS.items():
+        for _name, pin in RELAY_PINS.items():
             try:
                 lgpio.gpio_write(chip, pin, 1)
                 lgpio.gpio_free(chip, pin)
