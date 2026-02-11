@@ -8,9 +8,9 @@ Usage::
 
     from lib.gpio_client import setup_relay, relay_on, relay_off, read_switch
 
-    setup_relay(5)    # no-op — daemon owns setup
-    relay_on(5)       # sends SET attract on to daemon
-    relay_off(5)      # sends SET attract off to daemon
+    setup_relay(5)  # no-op — daemon owns setup
+    relay_on(5)  # sends SET attract on to daemon
+    relay_off(5)  # sends SET attract off to daemon
 
     if read_switch(16):  # sends READ off_pin to daemon
         print("OFF switch is grounded")
@@ -98,17 +98,11 @@ def _send_command(command: str) -> str:
             sock.sendall((command + "\n").encode())
             response = sock.recv(4096).decode().strip()
     except ConnectionRefusedError:
-        raise GPIODaemonError(
-            f"GPIO daemon not running at {SOCKET_PATH}"
-        ) from None
+        raise GPIODaemonError(f"GPIO daemon not running at {SOCKET_PATH}") from None
     except TimeoutError:
-        raise GPIODaemonError(
-            f"GPIO daemon not responding within {SOCKET_TIMEOUT}s"
-        ) from None
+        raise GPIODaemonError(f"GPIO daemon not responding within {SOCKET_TIMEOUT}s") from None
     except OSError as exc:
-        raise GPIODaemonError(
-            f"GPIO daemon connection failed: {exc}"
-        ) from None
+        raise GPIODaemonError(f"GPIO daemon connection failed: {exc}") from None
 
     if response.startswith("ERR "):
         raise GPIODaemonError(response[4:])
@@ -118,7 +112,6 @@ def _send_command(command: str) -> str:
 
 def setup_relay(pin: int) -> None:
     """No-op. Daemon owns GPIO setup. Kept for API compatibility."""
-    pass
 
 
 def relay_on(pin: int) -> None:
