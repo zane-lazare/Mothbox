@@ -32,15 +32,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 import re
 
-import RPi.GPIO as GPIO
 from crontab import CronTab
 
-from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path, get_switch_pins
+from lib.gpio_client import read_switch
+from mothbox_paths import (
+    CONTROLS_FILE,
+    SCHEDULE_SETTINGS_FILE,
+    WORDLIST_FILE,
+    get_script_path,
+    get_switch_pins,
+)
 
 # Configure logging for standalone script execution
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -102,25 +107,11 @@ def set_eeprom_settings(settings):
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 def read_csv_into_lists(filename, encoding="utf-8"):
@@ -497,8 +488,6 @@ def run_shutdown_pi5():
 
     # Epaper
     # Update the Epaper screen if it is available
-    GPIO.cleanup()
-
     logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
@@ -575,8 +564,6 @@ def run_shutdown_pi5_FAST():
 
     # Epaper
     # Update the Epaper screen if it is available
-    GPIO.cleanup()
-
     logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
@@ -769,17 +756,11 @@ if rpiModel == 5:
 # -----CHECK THE PHYSICAL SWITCH on the GPIO PINS--------------------
 
 
-# Set pin numbering mode (BCM or BOARD)
-GPIO.setmode(GPIO.BCM)
-
-# Define GPIO pin for checking
+# Define GPIO pin for checking (daemon owns setup)
 switch_pins = get_switch_pins()
 off_pin = switch_pins["off_pin"]
 debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
@@ -933,7 +914,6 @@ enable_onlyflash()
 
 
 # Update the Epaper screen if it is available
-GPIO.cleanup()
 logger.info("Updating Epaper display (if available)")
 process = subprocess.Popen(
     ["python", str(get_script_path("UpdateDisplay.py"))],
