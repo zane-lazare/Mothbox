@@ -85,7 +85,6 @@ def active_low_config():
 
 
 from lib.gpio_client import (
-    _is_active_low,
     _pin_to_ipc_name,
     _pin_to_relay_name,
     get_relay_level,
@@ -94,7 +93,6 @@ from lib.gpio_client import (
     relay_off,
     relay_on,
     setup_relay,
-    write_gpio_state,
 )
 
 
@@ -136,9 +134,11 @@ class TestRelayOn:
 
     def test_raises_on_err_response(self, sample_gpio_pins):
         mock = MockDaemonSocket("ERR unknown pin\n")
-        with patch("socket.socket", return_value=mock):
-            with pytest.raises(GPIODaemonError, match="unknown pin"):
-                relay_on(5)
+        with (
+            patch("socket.socket", return_value=mock),
+            pytest.raises(GPIODaemonError, match="unknown pin"),
+        ):
+            relay_on(5)
 
     def test_raises_on_connection_refused(self, sample_gpio_pins):
         with patch("socket.socket") as mock_cls:
@@ -161,9 +161,11 @@ class TestRelayOff:
 
     def test_raises_on_err_response(self, sample_gpio_pins):
         mock = MockDaemonSocket("ERR hardware fault\n")
-        with patch("socket.socket", return_value=mock):
-            with pytest.raises(GPIODaemonError, match="hardware fault"):
-                relay_off(5)
+        with (
+            patch("socket.socket", return_value=mock),
+            pytest.raises(GPIODaemonError, match="hardware fault"),
+        ):
+            relay_off(5)
 
 
 @pytest.mark.unit
@@ -230,9 +232,11 @@ class TestReadSwitch:
         assert result is False
 
     def test_raises_on_daemon_error(self, sample_gpio_pins, sample_switch_pins):
-        with patch("socket.socket", side_effect=ConnectionRefusedError):
-            with pytest.raises(GPIODaemonError):
-                read_switch(16)
+        with (
+            patch("socket.socket", side_effect=ConnectionRefusedError),
+            pytest.raises(GPIODaemonError),
+        ):
+            read_switch(16)
 
 
 @pytest.mark.unit

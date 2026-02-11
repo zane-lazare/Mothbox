@@ -126,10 +126,18 @@ def running_daemon(daemon_env, mock_gpiod, sample_pins):
             )
             daemon_thread.start()
 
-            # Wait for socket to appear
+            # Wait for socket to appear and be ready to accept connections
             for _ in range(50):
                 if Path(daemon_env["sock_path"]).exists():
-                    break
+                    try:
+                        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.5)
+                            s.connect(daemon_env["sock_path"])
+                            s.sendall(b"PING\n")
+                            s.recv(64)
+                        break
+                    except (ConnectionRefusedError, OSError):
+                        pass
                 time.sleep(0.05)
 
             yield daemon_env["sock_path"], daemon_env["state_file"], mock_request
@@ -277,7 +285,15 @@ class TestStateRestore:
 
                 for _ in range(50):
                     if Path(daemon_env["sock_path"]).exists():
-                        break
+                        try:
+                            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                                s.settimeout(0.5)
+                                s.connect(daemon_env["sock_path"])
+                                s.sendall(b"PING\n")
+                                s.recv(64)
+                            break
+                        except (ConnectionRefusedError, OSError):
+                            pass
                     time.sleep(0.05)
 
                 yield daemon_env["sock_path"], daemon_env["state_file"], mock_request
