@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from lib.gpio_helpers import relay_off, setup_relay
+from lib.gpio_client import relay_off, setup_relay
 from mothbox_paths import CONTROLS_FILE, get_gpio_pins, get_script_path
 
 now = datetime.now()
