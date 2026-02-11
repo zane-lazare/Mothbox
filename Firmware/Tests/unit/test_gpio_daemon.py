@@ -1,0 +1,292 @@
+# Tests/unit/test_gpio_daemon.py
+"""
+Unit tests for lib/gpio_daemon.py — GPIO daemon.
+
+Tests the daemon with mocked gpiod and a real Unix socket in a temp directory.
+The daemon runs in a background thread for each test.
+
+Test structure:
+- TestDaemonPing: PING health check
+- TestSetCommand: relay control via IPC
+- TestGetCommand: relay state query
+- TestStatusCommand: all-pin status dump
+- TestReadCommand: switch pin reads
+- TestStateRestore: state restoration on startup
+"""
+
+import json
+import socket
+import sys
+import threading
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+
+# ---------------------------------------------------------------------------
+# Helper: talk to daemon
+# ---------------------------------------------------------------------------
+
+
+def send_to_daemon(sock_path: str, command: str, timeout: float = 2.0) -> str:
+    """Send a command to the daemon and return the response."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        s.connect(sock_path)
+        s.sendall((command + "\n").encode())
+        return s.recv(4096).decode().strip()
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def daemon_env(tmp_path):
+    """Set up a temp environment for the daemon: socket path, state file, config."""
+    sock_path = str(tmp_path / "gpio.sock")
+    state_file = tmp_path / "gpio_state.json"
+    return {
+        "sock_path": sock_path,
+        "state_file": state_file,
+        "tmp_path": tmp_path,
+    }
+
+
+@pytest.fixture
+def mock_gpiod():
+    """Mock gpiod v2 module."""
+    mock = MagicMock()
+    # Mock line values
+    mock.line.Value.ACTIVE = 1
+    mock.line.Value.INACTIVE = 0
+    mock.line.Direction.OUTPUT = "output"
+    mock.line.Direction.INPUT = "input"
+    mock.line.Bias.PULL_UP = "pull_up"
+
+    # Mock LineSettings
+    mock.LineSettings = MagicMock
+
+    # Mock request_lines to return a mock request object
+    mock_request = MagicMock()
+    mock_request.get_value = MagicMock(return_value=1)  # default: HIGH
+    mock_request.set_value = MagicMock()
+    mock.request_lines = MagicMock(return_value=mock_request)
+
+    return mock, mock_request
+
+
+@pytest.fixture
+def sample_pins():
+    """Standard 5.x pin configuration patches."""
+    gpio_pins = {"Relay_Ch1": 5, "Relay_Ch2": 19, "Relay_Ch3": 9}
+    switch_pins = {"off_pin": 16, "debug_pin": 12}
+    return gpio_pins, switch_pins
+
+
+@pytest.fixture
+def running_daemon(daemon_env, mock_gpiod, sample_pins):
+    """Start the daemon in a background thread with mocked gpiod.
+
+    Yields (sock_path, state_file, mock_request) and stops daemon on teardown.
+    """
+    mock_gpiod_module, mock_request = mock_gpiod
+    gpio_pins, switch_pins = sample_pins
+
+    # Import daemon module with mocked gpiod
+    # Must also mock gpiod.line so "from gpiod.line import ..." works
+    with patch.dict(
+        sys.modules,
+        {"gpiod": mock_gpiod_module, "gpiod.line": mock_gpiod_module.line},
+    ):
+        # Force reimport to pick up mock
+        if "lib.gpio_daemon" in sys.modules:
+            del sys.modules["lib.gpio_daemon"]
+
+        import lib.gpio_daemon as daemon_module
+
+        # Patch daemon internals
+        with (
+            patch.object(daemon_module, "SOCKET_PATH", daemon_env["sock_path"]),
+            patch.object(daemon_module, "STATE_FILE", daemon_env["state_file"]),
+            patch.object(daemon_module, "_get_gpio_pins", return_value=gpio_pins),
+            patch.object(daemon_module, "_get_switch_pins", return_value=switch_pins),
+            patch.object(daemon_module, "_is_active_low", return_value=False),
+        ):
+            stop_event = threading.Event()
+            daemon_thread = threading.Thread(
+                target=daemon_module.run,
+                kwargs={"stop_event": stop_event},
+                daemon=True,
+            )
+            daemon_thread.start()
+
+            # Wait for socket to appear
+            for _ in range(50):
+                if Path(daemon_env["sock_path"]).exists():
+                    break
+                time.sleep(0.05)
+
+            yield daemon_env["sock_path"], daemon_env["state_file"], mock_request
+
+            stop_event.set()
+            daemon_thread.join(timeout=3)
+            sys.modules.pop("lib.gpio_daemon", None)
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDaemonPing:
+    """PING health check."""
+
+    def test_ping_returns_pong(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        assert send_to_daemon(sock_path, "PING") == "PONG"
+
+
+@pytest.mark.unit
+class TestSetCommand:
+    """SET <name> <on|off> commands."""
+
+    def test_set_attract_on(self, running_daemon):
+        sock_path, _, mock_request = running_daemon
+        response = send_to_daemon(sock_path, "SET attract on")
+        assert response == "OK attract on"
+
+    def test_set_flash_off(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "SET flash off")
+        assert response == "OK flash off"
+
+    def test_set_invalid_name(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "SET bogus on")
+        assert response.startswith("ERR")
+
+    def test_set_persists_state(self, running_daemon):
+        sock_path, state_file, _ = running_daemon
+        send_to_daemon(sock_path, "SET attract on")
+        # State file should be updated
+        state = json.loads(state_file.read_text())
+        assert state["Relay_Ch1"] is True
+
+
+@pytest.mark.unit
+class TestGetCommand:
+    """GET <name> queries."""
+
+    def test_get_after_set(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "SET attract on")
+        response = send_to_daemon(sock_path, "GET attract")
+        assert response == "STATE attract on"
+
+    def test_get_default_off(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "GET spare")
+        assert response == "STATE spare off"
+
+
+@pytest.mark.unit
+class TestStatusCommand:
+    """STATUS — all pin states."""
+
+    def test_status_all_off(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "STATUS")
+        assert response.startswith("STATUS ")
+        assert "attract=off" in response
+        assert "flash=off" in response
+        assert "spare=off" in response
+
+    def test_status_reflects_set(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "SET attract on")
+        response = send_to_daemon(sock_path, "STATUS")
+        assert "attract=on" in response
+        assert "flash=off" in response
+
+
+@pytest.mark.unit
+class TestReadCommand:
+    """READ <name> — switch pin input."""
+
+    def test_read_off_pin(self, running_daemon):
+        sock_path, _, mock_request = running_daemon
+        # Mock returns HIGH (1) = not grounded
+        mock_request.get_value.return_value = 1
+        response = send_to_daemon(sock_path, "READ off_pin")
+        assert response == "VALUE off_pin high"
+
+    def test_read_unknown_name(self, running_daemon):
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "READ bogus")
+        assert response.startswith("ERR")
+
+
+@pytest.mark.unit
+class TestStateRestore:
+    """State restoration from gpio_state.json on startup."""
+
+    @pytest.fixture
+    def restored_daemon(self, daemon_env, mock_gpiod, sample_pins):
+        """Start daemon with pre-populated state file.
+
+        Writes {"Relay_Ch1": true} before starting the daemon so it
+        restores the attract relay to ON at startup.
+        """
+        mock_gpiod_module, mock_request = mock_gpiod
+        gpio_pins, switch_pins = sample_pins
+
+        # Pre-populate state file BEFORE starting daemon
+        daemon_env["state_file"].parent.mkdir(parents=True, exist_ok=True)
+        daemon_env["state_file"].write_text(json.dumps({"Relay_Ch1": True}))
+
+        with patch.dict(
+            sys.modules,
+            {"gpiod": mock_gpiod_module, "gpiod.line": mock_gpiod_module.line},
+        ):
+            if "lib.gpio_daemon" in sys.modules:
+                del sys.modules["lib.gpio_daemon"]
+
+            import lib.gpio_daemon as daemon_module
+
+            with (
+                patch.object(daemon_module, "SOCKET_PATH", daemon_env["sock_path"]),
+                patch.object(daemon_module, "STATE_FILE", daemon_env["state_file"]),
+                patch.object(daemon_module, "_get_gpio_pins", return_value=gpio_pins),
+                patch.object(daemon_module, "_get_switch_pins", return_value=switch_pins),
+                patch.object(daemon_module, "_is_active_low", return_value=False),
+            ):
+                stop_event = threading.Event()
+                daemon_thread = threading.Thread(
+                    target=daemon_module.run,
+                    kwargs={"stop_event": stop_event},
+                    daemon=True,
+                )
+                daemon_thread.start()
+
+                for _ in range(50):
+                    if Path(daemon_env["sock_path"]).exists():
+                        break
+                    time.sleep(0.05)
+
+                yield daemon_env["sock_path"], daemon_env["state_file"], mock_request
+
+                stop_event.set()
+                daemon_thread.join(timeout=3)
+                sys.modules.pop("lib.gpio_daemon", None)
+
+    def test_relay_restored_on_startup(self, restored_daemon):
+        sock_path, _, _ = restored_daemon
+        response = send_to_daemon(sock_path, "GET attract")
+        assert response == "STATE attract on"
