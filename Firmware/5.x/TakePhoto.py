@@ -35,9 +35,6 @@ from pathlib import Path
 
 import piexif
 
-# GPIO
-import RPi.GPIO as GPIO
-
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from camera_settings_schema import (
@@ -48,7 +45,7 @@ from camera_settings_schema import (
     STRING_SETTINGS,
     WEBUI_ONLY_SETTINGS,
 )
-from lib.gpio_helpers import read_gpio_state, relay_off, relay_on, setup_relay
+from lib.gpio_client import read_gpio_state, read_switch, relay_off, relay_on, setup_relay
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     CONTROLS_FILE,
@@ -61,33 +58,18 @@ from mothbox_paths import (
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
 flash_pin = pins["Relay_Ch2"]  # Ch2 = photo flash
-uv_pin = pins["Relay_Ch1"]    # Ch1 = UV attract
+uv_pin = pins["Relay_Ch1"]  # Ch1 = UV attract
 
 # IF the mothbox is supposed to be off, don't take a photo!
-GPIO.setmode(GPIO.BCM)
 
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 # Define GPIO pin for checking
@@ -95,9 +77,6 @@ switch_pins = get_switch_pins()
 off_pin = switch_pins["off_pin"]
 debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
@@ -117,7 +96,6 @@ print("Current Mothbox MODE: ", mode)
 
 if mode == "OFF":
     print("no photo!")
-    # GPIO.cleanup()
     sys.exit(0)  # Normal exit when mode is OFF
 
 
@@ -733,9 +711,6 @@ num_photos = 3
 exposuretime_width = 18000
 middleexposure = 500  # 500 #minimum exposure time for Hawkeye camera 64mp arducam
 
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
-
 setup_relay(flash_pin)
 print("Setup The Relay Module is [success]")
 
@@ -859,8 +834,10 @@ try:
     # When AutoCalibration is OFF, respect the user's AfMode setting.
     af_mode = camera_settings.get("AfMode", 0)
     if AutoCalibration:
-        print(f"AutoCalibration enabled: overriding AfMode={af_mode} to Manual (0) "
-              f"with calibrated LensPosition={camera_settings.get('LensPosition')}")
+        print(
+            f"AutoCalibration enabled: overriding AfMode={af_mode} to Manual (0) "
+            f"with calibrated LensPosition={camera_settings.get('LensPosition')}"
+        )
         camera_settings["AfMode"] = 0
     elif af_mode == 1:
         # Auto Single without AutoCalibration: will trigger autofocus_cycle()
@@ -918,9 +895,8 @@ finally:
     # Ensure flash is off on exit
     try:
         relay_off(flash_pin)
-        GPIO.cleanup(flash_pin)
-        print("GPIO cleanup completed for flash relay")
+        print("Flash relay turned off")
     except Exception as e:
-        print(f"Warning: GPIO cleanup failed: {e}")
+        print(f"Warning: Flash relay off failed: {e}")
 
 sys.exit(0)  # Normal exit after successful photo capture
