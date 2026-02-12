@@ -306,3 +306,41 @@ class TestStateRestore:
         sock_path, _, _ = restored_daemon
         response = send_to_daemon(sock_path, "GET attract")
         assert response == "STATE attract on"
+
+
+@pytest.mark.unit
+class TestDaemonHardening:
+    """Tests for daemon robustness fixes."""
+
+    def test_empty_command_returns_ok(self, running_daemon):
+        """Send bare newline → expect OK response (not a timeout)."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "")
+        assert response == "OK"
+
+    def test_oversized_message_handled(self, running_daemon):
+        """Send >256 bytes without newline → daemon truncates and still serves."""
+        sock_path, _, _ = running_daemon
+        # Send 300 bytes of 'A' without a newline — daemon reads up to MAX_MSG_LENGTH
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(3.0)
+            s.connect(sock_path)
+            s.sendall(b"A" * 300)
+            s.shutdown(socket.SHUT_WR)
+            response = s.recv(4096).decode().strip()
+        # Daemon should respond with an error (unknown command) rather than crash
+        assert response.startswith("ERR")
+        # Verify daemon is still alive by sending a PING
+        assert send_to_daemon(sock_path, "PING") == "PONG"
+
+    def test_slow_client_doesnt_block_daemon(self, running_daemon):
+        """Connect but don't send → daemon still serves other clients after timeout."""
+        sock_path, _, _ = running_daemon
+        # Open a connection but never send anything
+        slow_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        slow_sock.connect(sock_path)
+        # Wait for the CONN_TIMEOUT (2s) to expire, plus a bit of margin
+        time.sleep(3.0)
+        slow_sock.close()
+        # Daemon should still be responsive
+        assert send_to_daemon(sock_path, "PING") == "PONG"

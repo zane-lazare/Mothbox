@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from lib.gpio_protocol import SOCKET_PATH, SOCKET_TIMEOUT
+from lib.gpio_protocol import RECV_BUFFER_SIZE, SOCKET_PATH, SOCKET_TIMEOUT
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
             sock.settimeout(SOCKET_TIMEOUT)
             sock.connect(SOCKET_PATH)
             sock.sendall((command + "\n").encode())
-            response = sock.recv(4096).decode().strip()
+            response = sock.recv(RECV_BUFFER_SIZE).decode().strip()
             print(response)
     except ConnectionRefusedError:
         print(f"ERROR: daemon not running at {SOCKET_PATH}", file=sys.stderr)

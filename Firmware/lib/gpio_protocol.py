@@ -6,6 +6,12 @@ Shared between gpio_daemon.py and gpio_client.py to avoid circular imports.
 SOCKET_PATH = "/run/mothbox/gpio.sock"
 SOCKET_TIMEOUT = 2.0
 
+RECV_BUFFER_SIZE = 4096
+ACCEPT_TIMEOUT = 0.5
+LISTEN_BACKLOG = 5
+CONN_TIMEOUT = 2.0
+MAX_MSG_LENGTH = 256
+
 
 class GPIODaemonError(Exception):
     """Raised by mutations (relay_on, relay_off, write_gpio_state, read_switch)

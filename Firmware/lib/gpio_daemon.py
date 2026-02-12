@@ -17,7 +17,6 @@ IPC Protocol (newline-delimited text over Unix socket):
     PING                  → PONG
 """
 
-import contextlib
 import json
 import logging
 import os
@@ -39,7 +38,13 @@ except ImportError:
     )
     sys.exit(1)
 
-from lib.gpio_protocol import SOCKET_PATH
+from lib.gpio_protocol import (
+    ACCEPT_TIMEOUT,
+    CONN_TIMEOUT,
+    LISTEN_BACKLOG,
+    MAX_MSG_LENGTH,
+    SOCKET_PATH,
+)
 from mothbox_paths import (
     CONTROLS_FILE,
     DATA_DIR,
@@ -211,8 +216,9 @@ def run(stop_event: threading.Event | None = None):
 
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(sock_path))
-    server.listen(5)
-    server.settimeout(0.5)  # allow periodic stop_event checks
+    os.chmod(str(sock_path), 0o660)
+    server.listen(LISTEN_BACKLOG)
+    server.settimeout(ACCEPT_TIMEOUT)  # allow periodic stop_event checks
 
     _sd_notify("READY=1")
 
@@ -289,6 +295,19 @@ def run(stop_event: threading.Event | None = None):
         else:
             return f"ERR unknown command '{cmd.strip()}'"
 
+    # --- Bounded recv helper ---
+    def _recv_line(conn):
+        """Read one newline-terminated message, up to MAX_MSG_LENGTH bytes."""
+        buf = b""
+        while len(buf) < MAX_MSG_LENGTH:
+            chunk = conn.recv(1)
+            if not chunk:
+                break
+            buf += chunk
+            if chunk == b"\n":
+                break
+        return buf.decode().strip()
+
     # --- Main loop ---
     try:
         while not stop_event.is_set():
@@ -302,14 +321,16 @@ def run(stop_event: threading.Event | None = None):
                 raise
 
             try:
-                data = conn.recv(4096).decode().strip()
-                if data:
-                    response = _handle_command(data)
-                    conn.sendall((response + "\n").encode())
+                conn.settimeout(CONN_TIMEOUT)
+                data = _recv_line(conn)
+                response = _handle_command(data) if data else "OK"
+                conn.sendall((response + "\n").encode())
             except Exception as exc:
                 logger.warning("Error handling client: %s", exc)
-                with contextlib.suppress(Exception):
+                try:
                     conn.sendall(f"ERR internal: {exc}\n".encode())
+                except OSError:
+                    logger.debug("Failed to send error response to client")
             finally:
                 conn.close()
 

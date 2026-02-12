@@ -15,6 +15,11 @@ RuntimeDirectory=mothbox
 StandardOutput=journal
 StandardError=journal
 
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/run/mothbox /var/lib/mothbox __MOTHBOX_HOME__
+NoNewPrivileges=yes
+
 Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
 Environment="PYTHONUNBUFFERED=1"
 
