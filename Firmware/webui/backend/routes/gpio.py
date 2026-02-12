@@ -81,8 +81,13 @@ def trigger_flash():
 
         setup_relay(flash_pin)
         relay_on(flash_pin)
-        time.sleep(flash_duration_sec)
-        relay_off(flash_pin)
+        try:
+            time.sleep(flash_duration_sec)
+        finally:
+            try:
+                relay_off(flash_pin)
+            except Exception:
+                logger.exception("Failed to turn off flash relay")
 
         logger.info("Flash completed")
         return jsonify({"success": True})
