@@ -216,7 +216,7 @@ def run(stop_event: threading.Event | None = None):
 
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(sock_path))
-    os.chmod(str(sock_path), 0o660)
+    os.chmod(str(sock_path), 0o660)  # nosec B103 — restrict socket to owner+group
     server.listen(LISTEN_BACKLOG)
     server.settimeout(ACCEPT_TIMEOUT)  # allow periodic stop_event checks
 

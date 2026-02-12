@@ -124,8 +124,9 @@ ALLOWED_CONTROLS = {
     "Relay_Ch2": lambda v: str(v).isdigit() and int(v) in VALID_BCM_GPIO_PINS,
     "Relay_Ch3": lambda v: str(v).isdigit() and int(v) in VALID_BCM_GPIO_PINS,
     "relay_enabled": lambda v: str(v).lower() in ["true", "false"],
-    "flash_duration_ms": lambda v: str(v).isdigit()
-    and 50 <= int(v) <= 5000,  # 50ms to 5s flash duration
+    "flash_duration_ms": lambda v: (
+        str(v).isdigit() and 50 <= int(v) <= 5000
+    ),  # 50ms to 5s flash duration
     "jpeg_quality": lambda v: str(v).isdigit() and 50 <= int(v) <= 100,  # JPEG quality 50-100
     "log_level": lambda v: str(v).upper() in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     "log_retention_days": lambda v: str(v).isdigit() and 1 <= int(v) <= 90,

@@ -232,15 +232,15 @@ ALLOWED_WEBUI_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "FocusBracket_Start": lambda v: 0.0 <= float(v) <= 10.0,  # Start focus position (diopters)
     "FocusBracket_End": lambda v: 0.0 <= float(v) <= 10.0,  # End focus position (diopters)
     # Focus Bracketing - Advanced Timing Settings
-    "FlashDelay_BeforeCapture": lambda v: 0
-    <= int(v)
-    <= 500,  # Delay after flash on, before capture (ms)
-    "FlashDelay_AfterCapture": lambda v: 0
-    <= int(v)
-    <= 500,  # Delay after capture, before flash off (ms)
-    "FocusBracket_SettleDelay": lambda v: 100
-    <= int(v)
-    <= 2000,  # Lens settle delay between focus changes (ms)
+    "FlashDelay_BeforeCapture": lambda v: (
+        0 <= int(v) <= 500
+    ),  # Delay after flash on, before capture (ms)
+    "FlashDelay_AfterCapture": lambda v: (
+        0 <= int(v) <= 500
+    ),  # Delay after capture, before flash off (ms)
+    "FocusBracket_SettleDelay": lambda v: (
+        100 <= int(v) <= 2000
+    ),  # Lens settle delay between focus changes (ms)
     # Focus Bracketing - Color Consistency Settings
     "FocusBracket_LockColorGains": lambda v: int(v) in [0, 1],  # 0=Use AWB, 1=Lock gains
     "FocusBracket_ColorGainRed": lambda v: 1.0 <= float(v) <= 4.0,  # Red channel gain
@@ -257,8 +257,9 @@ ALLOWED_WEBUI_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "FocusPeakingEnabled": lambda v: str(v).lower() in ["true", "false"],
     "FocusPeakingIntensity": lambda v: 50 <= int(v) <= 200,
     "FocusPeakingColour": lambda v: str(v).lower() in ["green", "red", "yellow", "cyan", "magenta"],
-    "FocusPeakingColor": lambda v: str(v).lower()
-    in ["green", "red", "yellow", "cyan", "magenta"],  # American spelling alias
+    "FocusPeakingColor": lambda v: (
+        str(v).lower() in ["green", "red", "yellow", "cyan", "magenta"]
+    ),  # American spelling alias
     "FocusPeakingAlgorithm": lambda v: str(v).lower() in ["laplacian", "sobel", "canny"],
 }
 
@@ -294,10 +295,12 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
     "exposure_time": _validate_exposure_time,  # Microseconds (µs)
     # Focus peaking overlay controls (preview-only visual aid)
     "focus_peaking_intensity": lambda v: 50 <= int(v) <= 200,  # Edge detection strength
-    "focus_peaking_colour": lambda v: str(v).lower()
-    in ["green", "red", "yellow", "cyan", "magenta"],
-    "focus_peaking_color": lambda v: str(v).lower()
-    in ["green", "red", "yellow", "cyan", "magenta"],  # American spelling
+    "focus_peaking_colour": lambda v: (
+        str(v).lower() in ["green", "red", "yellow", "cyan", "magenta"]
+    ),
+    "focus_peaking_color": lambda v: (
+        str(v).lower() in ["green", "red", "yellow", "cyan", "magenta"]
+    ),  # American spelling
     "focus_peaking_algorithm": lambda v: str(v).lower() in ["laplacian", "sobel", "canny"],
 }
 
