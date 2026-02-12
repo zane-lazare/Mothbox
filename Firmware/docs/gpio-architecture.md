@@ -425,6 +425,7 @@ All GPIO-related keys in `controls.txt`:
 | `Relay_Ch2` | int (BCM 0-27) | 20 | `get_gpio_pins()` |
 | `Relay_Ch3` | int (BCM 0-27) | 21 | `get_gpio_pins()` |
 | `relay_enabled` | bool | true | `gpio.py` route guard |
+| `relay_active_low` | bool | true | `gpio_client.py`, `gpio_daemon.py` — polarity config (false=active-high, true=active-low) |
 | `flash_duration_ms` | int | 100 | `gpio.py:trigger_flash()` |
 | `OnlyFlash` | bool | False | 4.x scripts only (ignored by 5.x top-level) |
 | `epaper_rst_pin` | int (BCM) | 17 | `get_epaper_pins()` |

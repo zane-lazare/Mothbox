@@ -25,7 +25,9 @@ Relay_Ch1=26
 Relay_Ch2=20
 Relay_Ch3=21
 relay_enabled=true
-relay_active_low=false
+# Relay polarity: false=active-high (HIGH=ON), true=active-low (LOW=ON)
+# Default: true (active-low) — matches 4.x firmware convention (LOW=ON)
+relay_active_low=true
 flash_duration_ms=100
 off_pin=16
 debug_pin=12
