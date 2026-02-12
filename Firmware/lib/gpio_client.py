@@ -164,7 +164,7 @@ def read_gpio_state() -> dict:
                     state[_IPC_TO_RELAY[name]] = value.strip() == "on"
             return state
     except GPIODaemonError:
-        logger.debug("Daemon unreachable, falling back to gpio_state.json")
+        logger.warning("Daemon unreachable, falling back to gpio_state.json")
 
     if STATE_FILE.exists():
         try:

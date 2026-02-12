@@ -24,6 +24,7 @@ import signal
 import socket
 import sys
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -309,8 +310,17 @@ def run(stop_event: threading.Event | None = None):
         return buf.decode().strip()
 
     # --- Main loop ---
+    watchdog_interval = 15  # seconds (must be < WatchdogSec/2)
+    last_watchdog = time.monotonic()
+
     try:
         while not stop_event.is_set():
+            # Periodically notify systemd watchdog
+            now = time.monotonic()
+            if now - last_watchdog >= watchdog_interval:
+                _sd_notify("WATCHDOG=1")
+                last_watchdog = now
+
             try:
                 conn, _ = server.accept()
             except TimeoutError:
