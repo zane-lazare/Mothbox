@@ -1186,6 +1186,36 @@ if [ "$SERVICE_CHANGED" -gt 0 ]; then
     echo ""
 fi
 
+# Install or update GPIO daemon service
+# Auto-install on first deploy; update if template changed
+GPIO_TEMPLATE="$MOTHBOX_ROOT/Firmware/installation-utils/mothbox-gpio.service.template"
+if [ -f "$GPIO_TEMPLATE" ]; then
+    NEED_GPIO_UPDATE=false
+
+    # Install if service doesn't exist yet
+    if ! [ -f "/etc/systemd/system/mothbox-gpio.service" ]; then
+        echo -e "${BLUE}Installing GPIO daemon service (first time)...${NC}"
+        NEED_GPIO_UPDATE=true
+    # Update if template changed
+    elif [ "$SERVICE_CHANGED" -gt 0 ] && git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -q "mothbox-gpio.service.template"; then
+        echo -e "${BLUE}Updating GPIO daemon service...${NC}"
+        NEED_GPIO_UPDATE=true
+    fi
+
+    if [ "$NEED_GPIO_UPDATE" = true ]; then
+        TEMP_SERVICE=$(mktemp)
+        sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
+            -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
+            "$GPIO_TEMPLATE" > "$TEMP_SERVICE"
+
+        sudo mv "$TEMP_SERVICE" /etc/systemd/system/mothbox-gpio.service
+        sudo systemctl daemon-reload
+        sudo systemctl enable mothbox-gpio.service 2>/dev/null
+        echo -e "${GREEN}✓ GPIO daemon service installed${NC}"
+        UPDATES_PERFORMED=$((UPDATES_PERFORMED + 1))
+    fi
+fi
+
 # Warn about config changes
 if [ "$CONFIG_CHANGED" -gt 0 ]; then
     echo -e "${YELLOW}⚠ Configuration files changed${NC}"
@@ -1315,6 +1345,22 @@ if [ ! -f "$CONFIG_DIR/webui_settings.csv" ] && [ -f "$CONFIG_DIR/camera_setting
     echo "  camera_settings.csv now contains only firmware camera controls"
     echo "  webui_settings.csv contains webui workflow settings (HDR, FocusBracket, etc.)"
     echo ""
+fi
+
+# Restart GPIO daemon if firmware or service files changed (before webui — it needs the socket)
+if [ "$FIRMWARE_CHANGED" -gt 0 ] || [ "$SERVICE_CHANGED" -gt 0 ]; then
+    if systemctl is-enabled --quiet mothbox-gpio.service 2>/dev/null; then
+        echo -e "${BLUE}Restarting GPIO daemon...${NC}"
+        sudo systemctl restart mothbox-gpio.service
+        sleep 1
+        if systemctl is-active --quiet mothbox-gpio.service; then
+            echo -e "${GREEN}✓ GPIO daemon restarted${NC}"
+        else
+            echo -e "${RED}✗ GPIO daemon failed to restart${NC}"
+            echo "Check logs: sudo journalctl -u mothbox-gpio.service -n 20"
+        fi
+        echo ""
+    fi
 fi
 
 # Restart services if Web UI was updated or service file changed

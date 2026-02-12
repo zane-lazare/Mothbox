@@ -45,7 +45,7 @@ from camera_settings_schema import (
     STRING_SETTINGS,
     WEBUI_ONLY_SETTINGS,
 )
-from lib.gpio_client import read_gpio_state, read_switch, relay_off, relay_on, setup_relay
+from lib.gpio_client import read_switch, relay_off, relay_on, setup_relay
 from mothbox_paths import (
     CAMERA_SETTINGS_FILE,
     CONTROLS_FILE,
@@ -58,7 +58,6 @@ from mothbox_paths import (
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
 flash_pin = pins["Relay_Ch2"]  # Ch2 = photo flash
-uv_pin = pins["Relay_Ch1"]  # Ch1 = UV attract
 
 # IF the mothbox is supposed to be off, don't take a photo!
 
@@ -714,14 +713,6 @@ middleexposure = 500  # 500 #minimum exposure time for Hawkeye camera 64mp arduc
 setup_relay(flash_pin)
 print("Setup The Relay Module is [success]")
 
-# Check if UV was already on before we started
-uv_was_on = read_gpio_state().get("Relay_Ch1", False)
-
-# If UV wasn't on, turn it on for capture
-if not uv_was_on:
-    setup_relay(uv_pin)
-    relay_on(uv_pin)
-
 # Wrap GPIO operations in try/finally to ensure cleanup on crash
 try:
     relay_on(flash_pin)
@@ -879,10 +870,6 @@ try:
     takePhoto_Manual()
 
     picam2.stop()
-
-    # Restore UV state — turn off if we turned it on
-    if not uv_was_on:
-        relay_off(uv_pin)
 
 finally:
     # Cleanup camera resources to prevent memory leaks
