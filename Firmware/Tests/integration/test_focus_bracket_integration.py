@@ -246,6 +246,10 @@ def mock_camera_hardware(monkeypatch):
             original_sleep(0.001)
     monkeypatch.setattr('time.sleep', mock_sleep)
 
+    # Mock GPIO daemon client to avoid socket connection
+    monkeypatch.setattr('lib.gpio_client.relay_on', lambda pin: None)
+    monkeypatch.setattr('lib.gpio_client.relay_off', lambda pin: None)
+
     yield {
         'picamera2': mock_picamera2,
         'gpio': MockGPIO,

@@ -28,11 +28,11 @@ Usage:
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 
-class SeriesType(str, Enum):
+class SeriesType(StrEnum):
     """Enumeration of supported series types."""
 
     HDR = "hdr"

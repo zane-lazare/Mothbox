@@ -553,80 +553,69 @@ class TestLoadCameraSettings:
 class TestFlashControl:
     """Test GPIO flash control using GPIOHandler class"""
 
-    def test_flash_on_sets_gpio_low(self):
+    @patch("lib.gpio_client.relay_off")
+    @patch("lib.gpio_client.relay_on")
+    def test_flash_on_sets_gpio_low(self, mock_relay_on, mock_relay_off):
         """
-        Test that GPIOHandler.flash_on() sets both relay channels to LOW
-
-        flash_on() should call GPIO.output with correct pins and values.
-        Since GPIO is already mocked at module level, we just test function behavior.
+        Test that GPIOHandler.flash_on() calls relay_on via the GPIO daemon client.
         """
         from webui.backend.scripts.capture_focus_bracket import GPIOHandler
         import RPi.GPIO as GPIO
 
-        # Create GPIOHandler instance with relay pins
         gpio_handler = GPIOHandler(GPIO, relay_ch1=26, relay_ch2=20, relay_ch3=21)
         gpio_handler.setup()
 
-        # Call flash_on - should execute without error
         gpio_handler.flash_on()
 
-        # Verify function executed successfully (no exceptions)
-        assert True, "flash_on should execute without error"
+        mock_relay_on.assert_called_once_with(20)
 
-    def test_flash_off_sets_gpio_high(self):
+    @patch("lib.gpio_client.relay_off")
+    @patch("lib.gpio_client.relay_on")
+    def test_flash_off_sets_gpio_high(self, mock_relay_on, mock_relay_off):
         """
-        Test that GPIOHandler.flash_off() sets Relay_Ch2 to HIGH
-
-        flash_off() should call GPIO.output with correct pin and value.
+        Test that GPIOHandler.flash_off() calls relay_off via the GPIO daemon client.
         """
         from webui.backend.scripts.capture_focus_bracket import GPIOHandler
         import RPi.GPIO as GPIO
 
-        # Create GPIOHandler instance
         gpio_handler = GPIOHandler(GPIO, relay_ch1=26, relay_ch2=20, relay_ch3=21)
         gpio_handler.setup()
 
-        # Call flash_off - should execute without error
         gpio_handler.flash_off()
 
-        # Verify function executes without error
-        assert True, "flash_off should execute without error"
+        mock_relay_off.assert_called_once_with(20)
 
-    def test_flash_multiple_cycles(self):
+    @patch("lib.gpio_client.relay_off")
+    @patch("lib.gpio_client.relay_on")
+    def test_flash_multiple_cycles(self, mock_relay_on, mock_relay_off):
         """
-        Test multiple flash on/off cycles
-
-        Should successfully call flash methods multiple times without error
+        Test multiple flash on/off cycles complete without error.
         """
         from webui.backend.scripts.capture_focus_bracket import GPIOHandler
         import RPi.GPIO as GPIO
 
-        # Create GPIOHandler instance
         gpio_handler = GPIOHandler(GPIO, relay_ch1=26, relay_ch2=20, relay_ch3=21)
         gpio_handler.setup()
 
-        # Perform 3 flash cycles - should not crash
         for _ in range(3):
             gpio_handler.flash_on()
             gpio_handler.flash_off()
 
-        # Success if we get here without exceptions
-        assert True, "Multiple flash cycles should complete without error"
+        assert mock_relay_on.call_count == 3
+        assert mock_relay_off.call_count == 3
 
-    def test_flash_state_tracking(self):
+    @patch("lib.gpio_client.relay_off")
+    @patch("lib.gpio_client.relay_on")
+    def test_flash_state_tracking(self, mock_relay_on, mock_relay_off):
         """
-        Test that flash methods can be called in sequence
-
-        Verifies the methods work correctly when called in various orders
+        Test that flash methods can be called in various orders without error.
         """
         from webui.backend.scripts.capture_focus_bracket import GPIOHandler
         import RPi.GPIO as GPIO
 
-        # Create GPIOHandler instance
         gpio_handler = GPIOHandler(GPIO, relay_ch1=26, relay_ch2=20, relay_ch3=21)
         gpio_handler.setup()
 
-        # Test various call sequences
         gpio_handler.flash_on()
         gpio_handler.flash_off()
         gpio_handler.flash_on()
@@ -634,33 +623,26 @@ class TestFlashControl:
         gpio_handler.flash_off()
         gpio_handler.flash_off()  # Double off
 
-        # Success if we get here without exceptions
-        assert True, "Flash methods should handle any call sequence"
+        assert mock_relay_on.call_count == 3
+        assert mock_relay_off.call_count == 3
 
-    def test_flash_without_gpio_module(self, monkeypatch):
+    @patch("lib.gpio_client.relay_off")
+    @patch("lib.gpio_client.relay_on")
+    def test_flash_without_gpio_module(self, mock_relay_on, mock_relay_off):
         """
-        Test flash control when GPIO module is unavailable
-
-        Should not crash when RPi.GPIO is not available (already mocked in our case,
-        but we test that the methods can be called without errors)
+        Test flash control works with mocked GPIO daemon client.
         """
         from webui.backend.scripts.capture_focus_bracket import GPIOHandler
         import RPi.GPIO as GPIO
 
-        # Create GPIOHandler instance
         gpio_handler = GPIOHandler(GPIO, relay_ch1=26, relay_ch2=20, relay_ch3=21)
         gpio_handler.setup()
 
-        # Should not crash even with mocked GPIO
-        try:
-            gpio_handler.flash_on()
-            gpio_handler.flash_off()
-            success = True
-        except Exception as e:
-            success = False
-            pytest.fail(f"Flash methods should not crash with mocked GPIO: {e}")
+        gpio_handler.flash_on()
+        gpio_handler.flash_off()
 
-        assert success, "Flash methods should work with mocked GPIO"
+        mock_relay_on.assert_called_once_with(20)
+        mock_relay_off.assert_called_once_with(20)
 
 
 class TestGetControlValues:
