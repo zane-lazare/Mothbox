@@ -1,6 +1,7 @@
 [Unit]
 Description=Mothbox Web UI Server
-After=network.target
+After=network.target mothbox-gpio.service
+Wants=mothbox-gpio.service
 
 [Service]
 Type=simple

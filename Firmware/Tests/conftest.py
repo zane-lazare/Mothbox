@@ -1844,7 +1844,7 @@ def temp_gpio_state_file(tmp_path, monkeypatch):
     # Also directly patch STATE_FILE in routes.gpio if already loaded
     import sys
 
-    if "routes.gpio" in sys.modules:
+    if "routes.gpio" in sys.modules and hasattr(sys.modules["routes.gpio"], "STATE_FILE"):
         monkeypatch.setattr("routes.gpio.STATE_FILE", state_file)
 
     yield state_file
@@ -1912,14 +1912,18 @@ def mock_rpi_gpio(monkeypatch):
 
     # Patch module-level constants in routes.gpio if already loaded
     if "routes.gpio" in sys.modules:
+        gpio_mod = sys.modules["routes.gpio"]
         # Set GPIO attribute if it doesn't exist
-        if not hasattr(sys.modules["routes.gpio"], "GPIO"):
-            sys.modules["routes.gpio"].GPIO = MockGPIO
+        if not hasattr(gpio_mod, "GPIO"):
+            gpio_mod.GPIO = MockGPIO
         else:
             monkeypatch.setattr("routes.gpio.GPIO", MockGPIO)
 
-        monkeypatch.setattr("routes.gpio.GPIO_AVAILABLE", True)
-        monkeypatch.setattr("routes.gpio.GPIO_PERMISSIONS_OK", True)
+        # Patch availability flags only if they still exist (removed in daemon refactor)
+        if hasattr(gpio_mod, "GPIO_AVAILABLE"):
+            monkeypatch.setattr("routes.gpio.GPIO_AVAILABLE", True)
+        if hasattr(gpio_mod, "GPIO_PERMISSIONS_OK"):
+            monkeypatch.setattr("routes.gpio.GPIO_PERMISSIONS_OK", True)
 
     yield MockGPIO
 

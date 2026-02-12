@@ -231,6 +231,7 @@ describe('ActionForm', () => {
           action_type: 'gpio',
           action_name: 'attract_on',
           offset_minutes: 30,
+          offset_seconds: 0,
           description: 'Turn on attract lights',
           parameters: {},
         });

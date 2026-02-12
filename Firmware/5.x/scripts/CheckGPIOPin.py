@@ -1,40 +1,27 @@
 #!/usr/bin/python3
 
-import RPi.GPIO as GPIO
+import sys
+from pathlib import Path
 
-# Set pin numbering mode (BCM or BOARD)
-GPIO.setmode(GPIO.BCM)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from lib.gpio_client import read_switch
+from mothbox_paths import get_switch_pins
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ARMED"  # possible modes are OFF or DEBUG or ARMED
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 # Check for connection
@@ -53,6 +40,3 @@ else:
     print("GPIO pin", off_pin, "OFF PIN NOT connected to ground.")
 
 print("Current Mothbox MODE: ", mode)
-
-# Clean up GPIO on exit
-GPIO.cleanup()

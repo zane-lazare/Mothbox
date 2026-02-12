@@ -25,7 +25,12 @@ Relay_Ch1=5
 Relay_Ch2=19
 Relay_Ch3=9
 relay_enabled=true
+# Relay polarity: false=active-high (HIGH=ON), true=active-low (LOW=ON)
+# Default: true (active-low) — verified on production Pi 5 with daemon
+relay_active_low=true
 flash_duration_ms=100
+off_pin=16
+debug_pin=12
 jpeg_quality=96
 
 # ============================================================================

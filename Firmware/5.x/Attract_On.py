@@ -1,68 +1,26 @@
 #!/usr/bin/python3
 
-# GPIO
-import datetime
-from datetime import datetime
+"""Turn UV attract lights ON (Relay Ch1 only)."""
 
-import RPi.GPIO as GPIO
-
-print("----------------- Attract On!-------------------")
-now = datetime.now()
-formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
-
-print(f"Current time: {formatted_time}")
-
-global onlyflash
-onlyflash = False
-
-# Load GPIO pins from configuration
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from lib.gpio_client import relay_on, setup_relay
 from mothbox_paths import get_gpio_pins
 
+print("----------------- Attract On! -------------------")
+print(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
 pins = get_gpio_pins()
-Relay_Ch1 = pins["Relay_Ch1"]
-Relay_Ch2 = pins["Relay_Ch2"]
-Relay_Ch3 = pins["Relay_Ch3"]
+attract_pin = pins["Relay_Ch1"]
 
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
+setup_relay(attract_pin)
+relay_on(attract_pin)
 
-GPIO.setup(Relay_Ch1, GPIO.OUT)
-GPIO.setup(Relay_Ch2, GPIO.OUT)
+print("UV attract lights ON")
 
-GPIO.setup(Relay_Ch3, GPIO.OUT)
-
-print("Setup The Relay Module is [success]")
-
-
-def get_control_values(filename):
-    """Reads key-value pairs from the control file."""
-    control_values = {}
-    with open(filename) as file:
-        for line in file:
-            key, value = line.strip().split("=")
-            control_values[key] = value
-    return control_values
-
-
-def AttractOn():
-    GPIO.output(Relay_Ch3, GPIO.HIGH)
-    GPIO.output(Relay_Ch2, GPIO.HIGH)
-    GPIO.output(Relay_Ch1, GPIO.HIGH)
-
-    print("Attract Lights On\n")
-
-
-def AttractOff():
-    GPIO.output(Relay_Ch3, GPIO.LOW)
-    GPIO.output(Relay_Ch2, GPIO.LOW)
-    GPIO.output(Relay_Ch1, GPIO.LOW)
-
-    print("Attract Lights Off\n")
-
-
-AttractOn()
-# AttractOff()
+# GPIO.cleanup() intentionally omitted.
+# Relay pins must persist in their current state after this script exits.
+# Cleanup is performed only by Scheduler.py before system shutdown.

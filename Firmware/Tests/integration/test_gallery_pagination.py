@@ -181,7 +181,7 @@ def mixed_file_types_dir(tmp_path):
         img = Image.new("RGB", (640, 480), color=(i * 25, 100, 150))
         img.save(photo_path, "JPEG", quality=85)
 
-    # Create PNGs (should be ignored)
+    # Create PNGs (now a supported photo format)
     for i in range(5):
         png_path = photos_dir / f"image_{i:02d}.png"
         img = Image.new("RGB", (640, 480), color=(100, i * 50, 150))
@@ -308,9 +308,10 @@ class TestRealFilesystemOperations:
 
     def test_mixed_file_types_filtering(self, monkeypatch, mixed_file_types_dir):
         """
-        Only JPEG files returned, other types ignored
+        All supported image formats returned, non-image files ignored
 
-        Validates that pagination correctly filters to only .jpg files.
+        Validates that pagination returns all supported photo formats
+        (JPEG, PNG, etc.) and filters out non-image files (text).
         """
         import mothbox_paths
 
@@ -330,14 +331,14 @@ class TestRealFilesystemOperations:
         assert response.status_code == 200
         data = json.loads(response.data)
 
-        # Should return 15 JPEGs (10 in root + 3 in subdir1 + 2 in subdir2)
-        assert data["pagination"]["total"] == 15
+        # Should return 20 photos: 10 JPEGs + 5 PNGs + 3 subdir1 JPEGs + 2 subdir2 JPEGs
+        assert data["pagination"]["total"] == 20
 
-        # Verify all are JPEGs
+        # Verify all are supported image formats (no .txt files)
         for photo in data["photos"]:
-            assert photo["filename"].endswith(".jpg")
+            assert photo["filename"].endswith((".jpg", ".png"))
 
-        print(f"\n✓ File type filtering: {data['pagination']['total']} JPEGs (PNGs/TXT ignored)")
+        print(f"\n✓ File type filtering: {data['pagination']['total']} photos (TXT ignored)")
 
     def test_subdirectory_traversal(self, monkeypatch, mixed_file_types_dir):
         """

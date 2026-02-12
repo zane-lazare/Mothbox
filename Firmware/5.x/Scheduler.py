@@ -15,7 +15,6 @@ It should work on a Pi4 if it has a pijuice attached and installed
 """
 
 import csv
-import datetime
 import os
 import subprocess
 import sys
@@ -32,33 +31,37 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 import re
 
-import RPi.GPIO as GPIO
 from crontab import CronTab
 
-from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path
+from lib.gpio_client import read_switch
+from mothbox_paths import (
+    CONTROLS_FILE,
+    SCHEDULE_SETTINGS_FILE,
+    WORDLIST_FILE,
+    get_script_path,
+    get_switch_pins,
+)
 
 # Configure logging for standalone script execution
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # -----Scheduler Functions-------------------
 
 
-def determinePiModel():
+def determine_pi_model():
     # Check Raspberry Pi model using CPU info
-    cpuinfo = open("/proc/cpuinfo")
     model = None  # Initialize model variable outside the loop
     themodel = None
 
-    for line in cpuinfo:
-        # logger.debug(line)
-        if line.startswith("Model"):
-            model = line.split(":")[1].strip()
-            break
-    cpuinfo.close()
+    with open("/proc/cpuinfo") as cpuinfo:
+        for line in cpuinfo:
+            # logger.debug(line)
+            if line.startswith("Model"):
+                model = line.split(":")[1].strip()
+                break
 
     # Execute function based on model
     logger.info(model)
@@ -102,25 +105,11 @@ def set_eeprom_settings(settings):
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 def read_csv_into_lists(filename, encoding="utf-8"):
@@ -174,11 +163,10 @@ def word_to_seed(word, encoding="utf-8"):
     """
     encoded_word = word.encode(encoding)
     seed = sum(encoded_word)
-    max_seed_value = 2**32 - 1
     return seed
 
 
-def set_computerName(filepath, compname):
+def set_computer_name(filepath, compname):
     with open(filepath) as file:
         lines = file.readlines()
 
@@ -192,7 +180,7 @@ def set_computerName(filepath, compname):
                 file.write(line)  # Keep other lines unchanged
 
 
-def set_UTCinControls(filepath, utcoff):
+def set_utc_in_controls(filepath, utcoff):
     with open(filepath) as file:
         lines = file.readlines()
 
@@ -206,7 +194,7 @@ def set_UTCinControls(filepath, utcoff):
                 file.write(line)  # Keep other lines unchanged
 
 
-def set_nextWakeinControls(filepath, etime):
+def set_next_wake_in_controls(filepath, etime):
     with open(filepath) as file:
         lines = file.readlines()
 
@@ -260,12 +248,12 @@ def generate_unique_name(serial, lang):
         extra = adjectives + colors + verbs
         random_extra = str(np.random.choice(extra, 1)[0]).lower()
         random_animal = str(np.random.choice(animals, 1)[0]).capitalize()
-        finalCombo = random_extra + random_animal
+        final_combo = random_extra + random_animal
     elif lang == 1:  # Spanish
         extra = adjectivos + colores + verbos + sustantivos
         random_extra = np.random.choice(extra, 1)[0]
         random_animal = np.random.choice(animales, 1)[0]
-        finalCombo = (
+        final_combo = (
             str(random_animal).lower() + str(random_extra).capitalize()
         )  # generally putting a noun before descriptor in spanish
     elif lang == 3:  # Spanglish
@@ -284,8 +272,8 @@ def generate_unique_name(serial, lang):
         dosanimales = animals + animales
         random_extra = np.random.choice(extra, 1)[0]
         random_animal = np.random.choice(dosanimales, 1)[0]
-        finalCombo = str(random_extra).lower() + str(random_animal).capitalize()
-    return finalCombo
+        final_combo = str(random_extra).lower() + str(random_animal).capitalize()
+    return final_combo
 
 
 def find_file(path, filename, depth=1):
@@ -331,7 +319,6 @@ def load_settings(filename):
     external_media_paths = ("/media", "/mnt")  # Common external media mount points
     default_path = str(SCHEDULE_SETTINGS_FILE)
     search_depth = 2  # only want to look in the top directory of an external drive, two levels gets us there while still looking through any media
-    found = 0
     for path in external_media_paths:
         file_path = find_file(path, "schedule_settings.csv", depth=search_depth)
         if file_path:
@@ -352,7 +339,7 @@ def load_settings(filename):
             reader = csv.DictReader(csv_file)
             settings = {}
             for row in reader:
-                setting, value, details = row["SETTING"], row["VALUE"], row["DETAILS"]
+                setting, value, _ = row["SETTING"], row["VALUE"], row["DETAILS"]
 
                 # Convert data types based on setting name (adjust as needed)
                 if (
@@ -409,9 +396,9 @@ def get_control_values(filename):
 
 def schedule_shutdown(minutes):
     """Schedules the execution of TurnEverythingOff.py after the specified delay in minutes."""
-    if rpiModel == 4:
+    if rpi_model == 4:
         schedule.every(minutes).minutes.do(run_shutdown_pi4)
-    if rpiModel == 5:
+    if rpi_model == 5:
         schedule.every(minutes).minutes.do(run_shutdown_pi5)
 
     try:
@@ -497,8 +484,6 @@ def run_shutdown_pi5():
 
     # Epaper
     # Update the Epaper screen if it is available
-    GPIO.cleanup()
-
     logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
@@ -519,7 +504,7 @@ def run_shutdown_pi5():
     os.system("sudo shutdown -h now")
 
 
-def run_shutdown_pi5_FAST():
+def run_shutdown_pi5_fast():
     """
     Shut down the raspberry pi
     """
@@ -575,8 +560,6 @@ def run_shutdown_pi5_FAST():
 
     # Epaper
     # Update the Epaper screen if it is available
-    GPIO.cleanup()
-
     logger.info("Updating Epaper display before shutdown (if available)")
     process = subprocess.Popen(
         ["python", str(get_script_path("UpdateDisplay.py"))],
@@ -719,7 +702,7 @@ def set_wakeup_alarm(epoch_time):
         f.write(str(epoch_time))
     logging.info("Set the Wakeup Alarm" + str(epoch_time))
     # Write to controls here!
-    set_nextWakeinControls(str(CONTROLS_FILE), epoch_time)
+    set_next_wake_in_controls(str(CONTROLS_FILE), epoch_time)
 
 
 logger.info("----------------- STARTING Scheduler!-------------------")
@@ -728,29 +711,29 @@ logger.info("----------------- STARTING Scheduler!-------------------")
 # First figure out if this is a Pi4 or a Pi5
 
 
-rpiModel = None
-rpiModel = determinePiModel()
+rpi_model = None
+rpi_model = determine_pi_model()
 
 now = datetime.now()
 formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
 
-logger.info(f"Current time: {formatted_time} on a RPi model " + str(rpiModel))
+logger.info(f"Current time: {formatted_time} on a RPi model " + str(rpi_model))
 
-if rpiModel == 4:
+if rpi_model == 4:
     from pijuice import PiJuice
 
     # Set up the pijuice
     pj = PiJuice(1, 0x14)
-    pjOK = False
-    while pjOK == False:
+    pj_ok = False
+    while not pj_ok:
         stat = pj.status.GetStatus()
         if stat["error"] == "NO_ERROR":
-            pjOK = True
+            pj_ok = True
         else:
             sleep(0.1)
 
 
-if rpiModel == 5:
+if rpi_model == 5:
     logger.info("Sync hwclock to main clock for security")
     os.system("sudo hwclock -w")
 
@@ -769,16 +752,11 @@ if rpiModel == 5:
 # -----CHECK THE PHYSICAL SWITCH on the GPIO PINS--------------------
 
 
-# Set pin numbering mode (BCM or BOARD)
-GPIO.setmode(GPIO.BCM)
-
-# Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+# Define GPIO pin for checking (daemon owns setup)
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
@@ -797,7 +775,7 @@ else:
 logger.info("Current Mothbox MODE: ", mode)
 
 if mode == "OFF":
-    run_shutdown_pi5_FAST()
+    run_shutdown_pi5_fast()
     quit()
 
 
@@ -831,7 +809,7 @@ unique_name = generate_unique_name(serial_number, 3)
 logger.info(f"Unique name for device: {unique_name}")
 
 # Change it in controls
-set_computerName(str(CONTROLS_FILE), unique_name)
+set_computer_name(str(CONTROLS_FILE), unique_name)
 
 # ~~~~~~~~~~~~ Figuring out Scheduling Details ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~ Pi 5 specific things to change cron-like commands to the next UTC target
@@ -873,12 +851,12 @@ if "runtime" in settings:
     del settings["runtime"]
 if "utc_off" in settings:
     utc_off = settings["utc_off"]
-    set_UTCinControls(str(CONTROLS_FILE), utc_off)
+    set_utc_in_controls(str(CONTROLS_FILE), utc_off)
     del settings["utc_off"]
 
 logger.debug("printing settings")
 
-if rpiModel == 4:
+if rpi_model == 4:
     modified_dict = modify_hours(
         settings.copy(), utc_off
     )  # Modify a copy to avoid unintended modification
@@ -891,7 +869,7 @@ if rpiModel == 4:
         True
     )  # just re-doing this in case this flag gets shut off due to a full power-outage
 
-if rpiModel == 5:
+if rpi_model == 5:
     # don't need to modify the hours to UTC like we do for pijuice
     # Build Cron expression
     # The cron expression is made of five fields. Each field can have the following values.
@@ -932,7 +910,6 @@ enable_onlyflash()
 
 
 # Update the Epaper screen if it is available
-GPIO.cleanup()
 logger.info("Updating Epaper display (if available)")
 process = subprocess.Popen(
     ["python", str(get_script_path("UpdateDisplay.py"))],
@@ -951,9 +928,9 @@ else:
 # Toggle System MODE, shut down if in OFF/INACTIVE mode
 if mode == "OFF":
     logger.info("System is in OFF MODE")
-    if rpiModel == 4:
+    if rpi_model == 4:
         run_shutdown_pi4()
-    if rpiModel == 5:
+    if rpi_model == 5:
         run_shutdown_pi5()
     # quit()
 elif mode == "DEBUG":

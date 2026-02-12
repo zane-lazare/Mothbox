@@ -11,6 +11,7 @@ vi.mock('../../hooks/useSchedules', () => ({
   useCreateSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useUpdateSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useDeleteSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useCloneSchedule: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useNextActions: vi.fn(() => ({ data: { actions: [] }, isLoading: false })),
   useActivateSchedule: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }))

@@ -35,7 +35,7 @@ import re
 import RPi.GPIO as GPIO
 from crontab import CronTab
 
-from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path
+from mothbox_paths import CONTROLS_FILE, SCHEDULE_SETTINGS_FILE, WORDLIST_FILE, get_script_path, get_switch_pins
 
 # Configure logging for standalone script execution
 logging.basicConfig(
@@ -773,8 +773,9 @@ if rpiModel == 5:
 GPIO.setmode(GPIO.BCM)
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ACTIVE
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)

@@ -1,13 +1,21 @@
 #!/usr/bin/python3
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import RPi.GPIO as GPIO
+
+from mothbox_paths import get_switch_pins
 
 # Set pin numbering mode (BCM or BOARD)
 GPIO.setmode(GPIO.BCM)
 
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ARMED"  # possible modes are OFF or DEBUG or ARMED
 # Set GPIO pin as input
 GPIO.setup(off_pin, GPIO.IN)

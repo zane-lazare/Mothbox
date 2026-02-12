@@ -15,7 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 
-from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config
+from lib.gpio_client import read_switch
+from mothbox_paths import CONTROLS_FILE, MOTHBOX_HOME, get_hardware_config, get_switch_pins
 
 picdir = str(MOTHBOX_HOME / "scripts/RaspberryPi_JetsonNano_Epaper/pic")
 # picdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'pic')
@@ -46,40 +47,21 @@ def get_control_values(filepath):
 
 # Function to check for connection to ground
 def off_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(off_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(off_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(off_pin)
 
 
 def debug_connected_to_ground():
-    # Set an internal pull-up resistor (optional, some circuits might have one already)
-    GPIO.setup(debug_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    # Read the pin value
-    pin_value = GPIO.input(debug_pin)
-
-    # If pin value is LOW (0), then it's connected to ground
-    return pin_value == 0
+    return read_switch(debug_pin)
 
 
 # -----CHECK THE PHYSICAL SWITCH on the GPIO PINS--------------------
 
 
-# Set pin numbering mode (BCM or BOARD)
-GPIO.setmode(GPIO.BCM)
-
 # Define GPIO pin for checking
-off_pin = 16
-debug_pin = 12
+switch_pins = get_switch_pins()
+off_pin = switch_pins["off_pin"]
+debug_pin = switch_pins["debug_pin"]
 mode = "ACTIVE"  # possible modes are OFF or DEBUG or ARMED
-# Set GPIO pin as input
-GPIO.setup(off_pin, GPIO.IN)
-GPIO.setup(debug_pin, GPIO.IN)
 
 # Check for connection
 if debug_connected_to_ground():
@@ -124,7 +106,7 @@ control_values = get_control_values(str(CONTROLS_FILE))
 hw_config = get_hardware_config()
 onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
 LastCalibration = float(control_values.get("LastCalibration", 0))
-computerName = control_values.get("name", "errorname")
+computer_name = control_values.get("name", "errorname")
 
 # Wake Time
 nexttime = int(control_values.get("nextWake", 0))
@@ -259,7 +241,7 @@ try:
 
     # Draw text elements (adjust coordinates to suit portrait layout)
     draw.text((2, 7), "NAME: ", font=font7, fill=0)
-    draw.text((0, 0), "      " + computerName, font=font_roboto, fill=0)
+    draw.text((0, 0), "      " + computer_name, font=font_roboto, fill=0)
 
     draw.text((2, 20), "state: " + mode, font=font_roboto, fill=0)
 
@@ -327,7 +309,7 @@ except KeyboardInterrupt:
 
 """
     logging.info("1.Drawing on the image...")
-    image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame    
+    image = Image.new('1', (epd.height, epd.width), 255)  # 255: clear the frame
     draw = ImageDraw.Draw(image)
     draw.rectangle([(0,0),(50,50)],outline = 0)
     draw.rectangle([(55,0),(100,50)],fill = 0)
@@ -344,8 +326,8 @@ except KeyboardInterrupt:
     # image = image.rotate(180) # rotate
     epd.display(epd.getbuffer(image))
     time.sleep(2)
-    
-    # read bmp file 
+
+    # read bmp file
     logging.info("2.read bmp file...")
     image = Image.open(os.path.join(picdir, 'MBlogoBWnoversion.bmp'))
     draw = ImageDraw.Draw(image)
@@ -353,13 +335,13 @@ except KeyboardInterrupt:
 
     epd.display(epd.getbuffer(image))
     time.sleep(1)
-    
-    
+
+
         time.sleep(15)
 
-    
-    
-    # read bmp file 
+
+
+    # read bmp file
     logging.info("More info .read bmp file...")
     #image = Image.open(os.path.join(picdir, 'MBlogoBWsmall.bmp'))
     image = Image.open(os.path.join(picdir, 'MBlogoBWsmall.bmp')).rotate(90, expand=True)
@@ -369,17 +351,17 @@ except KeyboardInterrupt:
 
     draw.text((30, 60), "mothbox is ACTIVE", font = font15, fill = 255)
 
-    
+
     draw.text((30, 80), "current time: "+time.strftime('%H:%M:%S') +" UTC:-5", font = font15, fill = 255)
     draw.text((30, 100), 'next op:'+nexttime, font = font15, fill = 255)
     #image=image.rotate(90)
 
     epd.display(epd.getbuffer(image))
     #time.sleep(15)
-    
-    
-    
-    
+
+
+
+
     # read bmp file on window
     logging.info("3.read bmp file on window...")
     # epd.Clear(0xFF)
@@ -387,11 +369,11 @@ except KeyboardInterrupt:
     bmp = Image.open(os.path.join(picdir, 'MBlogoBW.bmp'))
     image1.paste(bmp, (2,2))
     image1.rotate(90)
-    
+
     epd.display(epd.getbuffer(image1))
     time.sleep(2)
-    
-    
+
+
     # # partial update
     logging.info("4.show time...")
     time_image = Image.new('1', (epd.height, epd.width), 255)
@@ -405,7 +387,7 @@ except KeyboardInterrupt:
         num = num + 1
         if(num == 10):
             break
-    
+
     #logging.info("Clear...")
     #epd.init()
     #epd.Clear(0xFF)

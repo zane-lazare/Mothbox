@@ -227,6 +227,38 @@ else
 fi
 echo ""
 
+# Install GPIO daemon service (must start before webui)
+echo -e "${BLUE}Installing GPIO daemon service...${NC}"
+GPIO_TEMPLATE="$SCRIPT_DIR/mothbox-gpio.service.template"
+
+if [ -f "$GPIO_TEMPLATE" ]; then
+    TEMP_SERVICE=$(mktemp)
+    sed -e "s|__MOTHBOX_USER__|$MOTHBOX_USER|g" \
+        -e "s|__MOTHBOX_HOME__|$MOTHBOX_HOME|g" \
+        "$GPIO_TEMPLATE" > "$TEMP_SERVICE"
+
+    sudo mv "$TEMP_SERVICE" /etc/systemd/system/mothbox-gpio.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable mothbox-gpio.service
+
+    echo -e "${BLUE}Starting GPIO daemon...${NC}"
+    if sudo systemctl start mothbox-gpio.service; then
+        sleep 1
+        if systemctl is-active --quiet mothbox-gpio.service; then
+            echo -e "${GREEN}✓ GPIO daemon running${NC}"
+        else
+            echo -e "${RED}✗ GPIO daemon started but is not active${NC}"
+            sudo systemctl status mothbox-gpio.service --no-pager
+        fi
+    else
+        echo -e "${RED}✗ Failed to start GPIO daemon${NC}"
+        sudo systemctl status mothbox-gpio.service --no-pager
+    fi
+else
+    echo -e "${YELLOW}Warning: mothbox-gpio.service.template not found, skipping${NC}"
+fi
+echo ""
+
 # Install systemd service
 echo -e "${BLUE}Installing systemd service...${NC}"
 SERVICE_TEMPLATE="$SCRIPT_DIR/mothbox-webui.service.template"

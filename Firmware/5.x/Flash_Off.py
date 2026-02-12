@@ -1,58 +1,26 @@
 #!/usr/bin/python3
-# GPIO
-import datetime
-from datetime import datetime
 
-import RPi.GPIO as GPIO
+"""Turn camera flash OFF (Relay Ch2 only)."""
 
-print("----------------- attract off!-------------------")
-now = datetime.now()
-formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Adjust the format as needed
-
-print(f"Current time: {formatted_time}")
-
-global onlyflash
-onlyflash = False
-
-# Load GPIO pins from configuration
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from lib.gpio_client import relay_off, setup_relay
 from mothbox_paths import get_gpio_pins
 
+print("----------------- Flash Off! -------------------")
+print(f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
 pins = get_gpio_pins()
-Relay_Ch1 = pins["Relay_Ch2"]  # Use Ch2 for photo flash
+flash_pin = pins["Relay_Ch2"]
 
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
+setup_relay(flash_pin)
+relay_off(flash_pin)
 
-GPIO.setup(Relay_Ch1, GPIO.OUT)
+print("Camera flash OFF")
 
-print("Setup The Relay Module is [success]")
-
-
-def get_control_values(filename):
-    """Reads key-value pairs from the control file."""
-    control_values = {}
-    with open(filename) as file:
-        for line in file:
-            key, value = line.strip().split("=")
-            control_values[key] = value
-    return control_values
-
-
-def AttractOff():
-    GPIO.output(Relay_Ch1, GPIO.LOW)
-    print("Attract Lights Off\n")
-
-
-def AttractOn():
-    GPIO.output(Relay_Ch1, GPIO.HIGH)
-
-    print("Attract Lights On\n")
-
-
-# control_values = get_control_values("/home/pi/Desktop/Mothbox/controls.txt")
-# AttractOn()
-AttractOff()
+# GPIO.cleanup() intentionally omitted.
+# Relay pins must persist in their current state after this script exits.
+# Cleanup is performed only by Scheduler.py before system shutdown.

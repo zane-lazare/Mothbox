@@ -347,42 +347,29 @@ def takePhoto_FocusBracket(  # noqa: N802 - legacy Mothbox naming convention
 
 
 class GPIOHandler:
-    """
-    Wrapper for GPIO operations with relay pin management.
-
-    This class encapsulates all GPIO interactions and makes the relay pins
-    explicit dependencies instead of relying on scoping.
-
-    Args:
-        gpio_module: The RPi.GPIO module (or mock for testing)
-        relay_ch1: GPIO pin number for relay channel 1
-        relay_ch2: GPIO pin number for relay channel 2
-        relay_ch3: GPIO pin number for relay channel 3
-    """
+    """Wrapper for GPIO operations via daemon client."""
 
     def __init__(self, gpio_module, relay_ch1, relay_ch2, relay_ch3):
-        self.gpio = gpio_module
+        # gpio_module kept for backward compat but not used
         self.relay_ch1 = relay_ch1
         self.relay_ch2 = relay_ch2
         self.relay_ch3 = relay_ch3
 
     def setup(self):
-        """Initialize GPIO pins for output"""
-        self.gpio.setwarnings(False)
-        self.gpio.setmode(self.gpio.BCM)
-        self.gpio.setup(self.relay_ch1, self.gpio.OUT)
-        self.gpio.setup(self.relay_ch2, self.gpio.OUT)
-        self.gpio.setup(self.relay_ch3, self.gpio.OUT)
+        """No-op — daemon owns GPIO setup."""
 
     def flash_on(self):
-        """Turn flash on by setting relay channels LOW"""
-        self.gpio.output(self.relay_ch3, self.gpio.LOW)
-        self.gpio.output(self.relay_ch2, self.gpio.LOW)
+        """Turn flash on (Relay Ch2) via daemon."""
+        from lib.gpio_client import relay_on
+
+        relay_on(self.relay_ch2)
         print("Flash On\n")
 
     def flash_off(self):
-        """Turn flash off by setting relay channel 2 HIGH"""
-        self.gpio.output(self.relay_ch2, self.gpio.HIGH)
+        """Turn flash off (Relay Ch2) via daemon."""
+        from lib.gpio_client import relay_off
+
+        relay_off(self.relay_ch2)
         print("Flash Off\n")
 
 

@@ -1,0 +1,30 @@
+[Unit]
+Description=Mothbox GPIO Daemon
+After=network.target
+Before=mothbox-webui.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=__MOTHBOX_USER__
+Group=gpio
+ExecStart=/usr/bin/python3 __MOTHBOX_HOME__/lib/gpio_daemon.py
+Restart=on-failure
+RestartSec=2
+StartLimitIntervalSec=60
+StartLimitBurst=5
+WatchdogSec=30
+RuntimeDirectory=mothbox
+StandardOutput=journal
+StandardError=journal
+
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/run/mothbox /var/lib/mothbox
+NoNewPrivileges=yes
+
+Environment="MOTHBOX_HOME=__MOTHBOX_HOME__"
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

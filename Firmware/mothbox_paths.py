@@ -364,6 +364,32 @@ def get_gpio_pins() -> dict[str, int]:
         return {"Relay_Ch1": 26, "Relay_Ch2": 20, "Relay_Ch3": 21}
 
 
+def get_switch_pins() -> dict[str, int]:
+    """
+    Load physical switch pin assignments from controls.txt with fallback defaults.
+
+    Returns:
+        dict: Switch pin mappings {'off_pin': int, 'debug_pin': int}
+
+    Note:
+        Defaults to BCM pins 16 (off) and 12 (debug) if not specified.
+        Pins are validated to be in BCM range (0-27). Invalid pins fall back to defaults.
+    """
+    try:
+        controls = get_control_values(CONTROLS_FILE)
+        off_pin = _validate_gpio_pin(int(controls.get("off_pin", "16")), "off_pin", "BCM")
+        debug_pin = _validate_gpio_pin(int(controls.get("debug_pin", "12")), "debug_pin", "BCM")
+        return {"off_pin": off_pin, "debug_pin": debug_pin}
+    except (FileNotFoundError, ValueError, KeyError) as e:
+        import sys
+
+        print(
+            f"Warning: Could not load switch pin configuration ({e}). Using defaults.",
+            file=sys.stderr,
+        )
+        return {"off_pin": 16, "debug_pin": 12}
+
+
 def get_epaper_pins() -> dict[str, int]:
     """
     Load e-paper display GPIO pin configuration from controls.txt.

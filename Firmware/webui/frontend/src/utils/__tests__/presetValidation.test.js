@@ -77,10 +77,14 @@ describe('presetValidation', () => {
         expect(validateSetting(setting, 'FALSE')).toBeNull()
       })
 
+      it(`should accept actual booleans for ${setting}`, () => {
+        expect(validateSetting(setting, true)).toBeNull()
+        expect(validateSetting(setting, false)).toBeNull()
+      })
+
       it(`should reject invalid values for ${setting}`, () => {
         expect(validateSetting(setting, '1')).not.toBeNull()
         expect(validateSetting(setting, 'yes')).not.toBeNull()
-        expect(validateSetting(setting, true)).not.toBeNull() // actual boolean
       })
     })
   })
