@@ -101,7 +101,7 @@ def _send_command(command: str) -> str:
             sock.settimeout(SOCKET_TIMEOUT)
             sock.connect(SOCKET_PATH)
             sock.sendall((command + "\n").encode())
-            response = sock.recv(RECV_BUFFER_SIZE).decode().strip()
+            response = sock.recv(RECV_BUFFER_SIZE).decode("utf-8", errors="ignore").strip()
     except ConnectionRefusedError:
         raise GPIODaemonError(f"GPIO daemon not running at {SOCKET_PATH}") from None
     except TimeoutError:

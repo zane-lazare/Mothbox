@@ -30,7 +30,7 @@ def main():
             sock.settimeout(SOCKET_TIMEOUT)
             sock.connect(SOCKET_PATH)
             sock.sendall((command + "\n").encode())
-            response = sock.recv(RECV_BUFFER_SIZE).decode().strip()
+            response = sock.recv(RECV_BUFFER_SIZE).decode("utf-8", errors="ignore").strip()
             print(response)
     except ConnectionRefusedError:
         print(f"ERROR: daemon not running at {SOCKET_PATH}", file=sys.stderr)

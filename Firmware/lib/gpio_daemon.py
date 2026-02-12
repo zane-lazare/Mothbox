@@ -307,7 +307,7 @@ def run(stop_event: threading.Event | None = None):
             buf += chunk
             if chunk == b"\n":
                 break
-        return buf.decode().strip()
+        return buf.decode("utf-8", errors="ignore").strip()
 
     # --- Main loop ---
     watchdog_interval = 15  # seconds (must be < WatchdogSec/2)
