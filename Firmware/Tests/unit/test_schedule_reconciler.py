@@ -257,6 +257,16 @@ class TestReconcileSchedule:
         assert result[0]["action_name"] == "attract_off"
         assert result[0]["source_time"] == day2_trigger + timedelta(minutes=120)
 
+    def test_naive_datetime_raises_valueerror(self):
+        """Passing a naive datetime for now raises ValueError."""
+        import pytest
+
+        schedule = _make_schedule(routines=[])
+        naive_now = datetime(2025, 6, 15, 22, 0, 0)  # no tzinfo
+
+        with pytest.raises(ValueError, match="timezone-aware"):
+            reconcile_schedule(schedule, 9.0, -79.0, "America/Panama", now=naive_now)
+
 
 class TestExecuteReconciliation:
     """Tests for execute_reconciliation()."""

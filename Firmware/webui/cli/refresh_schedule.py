@@ -18,11 +18,12 @@ logger = logging.getLogger("refresh_schedule")
 
 
 def load_active_state() -> dict | None:
-    """Load active_state.json from CONFIG_DIR.
+    """Load active_state.json from CONFIG_DIR with shared file lock.
 
     Returns the parsed dict, or None if no active state.
     """
     from mothbox_paths import CONFIG_DIR
+    from webui.backend.lib.sidecar_metadata import FileLock
 
     state_file = CONFIG_DIR / "active_state.json"
     if not state_file.exists():
@@ -30,7 +31,7 @@ def load_active_state() -> dict | None:
         return None
 
     try:
-        with open(state_file) as f:
+        with FileLock(state_file, exclusive=False, timeout=10.0) as f:
             state = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.error(f"Failed to read active_state.json: {e}")
@@ -44,15 +45,18 @@ def load_active_state() -> dict | None:
 
 
 def save_active_state(state: dict) -> bool:
-    """Write updated active_state.json back to CONFIG_DIR.
+    """Write updated active_state.json back to CONFIG_DIR with exclusive file lock.
 
     Returns True on success, False on failure.
     """
     from mothbox_paths import CONFIG_DIR
+    from webui.backend.lib.sidecar_metadata import FileLock
 
     state_file = CONFIG_DIR / "active_state.json"
     try:
-        with open(state_file, "w") as f:
+        with FileLock(state_file, exclusive=True, timeout=10.0) as f:
+            f.seek(0)
+            f.truncate()
             json.dump(state, f, indent=2)
         return True
     except OSError as e:

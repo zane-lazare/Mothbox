@@ -81,6 +81,8 @@ def reconcile_schedule(
     if now is None:
         tz = pytz.timezone(timezone_name)
         now = datetime.now(tz)
+    elif now.tzinfo is None:
+        raise ValueError("now must be timezone-aware; got naive datetime")
 
     if not schedule.routines:
         return []
@@ -198,7 +200,7 @@ def execute_reconciliation(
 
         try:
             logger.info(f"Reconciling {action_name} (should have fired at {action['source_time']})")
-            proc = subprocess.run(  # noqa: S603
+            proc = subprocess.run(  # noqa: S603 - command from validated whitelist
                 shlex.split(command),
                 timeout=30,
                 check=False,
