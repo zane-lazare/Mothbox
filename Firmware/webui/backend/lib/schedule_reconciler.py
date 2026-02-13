@@ -97,7 +97,10 @@ def reconcile_schedule(
             - source_time (datetime): when this action should have fired
     """
     if now is None:
-        tz = pytz.timezone(timezone_name)
+        try:
+            tz = pytz.timezone(timezone_name)
+        except pytz.exceptions.UnknownTimeZoneError as e:
+            raise ValueError(f"Unknown timezone: {timezone_name!r}") from e
         now = datetime.now(tz)
     elif now.tzinfo is None:
         raise ValueError("now must be timezone-aware; got naive datetime")

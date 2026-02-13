@@ -267,6 +267,15 @@ class TestReconcileSchedule:
         with pytest.raises(ValueError, match="timezone-aware"):
             reconcile_schedule(schedule, 9.0, -79.0, "America/Panama", now=naive_now)
 
+    def test_invalid_timezone_raises_valueerror(self):
+        """Passing an invalid timezone_name raises ValueError."""
+        import pytest
+
+        schedule = _make_schedule(routines=[])
+
+        with pytest.raises(ValueError, match="Unknown timezone"):
+            reconcile_schedule(schedule, 9.0, -79.0, "Not/A_Timezone")
+
 
 class TestExecuteReconciliation:
     """Tests for execute_reconciliation()."""

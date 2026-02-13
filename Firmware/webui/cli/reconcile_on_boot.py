@@ -15,11 +15,13 @@ import sys
 import time
 from pathlib import Path
 
+from lib.gpio_protocol import SOCKET_PATH
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("reconcile_on_boot")
 
-# GPIO daemon socket path
-GPIO_SOCKET = Path("/run/mothbox/gpio.sock")
+# GPIO daemon socket path (from shared protocol constants)
+GPIO_SOCKET = Path(SOCKET_PATH)
 
 # Backoff schedule: 0.5, 1, 2, 4, 8, 16 seconds (~31.5s total)
 BACKOFF_DELAYS = [0.5, 1, 2, 4, 8, 16]
@@ -74,11 +76,18 @@ def load_active_state() -> dict | None:
 
 
 def main() -> int:
-    """Main entry point for boot reconciliation."""
+    """Main entry point for boot reconciliation.
+
+    Returns:
+        0: Success (or no work to do)
+        1: Fatal error (schedule not found, computation failed)
+        2: Partial success (some actions failed, e.g. daemon unavailable)
+    """
     logger.info("Starting boot GPIO reconciliation")
 
     # Wait for GPIO daemon
-    if not wait_for_gpio_daemon():
+    daemon_ready = wait_for_gpio_daemon()
+    if not daemon_ready:
         logger.warning("Proceeding without GPIO daemon — commands may fail")
 
     # Load active state
@@ -123,6 +132,7 @@ def main() -> int:
     failed = [r for r in results if not r["success"]]
     if failed:
         logger.warning(f"{len(failed)} actions failed: {failed}")
+        return 2
     else:
         logger.info("All reconciled actions executed successfully")
 
