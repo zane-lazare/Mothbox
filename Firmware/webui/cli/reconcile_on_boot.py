@@ -81,9 +81,18 @@ def main() -> int:
         logger.error("GPIO daemon unavailable — reconciliation actions will likely fail")
 
     schedule_id = state["schedule_id"]
-    latitude = state.get("latitude", 0.0)
-    longitude = state.get("longitude", 0.0)
+    latitude = state.get("latitude")
+    longitude = state.get("longitude")
     timezone_name = state.get("timezone_name", "UTC")
+
+    # Fallback: derive coordinates from timezone (matches scheduler_service activation pattern)
+    if latitude is None or longitude is None:
+        from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
+
+        fb_lat, fb_lon, fb_source = get_fallback_coordinates()
+        latitude = latitude if latitude is not None else fb_lat
+        longitude = longitude if longitude is not None else fb_lon
+        logger.warning(f"Coordinates missing from state — using timezone fallback ({fb_source})")
 
     logger.info(f"Reconciling schedule: {schedule_id}")
 
@@ -103,7 +112,7 @@ def main() -> int:
 
     try:
         actions = reconcile_schedule(schedule, latitude, longitude, timezone_name)
-    except Exception as e:
+    except (ValueError, TypeError) as e:
         logger.error(f"Reconciliation computation failed: {e}")
         return 1
 

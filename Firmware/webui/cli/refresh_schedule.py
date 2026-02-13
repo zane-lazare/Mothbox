@@ -49,6 +49,8 @@ def save_active_state(
     state_file = CONFIG_DIR / "active_state.json"
     try:
         with FileLock(state_file, exclusive=True, timeout=10.0) as f:
+            # Exclusive lock guarantees atomic check-and-write: no other process
+            # can read or modify the file between the schedule_id check and the write.
             f.seek(0)
             current_state = json.load(f)
             if (
@@ -77,9 +79,18 @@ def main() -> int:
         return 0
 
     schedule_id = state["schedule_id"]
-    latitude = state.get("latitude", 0.0)
-    longitude = state.get("longitude", 0.0)
+    latitude = state.get("latitude")
+    longitude = state.get("longitude")
     timezone_name = state.get("timezone_name", "UTC")
+
+    # Fallback: derive coordinates from timezone (matches scheduler_service activation pattern)
+    if latitude is None or longitude is None:
+        from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
+
+        fb_lat, fb_lon, fb_source = get_fallback_coordinates()
+        latitude = latitude if latitude is not None else fb_lat
+        longitude = longitude if longitude is not None else fb_lon
+        logger.warning(f"Coordinates missing from state — using timezone fallback ({fb_source})")
 
     logger.info(f"Refreshing cron entries for schedule: {schedule_id}")
 
@@ -105,7 +116,7 @@ def main() -> int:
             longitude=longitude,
             timezone_name=timezone_name,
         )
-    except Exception as e:
+    except ValueError as e:
         logger.error(f"Cron generation failed: {e}")
         return 1
 
@@ -120,7 +131,7 @@ def main() -> int:
             schedule_id=schedule_id,
             set_rtc=True,
         )
-    except Exception as e:
+    except (ValueError, OSError) as e:
         logger.error(f"Failed to apply cron entries: {e}")
         return 1
 
@@ -138,7 +149,7 @@ def main() -> int:
         )
         if not save_active_state([e.to_dict() for e in expanded], expected_schedule_id=schedule_id):
             logger.warning("Failed to update active_state.json with new entries")
-    except Exception as e:
+    except (ValueError, KeyError) as e:
         logger.warning(f"Failed to expand/persist entries (non-fatal): {e}")
 
     logger.info("Weekly cron refresh complete")

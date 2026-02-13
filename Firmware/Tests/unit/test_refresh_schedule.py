@@ -118,6 +118,55 @@ class TestRefreshSchedule:
         assert updated_state["longitude"] == -79.0
         assert updated_state["timezone_name"] == "America/Panama"
 
+    def test_missing_coordinates_uses_timezone_fallback(self, tmp_path, monkeypatch):
+        """Missing lat/lon in state -> falls back to timezone-derived coordinates."""
+        monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)
+
+        state = {
+            "schedule_id": "test-123",
+            "timezone_name": "America/Panama",
+        }
+        (tmp_path / "active_state.json").write_text(json.dumps(state))
+
+        mock_schedule = MagicMock()
+        mock_entries = [
+            CronEntry(expression="0 21 * * *", command="test-cmd", comment="Mothbox: test")
+        ]
+        mock_result = CronBridgeResult(
+            entries=mock_entries, rtc_waketime=None, schedule_id="test-123", errors=[]
+        )
+
+        with (
+            patch(
+                "webui.backend.lib.schedule_storage.read_schedule",
+                return_value=mock_schedule,
+            ),
+            patch(
+                "webui.backend.lib.cron_bridge.schedule_to_cron",
+                return_value=mock_result,
+            ) as mock_s2c,
+            patch(
+                "webui.backend.lib.cron_bridge.apply_to_system",
+                return_value=True,
+            ),
+            patch(
+                "webui.backend.lib.cron_bridge.expand_pattern_entries",
+                return_value=mock_entries,
+            ),
+            patch(
+                "webui.backend.lib.timezone_coordinates.get_fallback_coordinates",
+                return_value=(8.98, -79.52, "America/Panama"),
+            ),
+        ):
+            from webui.cli.refresh_schedule import main
+
+            result = main()
+
+        assert result == 0
+        call_kwargs = mock_s2c.call_args[1]
+        assert call_kwargs["latitude"] == 8.98
+        assert call_kwargs["longitude"] == -79.52
+
     def test_schedule_not_found_returns_1(self, tmp_path, monkeypatch):
         """Schedule not found in storage -> returns 1."""
         monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)

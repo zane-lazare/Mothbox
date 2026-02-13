@@ -146,6 +146,41 @@ class TestReconcileOnBoot:
         assert result == 0
 
     @patch("webui.cli.reconcile_on_boot.wait_for_gpio_daemon", return_value=True)
+    def test_missing_coordinates_uses_timezone_fallback(self, mock_daemon, tmp_path, monkeypatch):
+        """Missing lat/lon in state -> falls back to timezone-derived coordinates."""
+        monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)
+
+        state = {
+            "schedule_id": "test-123",
+            "timezone_name": "America/Panama",
+        }
+        (tmp_path / "active_state.json").write_text(json.dumps(state))
+
+        mock_schedule = MagicMock()
+        mock_actions = []
+
+        with (
+            patch(
+                "webui.backend.lib.schedule_storage.read_schedule",
+                return_value=mock_schedule,
+            ),
+            patch(
+                "webui.backend.lib.schedule_reconciler.reconcile_schedule",
+                return_value=mock_actions,
+            ) as mock_reconcile,
+            patch(
+                "webui.backend.lib.timezone_coordinates.get_fallback_coordinates",
+                return_value=(8.98, -79.52, "America/Panama"),
+            ),
+        ):
+            from webui.cli.reconcile_on_boot import main
+
+            result = main()
+
+        assert result == 0
+        mock_reconcile.assert_called_once_with(mock_schedule, 8.98, -79.52, "America/Panama")
+
+    @patch("webui.cli.reconcile_on_boot.wait_for_gpio_daemon", return_value=True)
     def test_schedule_not_found_returns_1(self, mock_daemon, tmp_path, monkeypatch):
         """Schedule ID in state but not in storage -> returns 1."""
         monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)
