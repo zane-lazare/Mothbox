@@ -2469,7 +2469,7 @@ def _get_events_recurring_days_routine(
 # =============================================================================
 
 
-def _get_meta_cron_entries() -> list[CronEntry]:
+def _get_meta_cron_entries() -> tuple[list[CronEntry], list[str]]:
     """Generate meta-cron entries for boot reconciliation and weekly refresh.
 
     These entries handle:
@@ -2478,8 +2478,13 @@ def _get_meta_cron_entries() -> list[CronEntry]:
 
     Note: These entries are removed by remove_from_system() since their
     comments contain "Mothbox" which matches is_mothbox_command().
+
+    Returns:
+        Tuple of (entries, warnings). Warnings are non-empty when a meta-entry
+        could not be created (e.g. script missing from ALLOWED_SCRIPTS).
     """
-    entries = []
+    entries: list[CronEntry] = []
+    warnings: list[str] = []
 
     # Each entry is independent — if one fails validation, the other still gets created
     try:
@@ -2492,7 +2497,7 @@ def _get_meta_cron_entries() -> list[CronEntry]:
             )
         )
     except ValueError as e:
-        logger.warning(f"Could not create boot reconciliation entry: {e}")
+        warnings.append(f"Could not create boot reconciliation entry: {e}")
 
     try:
         refresh_cmd = get_validated_command("refresh_schedule")
@@ -2504,9 +2509,9 @@ def _get_meta_cron_entries() -> list[CronEntry]:
             )
         )
     except ValueError as e:
-        logger.warning(f"Could not create weekly refresh entry: {e}")
+        warnings.append(f"Could not create weekly refresh entry: {e}")
 
-    return entries
+    return entries, warnings
 
 
 def apply_to_system(
@@ -2566,7 +2571,10 @@ def apply_to_system(
                 added_count += 1
 
         # Add meta-cron entries for schedule maintenance (Issue #398)
-        for meta in _get_meta_cron_entries():
+        meta_entries, meta_warnings = _get_meta_cron_entries()
+        for warning in meta_warnings:
+            logger.error(warning)
+        for meta in meta_entries:
             job = cron.new(command=meta.command, comment=meta.comment)
             if meta.expression == "@reboot":
                 job.every_reboot()

@@ -37,7 +37,9 @@ RECONCILABLE_ACTIONS: set[str] = {
     "attract_off",
     "flash_on",
     "flash_off",
-    "sync",  # gps_sync action uses action_name="sync"
+    # GPS.py acquires a fresh fix and syncs the system clock — idempotent and
+    # safe to replay at any time, especially useful after reboot to correct drift.
+    "sync",
 }
 
 # GPIO resource grouping: maps action names to their logical resource.
@@ -67,8 +69,9 @@ class ReconcileResult(TypedDict):
 # "yesterday's" triggers regardless of when reconciliation runs
 LOOKBACK_HOURS: int = 48
 
-# Timeout for reconciliation subprocess commands (seconds)
-RECONCILE_TIMEOUT: int = 30
+# Timeout for reconciliation subprocess commands (seconds).
+# Kept short to avoid blocking boot: 3 resources × 15s = 45s worst case.
+RECONCILE_TIMEOUT: int = 15
 
 
 def reconcile_schedule(
