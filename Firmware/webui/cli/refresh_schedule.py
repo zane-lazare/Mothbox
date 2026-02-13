@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from typing import Any
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("refresh_schedule")
@@ -44,7 +45,7 @@ def load_active_state() -> dict | None:
     return state
 
 
-def save_active_state(entries_update: list[dict]) -> bool:
+def save_active_state(entries_update: list[dict[str, Any]]) -> bool:
     """Merge updated entries into active_state.json under exclusive file lock.
 
     Re-reads the file under the exclusive lock to prevent clobbering

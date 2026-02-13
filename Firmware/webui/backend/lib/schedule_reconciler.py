@@ -140,8 +140,8 @@ def reconcile_schedule(
 
                 action_time = trigger_time + timedelta(minutes=action.offset_minutes)
 
-                # Only past actions within the lookback window
-                if lookback_start <= action_time <= now:
+                # Only past actions within the lookback window (strict upper bound)
+                if lookback_start <= action_time < now:
                     all_actions.append((action_time, action.action_type, action.action_name))
 
     if not all_actions:

@@ -237,7 +237,7 @@ class TestReconcileSchedule:
     @patch("webui.backend.lib.schedule_reconciler.calculate_execution_times")
     def test_multiple_trigger_times_most_recent_wins(self, mock_calc):
         """With triggers on day 1 and day 2, the most recent one wins."""
-        now = _aware(datetime(2025, 6, 16, 22, 0, 0))
+        now = _aware(datetime(2025, 6, 16, 22, 1, 0))
         day1_trigger = _aware(datetime(2025, 6, 15, 20, 0, 0))
         day2_trigger = _aware(datetime(2025, 6, 16, 20, 0, 0))
         mock_calc.return_value = [day1_trigger, day2_trigger]
@@ -253,7 +253,7 @@ class TestReconcileSchedule:
         result = reconcile_schedule(schedule, 9.0, -79.0, "America/Panama", now=now)
 
         assert len(result) == 1
-        # Day 2 attract_on at 20:00 is most recent (attract_off at 22:00 == now, included)
+        # Day 2 attract_off at 22:00 is most recent (strictly before now at 22:01)
         assert result[0]["action_name"] == "attract_off"
         assert result[0]["source_time"] == day2_trigger + timedelta(minutes=120)
 

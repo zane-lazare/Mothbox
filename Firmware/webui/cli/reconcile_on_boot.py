@@ -95,6 +95,9 @@ def main() -> int:
     if state is None:
         return 0
 
+    if not daemon_ready:
+        logger.error("GPIO daemon unavailable — reconciliation actions will likely fail")
+
     schedule_id = state["schedule_id"]
     latitude = state.get("latitude", 0.0)
     longitude = state.get("longitude", 0.0)
