@@ -85,11 +85,10 @@ class TestActivationReconciliation:
         create_schedule(sample_schedule)
         scheduler_service.set_enabled_schedule(schedule_id)
 
-        with patch(
-            "webui.backend.lib.schedule_reconciler.reconcile_schedule"
-        ) as mock_reconcile, patch(
-            "webui.backend.lib.schedule_reconciler.execute_reconciliation"
-        ) as mock_execute:
+        with (
+            patch("webui.backend.lib.schedule_reconciler.reconcile_schedule") as mock_reconcile,
+            patch("webui.backend.lib.schedule_reconciler.execute_reconciliation") as mock_execute,
+        ):
             mock_reconcile.return_value = [
                 {"action_type": "gpio", "action_name": "attract_on", "source_time": None}
             ]

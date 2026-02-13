@@ -105,9 +105,7 @@ def reconcile_schedule(
                 days_ahead=ceil(LOOKBACK_HOURS / 24) + 1,
             )
         except (ValueError, TypeError) as e:
-            logger.warning(
-                f"Skipping routine {routine.routine_id} during reconciliation: {e}"
-            )
+            logger.warning(f"Skipping routine {routine.routine_id} during reconciliation: {e}")
             continue
 
         for trigger_time in trigger_times:
@@ -119,9 +117,7 @@ def reconcile_schedule(
 
                 # Only past actions within the lookback window
                 if lookback_start <= action_time <= now:
-                    all_actions.append(
-                        (action_time, action.action_type, action.action_name)
-                    )
+                    all_actions.append((action_time, action.action_type, action.action_name))
 
     if not all_actions:
         return []
@@ -197,15 +193,11 @@ def execute_reconciliation(
             command = get_validated_command(script_key)
         except ValueError as e:
             logger.warning(f"Invalid command for {script_key}: {e}")
-            results.append(
-                {"action_name": action_name, "success": False, "error": str(e)}
-            )
+            results.append({"action_name": action_name, "success": False, "error": str(e)})
             continue
 
         try:
-            logger.info(
-                f"Reconciling {action_name} (should have fired at {action['source_time']})"
-            )
+            logger.info(f"Reconciling {action_name} (should have fired at {action['source_time']})")
             proc = subprocess.run(  # noqa: S603
                 shlex.split(command),
                 timeout=30,
@@ -219,22 +211,14 @@ def execute_reconciliation(
                     else f"exit code {proc.returncode}"
                 )
                 logger.warning(f"Reconciliation script failed: {action_name}: {error_msg}")
-                results.append(
-                    {"action_name": action_name, "success": False, "error": error_msg}
-                )
+                results.append({"action_name": action_name, "success": False, "error": error_msg})
             else:
-                results.append(
-                    {"action_name": action_name, "success": True, "error": None}
-                )
+                results.append({"action_name": action_name, "success": True, "error": None})
         except subprocess.TimeoutExpired:
             logger.warning(f"Reconciliation command timed out: {action_name}")
-            results.append(
-                {"action_name": action_name, "success": False, "error": "timeout"}
-            )
+            results.append({"action_name": action_name, "success": False, "error": "timeout"})
         except OSError as e:
             logger.warning(f"Reconciliation command failed: {action_name}: {e}")
-            results.append(
-                {"action_name": action_name, "success": False, "error": str(e)}
-            )
+            results.append({"action_name": action_name, "success": False, "error": str(e)})
 
     return results

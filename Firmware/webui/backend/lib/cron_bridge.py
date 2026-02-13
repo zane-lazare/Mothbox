@@ -2469,6 +2469,45 @@ def _get_events_recurring_days_routine(
 # =============================================================================
 
 
+def _get_meta_cron_entries() -> list[CronEntry]:
+    """Generate meta-cron entries for boot reconciliation and weekly refresh.
+
+    These entries handle:
+    - @reboot: Reconcile GPIO state after Pi reboot (Issue #398)
+    - Weekly: Refresh date-specific cron entries to prevent 60-day expiration
+
+    Note: These entries are removed by remove_from_system() since their
+    comments contain "Mothbox" which matches is_mothbox_command().
+    """
+    entries = []
+
+    try:
+        reboot_cmd = get_validated_command("reconcile_on_boot")
+        entries.append(
+            CronEntry(
+                expression="@reboot",
+                command=reboot_cmd,
+                comment="Mothbox: boot GPIO reconciliation",
+            )
+        )
+    except ValueError as e:
+        logger.warning(f"Could not create boot reconciliation entry: {e}")
+
+    try:
+        refresh_cmd = get_validated_command("refresh_schedule")
+        entries.append(
+            CronEntry(
+                expression="0 2 * * 0",
+                command=refresh_cmd,
+                comment="Mothbox: weekly cron refresh",
+            )
+        )
+    except ValueError as e:
+        logger.warning(f"Could not create weekly refresh entry: {e}")
+
+    return entries
+
+
 def apply_to_system(
     entries: list[CronEntry],
     schedule_id: str,
@@ -2524,6 +2563,15 @@ def apply_to_system(
                 job = cron.new(command=entry.command, comment=entry.comment)
                 job.setall(entry.expression)
                 added_count += 1
+
+        # Add meta-cron entries for schedule maintenance (Issue #398)
+        for meta in _get_meta_cron_entries():
+            job = cron.new(command=meta.command, comment=meta.comment)
+            if meta.expression == "@reboot":
+                job.every_reboot()
+            else:
+                job.setall(meta.expression)
+            added_count += 1
 
         # Write changes
         cron.write()
