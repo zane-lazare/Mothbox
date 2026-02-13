@@ -9,7 +9,6 @@ Usage: systemd-cat -t mothbox /usr/bin/python3 /path/to/reconcile_on_boot.py
 
 from __future__ import annotations
 
-import json
 import logging
 import sys
 import time
@@ -53,26 +52,9 @@ def load_active_state() -> dict | None:
 
     Returns the parsed dict, or None if no active state.
     """
-    from mothbox_paths import CONFIG_DIR
-    from webui.backend.lib.sidecar_metadata import FileLock
+    from webui.backend.lib.active_state import load_active_state as _load
 
-    state_file = CONFIG_DIR / "active_state.json"
-    if not state_file.exists():
-        logger.info("No active_state.json found — nothing to reconcile")
-        return None
-
-    try:
-        with FileLock(state_file, exclusive=False, timeout=10.0) as f:
-            state = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error(f"Failed to read active_state.json: {e}")
-        return None
-
-    if not state.get("schedule_id"):
-        logger.info("No active schedule in state file")
-        return None
-
-    return state
+    return _load()
 
 
 def main() -> int:

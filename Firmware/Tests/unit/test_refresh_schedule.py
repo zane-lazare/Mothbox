@@ -135,6 +135,55 @@ class TestRefreshSchedule:
 
         assert result == 1
 
+    def test_save_aborts_if_schedule_changed(self, tmp_path, monkeypatch):
+        """save_active_state returns False if schedule_id changed since load."""
+        monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)
+
+        state = {
+            "schedule_id": "original-schedule",
+            "latitude": 9.0,
+            "longitude": -79.0,
+            "timezone_name": "UTC",
+        }
+        state_file = tmp_path / "active_state.json"
+        state_file.write_text(json.dumps(state))
+
+        from webui.cli.refresh_schedule import save_active_state
+
+        result = save_active_state(
+            [{"expression": "0 0 * * *"}],
+            expected_schedule_id="different-schedule",
+        )
+        assert result is False
+
+        # Verify file is unmodified
+        unchanged = json.loads(state_file.read_text())
+        assert "entries" not in unchanged
+        assert unchanged["schedule_id"] == "original-schedule"
+
+    def test_save_succeeds_with_matching_schedule_id(self, tmp_path, monkeypatch):
+        """save_active_state succeeds when expected_schedule_id matches."""
+        monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)
+
+        state = {
+            "schedule_id": "test-123",
+            "latitude": 9.0,
+        }
+        state_file = tmp_path / "active_state.json"
+        state_file.write_text(json.dumps(state))
+
+        from webui.cli.refresh_schedule import save_active_state
+
+        result = save_active_state(
+            [{"expression": "0 0 * * *"}],
+            expected_schedule_id="test-123",
+        )
+        assert result is True
+
+        updated = json.loads(state_file.read_text())
+        assert updated["entries"] == [{"expression": "0 0 * * *"}]
+        assert updated["schedule_id"] == "test-123"
+
     def test_cron_conversion_errors_returns_1(self, tmp_path, monkeypatch):
         """Cron conversion errors -> returns 1."""
         monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)

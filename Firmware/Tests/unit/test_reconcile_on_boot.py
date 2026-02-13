@@ -6,6 +6,22 @@ from unittest.mock import MagicMock, patch
 from lib.gpio_protocol import SOCKET_PATH
 
 
+class TestCronSecurityWhitelist:
+    """Verify CLI scripts remain in the cron security whitelist."""
+
+    def test_reconcile_on_boot_in_allowed_scripts(self):
+        """reconcile_on_boot must be in ALLOWED_SCRIPTS to run via cron."""
+        from webui.backend.lib.cron_security import ALLOWED_SCRIPTS
+
+        assert "reconcile_on_boot" in ALLOWED_SCRIPTS
+
+    def test_refresh_schedule_in_allowed_scripts(self):
+        """refresh_schedule must be in ALLOWED_SCRIPTS to run via cron."""
+        from webui.backend.lib.cron_security import ALLOWED_SCRIPTS
+
+        assert "refresh_schedule" in ALLOWED_SCRIPTS
+
+
 class TestReconcileOnBoot:
     """Tests for the boot reconciliation CLI."""
 
@@ -105,7 +121,9 @@ class TestReconcileOnBoot:
             ),
             patch(
                 "webui.backend.lib.schedule_reconciler.execute_reconciliation",
-                return_value=[{"action_name": "attract_on", "success": False, "error": "daemon unavailable"}],
+                return_value=[
+                    {"action_name": "attract_on", "success": False, "error": "daemon unavailable"}
+                ],
             ),
         ):
             from webui.cli.reconcile_on_boot import main

@@ -29,7 +29,9 @@ from webui.backend.lib.schedule_schema import Schedule, SensorTrigger
 
 logger = logging.getLogger(__name__)
 
-# Actions that are safe to replay (idempotent GPIO toggles and GPS sync)
+# Actions that are safe to replay (idempotent GPIO toggles and GPS sync).
+# Flash is included because the scheduled scripts (FlashOn.py/FlashOff.py) set
+# sustained relay state, unlike the web UI flash endpoint which pulses momentarily.
 RECONCILABLE_ACTIONS: set[str] = {
     "attract_on",
     "attract_off",

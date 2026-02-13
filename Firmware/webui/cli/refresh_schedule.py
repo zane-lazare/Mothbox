@@ -23,33 +23,23 @@ def load_active_state() -> dict | None:
 
     Returns the parsed dict, or None if no active state.
     """
-    from mothbox_paths import CONFIG_DIR
-    from webui.backend.lib.sidecar_metadata import FileLock
+    from webui.backend.lib.active_state import load_active_state as _load
 
-    state_file = CONFIG_DIR / "active_state.json"
-    if not state_file.exists():
-        logger.info("No active_state.json found — nothing to refresh")
-        return None
-
-    try:
-        with FileLock(state_file, exclusive=False, timeout=10.0) as f:
-            state = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error(f"Failed to read active_state.json: {e}")
-        return None
-
-    if not state.get("schedule_id"):
-        logger.info("No active schedule in state file")
-        return None
-
-    return state
+    return _load()
 
 
-def save_active_state(entries_update: list[dict[str, Any]]) -> bool:
+def save_active_state(
+    entries_update: list[dict[str, Any]], expected_schedule_id: str | None = None
+) -> bool:
     """Merge updated entries into active_state.json under exclusive file lock.
 
     Re-reads the file under the exclusive lock to prevent clobbering
     concurrent modifications from other processes.
+
+    Args:
+        entries_update: New entries to write.
+        expected_schedule_id: If provided, abort if the schedule_id in the
+            state file has changed (another activation happened concurrently).
 
     Returns True on success, False on failure.
     """
@@ -61,6 +51,12 @@ def save_active_state(entries_update: list[dict[str, Any]]) -> bool:
         with FileLock(state_file, exclusive=True, timeout=10.0) as f:
             f.seek(0)
             current_state = json.load(f)
+            if (
+                expected_schedule_id is not None
+                and current_state.get("schedule_id") != expected_schedule_id
+            ):
+                logger.warning("Schedule changed during refresh — aborting entry update")
+                return False
             current_state["entries"] = entries_update
             f.seek(0)
             f.truncate()
@@ -140,7 +136,7 @@ def main() -> int:
             entries=result.entries,
             timezone_name=timezone_name,
         )
-        if not save_active_state([e.to_dict() for e in expanded]):
+        if not save_active_state([e.to_dict() for e in expanded], expected_schedule_id=schedule_id):
             logger.warning("Failed to update active_state.json with new entries")
     except Exception as e:
         logger.warning(f"Failed to expand/persist entries (non-fatal): {e}")
