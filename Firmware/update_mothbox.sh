@@ -1140,7 +1140,10 @@ if [ "$SERVICE_CHANGED" -gt 0 ]; then
             # Detect MOTHBOX_ENV from existing service or default to development
             MOTHBOX_ENV="development"
             if [ -f "/etc/systemd/system/mothbox-webui.service" ]; then
-                MOTHBOX_ENV=$(grep "^Environment=\"MOTHBOX_ENV=" /etc/systemd/system/mothbox-webui.service | cut -d= -f3 | tr -d '"' || echo "development")
+                _extracted_env=$(grep "^Environment=\"MOTHBOX_ENV=" /etc/systemd/system/mothbox-webui.service | cut -d= -f3 | tr -d '"' || true)
+                if [ -n "$_extracted_env" ]; then
+                    MOTHBOX_ENV="$_extracted_env"
+                fi
             fi
 
             # Detect ALLOWED_ORIGINS from existing service or default to empty (same-origin only)
