@@ -112,6 +112,12 @@ class TestRefreshSchedule:
         assert "entries" in updated_state
         assert len(updated_state["entries"]) == 1
 
+        # Verify pre-existing keys are preserved (not clobbered by the save)
+        assert updated_state["schedule_id"] == "test-123"
+        assert updated_state["latitude"] == 9.0
+        assert updated_state["longitude"] == -79.0
+        assert updated_state["timezone_name"] == "America/Panama"
+
     def test_schedule_not_found_returns_1(self, tmp_path, monkeypatch):
         """Schedule not found in storage -> returns 1."""
         monkeypatch.setattr("mothbox_paths.CONFIG_DIR", tmp_path)

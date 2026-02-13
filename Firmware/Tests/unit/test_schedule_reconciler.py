@@ -354,7 +354,7 @@ class TestExecuteReconciliation:
         results = execute_reconciliation(actions)
         assert len(results) == 1
         assert results[0]["success"] is False
-        assert results[0]["error"] == "timeout"
+        assert "timed out" in results[0]["error"]
 
     @patch("webui.backend.lib.schedule_reconciler.subprocess.run")
     @patch("webui.backend.lib.schedule_reconciler.get_validated_command")

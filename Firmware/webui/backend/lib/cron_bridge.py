@@ -2481,6 +2481,7 @@ def _get_meta_cron_entries() -> list[CronEntry]:
     """
     entries = []
 
+    # Each entry is independent — if one fails validation, the other still gets created
     try:
         reboot_cmd = get_validated_command("reconcile_on_boot")
         entries.append(

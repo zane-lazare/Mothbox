@@ -44,8 +44,11 @@ def load_active_state() -> dict | None:
     return state
 
 
-def save_active_state(state: dict) -> bool:
-    """Write updated active_state.json back to CONFIG_DIR with exclusive file lock.
+def save_active_state(entries_update: list[dict]) -> bool:
+    """Merge updated entries into active_state.json under exclusive file lock.
+
+    Re-reads the file under the exclusive lock to prevent clobbering
+    concurrent modifications from other processes.
 
     Returns True on success, False on failure.
     """
@@ -56,10 +59,13 @@ def save_active_state(state: dict) -> bool:
     try:
         with FileLock(state_file, exclusive=True, timeout=10.0) as f:
             f.seek(0)
+            current_state = json.load(f)
+            current_state["entries"] = entries_update
+            f.seek(0)
             f.truncate()
-            json.dump(state, f, indent=2)
+            json.dump(current_state, f, indent=2)
         return True
-    except OSError as e:
+    except (OSError, json.JSONDecodeError) as e:
         logger.error(f"Failed to write active_state.json: {e}")
         return False
 
@@ -133,8 +139,7 @@ def main() -> int:
             entries=result.entries,
             timezone_name=timezone_name,
         )
-        state["entries"] = [e.to_dict() for e in expanded]
-        if not save_active_state(state):
+        if not save_active_state([e.to_dict() for e in expanded]):
             logger.warning("Failed to update active_state.json with new entries")
     except Exception as e:
         logger.warning(f"Failed to expand/persist entries (non-fatal): {e}")

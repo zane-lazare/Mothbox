@@ -19,6 +19,7 @@ import shlex
 import subprocess
 from datetime import datetime, timedelta
 from math import ceil
+from typing import TypedDict
 
 import pytz
 
@@ -47,8 +48,25 @@ _ACTION_RESOURCE: dict[str, str] = {
     "flash_off": "flash",
 }
 
-# How far back to look for missed actions
+
+class ReconcileAction(TypedDict):
+    action_type: str
+    action_name: str
+    source_time: datetime
+
+
+class ReconcileResult(TypedDict):
+    action_name: str
+    success: bool
+    error: str | None
+
+
+# 48h covers two full solar cycles, ensuring we catch both "today's" and
+# "yesterday's" triggers regardless of when reconciliation runs
 LOOKBACK_HOURS: int = 48
+
+# Timeout for reconciliation subprocess commands (seconds)
+RECONCILE_TIMEOUT: int = 30
 
 
 def reconcile_schedule(
@@ -57,7 +75,7 @@ def reconcile_schedule(
     longitude: float,
     timezone_name: str,
     now: datetime | None = None,
-) -> list[dict]:
+) -> list[ReconcileAction]:
     """Determine which GPIO/idempotent actions should be executed now.
 
     Looks back LOOKBACK_HOURS from ``now``, computes all trigger times for
@@ -98,6 +116,8 @@ def reconcile_schedule(
             continue
 
         try:
+            # +1 day buffer ensures we capture all triggers in the lookback window
+            # even when trigger times fall near end-of-day boundaries
             trigger_times = calculate_execution_times(
                 trigger=routine.trigger,
                 latitude=latitude,
@@ -155,8 +175,8 @@ def reconcile_schedule(
 
 
 def execute_reconciliation(
-    actions: list[dict],
-) -> list[dict]:
+    actions: list[ReconcileAction],
+) -> list[ReconcileResult]:
     """Execute reconciled actions by running the corresponding scripts.
 
     Uses get_validated_command() from cron_security to get the safe command
@@ -202,7 +222,7 @@ def execute_reconciliation(
             logger.info(f"Reconciling {action_name} (should have fired at {action['source_time']})")
             proc = subprocess.run(  # noqa: S603 - command from validated whitelist
                 shlex.split(command),
-                timeout=30,
+                timeout=RECONCILE_TIMEOUT,
                 check=False,
                 capture_output=True,
             )
@@ -217,8 +237,9 @@ def execute_reconciliation(
             else:
                 results.append({"action_name": action_name, "success": True, "error": None})
         except subprocess.TimeoutExpired:
+            error_msg = f"Command timed out after {RECONCILE_TIMEOUT}s"
             logger.warning(f"Reconciliation command timed out: {action_name}")
-            results.append({"action_name": action_name, "success": False, "error": "timeout"})
+            results.append({"action_name": action_name, "success": False, "error": error_msg})
         except OSError as e:
             logger.warning(f"Reconciliation command failed: {action_name}: {e}")
             results.append({"action_name": action_name, "success": False, "error": str(e)})
