@@ -1224,9 +1224,7 @@ class SchedulerService:
                         schedule, latitude, longitude, timezone_name
                     )
                     if reconcile_actions:
-                        logger.info(
-                            f"Reconciling {len(reconcile_actions)} missed actions"
-                        )
+                        logger.info(f"Reconciling {len(reconcile_actions)} missed actions")
                         results = execute_reconciliation(reconcile_actions)
                         failed = [r for r in results if not r["success"]]
                         if failed:
