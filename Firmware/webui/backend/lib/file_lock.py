@@ -14,9 +14,8 @@ never block indefinitely.
 Lock file cleanup:
     Lock files (``.lock`` sidecars) are harmless if left on disk — they are
     zero-byte and re-used on the next acquisition.  Callers that want tidy
-    directories may ``Path(lock_path).unlink(missing_ok=True)`` after the
-    ``with`` block.  The Mothbox periodic-cleanup job removes orphaned lock
-    files automatically, so manual cleanup is optional.
+    directories can pass ``cleanup=True`` or call
+    ``Path(lock_path).unlink(missing_ok=True)`` after the ``with`` block.
 
 Example::
 
@@ -46,6 +45,7 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import os
 import time
 from pathlib import Path
 from types import TracebackType
@@ -69,11 +69,18 @@ class FileLock:
         timeout: Maximum seconds to wait for lock acquisition
     """
 
-    def __init__(self, path: str | Path, exclusive: bool = True, timeout: float = 5.0) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        exclusive: bool = True,
+        timeout: float = 5.0,
+        cleanup: bool = False,
+    ) -> None:
         self.path = Path(path)
         self.lock_path = Path(str(self.path) + ".lock")
         self.exclusive = exclusive
         self.timeout = timeout
+        self.cleanup = cleanup
         self.lock_file = None
         self.data_file = None
 
@@ -100,10 +107,8 @@ class FileLock:
 
         try:
             if self.exclusive:
-                try:
-                    self.data_file = open(self.path, "r+")
-                except FileNotFoundError:
-                    self.data_file = open(self.path, "w+")
+                fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+                self.data_file = os.fdopen(fd, "r+")
             else:
                 self.data_file = open(self.path)
         except Exception:
@@ -128,6 +133,9 @@ class FileLock:
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
             with contextlib.suppress(OSError, ValueError):
                 self.lock_file.close()
+        if self.cleanup:
+            with contextlib.suppress(OSError):
+                self.lock_path.unlink(missing_ok=True)
 
 
 class MutexLock:

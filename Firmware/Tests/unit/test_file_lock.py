@@ -133,6 +133,35 @@ class TestFileLock:
         lock = FileLock("/tmp/test.json")
         assert lock.timeout == 5.0
 
+    def test_cleanup_removes_lock_file(self, tmp_path):
+        """cleanup=True removes the .lock sidecar after exit."""
+        from webui.backend.lib.file_lock import FileLock
+
+        data_file = tmp_path / "data.json"
+        data_file.write_text("{}")
+        lock_path = tmp_path / "data.json.lock"
+
+        with FileLock(data_file, exclusive=True, cleanup=True) as f:
+            assert lock_path.exists()
+            f.seek(0)
+            f.truncate()
+            f.write('{"cleaned": true}')
+
+        assert not lock_path.exists()
+        assert data_file.read_text() == '{"cleaned": true}'
+
+    def test_no_cleanup_by_default(self, tmp_path):
+        """Lock sidecar persists by default (cleanup=False)."""
+        from webui.backend.lib.file_lock import FileLock
+
+        data_file = tmp_path / "data.json"
+        data_file.write_text("{}")
+
+        with FileLock(data_file, exclusive=True):
+            pass
+
+        assert (tmp_path / "data.json.lock").exists()
+
     def test_concurrent_threads_serialize_writes(self, tmp_path):
         """5 threads concurrently incrementing a JSON counter proves serialization."""
         from webui.backend.lib.file_lock import FileLock

@@ -127,49 +127,62 @@ def update_gps_values(
     if pdop is not None:
         updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
-    # GPS script may hold lock during multi-value update
-    try:
-        with FileLock(filepath, exclusive=True, timeout=10.0) as f:
-            # Read current contents
-            lines = f.readlines()
+    # GPS script may hold lock during multi-value update — retry with backoff
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            with FileLock(filepath, exclusive=True, timeout=10.0) as f:
+                # Read current contents
+                lines = f.readlines()
 
-            # Update lines
-            updated_lines = []
-            updated_keys = set()
+                # Update lines
+                updated_lines = []
+                updated_keys = set()
 
-            for line in lines:
-                stripped = line.strip()
-                if stripped and "=" in stripped and not stripped.startswith("#"):
-                    key = stripped.split("=", 1)[0]
-                    if key in updates:
-                        updated_lines.append(f"{key}={updates[key]}\n")
-                        updated_keys.add(key)
-                        logger.debug(f"Updated {key}={updates[key]}")
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped and "=" in stripped and not stripped.startswith("#"):
+                        key = stripped.split("=", 1)[0]
+                        if key in updates:
+                            updated_lines.append(f"{key}={updates[key]}\n")
+                            updated_keys.add(key)
+                            logger.debug(f"Updated {key}={updates[key]}")
+                        else:
+                            updated_lines.append(line)
                     else:
                         updated_lines.append(line)
-                else:
-                    updated_lines.append(line)
 
-            # Add any new keys that weren't in the file
-            for key, value in updates.items():
-                if key not in updated_keys:
-                    updated_lines.append(f"{key}={value}\n")
-                    # GPS coordinates are equipment deployment locations (camera trap position),
-                    # not personal/user data. This logging is intentional for debugging.
-                    logger.debug(
-                        f"Added {key}={value}"
-                    )
+                # Add any new keys that weren't in the file
+                for key, value in updates.items():
+                    if key not in updated_keys:
+                        updated_lines.append(f"{key}={value}\n")
+                        # GPS coordinates are equipment deployment locations (camera trap position),
+                        # not personal/user data. This logging is intentional for debugging.
+                        logger.debug(
+                            f"Added {key}={value}"
+                        )
 
-            # Write back to file
-            f.seek(0)
-            f.truncate()
-            f.writelines(updated_lines)
-            f.flush()
-    except LockTimeoutError:
-        logger.warning(
-            "Could not acquire lock on %s within 10s — skipping GPS config update",
-            filepath,
-        )
+                # Write back to file
+                f.seek(0)
+                f.truncate()
+                f.writelines(updated_lines)
+                f.flush()
+                return  # success
+        except LockTimeoutError:
+            if attempt < max_retries:
+                logger.info(
+                    "Lock attempt %d/%d failed on %s — retrying",
+                    attempt,
+                    max_retries,
+                    filepath,
+                )
+                time.sleep(1.0)
+            else:
+                logger.warning(
+                    "Could not acquire lock on %s after %d attempts — skipping GPS update",
+                    filepath,
+                    max_retries,
+                )
 
 
 logger.info("startingGPS")
@@ -200,7 +213,7 @@ try:
                 fix_mode = getattr(report, "mode", 0)
                 # GPS coordinates are equipment deployment locations (camera trap position),
                 # not personal/user data. This logging is intentional for debugging.
-                logger.debug(  # lgtm[py/clear-text-logging-sensitive-data]
+                logger.debug(
                     f"TPV: {latitude}\t{longitude}\t{UTCtime}\t"
                     f"alt={getattr(report, 'alt', 'nan')}\t"
                     f"mode={fix_mode}\t"
