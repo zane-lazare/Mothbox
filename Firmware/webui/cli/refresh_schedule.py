@@ -11,11 +11,18 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from typing import Any
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log_level = os.environ.get("MOTHBOX_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO), format="%(levelname)s: %(message)s"
+)
 logger = logging.getLogger("refresh_schedule")
+
+EXIT_SUCCESS = 0
+EXIT_FATAL = 1
 
 
 def load_active_state() -> dict | None:
@@ -76,7 +83,7 @@ def main() -> int:
     # Load active state
     state = load_active_state()
     if state is None:
-        return 0
+        return EXIT_SUCCESS
 
     schedule_id = state["schedule_id"]
     latitude = state.get("latitude")
@@ -100,7 +107,7 @@ def main() -> int:
     schedule = read_schedule(schedule_id)
     if schedule is None:
         logger.error(f"Schedule not found in storage: {schedule_id}")
-        return 1
+        return EXIT_FATAL
 
     # Regenerate cron entries
     from webui.backend.lib.cron_bridge import (
@@ -118,11 +125,11 @@ def main() -> int:
         )
     except ValueError as e:
         logger.error(f"Cron generation failed: {e}")
-        return 1
+        return EXIT_FATAL
 
     if result.errors:
         logger.error(f"Cron conversion errors: {'; '.join(result.errors)}")
-        return 1
+        return EXIT_FATAL
 
     # Apply to system cron (replaces existing Mothbox entries)
     try:
@@ -133,11 +140,11 @@ def main() -> int:
         )
     except (ValueError, OSError) as e:
         logger.error(f"Failed to apply cron entries: {e}")
-        return 1
+        return EXIT_FATAL
 
     if not success:
         logger.error("apply_to_system returned False")
-        return 1
+        return EXIT_FATAL
 
     logger.info(f"Applied {len(result.entries)} refreshed cron entries")
 
@@ -153,7 +160,7 @@ def main() -> int:
         logger.warning(f"Failed to expand/persist entries (non-fatal): {e}")
 
     logger.info("Weekly cron refresh complete")
-    return 0
+    return EXIT_SUCCESS
 
 
 if __name__ == "__main__":

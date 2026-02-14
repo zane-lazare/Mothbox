@@ -10,20 +10,28 @@ Usage: systemd-cat -t mothbox /usr/bin/python3 /path/to/reconcile_on_boot.py
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from pathlib import Path
 
 from lib.gpio_protocol import SOCKET_PATH
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log_level = os.environ.get("MOTHBOX_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO), format="%(levelname)s: %(message)s"
+)
 logger = logging.getLogger("reconcile_on_boot")
 
 # GPIO daemon socket path (from shared protocol constants)
 GPIO_SOCKET = Path(SOCKET_PATH)
 
-# Backoff schedule: 0.5, 1, 2, 4, 8, 16 seconds (~31.5s total)
-BACKOFF_DELAYS = [0.5, 1, 2, 4, 8, 16]
+# Backoff schedule: 0.5, 1, 2, 4, 8, 16, 32 seconds (~63.5s total)
+BACKOFF_DELAYS = [0.5, 1, 2, 4, 8, 16, 32]
+
+EXIT_SUCCESS = 0
+EXIT_FATAL = 1
+EXIT_PARTIAL = 2
 
 
 def wait_for_gpio_daemon() -> bool:
@@ -61,9 +69,9 @@ def main() -> int:
     """Main entry point for boot reconciliation.
 
     Returns:
-        0: Success (or no work to do)
-        1: Fatal error (schedule not found, computation failed)
-        2: Partial success (some actions failed, e.g. daemon unavailable)
+        EXIT_SUCCESS (0): Success (or no work to do)
+        EXIT_FATAL (1): Fatal error (schedule not found, computation failed)
+        EXIT_PARTIAL (2): Partial success (some actions failed, e.g. daemon unavailable)
     """
     logger.info("Starting boot GPIO reconciliation")
 
@@ -75,7 +83,7 @@ def main() -> int:
     # Load active state
     state = load_active_state()
     if state is None:
-        return 0
+        return EXIT_SUCCESS
 
     if not daemon_ready:
         logger.error("GPIO daemon unavailable — reconciliation actions will likely fail")
@@ -102,7 +110,7 @@ def main() -> int:
     schedule = read_schedule(schedule_id)
     if schedule is None:
         logger.error(f"Schedule not found in storage: {schedule_id}")
-        return 1
+        return EXIT_FATAL
 
     # Run reconciliation
     from webui.backend.lib.schedule_reconciler import (
@@ -114,11 +122,11 @@ def main() -> int:
         actions = reconcile_schedule(schedule, latitude, longitude, timezone_name)
     except (ValueError, TypeError) as e:
         logger.error(f"Reconciliation computation failed: {e}")
-        return 1
+        return EXIT_FATAL
 
     if not actions:
         logger.info("No actions to reconcile")
-        return 0
+        return EXIT_SUCCESS
 
     logger.info(f"Executing {len(actions)} reconciled actions")
     results = execute_reconciliation(actions)
@@ -126,11 +134,11 @@ def main() -> int:
     failed = [r for r in results if not r["success"]]
     if failed:
         logger.warning(f"{len(failed)} actions failed: {failed}")
-        return 2
+        return EXIT_PARTIAL
     else:
         logger.info("All reconciled actions executed successfully")
 
-    return 0
+    return EXIT_SUCCESS
 
 
 if __name__ == "__main__":

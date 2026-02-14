@@ -276,6 +276,19 @@ class TestReconcileSchedule:
         with pytest.raises(ValueError, match="Unknown timezone"):
             reconcile_schedule(schedule, 9.0, -79.0, "Not/A_Timezone")
 
+    def test_invalid_coordinates_raise_valueerror(self):
+        """Out-of-range coordinates raise ValueError."""
+        import pytest
+
+        schedule = _make_schedule(routines=[])
+        now = _aware(datetime(2025, 6, 15, 22, 0, 0))
+
+        with pytest.raises(ValueError, match="Invalid coordinates"):
+            reconcile_schedule(schedule, 91.0, -79.0, "America/Panama", now=now)
+
+        with pytest.raises(ValueError, match="Invalid coordinates"):
+            reconcile_schedule(schedule, 9.0, 181.0, "America/Panama", now=now)
+
 
 class TestExecuteReconciliation:
     """Tests for execute_reconciliation()."""

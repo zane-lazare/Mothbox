@@ -25,6 +25,7 @@ import pytz
 
 from webui.backend.lib.cron_bridge import calculate_execution_times
 from webui.backend.lib.cron_security import get_script_key_for_action, get_validated_command
+from webui.backend.lib.haversine import validate_coordinates
 from webui.backend.lib.schedule_schema import Schedule, SensorTrigger
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,10 @@ def reconcile_schedule(
         now = datetime.now(tz)
     elif now.tzinfo is None:
         raise ValueError("now must be timezone-aware; got naive datetime")
+
+    valid, err = validate_coordinates(latitude, longitude)
+    if not valid:
+        raise ValueError(f"Invalid coordinates: {err}")
 
     if not schedule.routines:
         return []
