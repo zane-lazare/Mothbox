@@ -892,21 +892,20 @@ class TestGPSFileLocking:
     """Tests for file locking in controls.txt updates"""
 
     def test_update_controls_file_uses_exclusive_lock(self, temp_controls_file):
-        """_update_controls_file acquires exclusive lock"""
+        """_update_controls_file acquires exclusive lock via FileLock"""
         from routes.gps import _update_controls_file
 
         temp_controls_file.write_text("gps_enabled=false\n")
 
-        # Mock fcntl.flock to track calls
+        # Mock fcntl.flock to track calls (FileLock uses LOCK_EX | LOCK_NB internally)
         with patch('fcntl.flock') as mock_flock:
             _update_controls_file({'gps_enabled': True})
 
-            # Verify exclusive lock was acquired
+            # Verify flock was called with exclusive + non-blocking flag
             mock_flock.assert_called()
-            # Check that LOCK_EX was used
             import fcntl
             lock_calls = [call[0][1] for call in mock_flock.call_args_list]
-            assert fcntl.LOCK_EX in lock_calls
+            assert any(call & fcntl.LOCK_EX for call in lock_calls)
 
     def test_update_controls_file_updates_existing_keys(self, temp_controls_file):
         """_update_controls_file updates existing keys"""

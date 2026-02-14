@@ -1,6 +1,5 @@
 """GPS module control endpoints"""
 
-import fcntl
 import logging
 import subprocess
 import threading
@@ -10,6 +9,7 @@ import time
 from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config, get_script_path
+from webui.backend.lib.file_lock import FileLock
 
 logger = logging.getLogger(__name__)
 
@@ -521,14 +521,14 @@ def _update_controls_file(config_updates):
         IOError: If file locking fails or file operations fail
 
     Note on file locking:
-        This function uses fcntl file locking to prevent race conditions when accessing
-        controls.txt. The GPS.py script (in 5.x/GPS.py) also uses fcntl file locking
+        This function uses FileLock to prevent race conditions when accessing
+        controls.txt. The GPS.py script (in 5.x/GPS.py) also uses FileLock
         for its write operations, ensuring both WebUI and GPS.py coordinate access to
         the shared configuration file.
 
         Since POSIX file locks are advisory, both implementations must use locks for
         this protection to work. Race conditions are prevented by:
-        - Both WebUI and GPS.py using fcntl.flock(LOCK_EX) for writes
+        - Both WebUI and GPS.py using FileLock(exclusive=True) for writes
         - GPS sync is rate-limited (5 requests/minute)
         - GPS status cache reduces file I/O
     """
@@ -552,41 +552,33 @@ def _update_controls_file(config_updates):
         updates["gps_timeout_almanac"] = str(config_updates["gps_timeout_almanac"])
 
     # Open file for read/write and acquire exclusive lock
-    with open(CONTROLS_FILE, "r+") as f:
-        try:
-            # Acquire exclusive lock (blocks until lock is available)
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+    with FileLock(CONTROLS_FILE, exclusive=True, timeout=10.0) as f:
+        # Read current contents
+        lines = f.readlines()
 
-            # Read current contents
-            lines = f.readlines()
+        # Update lines
+        updated_lines = []
+        updated_keys = set()
 
-            # Update lines
-            updated_lines = []
-            updated_keys = set()
-
-            for line in lines:
-                stripped = line.strip()
-                if stripped and "=" in stripped and not stripped.startswith("#"):
-                    key = stripped.split("=", 1)[0]
-                    if key in updates:
-                        updated_lines.append(f"{key}={updates[key]}\n")
-                        updated_keys.add(key)
-                    else:
-                        updated_lines.append(line)
+        for line in lines:
+            stripped = line.strip()
+            if stripped and "=" in stripped and not stripped.startswith("#"):
+                key = stripped.split("=", 1)[0]
+                if key in updates:
+                    updated_lines.append(f"{key}={updates[key]}\n")
+                    updated_keys.add(key)
                 else:
                     updated_lines.append(line)
+            else:
+                updated_lines.append(line)
 
-            # Add any new keys that weren't in the file
-            for key, value in updates.items():
-                if key not in updated_keys:
-                    updated_lines.append(f"{key}={value}\n")
+        # Add any new keys that weren't in the file
+        for key, value in updates.items():
+            if key not in updated_keys:
+                updated_lines.append(f"{key}={value}\n")
 
-            # Write back to file
-            f.seek(0)
-            f.truncate()
-            f.writelines(updated_lines)
-            f.flush()
-
-        finally:
-            # Release lock (automatically released when file closes, but explicit is better)
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        # Write back to file
+        f.seek(0)
+        f.truncate()
+        f.writelines(updated_lines)
+        f.flush()
