@@ -80,7 +80,7 @@ from webui.backend.lib.schedule_storage import (
 from webui.backend.lib.schedule_storage import (
     update_schedule as storage_update,
 )
-from webui.backend.lib.sidecar_metadata import FileLock, LockTimeoutError
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 

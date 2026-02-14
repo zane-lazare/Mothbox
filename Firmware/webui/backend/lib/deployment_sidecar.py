@@ -79,8 +79,7 @@ from webui.backend.lib.deployment_schema import (
     ValidationError,
 )
 
-# Import FileLock from sidecar_metadata (reuse, don't duplicate)
-from webui.backend.lib.sidecar_metadata import FileLock, LockTimeoutError
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 

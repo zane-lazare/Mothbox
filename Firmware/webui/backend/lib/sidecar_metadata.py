@@ -56,8 +56,7 @@ Usage:
     remove_tag("photo.jpg", "night")
 """
 
-import contextlib
-import fcntl
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError  # noqa: F401
 import json
 import logging
 import time
@@ -102,9 +101,6 @@ MAX_PAGINATION_LIMIT = 200  # Maximum items per page for list endpoints
 class ValidationError(Exception):
     """Raised when metadata validation fails."""
 
-
-class LockTimeoutError(Exception):
-    """Raised when file lock acquisition times out."""
 
 
 # ============================================================================
@@ -454,88 +450,6 @@ def validate_schema(data: dict) -> bool:
             ) from err
 
     return True
-
-
-# ============================================================================
-# File Locking
-# ============================================================================
-
-
-class FileLock:
-    """File lock context manager using fcntl with separate lock file.
-
-    Uses a separate .lock file to acquire the lock BEFORE opening the data file.
-    This prevents race conditions where threads open the data file before
-    acquiring the lock and read stale content.
-
-    Args:
-        path: Path to data file to lock
-        exclusive: True for exclusive lock (LOCK_EX), False for shared (LOCK_SH)
-        timeout: Maximum seconds to wait for lock acquisition
-
-    Raises:
-        LockTimeoutError: If lock cannot be acquired within timeout
-
-    Example:
-        >>> with FileLock("file.json", exclusive=True) as f:
-        ...     f.write(data)
-    """
-
-    def __init__(self, path: Path, exclusive: bool = True, timeout: float = 5.0):
-        self.path = Path(path)
-        self.lock_path = Path(str(self.path) + ".lock")
-        self.exclusive = exclusive
-        self.timeout = timeout
-        self.lock_file = None
-        self.data_file = None
-
-    def __enter__(self):
-        """Acquire lock on lock file, then open data file."""
-        # Open/create lock file and acquire lock on it
-        self.lock_file = open(self.lock_path, "w")
-
-        lock_type = fcntl.LOCK_EX if self.exclusive else fcntl.LOCK_SH
-        start_time = time.time()
-        wait_time = 0.001  # Start with 1ms
-
-        while True:
-            try:
-                # Try non-blocking lock on the lock file
-                fcntl.flock(self.lock_file.fileno(), lock_type | fcntl.LOCK_NB)
-                break  # Lock acquired
-            except BlockingIOError:
-                # Lock held by another process/thread
-                elapsed = time.time() - start_time
-                if elapsed >= self.timeout:
-                    self.lock_file.close()
-                    raise LockTimeoutError(
-                        f"Could not acquire lock on {self.path} within {self.timeout}s"
-                    ) from None
-
-                # Exponential backoff
-                time.sleep(wait_time)
-                wait_time = min(wait_time * 2, 0.1)  # Max 100ms between attempts
-
-        # NOW open data file (after lock acquired) - this is the key fix
-        # The file existence check and open happen AFTER we hold the lock
-        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
-        self.data_file = open(self.path, mode)
-
-        return self.data_file
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Close data file, release lock, close lock file."""
-        # Close data file first
-        if self.data_file:
-            with contextlib.suppress(Exception):
-                self.data_file.close()
-
-        # Release lock and close lock file
-        if self.lock_file:
-            with contextlib.suppress(Exception):
-                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(Exception):
-                self.lock_file.close()
 
 
 # ============================================================================

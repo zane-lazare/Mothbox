@@ -536,7 +536,7 @@ class TestLockTimeoutErrorRollback:
         """LockTimeoutError in _save_active_state should rollback cron entries."""
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
-        from webui.backend.lib.sidecar_metadata import LockTimeoutError
+        from webui.backend.lib.file_lock import LockTimeoutError
 
         # Create and enable schedule
         create_schedule(sample_schedule)
@@ -579,7 +579,7 @@ class TestLockTimeoutErrorRollback:
         """LockTimeoutError should not leave partial state in memory."""
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
-        from webui.backend.lib.sidecar_metadata import LockTimeoutError
+        from webui.backend.lib.file_lock import LockTimeoutError
 
         # Create schedule
         create_schedule(sample_schedule)

@@ -75,7 +75,7 @@ from webui.backend.lib.schedule_schema import (
     ScheduleValidationError,
     validate_schedule,
 )
-from webui.backend.lib.sidecar_metadata import FileLock
+from webui.backend.lib.file_lock import FileLock
 
 logger = logging.getLogger(__name__)
 
