@@ -17,6 +17,10 @@ Lock file cleanup:
     directories can pass ``cleanup=True`` or call
     ``Path(lock_path).unlink(missing_ok=True)`` after the ``with`` block.
 
+    WARNING: ``cleanup=True`` has a theoretical TOCTOU race where Process A
+    releases → Process B acquires → Process A unlinks B's lock file.
+    Negligible for unique lock paths (e.g., per-file thumbnail locks).
+
 Example::
 
     from webui.backend.lib.file_lock import FileLock, MutexLock
@@ -43,13 +47,29 @@ Timeout guidelines:
 
 from __future__ import annotations
 
-import contextlib
 import fcntl
+import logging
 import os
 import time
 from pathlib import Path
 from types import TracebackType
 from typing import IO
+
+logger = logging.getLogger(__name__)
+
+
+def _validate_path(path: Path) -> Path:
+    """Resolve and validate a lock/data path.
+
+    Rejects null bytes (which bypass OS path checks) and paths that
+    cannot be resolved to an absolute location.
+    """
+    if "\0" in str(path):
+        raise ValueError("Path contains null byte")
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"Invalid path: {path}") from e
 
 
 class LockTimeoutError(Exception):
@@ -62,6 +82,9 @@ class FileLock:
     Uses a separate .lock file to acquire the lock BEFORE opening the data file.
     This prevents race conditions where threads open the data file before
     acquiring the lock and read stale content.
+
+    Exclusive mode (default) creates the data file if missing.
+    Shared mode requires the file to exist (raises ``FileNotFoundError`` if missing).
 
     Args:
         path: Path to data file to lock
@@ -76,7 +99,7 @@ class FileLock:
         timeout: float = 5.0,
         cleanup: bool = False,
     ) -> None:
-        self.path = Path(path)
+        self.path = _validate_path(Path(path))
         self.lock_path = Path(str(self.path) + ".lock")
         self.exclusive = exclusive
         self.timeout = timeout
@@ -103,7 +126,7 @@ class FileLock:
                         f"Could not acquire lock on {self.path} within {self.timeout}s"
                     ) from None
                 time.sleep(wait_time)
-                wait_time = min(wait_time * 2, 0.1)
+                wait_time = min(wait_time * 2, 0.25)
 
         try:
             if self.exclusive:
@@ -112,8 +135,10 @@ class FileLock:
             else:
                 self.data_file = open(self.path)
         except Exception:
-            with contextlib.suppress(OSError):
+            try:
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError as e:
+                logger.debug("Failed to unlock during error cleanup: %s", e)
             self.lock_file.close()
             raise
         return self.data_file
@@ -126,16 +151,24 @@ class FileLock:
     ) -> None:
         # ValueError covers "I/O operation on closed file" if handle was already closed
         if self.data_file:
-            with contextlib.suppress(OSError, ValueError):
+            try:
                 self.data_file.close()
+            except (OSError, ValueError) as e:
+                logger.debug("Failed to close data file: %s", e)
         if self.lock_file:
-            with contextlib.suppress(OSError, ValueError):
+            try:
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(OSError, ValueError):
+            except (OSError, ValueError) as e:
+                logger.debug("Failed to unlock: %s", e)
+            try:
                 self.lock_file.close()
+            except (OSError, ValueError) as e:
+                logger.debug("Failed to close lock file: %s", e)
         if self.cleanup:
-            with contextlib.suppress(OSError):
+            try:
                 self.lock_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.debug("Failed to clean up lock file: %s", e)
 
 
 class MutexLock:
@@ -150,7 +183,7 @@ class MutexLock:
     """
 
     def __init__(self, lock_path: str | Path, timeout: float = 5.0, cleanup: bool = False) -> None:
-        self.lock_path = Path(lock_path)
+        self.lock_path = _validate_path(Path(lock_path))
         self.timeout = timeout
         self.cleanup = cleanup
         self.lock_file = None
@@ -173,7 +206,7 @@ class MutexLock:
                         f"Could not acquire lock on {self.lock_path} within {self.timeout}s"
                     ) from None
                 time.sleep(wait_time)
-                wait_time = min(wait_time * 2, 0.1)
+                wait_time = min(wait_time * 2, 0.25)
 
         return self
 
@@ -185,10 +218,16 @@ class MutexLock:
     ) -> None:
         # ValueError covers "I/O operation on closed file" if handle was already closed
         if self.lock_file:
-            with contextlib.suppress(OSError, ValueError):
+            try:
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(OSError, ValueError):
+            except (OSError, ValueError) as e:
+                logger.debug("Failed to unlock: %s", e)
+            try:
                 self.lock_file.close()
+            except (OSError, ValueError) as e:
+                logger.debug("Failed to close lock file: %s", e)
         if self.cleanup:
-            with contextlib.suppress(OSError):
+            try:
                 self.lock_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.debug("Failed to clean up lock file: %s", e)

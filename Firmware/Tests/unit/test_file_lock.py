@@ -23,6 +23,36 @@ class TestLockTimeoutError:
         assert "/tmp/foo" in str(err)
 
 
+class TestPathValidation:
+    """_validate_path rejects dangerous paths and resolves valid ones."""
+
+    def test_filelock_rejects_null_byte(self, tmp_path):
+        from webui.backend.lib.file_lock import FileLock
+
+        with pytest.raises(ValueError, match="null byte"):
+            FileLock(tmp_path / "data\x00.json")
+
+    def test_mutexlock_rejects_null_byte(self, tmp_path):
+        from webui.backend.lib.file_lock import MutexLock
+
+        with pytest.raises(ValueError, match="null byte"):
+            MutexLock(tmp_path / "lock\x00.lock")
+
+    def test_filelock_resolves_path(self, tmp_path):
+        from webui.backend.lib.file_lock import FileLock
+
+        lock = FileLock(tmp_path / "subdir" / ".." / "data.json")
+        assert lock.path == tmp_path / "data.json"
+        assert lock.path.is_absolute()
+
+    def test_mutexlock_resolves_path(self, tmp_path):
+        from webui.backend.lib.file_lock import MutexLock
+
+        lock = MutexLock(tmp_path / "subdir" / ".." / "resource.lock")
+        assert lock.lock_path == tmp_path / "resource.lock"
+        assert lock.lock_path.is_absolute()
+
+
 class TestFileLock:
     """FileLock acquires .lock sidecar, then opens data file."""
 
@@ -80,7 +110,7 @@ class TestFileLock:
         data_file.chmod(0o000)
 
         try:
-            with pytest.raises(PermissionError):
+            with pytest.raises(PermissionError):  # noqa: SIM117 - inner with must be inside try
                 with FileLock(data_file, exclusive=True):
                     pass  # pragma: no cover
 
@@ -126,6 +156,15 @@ class TestFileLock:
         with FileLock(data_file, exclusive=False) as f:
             content = f.read()
             assert "shared" in content
+
+    def test_shared_mode_raises_on_missing_file(self, tmp_path):
+        """Shared (read) lock requires the data file to exist."""
+        from webui.backend.lib.file_lock import FileLock
+
+        missing = tmp_path / "nonexistent.json"
+        with pytest.raises(FileNotFoundError):  # noqa: SIM117 - inner with must be inside pytest.raises
+            with FileLock(missing, exclusive=False):
+                pass  # pragma: no cover
 
     def test_default_timeout_is_five_seconds(self):
         from webui.backend.lib.file_lock import FileLock
