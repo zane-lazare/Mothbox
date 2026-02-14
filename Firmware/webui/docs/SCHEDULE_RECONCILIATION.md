@@ -18,7 +18,7 @@ Runs automatically via a `@reboot` cron entry installed when a schedule is activ
 
 1. Waits for the GPIO daemon socket (exponential backoff, ~63.5s timeout)
 2. Loads the active schedule from `active_state.json`
-3. Looks back 48 hours through the schedule's trigger history
+3. Looks back 48 hours through the schedule's trigger history (if the Pi was off longer than 48 hours, the state before that window is not recovered)
 4. For each GPIO resource (attract, flash), finds the most recent past action
 5. Executes those actions to restore the expected state
 

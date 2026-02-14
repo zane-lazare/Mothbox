@@ -140,7 +140,10 @@ def reconcile_schedule(
                 days_ahead=ceil(LOOKBACK_HOURS / 24) + 1,
             )
         except (ValueError, TypeError) as e:
-            logger.warning(f"Skipping routine {routine.routine_id} during reconciliation: {e}")
+            trigger_type = type(routine.trigger).__name__
+            logger.warning(
+                f"Skipping routine {routine.routine_id} ({trigger_type}) during reconciliation: {e}"
+            )
             continue
 
         for trigger_time in trigger_times:
