@@ -68,7 +68,6 @@ def get_sidecar_service():
         import logging
 
         from mothbox_paths import DATA_DIR
-
         from webui.backend.lib.file_lock import MutexLock
 
         from .sidecar_service import CACHE_SCHEMA_VERSION, SidecarService

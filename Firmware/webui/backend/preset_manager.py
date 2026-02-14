@@ -17,10 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from webui.backend.lib.file_lock import FileLock
-
 # Import validation schemas for type normalization
 from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+
+from webui.backend.lib.file_lock import FileLock
 
 # Setup logging
 logger = logging.getLogger(__name__)

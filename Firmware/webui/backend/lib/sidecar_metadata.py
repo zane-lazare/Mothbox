@@ -56,7 +56,6 @@ Usage:
     remove_tag("photo.jpg", "night")
 """
 
-from webui.backend.lib.file_lock import FileLock, LockTimeoutError  # noqa: F401
 import json
 import logging
 import time
@@ -64,6 +63,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
+
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
