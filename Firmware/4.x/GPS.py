@@ -19,8 +19,7 @@ from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 # Configure logging for standalone script execution
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,9 @@ def update_gps_values(
                     updated_lines.append(f"{key}={value}\n")
                     # GPS coordinates are equipment deployment locations (camera trap position),
                     # not personal/user data. This logging is intentional for debugging.
-                    logger.debug(f"Added {key}={value}")  # lgtm[py/clear-text-logging-sensitive-data]
+                    logger.debug(
+                        f"Added {key}={value}"
+                    )  # lgtm[py/clear-text-logging-sensitive-data]
 
             # Write back to file
             f.seek(0)
@@ -268,7 +269,9 @@ try:
                 logger.warning("Could not determine timezone from coordinates.")
                 # GPS coordinates are equipment deployment locations (camera trap position),
                 # not personal/user data. This logging is intentional for debugging.
-                logger.info(f"Writing coordinates anyway: lat={latitude}, lon={longitude}")  # lgtm[py/clear-text-logging-sensitive-data]
+                logger.info(
+                    f"Writing coordinates anyway: lat={latitude}, lon={longitude}"
+                )  # lgtm[py/clear-text-logging-sensitive-data]
                 # Still write coordinates even if timezone lookup fails
                 # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(

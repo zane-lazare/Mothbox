@@ -10,12 +10,12 @@ Tests that:
 Coverage Target: 85%+
 """
 
+import contextlib
 import json
 import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,9 +38,7 @@ except ImportError:
     Schedule = None
 
 # Skip all tests if implementation doesn't exist
-pytestmark = pytest.mark.skipif(
-    not IMPLEMENTATION_EXISTS, reason="Implementation not yet created"
-)
+pytestmark = pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not yet created")
 
 
 def _test_uuid(name: str) -> str:
@@ -194,14 +192,10 @@ class TestActivationLockSerialization:
 
             # Launch multiple concurrent activation attempts
             def activate():
-                try:
+                with contextlib.suppress(Exception):
                     scheduler_service.activate_schedule(sample_schedule.schedule_id)
-                except Exception:
-                    pass  # Ignore errors, we're testing serialization
 
-            threads = [
-                threading.Thread(target=activate, name=f"thread-{i}") for i in range(3)
-            ]
+            threads = [threading.Thread(target=activate, name=f"thread-{i}") for i in range(3)]
             for t in threads:
                 t.start()
             for t in threads:
@@ -255,16 +249,12 @@ class TestActivationLockSerialization:
             mock_cron.return_value = MagicMock(entries=[], errors=[])
 
             def activate():
-                try:
+                with contextlib.suppress(Exception):
                     scheduler_service.activate_schedule(sample_schedule.schedule_id)
-                except Exception:
-                    pass
 
             def deactivate():
-                try:
+                with contextlib.suppress(Exception):
                     scheduler_service.deactivate_schedule()
-                except Exception:
-                    pass
 
             # Launch concurrent activate and deactivate
             threads = [
@@ -306,9 +296,7 @@ class TestActiveStateFileLock:
 
         # Launch concurrent saves
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(save_state, f"schedule-{i}") for i in range(10)
-            ]
+            futures = [executor.submit(save_state, f"schedule-{i}") for i in range(10)]
             for future in as_completed(futures):
                 try:
                     future.result()
@@ -365,9 +353,7 @@ class TestActiveStateFileLock:
         # All reads should get the same value
         assert all(r == "test-schedule" for r in results)
 
-    def test_concurrent_read_write_active_state(
-        self, temp_schedules_dir, active_state_file
-    ):
+    def test_concurrent_read_write_active_state(self, temp_schedules_dir, active_state_file):
         """Concurrent reads and writes should be safe."""
         # Create initial state
         initial_state = {
@@ -453,11 +439,8 @@ class TestTOCTOURacePrevention:
 
             # This should succeed because activation lock serializes operations
             # and the schedule check happens inside the lock
-            try:
+            with contextlib.suppress(ScheduleActivationError):
                 scheduler_service.activate_schedule(sample_schedule.schedule_id)
-            except ScheduleActivationError:
-                # Expected - schedule was deleted
-                pass
 
     def test_schedule_disabled_before_activation_detected(
         self, scheduler_service, sample_schedule, temp_schedules_dir
@@ -497,7 +480,6 @@ class TestMultipleScheduleActivation:
         self, scheduler_service, sample_schedule, second_schedule, temp_schedules_dir
     ):
         """Attempting to activate a second schedule while one is active should fail."""
-        from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
 
         # Create both schedules
@@ -534,9 +516,9 @@ class TestLockTimeoutErrorRollback:
         self, scheduler_service, sample_schedule, temp_schedules_dir
     ):
         """LockTimeoutError in _save_active_state should rollback cron entries."""
+        from webui.backend.lib.file_lock import LockTimeoutError
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
-        from webui.backend.lib.file_lock import LockTimeoutError
 
         # Create and enable schedule
         create_schedule(sample_schedule)
@@ -577,9 +559,9 @@ class TestLockTimeoutErrorRollback:
         self, scheduler_service, sample_schedule, temp_schedules_dir
     ):
         """LockTimeoutError should not leave partial state in memory."""
+        from webui.backend.lib.file_lock import LockTimeoutError
         from webui.backend.lib.schedule_schema import ScheduleActivationError
         from webui.backend.lib.schedule_storage import create_schedule
-        from webui.backend.lib.file_lock import LockTimeoutError
 
         # Create schedule
         create_schedule(sample_schedule)

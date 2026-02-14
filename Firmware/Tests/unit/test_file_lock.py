@@ -1,7 +1,5 @@
 """Tests for webui.backend.lib.file_lock module."""
 
-import time
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -77,10 +75,12 @@ class TestFileLock:
         data_file.write_text("{}")
 
         # Simulate lock always busy
-        with patch("fcntl.flock", side_effect=BlockingIOError):
-            with pytest.raises(LockTimeoutError, match="data.json"):
-                with FileLock(data_file, exclusive=True, timeout=0.05):
-                    pass  # pragma: no cover
+        with (  # noqa: SIM117 - inner with must be inside pytest.raises
+            patch("fcntl.flock", side_effect=BlockingIOError),
+            pytest.raises(LockTimeoutError, match="data.json"),
+        ):
+            with FileLock(data_file, exclusive=True, timeout=0.05):
+                pass  # pragma: no cover
 
     def test_lock_released_on_exit(self, tmp_path):
         from webui.backend.lib.file_lock import FileLock
@@ -128,10 +128,12 @@ class TestMutexLock:
 
         lock_path = tmp_path / "resource.lock"
 
-        with patch("fcntl.flock", side_effect=BlockingIOError):
-            with pytest.raises(LockTimeoutError, match="resource.lock"):
-                with MutexLock(lock_path, timeout=0.05):
-                    pass  # pragma: no cover
+        with (  # noqa: SIM117 - inner with must be inside pytest.raises
+            patch("fcntl.flock", side_effect=BlockingIOError),
+            pytest.raises(LockTimeoutError, match="resource.lock"),
+        ):
+            with MutexLock(lock_path, timeout=0.05):
+                pass  # pragma: no cover
 
     def test_reentrant_after_release(self, tmp_path):
         from webui.backend.lib.file_lock import MutexLock

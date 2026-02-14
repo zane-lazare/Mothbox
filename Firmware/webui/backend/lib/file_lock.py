@@ -25,7 +25,8 @@ Example::
     # Read-modify-write with timeout
     with FileLock("data.json", exclusive=True, timeout=5.0) as f:
         data = json.load(f)
-        f.seek(0); f.truncate()
+        f.seek(0)
+        f.truncate()
         json.dump(data, f)
 
     # Pure mutex guard
@@ -92,7 +93,9 @@ class FileLock:
         self.data_file = open(self.path, mode)
         return self.data_file
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
+    ) -> None:
         if self.data_file:
             with contextlib.suppress(OSError, ValueError):
                 self.data_file.close()
@@ -141,7 +144,9 @@ class MutexLock:
 
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
+    ) -> None:
         if self.lock_file:
             with contextlib.suppress(OSError, ValueError):
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
