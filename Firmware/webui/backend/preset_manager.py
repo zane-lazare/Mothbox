@@ -9,7 +9,6 @@ This module provides functionality to:
 - Manage preset files
 """
 
-import fcntl
 import json
 import logging
 import re
@@ -20,6 +19,8 @@ from typing import Any
 
 # Import validation schemas for type normalization
 from utils import ALLOWED_CAMERA_SETTINGS, ALLOWED_LIVEVIEW_SETTINGS
+
+from webui.backend.lib.file_lock import FileLock
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -514,17 +515,11 @@ class PresetManager:
         # Save to user directory
         try:
             preset_path = self.user_dir / f"{name}.json"
-            # Use file locking to prevent race conditions during concurrent writes
-            # (e.g., if multiple API requests try to save presets simultaneously)
-            with open(preset_path, "w") as f:
-                try:
-                    # Acquire exclusive lock (blocks until lock is available)
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                    json.dump(preset_data, f, indent=2)
-                    f.flush()
-                finally:
-                    # Release lock (automatically released when file closes, but explicit is better)
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            with FileLock(preset_path, exclusive=True) as f:
+                f.seek(0)
+                f.truncate()
+                json.dump(preset_data, f, indent=2)
+                f.flush()
             return True, f"Preset '{name}' saved successfully"
         except OSError as e:
             return False, f"Failed to save preset: {str(e)}"

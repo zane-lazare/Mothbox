@@ -78,9 +78,7 @@ from webui.backend.lib.deployment_schema import (
     DeploymentMetadata,
     ValidationError,
 )
-
-# Import FileLock from sidecar_metadata (reuse, don't duplicate)
-from webui.backend.lib.sidecar_metadata import FileLock, LockTimeoutError
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -885,7 +883,7 @@ __all__ = [
     "create_deployment_metadata",
     "update_deployment_metadata",
     "delete_deployment_metadata",
-    # File locking (re-exported from sidecar_metadata)
+    # File locking (from file_lock module)
     "FileLock",
     # Cleanup utilities
     "cleanup_temp_files",

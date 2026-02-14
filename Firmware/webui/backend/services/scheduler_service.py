@@ -55,6 +55,7 @@ from webui.backend.lib.cron_bridge import (
     remove_from_system,
     schedule_to_cron,
 )
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 from webui.backend.lib.schedule_schema import (
     Schedule,
     ScheduleActivationError,
@@ -80,7 +81,6 @@ from webui.backend.lib.schedule_storage import (
 from webui.backend.lib.schedule_storage import (
     update_schedule as storage_update,
 )
-from webui.backend.lib.sidecar_metadata import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -478,7 +478,7 @@ class SchedulerService:
             state["entries"] = [e.to_dict() for e in entries]
 
         try:
-            # Use FileLock for atomic write (Issue #385 - concurrent activation safety)
+            # Scheduler activation involves cron + state file writes
             with FileLock(ACTIVE_STATE_FILE, exclusive=True, timeout=10.0) as f:
                 f.seek(0)
                 f.truncate()

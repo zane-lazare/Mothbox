@@ -69,13 +69,13 @@ from mothbox_paths import (
     SCHEDULES_DIR,
     get_schedule_path,
 )
+from webui.backend.lib.file_lock import FileLock
 from webui.backend.lib.schedule_schema import (
     Routine,
     Schedule,
     ScheduleValidationError,
     validate_schedule,
 )
-from webui.backend.lib.sidecar_metadata import FileLock
 
 logger = logging.getLogger(__name__)
 

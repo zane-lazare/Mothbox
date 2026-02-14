@@ -14,7 +14,7 @@ def load_active_state() -> dict | None:
     Returns the parsed dict, or None if no active state.
     """
     from mothbox_paths import CONFIG_DIR
-    from webui.backend.lib.sidecar_metadata import FileLock
+    from webui.backend.lib.file_lock import FileLock
 
     state_file = CONFIG_DIR / "active_state.json"
     if not state_file.exists():
@@ -22,6 +22,7 @@ def load_active_state() -> dict | None:
         return None
 
     try:
+        # Scheduler activation involves cron + state file writes
         with FileLock(state_file, exclusive=False, timeout=10.0) as f:
             state = json.load(f)
     except (json.JSONDecodeError, OSError) as e:

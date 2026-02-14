@@ -51,9 +51,10 @@ def save_active_state(
     Returns True on success, False on failure.
     """
     from mothbox_paths import CONFIG_DIR
-    from webui.backend.lib.sidecar_metadata import FileLock
+    from webui.backend.lib.file_lock import FileLock
 
     state_file = CONFIG_DIR / "active_state.json"
+    # Boot-time reconciliation competes with scheduler service
     try:
         with FileLock(state_file, exclusive=True, timeout=10.0) as f:
             # Exclusive lock guarantees atomic check-and-write: no other process

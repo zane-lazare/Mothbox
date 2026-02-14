@@ -12,7 +12,6 @@ Author: Mothbox Team
 Date: 2024
 """
 
-import fcntl
 import json
 import logging
 from datetime import UTC, datetime
@@ -20,6 +19,7 @@ from pathlib import Path
 
 from webui.backend.lib.export_job_types import ExportJobFormat
 from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
+from webui.backend.lib.file_lock import FileLock
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -288,15 +288,11 @@ class ExportPresetManager:
         # Save to user directory with file locking
         try:
             preset_path = self.user_dir / f"{preset.name}.json"
-            with open(preset_path, "w", encoding="utf-8") as f:
-                try:
-                    # Acquire exclusive lock
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                    json.dump(preset_data, f, indent=2)
-                    f.flush()
-                finally:
-                    # Release lock
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            with FileLock(preset_path, exclusive=True) as f:
+                f.seek(0)
+                f.truncate()
+                json.dump(preset_data, f, indent=2)
+                f.flush()
             return True, f"Preset '{preset.name}' saved successfully"
         except OSError as e:
             return False, f"Failed to save preset: {e}"

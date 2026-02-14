@@ -15,7 +15,6 @@ Thread-safe with statistics tracking.
 """
 
 import contextlib
-import fcntl
 import hashlib
 import json
 import logging
@@ -25,6 +24,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import Lock
 from typing import Any
+
+from webui.backend.lib.file_lock import FileLock
 
 logger = logging.getLogger(__name__)
 
@@ -340,14 +341,9 @@ class MetadataCache:
                 return None
 
             try:
-                with open(cache_file) as f:
-                    # Acquire shared lock for reading (file-level lock)
-                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-                    try:
-                        data = json.load(f)
-                        entry = CacheEntry.from_dict(data)
-                    finally:
-                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                with FileLock(cache_file, exclusive=False) as f:
+                    data = json.load(f)
+                    entry = CacheEntry.from_dict(data)
 
                 # Update file mtime for LRU tracking (after releasing file lock)
                 with contextlib.suppress(Exception):
@@ -383,13 +379,8 @@ class MetadataCache:
                 # Write to temp file first for atomicity
                 temp_file = cache_file.with_suffix(".tmp")
 
-                with open(temp_file, "w") as f:
-                    # Acquire exclusive lock for writing (file-level lock)
-                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                    try:
-                        json.dump(entry.to_dict(), f, indent=2)
-                    finally:
-                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                with FileLock(temp_file, exclusive=True) as f:
+                    json.dump(entry.to_dict(), f, indent=2)
 
                 # Atomic rename
                 temp_file.replace(cache_file)

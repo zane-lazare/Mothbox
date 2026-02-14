@@ -2,7 +2,7 @@
 Thumbnail Caching Service
 
 Provides multi-resolution thumbnail caching with:
-- File-based locking (fcntl) for multi-process safety
+- File-based locking (MutexLock) for multi-process safety
 - LRU eviction when cache exceeds max_size_mb
 - Placeholder images for corrupt sources (5-minute TTL)
 - Statistics tracking (hits/misses/size)
@@ -23,7 +23,6 @@ Usage:
     thumbnail_path = cache.get_thumbnail(photo_path, size=128)
 """
 
-import fcntl
 import hashlib
 import json
 import os
@@ -32,6 +31,8 @@ from contextlib import suppress
 from pathlib import Path
 
 from PIL import Image, ImageDraw
+
+from webui.backend.lib.file_lock import MutexLock
 
 
 class ThumbnailError(Exception):
@@ -148,7 +149,7 @@ class ThumbnailCache:
         """
         Generate thumbnail with file-based locking
 
-        Uses fcntl.flock() to prevent duplicate generation by concurrent
+        Uses MutexLock to prevent duplicate generation by concurrent
         requests. Only the first request generates; others wait for completion.
 
         Args:
@@ -164,49 +165,39 @@ class ThumbnailCache:
         cache_path = self._get_cache_path(photo_path, size)
         lock_path = cache_path.parent / f".{cache_path.name}.lock"
 
-        # Acquire lock (open in append mode to create atomically if missing)
-        with open(lock_path, "a") as lock_file:
+        # Thumbnail generation is I/O-bound, may take seconds
+        with MutexLock(lock_path, timeout=10.0, cleanup=True):
+            # Check again if file exists (another process may have generated it)
+            if cache_path.exists():
+                return cache_path
+
+            # Generate thumbnail
             try:
-                # Exclusive lock (blocks until available)
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                # Check if source exists
+                if not photo_path.exists():
+                    raise ThumbnailError(f"Source photo not found: {photo_path}")
 
-                # Check again if file exists (another process may have generated it)
-                if cache_path.exists():
-                    return cache_path
+                # Open and resize with explicit resource cleanup
+                with Image.open(photo_path) as img:
+                    # Preserve aspect ratio, fit within size
+                    img.thumbnail((size, size), Image.LANCZOS)
 
-                # Generate thumbnail
+                    # Save as JPEG with quality 85
+                    img.save(cache_path, format="JPEG", quality=85)
+
+            except (OSError, Exception):
+                # Error opening/processing image - create placeholder
                 try:
-                    # Check if source exists
-                    if not photo_path.exists():
-                        raise ThumbnailError(f"Source photo not found: {photo_path}")
+                    placeholder = self._create_placeholder(size)
+                    placeholder.save(cache_path, format="JPEG", quality=85)
 
-                    # Open and resize with explicit resource cleanup
-                    with Image.open(photo_path) as img:
-                        # Preserve aspect ratio, fit within size
-                        img.thumbnail((size, size), Image.LANCZOS)
-
-                        # Save as JPEG with quality 85
-                        img.save(cache_path, format="JPEG", quality=85)
-
-                except (OSError, Exception):
-                    # Error opening/processing image - create placeholder
-                    try:
-                        placeholder = self._create_placeholder(size)
-                        placeholder.save(cache_path, format="JPEG", quality=85)
-
-                        # Mark as error cache
-                        self._mark_error_cache(cache_path)
-                    except OSError as save_error:
-                        # Can't even save placeholder (disk full, permissions, etc.)
-                        raise ThumbnailError(
-                            f"Failed to generate thumbnail: {save_error}"
-                        ) from save_error
-
-            finally:
-                # Release lock
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                # Clean up lock file (inside finally to prevent orphaned locks)
-                lock_path.unlink(missing_ok=True)
+                    # Mark as error cache
+                    self._mark_error_cache(cache_path)
+                except OSError as save_error:
+                    # Can't even save placeholder (disk full, permissions, etc.)
+                    raise ThumbnailError(
+                        f"Failed to generate thumbnail: {save_error}"
+                    ) from save_error
 
         return cache_path
 
@@ -495,11 +486,8 @@ class ThumbnailCache:
 
         lock_path = self.cache_dir / ".cache_stats.json.lock"
 
-        with open(lock_path, "a") as lock_file:
-            try:
-                # Acquire exclusive lock for atomic read-modify-write
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-
+        try:
+            with MutexLock(lock_path, timeout=5.0, cleanup=True):
                 # Read current stats from file (source of truth for multi-process)
                 current_stats = {}
                 if self.stats_file.exists():
@@ -537,15 +525,10 @@ class ThumbnailCache:
                 # Update instance variables for get_statistics() consistency
                 self.hits = new_hits
                 self.misses = new_misses
-
-            except OSError:
-                # File system errors - continue without flushing
-                # Will retry on next flush interval
-                pass
-            finally:
-                # Release lock and clean up lock file
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                lock_path.unlink(missing_ok=True)
+        except OSError:
+            # File system errors - continue without flushing
+            # Will retry on next flush interval
+            pass
 
     def get_statistics(self) -> dict:
         """

@@ -449,8 +449,8 @@ class TestGPIODaemonError:
             response = client.post("/api/gpio/flash")
         assert response.status_code == 503
 
-    def test_daemon_error_includes_details(self, client, temp_controls_file):
-        """503 response includes error details from daemon."""
+    def test_daemon_error_no_details_leaked(self, client, temp_controls_file):
+        """503 response does not leak internal error details."""
         with (
             patch("routes.gpio.get_gpio_pins", return_value={"Relay_Ch1": 5}),
             patch("routes.gpio.setup_relay"),
@@ -462,5 +462,5 @@ class TestGPIODaemonError:
             response = client.post("/api/gpio/control", json={"relay": "Relay_Ch1", "state": True})
         assert response.status_code == 503
         data = response.get_json()
-        assert "details" in data
-        assert "socket" in data["details"].lower()
+        assert "details" not in data
+        assert data["error"] == "GPIO daemon not available"

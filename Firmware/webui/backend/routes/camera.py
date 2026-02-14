@@ -875,11 +875,9 @@ def trigger_autofocus():
                     except Exception as restart_error:
                         logger.warning(f"Failed to restart stream: {restart_error}")
 
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Autofocus error: {error_msg}")
-        logger.exception("Autofocus exception")
-        return jsonify({"success": False, "error": error_msg}), 500
+    except Exception:
+        logger.exception("Autofocus error")
+        return jsonify({"success": False, "error": "Autofocus failed"}), 500
 
 
 @camera_bp.route("/calibrate-photo", methods=["POST"])
@@ -1496,11 +1494,9 @@ def test_capture_liveview():
 
         return _execute_test_capture(controls, settings.get("af_mode", 2), "live view")
 
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Test capture (live view) error: {error_msg}")
-        logger.exception("Test capture (live view) exception")
-        return jsonify({"success": False, "error": error_msg}), 500
+    except Exception:
+        logger.exception("Test capture (live view) error")
+        return jsonify({"success": False, "error": "Test capture failed"}), 500
 
 
 @camera_bp.route("/instant-capture", methods=["POST"])
@@ -1644,11 +1640,9 @@ def instant_capture():
 
         return _execute_instant_capture(controls, af_mode_for_capture, "instant capture", filename)
 
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Instant capture error: {error_msg}")
-        logger.exception("Instant capture exception")
-        return jsonify({"success": False, "error": error_msg}), 500
+    except Exception:
+        logger.exception("Instant capture error")
+        return jsonify({"success": False, "error": "Instant capture failed"}), 500
 
 
 def _execute_instant_capture(settings_dict, af_mode, settings_source, filename):
@@ -1881,8 +1875,6 @@ def test_capture_photo():
 
         return _execute_test_capture(controls, af_mode, "photo capture")
 
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Test capture (photo) error: {error_msg}")
-        logger.exception("Test capture (photo) exception")
-        return jsonify({"success": False, "error": error_msg}), 500
+    except Exception:
+        logger.exception("Test capture (photo) error")
+        return jsonify({"success": False, "error": "Test capture failed"}), 500
