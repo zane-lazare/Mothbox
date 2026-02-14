@@ -55,6 +55,7 @@ from webui.backend.lib.cron_bridge import (
     remove_from_system,
     schedule_to_cron,
 )
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 from webui.backend.lib.schedule_schema import (
     Schedule,
     ScheduleActivationError,
@@ -80,7 +81,6 @@ from webui.backend.lib.schedule_storage import (
 from webui.backend.lib.schedule_storage import (
     update_schedule as storage_update,
 )
-from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 logger = logging.getLogger(__name__)
 
