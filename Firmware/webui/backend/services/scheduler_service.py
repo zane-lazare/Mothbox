@@ -478,7 +478,7 @@ class SchedulerService:
             state["entries"] = [e.to_dict() for e in entries]
 
         try:
-            # Use FileLock for atomic write (Issue #385 - concurrent activation safety)
+            # Scheduler activation involves cron + state file writes
             with FileLock(ACTIVE_STATE_FILE, exclusive=True, timeout=10.0) as f:
                 f.seek(0)
                 f.truncate()

@@ -32,6 +32,14 @@ Example::
     # Pure mutex guard
     with MutexLock("resource.lock", timeout=5.0):
         do_exclusive_work()
+
+Timeout guidelines:
+    Default 5.0s — suitable for most operations (config reads, metadata updates,
+    preset saves, stats flushes).
+
+    10.0s — use for operations that compete with slow I/O: GPS multi-value
+    writes, thumbnail generation, scheduler state activation, boot-time
+    schedule reconciliation.
 """
 
 from __future__ import annotations
@@ -40,6 +48,7 @@ import contextlib
 import fcntl
 import time
 from pathlib import Path
+from types import TracebackType
 from typing import IO
 
 
@@ -89,13 +98,28 @@ class FileLock:
                 time.sleep(wait_time)
                 wait_time = min(wait_time * 2, 0.1)
 
-        mode = ("r+" if self.path.exists() else "w+") if self.exclusive else "r"
-        self.data_file = open(self.path, mode)
+        try:
+            if self.exclusive:
+                try:
+                    self.data_file = open(self.path, "r+")
+                except FileNotFoundError:
+                    self.data_file = open(self.path, "w+")
+            else:
+                self.data_file = open(self.path)
+        except Exception:
+            with contextlib.suppress(OSError):
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
+            self.lock_file.close()
+            raise
         return self.data_file
 
     def __exit__(
-        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
+        # ValueError covers "I/O operation on closed file" if handle was already closed
         if self.data_file:
             with contextlib.suppress(OSError, ValueError):
                 self.data_file.close()
@@ -117,9 +141,10 @@ class MutexLock:
         timeout: Maximum seconds to wait for lock acquisition
     """
 
-    def __init__(self, lock_path: str | Path, timeout: float = 5.0) -> None:
+    def __init__(self, lock_path: str | Path, timeout: float = 5.0, cleanup: bool = False) -> None:
         self.lock_path = Path(lock_path)
         self.timeout = timeout
+        self.cleanup = cleanup
         self.lock_file = None
 
     def __enter__(self) -> MutexLock:
@@ -145,10 +170,17 @@ class MutexLock:
         return self
 
     def __exit__(
-        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
+        # ValueError covers "I/O operation on closed file" if handle was already closed
         if self.lock_file:
             with contextlib.suppress(OSError, ValueError):
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
             with contextlib.suppress(OSError, ValueError):
                 self.lock_file.close()
+        if self.cleanup:
+            with contextlib.suppress(OSError):
+                self.lock_path.unlink(missing_ok=True)

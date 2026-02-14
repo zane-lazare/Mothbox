@@ -1,5 +1,7 @@
 """Tests for webui.backend.lib.file_lock module."""
 
+import json
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -68,6 +70,26 @@ class TestFileLock:
 
         assert data_file.exists()
 
+    def test_lock_file_closed_when_data_file_open_fails(self, tmp_path):
+        """Lock file must not leak if opening the data file raises."""
+        from webui.backend.lib.file_lock import FileLock
+
+        data_file = tmp_path / "data.json"
+        data_file.write_text("{}")
+        # Make data file unreadable to trigger PermissionError
+        data_file.chmod(0o000)
+
+        try:
+            with pytest.raises(PermissionError):
+                with FileLock(data_file, exclusive=True):
+                    pass  # pragma: no cover
+
+            # Lock file should have been closed — verify by acquiring again
+            with FileLock(data_file.parent / "other.json", exclusive=True):
+                pass  # Ensures no fd leak prevents further locks
+        finally:
+            data_file.chmod(0o644)  # Restore for tmp_path cleanup
+
     def test_timeout_raises_lock_timeout_error(self, tmp_path):
         from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
@@ -111,6 +133,38 @@ class TestFileLock:
         lock = FileLock("/tmp/test.json")
         assert lock.timeout == 5.0
 
+    def test_concurrent_threads_serialize_writes(self, tmp_path):
+        """5 threads concurrently incrementing a JSON counter proves serialization."""
+        from webui.backend.lib.file_lock import FileLock
+
+        data_file = tmp_path / "counter.json"
+        data_file.write_text('{"count": 0}')
+
+        barrier = threading.Barrier(5)
+        errors = []
+
+        def increment():
+            try:
+                barrier.wait(timeout=5)
+                with FileLock(data_file, exclusive=True, timeout=5.0) as f:
+                    data = json.load(f)
+                    data["count"] += 1
+                    f.seek(0)
+                    f.truncate()
+                    json.dump(data, f)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=increment) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Thread errors: {errors}"
+        result = json.loads(data_file.read_text())
+        assert result["count"] == 5
+
 
 class TestMutexLock:
     """MutexLock is a pure guard — no data file handle."""
@@ -151,3 +205,51 @@ class TestMutexLock:
 
         lock = MutexLock("/tmp/test.lock")
         assert lock.timeout == 5.0
+
+    def test_concurrent_threads_serialize_access(self, tmp_path):
+        """5 threads appending to a shared list under MutexLock."""
+        from webui.backend.lib.file_lock import MutexLock
+
+        lock_path = tmp_path / "shared.lock"
+        results = []
+        barrier = threading.Barrier(5)
+        errors = []
+
+        def append_item(item):
+            try:
+                barrier.wait(timeout=5)
+                with MutexLock(lock_path, timeout=5.0):
+                    results.append(item)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=append_item, args=(i,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Thread errors: {errors}"
+        assert sorted(results) == [0, 1, 2, 3, 4]
+
+    def test_cleanup_removes_lock_file(self, tmp_path):
+        """cleanup=True removes the lock file after exit."""
+        from webui.backend.lib.file_lock import MutexLock
+
+        lock_path = tmp_path / "temp.lock"
+
+        with MutexLock(lock_path, cleanup=True):
+            assert lock_path.exists()
+
+        assert not lock_path.exists()
+
+    def test_no_cleanup_by_default(self, tmp_path):
+        """Lock file persists by default (cleanup=False)."""
+        from webui.backend.lib.file_lock import MutexLock
+
+        lock_path = tmp_path / "persist.lock"
+
+        with MutexLock(lock_path):
+            pass
+
+        assert lock_path.exists()

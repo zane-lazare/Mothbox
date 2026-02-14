@@ -8,7 +8,7 @@ import logging
 import os
 import select
 import time
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from gps import *  # noqa: F403 - gpsd library requires these exports
@@ -127,7 +127,7 @@ def update_gps_values(
     if pdop is not None:
         updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
-    # Open file for read/write and acquire exclusive lock with timeout
+    # GPS script may hold lock during multi-value update
     try:
         with FileLock(filepath, exclusive=True, timeout=10.0) as f:
             # Read current contents
@@ -158,7 +158,7 @@ def update_gps_values(
                     # not personal/user data. This logging is intentional for debugging.
                     logger.debug(
                         f"Added {key}={value}"
-                    )  # lgtm[py/clear-text-logging-sensitive-data]
+                    )
 
             # Write back to file
             f.seek(0)
@@ -271,7 +271,7 @@ try:
                 # not personal/user data. This logging is intentional for debugging.
                 logger.info(
                     f"Writing coordinates anyway: lat={latitude}, lon={longitude}"
-                )  # lgtm[py/clear-text-logging-sensitive-data]
+                )
                 # Still write coordinates even if timezone lookup fails
                 # Use default UTC offset of 0 since we couldn't determine it
                 update_gps_values(

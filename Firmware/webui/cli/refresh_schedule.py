@@ -54,6 +54,7 @@ def save_active_state(
     from webui.backend.lib.file_lock import FileLock
 
     state_file = CONFIG_DIR / "active_state.json"
+    # Boot-time reconciliation competes with scheduler service
     try:
         with FileLock(state_file, exclusive=True, timeout=10.0) as f:
             # Exclusive lock guarantees atomic check-and-write: no other process

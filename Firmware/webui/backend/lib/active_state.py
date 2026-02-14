@@ -22,6 +22,7 @@ def load_active_state() -> dict | None:
         return None
 
     try:
+        # Scheduler activation involves cron + state file writes
         with FileLock(state_file, exclusive=False, timeout=10.0) as f:
             state = json.load(f)
     except (json.JSONDecodeError, OSError) as e:

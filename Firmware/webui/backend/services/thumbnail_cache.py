@@ -165,7 +165,8 @@ class ThumbnailCache:
         cache_path = self._get_cache_path(photo_path, size)
         lock_path = cache_path.parent / f".{cache_path.name}.lock"
 
-        with MutexLock(lock_path, timeout=10.0):
+        # Thumbnail generation is I/O-bound, may take seconds
+        with MutexLock(lock_path, timeout=10.0, cleanup=True):
             # Check again if file exists (another process may have generated it)
             if cache_path.exists():
                 return cache_path
@@ -197,9 +198,6 @@ class ThumbnailCache:
                     raise ThumbnailError(
                         f"Failed to generate thumbnail: {save_error}"
                     ) from save_error
-
-        # Clean up lock file after release
-        lock_path.unlink(missing_ok=True)
 
         return cache_path
 
@@ -489,7 +487,7 @@ class ThumbnailCache:
         lock_path = self.cache_dir / ".cache_stats.json.lock"
 
         try:
-            with MutexLock(lock_path, timeout=5.0):
+            with MutexLock(lock_path, timeout=5.0, cleanup=True):
                 # Read current stats from file (source of truth for multi-process)
                 current_stats = {}
                 if self.stats_file.exists():
@@ -527,9 +525,6 @@ class ThumbnailCache:
                 # Update instance variables for get_statistics() consistency
                 self.hits = new_hits
                 self.misses = new_misses
-
-            # Clean up lock file after release
-            lock_path.unlink(missing_ok=True)
         except OSError:
             # File system errors - continue without flushing
             # Will retry on next flush interval

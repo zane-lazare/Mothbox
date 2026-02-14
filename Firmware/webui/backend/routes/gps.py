@@ -551,7 +551,7 @@ def _update_controls_file(config_updates):
     if "gps_timeout_almanac" in config_updates:
         updates["gps_timeout_almanac"] = str(config_updates["gps_timeout_almanac"])
 
-    # Open file for read/write and acquire exclusive lock
+    # WebUI GPS config update competes with GPS.py script
     with FileLock(CONTROLS_FILE, exclusive=True, timeout=10.0) as f:
         # Read current contents
         lines = f.readlines()
