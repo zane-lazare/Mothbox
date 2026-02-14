@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import fcntl
 import logging
 import os
 import select
@@ -16,6 +15,7 @@ from gps import *  # noqa: F403 - gpsd library requires these exports
 from timezonefinder import TimezoneFinder
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config
+from webui.backend.lib.file_lock import FileLock, LockTimeoutError
 
 # Configure logging for standalone script execution
 logging.basicConfig(
@@ -86,7 +86,7 @@ def update_gps_values(
     """
     Atomically update GPS values in controls.txt with file locking.
 
-    This prevents race conditions with WebUI by using fcntl exclusive locks.
+    This prevents race conditions with WebUI by using FileLock with timeout.
     All GPS values are updated in a single locked write operation.
 
     Args:
@@ -128,12 +128,9 @@ def update_gps_values(
     if pdop is not None:
         updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
-    # Open file for read/write and acquire exclusive lock
-    with open(filepath, "r+") as f:
-        try:
-            # Acquire exclusive lock (blocks until lock is available)
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-
+    # Open file for read/write and acquire exclusive lock with timeout
+    try:
+        with FileLock(filepath, exclusive=True, timeout=10.0) as f:
             # Read current contents
             lines = f.readlines()
 
@@ -167,10 +164,11 @@ def update_gps_values(
             f.truncate()
             f.writelines(updated_lines)
             f.flush()
-
-        finally:
-            # Release lock (automatically released when file closes, but explicit is better)
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except LockTimeoutError:
+        logger.error(
+            "Could not acquire lock on %s within 10s — skipping GPS config update",
+            filepath,
+        )
 
 
 logger.info("startingGPS")
