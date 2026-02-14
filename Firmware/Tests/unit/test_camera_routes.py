@@ -1309,7 +1309,7 @@ class TestAutofocusEndpoint:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'busy' in data['error'].lower() or 'camera' in data['error'].lower()
+        assert data['error'] == 'Autofocus failed'
 
     def test_autofocus_manual_focus_lock(self, client, mock_picamera2, mock_camera_streamer, monkeypatch):
         """Verify manual focus mode is locked after autofocus"""
@@ -2096,7 +2096,7 @@ class TestTestCaptureLiveview:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'Failed to capture image array' in data['error']
+        assert data['error'] == 'Test capture failed'
 
         # Verify: Camera cleanup happened despite error
         mock_instance = mock_picamera2._mock_instance
@@ -2303,7 +2303,7 @@ class TestTestCapturePhoto:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'Unexpected camera initialization error' in data['error']
+        assert data['error'] == 'Test capture failed'
 
         # Verify: Stream was restarted after error (in finally block)
         assert mock_camera_streamer.start_streaming.called
@@ -2346,7 +2346,7 @@ class TestTestCapturePhoto:
         data = response.get_json()
         assert data['success'] is False
         assert 'error' in data
-        assert 'Disk full - cannot capture image' in data['error']
+        assert data['error'] == 'Test capture failed'
 
         # Verify: Camera cleanup happened despite error
         mock_instance = mock_picamera2._mock_instance

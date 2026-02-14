@@ -112,11 +112,11 @@ def validate_date_string(date_str: str) -> tuple[bool, str | None]:
     try:
         date.fromisoformat(date_str)
         return True, None
-    except ValueError as e:
+    except ValueError:
         # Provide helpful error message
         if len(date_str) != 10 or date_str.count("-") != 2:
             return False, "Invalid date format. Use ISO 8601: YYYY-MM-DD"
-        return False, f"Invalid date: {e!s}"
+        return False, "Invalid date value"
 
 
 def parse_date_filter(date_str: str | None) -> date | None:

@@ -811,11 +811,9 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
                     service.set_enabled_schedule(schedule_id)
                 elif service.get_enabled_schedule_id() == schedule_id:
                     service.set_enabled_schedule(None)
-            except ValueError as e:
-                logger.warning(f"Failed to set enabled state: {e}")
-                # Sanitize exception message before returning to user
-                safe_error = _sanitize_error_message(str(e))
-                return jsonify({"error": safe_error}), 400
+            except ValueError:
+                logger.exception("Failed to set enabled state")
+                return jsonify({"error": "Invalid schedule state"}), 400
 
         # If only 'enabled' was being updated, we're done
         if not json_data:

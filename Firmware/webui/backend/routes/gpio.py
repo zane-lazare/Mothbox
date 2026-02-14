@@ -58,9 +58,9 @@ def control_gpio():
 
         return jsonify({"success": True, "relay": relay, "state": state})
 
-    except GPIODaemonError as exc:
-        logger.warning("GPIO daemon error: %s", exc)
-        return jsonify({"error": "GPIO daemon not available", "details": str(exc)}), 503
+    except GPIODaemonError:
+        logger.exception("GPIO daemon error")
+        return jsonify({"error": "GPIO daemon not available"}), 503
     except Exception:
         logger.exception("GPIO control error")
         return jsonify({"error": "Failed to control GPIO"}), 500
@@ -92,9 +92,9 @@ def trigger_flash():
         logger.info("Flash completed")
         return jsonify({"success": True})
 
-    except GPIODaemonError as exc:
-        logger.warning("GPIO daemon error: %s", exc)
-        return jsonify({"error": "GPIO daemon not available", "details": str(exc)}), 503
+    except GPIODaemonError:
+        logger.exception("GPIO daemon error")
+        return jsonify({"error": "GPIO daemon not available"}), 503
     except Exception:
         logger.exception("Flash trigger error")
         return jsonify({"error": "Failed to trigger flash"}), 500
