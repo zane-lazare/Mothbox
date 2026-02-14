@@ -67,6 +67,9 @@ ALLOWED_SCRIPTS: Final[dict[str, str]] = {
     "debug_mode": "DebugMode.py",
     "stop_cron": "StopCron.py",
     "start_cron": "StartCron.py",
+    # Schedule maintenance (Issue #398)
+    "reconcile_on_boot": "webui/cli/reconcile_on_boot.py",
+    "refresh_schedule": "webui/cli/refresh_schedule.py",
 }
 
 

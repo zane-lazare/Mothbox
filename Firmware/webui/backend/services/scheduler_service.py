@@ -1212,6 +1212,28 @@ class SchedulerService:
                         f"Failed to persist activation state: {persist_error}"
                     ) from persist_error
 
+                # Reconcile missed GPIO actions (Issue #398)
+                # Non-fatal: reconciliation failure must NOT prevent activation
+                try:
+                    from webui.backend.lib.schedule_reconciler import (
+                        execute_reconciliation,
+                        reconcile_schedule,
+                    )
+
+                    reconcile_actions = reconcile_schedule(
+                        schedule, latitude, longitude, timezone_name
+                    )
+                    if reconcile_actions:
+                        logger.info(f"Reconciling {len(reconcile_actions)} missed actions")
+                        results = execute_reconciliation(reconcile_actions)
+                        failed = [r for r in results if not r["success"]]
+                        if failed:
+                            logger.warning(
+                                f"Reconciliation: {len(failed)} actions failed: {failed}"
+                            )
+                except Exception as e:
+                    logger.warning(f"Reconciliation failed (non-fatal): {e}")
+
             except ScheduleActivationError:
                 # Re-raise our own errors, but rollback cron if already applied
                 if cron_applied:

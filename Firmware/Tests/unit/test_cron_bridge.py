@@ -996,8 +996,8 @@ class TestApplyToSystem:
                 result = apply_to_system(entries, schedule_id="test-123")
 
             assert result is True
-            # Should only create one job (the enabled one)
-            assert mock_cron.new.call_count == 1
+            # Should create one schedule job (the enabled one) + 2 meta entries
+            assert mock_cron.new.call_count == 3
 
     def test_apply_skips_rtc_when_disabled(self):
         """apply_to_system skips RTC wakealarm when set_rtc=False."""
@@ -1024,6 +1024,26 @@ class TestApplyToSystem:
             result = apply_to_system(entries, schedule_id="test-123")
 
             assert result is False
+
+    def test_apply_adds_meta_cron_entries(self):
+        """apply_to_system adds @reboot and weekly meta-cron entries (Issue #398)."""
+        from unittest.mock import MagicMock, call, patch
+
+        entries = [CronEntry(expression="0 21 * * *", command="cmd1", comment="Mothbox: test")]
+        with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
+            mock_cron = MagicMock()
+            mock_crontab_class.return_value = mock_cron
+            mock_cron.__iter__ = MagicMock(return_value=iter([]))
+
+            result = apply_to_system(entries, schedule_id="test-123")
+
+            assert result is True
+            # 1 schedule entry + 2 meta entries = 3 new() calls
+            assert mock_cron.new.call_count == 3
+            # Verify meta-cron comments in the new() calls
+            comments = [c.kwargs.get("comment", "") for c in mock_cron.new.call_args_list]
+            assert any("boot GPIO reconciliation" in c for c in comments)
+            assert any("weekly cron refresh" in c for c in comments)
 
 
 class TestRemoveFromSystem:
@@ -1117,6 +1137,27 @@ class TestRemoveFromSystem:
 
             # Should be called with user parameter
             mock_crontab_class.assert_called_once_with(user="testuser")
+
+    def test_remove_removes_meta_cron_entries(self):
+        """remove_from_system removes meta-cron entries since they contain 'Mothbox' (Issue #398)."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
+            mock_cron = MagicMock()
+            mock_crontab_class.return_value = mock_cron
+
+            # Simulate meta-cron jobs (contain "Mothbox" in comment/command)
+            reboot_job = MagicMock()
+            reboot_job.command = "systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/webui/cli/reconcile_on_boot.py"
+            refresh_job = MagicMock()
+            refresh_job.command = "systemd-cat -t mothbox /usr/bin/python3 /opt/mothbox/webui/cli/refresh_schedule.py"
+
+            mock_cron.__iter__ = MagicMock(return_value=iter([reboot_job, refresh_job]))
+
+            result = remove_from_system()
+
+            assert result is True
+            assert mock_cron.remove.call_count == 2
 
 
 class TestPreviewSchedule:
