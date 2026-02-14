@@ -86,6 +86,9 @@ class FileLock:
     Exclusive mode (default) creates the data file if missing.
     Shared mode requires the file to exist (raises ``FileNotFoundError`` if missing).
 
+    Note: Shared mode (exclusive=False) allows multiple concurrent readers
+    but blocks writers. Use exclusive=True for read-modify-write patterns.
+
     Args:
         path: Path to data file to lock
         exclusive: True for exclusive lock (LOCK_EX), False for shared (LOCK_SH)
@@ -131,7 +134,11 @@ class FileLock:
         try:
             if self.exclusive:
                 fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
-                self.data_file = os.fdopen(fd, "r+")
+                try:
+                    self.data_file = os.fdopen(fd, "r+")
+                except Exception:
+                    os.close(fd)
+                    raise
             else:
                 self.data_file = open(self.path)
         except Exception:

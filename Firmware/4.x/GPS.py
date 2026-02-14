@@ -127,10 +127,10 @@ def update_gps_values(
     if pdop is not None:
         updates["gps_pdop"] = f"{pdop:.3f}"  # 3 decimal precision for GPS quality
 
-    # GPS script may hold lock during multi-value update — retry with backoff.
-    # NOTE: These retries handle controls.txt contention with the WebUI, NOT GPS
-    # satellite acquisition timing. File write failures are non-critical — stale
-    # coordinates persist until next cron run (graceful degradation).
+    # Retries handle write failures (e.g., I/O error after lock acquired), not
+    # just lock contention — FileLock's internal backoff handles the latter.
+    # File write failures are non-critical — stale coordinates persist until
+    # next cron run (graceful degradation).
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
@@ -179,7 +179,7 @@ def update_gps_values(
                     max_retries,
                     filepath,
                 )
-                time.sleep(1.0)
+                time.sleep(0.5)
             else:
                 logger.warning(
                     "Could not acquire lock on %s after %d attempts — skipping GPS update",

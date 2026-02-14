@@ -1,6 +1,7 @@
 """Tests for webui.backend.lib.file_lock module."""
 
 import json
+import multiprocessing
 import threading
 from unittest.mock import patch
 
@@ -233,6 +234,60 @@ class TestFileLock:
         result = json.loads(data_file.read_text())
         assert result["count"] == 5
 
+    def test_concurrent_processes_serialize_writes(self, tmp_path):
+        """5 processes concurrently incrementing a JSON counter proves cross-process serialization."""
+        data_file = tmp_path / "counter.json"
+        data_file.write_text('{"count": 0}')
+
+        def increment(path):
+            from webui.backend.lib.file_lock import FileLock
+
+            with FileLock(path, exclusive=True, timeout=10.0) as f:
+                data = json.load(f)
+                data["count"] += 1
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f)
+
+        procs = [multiprocessing.Process(target=increment, args=(data_file,)) for _ in range(5)]
+        for p in procs:
+            p.start()
+        for p in procs:
+            p.join(timeout=15)
+
+        assert all(p.exitcode == 0 for p in procs)
+        result = json.loads(data_file.read_text())
+        assert result["count"] == 5
+
+    def test_lock_file_permissions_error(self, tmp_path):
+        """Lock file in unwritable directory raises PermissionError."""
+        from webui.backend.lib.file_lock import FileLock
+
+        unwritable = tmp_path / "readonly"
+        unwritable.mkdir()
+        unwritable.chmod(0o444)
+
+        try:
+            with pytest.raises(PermissionError):  # noqa: SIM117
+                with FileLock(unwritable / "data.json", exclusive=True):
+                    pass  # pragma: no cover
+        finally:
+            unwritable.chmod(0o755)
+
+    def test_data_file_deleted_while_locked(self, tmp_path):
+        """Deleting the data file while lock is held doesn't crash __exit__."""
+        import os
+
+        from webui.backend.lib.file_lock import FileLock
+
+        data_file = tmp_path / "ephemeral.json"
+        data_file.write_text('{"temp": true}')
+
+        with FileLock(data_file, exclusive=True) as f:
+            assert f is not None
+            os.unlink(data_file)
+        # __exit__ should complete without error
+
 
 class TestMutexLock:
     """MutexLock is a pure guard — no data file handle."""
@@ -321,3 +376,18 @@ class TestMutexLock:
             pass
 
         assert lock_path.exists()
+
+    def test_lock_file_permissions_error(self, tmp_path):
+        """Lock file in unwritable directory raises PermissionError."""
+        from webui.backend.lib.file_lock import MutexLock
+
+        unwritable = tmp_path / "readonly"
+        unwritable.mkdir()
+        unwritable.chmod(0o444)
+
+        try:
+            with pytest.raises(PermissionError):  # noqa: SIM117
+                with MutexLock(unwritable / "resource.lock"):
+                    pass  # pragma: no cover
+        finally:
+            unwritable.chmod(0o755)
