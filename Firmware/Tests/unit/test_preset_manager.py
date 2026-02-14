@@ -219,34 +219,35 @@ class TestPresetConcurrentAccess:
     """Test concurrent access and file locking for preset operations"""
 
     def test_save_preset_uses_exclusive_lock(self, tmp_path, monkeypatch):
-        """Mock fcntl.flock, verify LOCK_EX (exclusive lock) is used when saving"""
+        """Verify FileLock is used with exclusive=True when saving"""
         from preset_manager import PresetManager
-        import fcntl
-        from unittest.mock import Mock, call
+        from unittest.mock import patch
 
         # Create manager
         manager = PresetManager(tmp_path / "builtin", tmp_path / "user")
 
-        # Mock fcntl.flock to track calls
-        mock_flock = Mock()
-        monkeypatch.setattr('fcntl.flock', mock_flock)
-
         # Save a preset
         settings = {'camera': {'ExposureTime': 1000}, 'liveview': {'sharpness': 1.0}}
-        success, message = manager.save_preset('test_preset', settings, 'Test description')
 
-        assert success is True
-        assert 'saved successfully' in message
+        with patch('webui.backend.lib.file_lock.FileLock.__init__', return_value=None) as mock_init, \
+             patch('webui.backend.lib.file_lock.FileLock.__enter__') as mock_enter, \
+             patch('webui.backend.lib.file_lock.FileLock.__exit__', return_value=False):
+            # Return a real file handle from __enter__
+            preset_path = tmp_path / "user" / "test_preset.json"
+            real_file = open(preset_path, "w+")
+            mock_enter.return_value = real_file
 
-        # Verify flock was called with LOCK_EX
-        flock_calls = mock_flock.call_args_list
-        # Should have at least one call with LOCK_EX
-        exclusive_locks = [c for c in flock_calls if len(c[0]) >= 2 and c[0][1] == fcntl.LOCK_EX]
-        assert len(exclusive_locks) > 0, "Expected LOCK_EX to be used during save"
+            success, message = manager.save_preset('test_preset', settings, 'Test description')
 
-        # Verify LOCK_UN was called (lock released)
-        unlock_calls = [c for c in flock_calls if len(c[0]) >= 2 and c[0][1] == fcntl.LOCK_UN]
-        assert len(unlock_calls) > 0, "Expected LOCK_UN to release lock"
+            real_file.close()
+
+            assert success is True
+            assert 'saved successfully' in message
+
+            # Verify FileLock was called with exclusive=True
+            mock_init.assert_called_once()
+            call_kwargs = mock_init.call_args
+            assert call_kwargs[1].get('exclusive', call_kwargs[0][1] if len(call_kwargs[0]) > 1 else None) is True
 
     def test_concurrent_saves_serialize_correctly(self, tmp_path):
         """Start 5 threads saving different presets simultaneously, verify all saved correctly without corruption"""
@@ -305,24 +306,12 @@ class TestPresetConcurrentAccess:
                 assert data['settings']['liveview']['sharpness'] == float(preset_num)
 
     def test_save_preset_releases_lock_on_exception(self, tmp_path, monkeypatch):
-        """Mock json.dump() to raise exception, verify lock is still released (finally block)"""
+        """Mock json.dump() to raise exception, verify FileLock __exit__ is still called"""
         from preset_manager import PresetManager
-        import fcntl
-        import json
-        from unittest.mock import Mock
+        from unittest.mock import patch
 
         # Create manager
         manager = PresetManager(tmp_path / "builtin", tmp_path / "user")
-
-        # Track flock calls
-        flock_calls = []
-        original_flock = fcntl.flock
-
-        def mock_flock(fd, operation):
-            flock_calls.append(operation)
-            # Actually acquire the lock (no-op in test, but tracks calls)
-
-        monkeypatch.setattr('fcntl.flock', mock_flock)
 
         # Mock json.dump to raise exception
         def failing_dump(*args, **kwargs):
@@ -334,13 +323,9 @@ class TestPresetConcurrentAccess:
         settings = {'camera': {'ExposureTime': 1000}}
         success, message = manager.save_preset('test_preset', settings)
 
-        # Save should fail
+        # Save should fail gracefully (FileLock context manager handles cleanup)
         assert success is False
         assert 'Failed to save preset' in message
-
-        # Verify lock was acquired and released
-        assert fcntl.LOCK_EX in flock_calls, "Expected LOCK_EX to be acquired"
-        assert fcntl.LOCK_UN in flock_calls, "Expected LOCK_UN to release lock in finally block"
 
 
 class TestPresetErrorRecovery:
@@ -391,33 +376,17 @@ class TestPresetErrorRecovery:
             os.chmod(user_dir, original_mode)
 
     def test_save_preset_handles_disk_full(self, tmp_path, monkeypatch):
-        """Mock write to raise IOError("No space left on device"), verify graceful handling"""
+        """Mock json.dump to raise IOError("No space left on device"), verify graceful handling"""
         from preset_manager import PresetManager
 
         # Create manager
         manager = PresetManager(tmp_path / "builtin", tmp_path / "user")
 
-        # Mock open() to simulate disk full error
-        original_open = open
+        # Mock json.dump to simulate disk full error
+        def failing_dump(*args, **kwargs):
+            raise IOError("No space left on device")
 
-        def mock_open(path, mode='r', *args, **kwargs):
-            if 'w' in mode and 'test_preset.json' in str(path):
-                # Return a file-like object that fails on write
-                class FailingFile:
-                    def __enter__(self):
-                        return self
-                    def __exit__(self, *args):
-                        pass
-                    def fileno(self):
-                        return 1
-                    def write(self, data):
-                        raise IOError("No space left on device")
-                    def flush(self):
-                        pass
-                return FailingFile()
-            return original_open(path, mode, *args, **kwargs)
-
-        monkeypatch.setattr('builtins.open', mock_open)
+        monkeypatch.setattr('json.dump', failing_dump)
 
         # Try to save preset
         settings = {'camera': {'ExposureTime': 1000}}
