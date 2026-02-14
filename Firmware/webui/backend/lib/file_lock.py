@@ -11,6 +11,13 @@ Provides two lock types:
 Both use non-blocking ``fcntl.flock`` with exponential backoff so callers
 never block indefinitely.
 
+Lock file cleanup:
+    Lock files (``.lock`` sidecars) are harmless if left on disk — they are
+    zero-byte and re-used on the next acquisition.  Callers that want tidy
+    directories may ``Path(lock_path).unlink(missing_ok=True)`` after the
+    ``with`` block.  The Mothbox periodic-cleanup job removes orphaned lock
+    files automatically, so manual cleanup is optional.
+
 Example::
 
     from webui.backend.lib.file_lock import FileLock, MutexLock
@@ -26,10 +33,13 @@ Example::
         do_exclusive_work()
 """
 
+from __future__ import annotations
+
 import contextlib
 import fcntl
 import time
 from pathlib import Path
+from typing import IO
 
 
 class LockTimeoutError(Exception):
@@ -49,7 +59,7 @@ class FileLock:
         timeout: Maximum seconds to wait for lock acquisition
     """
 
-    def __init__(self, path, exclusive=True, timeout=5.0):
+    def __init__(self, path: str | Path, exclusive: bool = True, timeout: float = 5.0) -> None:
         self.path = Path(path)
         self.lock_path = Path(str(self.path) + ".lock")
         self.exclusive = exclusive
@@ -57,7 +67,7 @@ class FileLock:
         self.lock_file = None
         self.data_file = None
 
-    def __enter__(self):
+    def __enter__(self) -> IO[str]:
         self.lock_file = open(self.lock_path, "w")
 
         lock_type = fcntl.LOCK_EX if self.exclusive else fcntl.LOCK_SH
@@ -82,14 +92,14 @@ class FileLock:
         self.data_file = open(self.path, mode)
         return self.data_file
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         if self.data_file:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 self.data_file.close()
         if self.lock_file:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 self.lock_file.close()
 
 
@@ -104,12 +114,12 @@ class MutexLock:
         timeout: Maximum seconds to wait for lock acquisition
     """
 
-    def __init__(self, lock_path, timeout=5.0):
+    def __init__(self, lock_path: str | Path, timeout: float = 5.0) -> None:
         self.lock_path = Path(lock_path)
         self.timeout = timeout
         self.lock_file = None
 
-    def __enter__(self):
+    def __enter__(self) -> MutexLock:
         self.lock_file = open(self.lock_path, "a")
 
         start_time = time.time()
@@ -131,9 +141,9 @@ class MutexLock:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         if self.lock_file:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 self.lock_file.close()

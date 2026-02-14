@@ -8,7 +8,7 @@ import logging
 import os
 import select
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from gps import *  # noqa: F403 - gpsd library requires these exports
@@ -165,7 +165,7 @@ def update_gps_values(
             f.writelines(updated_lines)
             f.flush()
     except LockTimeoutError:
-        logger.error(
+        logger.warning(
             "Could not acquire lock on %s within 10s — skipping GPS config update",
             filepath,
         )
@@ -226,7 +226,7 @@ try:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%S.%fZ")
         except ValueError:
             dt = datetime.strptime(UTCtime, "%Y-%m-%dT%H:%M:%SZ")
-        dt = dt.replace(tzinfo=timezone.utc)  # Mark as UTC before converting to epoch
+        dt = dt.replace(tzinfo=UTC)  # Mark as UTC before converting to epoch
         epoch_time = int(dt.timestamp())
         logger.info("Epoch time: %s", epoch_time)
 
