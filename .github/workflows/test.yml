@@ -98,8 +98,7 @@ jobs:
           # when running the full test suite (without sharding).
           pytest Tests/unit/ \
             -n auto \
-            --cov=mothbox_paths \
-            --cov=webui/backend \
+            --cov=. \
             --cov-report=xml:coverage-unit-${{ matrix.shard }}.xml \
             --cov-report=term \
             --splits 3 \
@@ -175,8 +174,7 @@ jobs:
             -n 2 \
             --dist loadgroup \
             -m "not hardware" \
-            --cov=mothbox_paths \
-            --cov=webui/backend \
+            --cov=. \
             --cov-report=xml:coverage-integration.xml \
             --cov-report=term \
             -v \
