@@ -9,70 +9,12 @@ import ConfirmDialog from '../../common/ConfirmDialog';
 import { SCHEDULE_LIMITS } from './constants';
 import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
+import { getErrorMessage } from '../../../utils/errorCodes';
 import { useSchedule } from '../../../hooks/useSchedules';
 import { useValidateDraft } from '../../../hooks/useValidateDraft';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
-
-/**
- * Known error codes and their user-friendly messages.
- * These codes are returned by the backend in the 'code' field of error responses.
- * Issue #385 review: Standardize error codes between backend and frontend.
- */
-const KNOWN_ERROR_CODES = {
-  NETWORK_ERROR: 'Unable to save. Please check your connection.',
-  VALIDATION_ERROR: 'Please fix the errors above.',
-  NOT_FOUND: 'Schedule not found. It may have been deleted.',
-  CONFLICT_ERROR: 'Schedule has conflicts that must be resolved.',
-  ACTIVATION_ERROR: 'Failed to activate schedule.',
-  SERVER_ERROR: 'Server error. Please try again later.',
-};
-
-/**
- * Sanitize error messages for safe display
- * - Maps known error codes to user-friendly messages
- * - Checks both error.code and error.response.data.code (API responses)
- * - Strips HTML tags as defense-in-depth
- * - Truncates long messages to 200 characters
- *
- * Note: React automatically escapes text content when rendering,
- * but we strip HTML tags as additional defense-in-depth.
- *
- * Issue #385 review: Standardize error codes between backend and frontend.
- *
- * @param {Error} error - The error object
- * @returns {string} Sanitized error message
- */
-const sanitizeErrorMessage = (error) => {
-  // Check for known error codes from API response first (axios pattern)
-  const apiCode = error?.response?.data?.code;
-  if (apiCode && KNOWN_ERROR_CODES[apiCode]) {
-    return KNOWN_ERROR_CODES[apiCode];
-  }
-
-  // Check for known error codes on the error object itself
-  if (error?.code && KNOWN_ERROR_CODES[error.code]) {
-    return KNOWN_ERROR_CODES[error.code];
-  }
-
-  // Get message from API response or error object, with fallback
-  let message = String(
-    error?.response?.data?.error || error?.message || 'Failed to save schedule'
-  );
-
-  // Strip HTML tags as defense-in-depth using iterative approach
-  // to handle incomplete/malformed tags like "<script" without closing ">"
-  let previousLength;
-  do {
-    previousLength = message.length;
-    // Remove complete tags and incomplete opening tags
-    message = message.replace(/<[^>]*>?/g, '');
-  } while (message.length < previousLength);
-
-  // Truncate to 200 characters
-  return message.length > 200 ? message.slice(0, 200) + '...' : message;
-};
 
 /**
  * ScheduleEditor Component
@@ -369,7 +311,7 @@ const ScheduleEditor = ({
 
       await onSave(scheduleData);
     } catch (error) {
-      setErrors({ save: sanitizeErrorMessage(error) });
+      setErrors({ save: getErrorMessage(error, 'Failed to save schedule') });
     } finally {
       setIsSaving(false);
     }

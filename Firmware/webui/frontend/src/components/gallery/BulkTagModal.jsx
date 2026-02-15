@@ -39,6 +39,12 @@ export default function BulkTagModal({
   const [inputValue, setInputValue] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const inputRef = useRef(null)
+  const blurTimeoutRef = useRef(null)
+
+  // Clear blur timeout on unmount to prevent state updates after teardown
+  useEffect(() => {
+    return () => clearTimeout(blurTimeoutRef.current)
+  }, [])
 
   // Fetch available tags for autocomplete (same as MetadataTags)
   const { data: tagsData } = useTags({ sort: 'count', order: 'desc', limit: 20 })
@@ -180,7 +186,7 @@ export default function BulkTagModal({
               }}
               onKeyDown={handleKeyDown}
               onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onBlur={() => { blurTimeoutRef.current = setTimeout(() => setShowSuggestions(false), 150) }}
               placeholder="Type to search or create tags..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             />
