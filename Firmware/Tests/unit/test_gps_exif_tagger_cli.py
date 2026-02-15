@@ -3,12 +3,9 @@ Unit tests for gps_exif_tagger.py CLI functionality
 Tests argument parsing, validation, and main entry point
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-import sys
-import argparse
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
-from io import StringIO
 
 # Import the module under test
 from webui.cli import gps_exif_tagger
