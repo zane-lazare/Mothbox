@@ -99,9 +99,7 @@ def sanitize_message(message: str | None, max_length: int = 200) -> str:
 # ---------------------------------------------------------------------------
 
 
-def error_response(
-    code: str, message: str, status: int = 400, **extra
-) -> tuple:
+def error_response(code: str, message: str, status: int = 400, **extra) -> tuple:
     """
     Return a standardized JSON error response.
 

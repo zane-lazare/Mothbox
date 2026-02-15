@@ -170,9 +170,7 @@ class TestErrorResponse:
     def test_extra_fields_included(self):
         from webui.backend.lib.error_codes import CONFLICT_ERROR, error_response
 
-        response, status = error_response(
-            CONFLICT_ERROR, "Conflict", 409, conflict=True
-        )
+        response, status = error_response(CONFLICT_ERROR, "Conflict", 409, conflict=True)
         data = json.loads(response.get_data(as_text=True))
         assert data["conflict"] is True
         assert data["code"] == "CONFLICT_ERROR"
@@ -180,17 +178,13 @@ class TestErrorResponse:
     def test_message_is_sanitized(self):
         from webui.backend.lib.error_codes import VALIDATION_ERROR, error_response
 
-        response, _ = error_response(
-            VALIDATION_ERROR, "<script>xss</script>Bad input", 400
-        )
+        response, _ = error_response(VALIDATION_ERROR, "<script>xss</script>Bad input", 400)
         data = json.loads(response.get_data(as_text=True))
         assert "<script>" not in data["error"]
 
     def test_path_redacted_in_response(self):
         from webui.backend.lib.error_codes import SERVER_ERROR, error_response
 
-        response, _ = error_response(
-            SERVER_ERROR, "Error reading /etc/mothbox/config.txt", 500
-        )
+        response, _ = error_response(SERVER_ERROR, "Error reading /etc/mothbox/config.txt", 500)
         data = json.loads(response.get_data(as_text=True))
         assert "/etc/mothbox" not in data["error"]
