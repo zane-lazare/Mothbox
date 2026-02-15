@@ -28,6 +28,11 @@ vi.mock('../../hooks/useSinglePhotoExport', () => ({
   })),
 }))
 
+// Mock usePhotoMetadata to avoid QueryClient dependency in tests
+vi.mock('../../hooks/usePhotoMetadata', () => ({
+  default: vi.fn(() => ({ data: null, isLoading: false, isError: false })),
+}))
+
 /**
  * Integration Tests for PhotoLightbox Component Workflows
  *
