@@ -33,6 +33,7 @@ from webui.backend.lib.error_codes import (
     ACTIVATION_ERROR,
     CONFLICT_ERROR,
     NOT_FOUND,
+    PERMISSION_ERROR,
     SERVER_ERROR,
     VALIDATION_ERROR,
     error_response,
@@ -728,7 +729,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
             # Built-in schedule protection - intentionally returns generic message
             # (not str(e)) to avoid exposing internal details
             logger.warning(f"Update blocked for built-in schedule: {e}")
-            return error_response(VALIDATION_ERROR, "Cannot modify built-in schedule", 403)
+            return error_response(PERMISSION_ERROR, "Cannot modify built-in schedule", 403)
         except ScheduleValidationError as e:
             logger.warning(f"Schedule validation failed: {e}")
             return error_response(VALIDATION_ERROR, "Validation failed", 400)
@@ -779,7 +780,7 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
         except ValueError as e:
             # Built-in schedule protection
             logger.warning(f"Delete blocked for built-in schedule: {e}")
-            return error_response(VALIDATION_ERROR, "Cannot delete built-in schedule", 403)
+            return error_response(PERMISSION_ERROR, "Cannot delete built-in schedule", 403)
 
         if not success:
             return error_response(SERVER_ERROR, "Failed to delete schedule", 500)

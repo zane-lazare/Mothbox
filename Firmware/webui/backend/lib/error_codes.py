@@ -58,6 +58,10 @@ ERROR_CODES = {
 # This function sanitizes a *string* for safe display while preserving
 # meaningful content: strips HTML tags, redacts internal file paths, truncates.
 
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
+_INCOMPLETE_TAG_RE = re.compile(r"<[^>]*$")
+_PATH_RE = re.compile(r"/(?:etc|var|home|opt|usr|tmp|root)/[^\s'\"]*")
+
 
 def sanitize_message(message: str | None, max_length: int = 200) -> str:
     """
@@ -79,14 +83,17 @@ def sanitize_message(message: str | None, max_length: int = 200) -> str:
     msg = str(message)
 
     # Strip HTML tags iteratively (handles nested/malformed tags)
+    # Cap iterations to prevent ReDoS on adversarial input
     prev_len = -1
-    while len(msg) != prev_len:
+    iterations = 0
+    while len(msg) != prev_len and iterations < 10:
+        iterations += 1
         prev_len = len(msg)
-        msg = re.sub(r"<[^>]*>", "", msg)
-        msg = re.sub(r"<[^>]*$", "", msg)  # Incomplete tags
+        msg = _HTML_TAG_RE.sub("", msg)
+        msg = _INCOMPLETE_TAG_RE.sub("", msg)  # Incomplete tags
 
     # Redact internal file paths to prevent information disclosure
-    msg = re.sub(r"/(?:etc|var|home|opt|usr|tmp|root)/[^\s'\"]*", "[path]", msg)
+    msg = _PATH_RE.sub("[path]", msg)
 
     if len(msg) > max_length:
         msg = msg[: max_length - 3] + "..."
