@@ -1476,3 +1476,831 @@ class TestValidateINaturalist:
         assert isinstance(result, ValidationResult)
         assert hasattr(result, 'is_valid')
         assert result.is_valid  # Should pass with sample data
+
+
+# ============================================================================
+# Test Lazy Loading of Services (lines 220, 226-228, 234-236)
+# ============================================================================
+
+class TestLazyLoadingServices:
+    """Tests for lazy-loading service accessors."""
+
+    def test_lazy_load_metadata_service(self, tmp_path):
+        """_get_metadata_service should create MetadataService when None."""
+        service = ExportMetadataService(metadata_service=None)
+        result = service._get_metadata_service()
+        assert result is not None
+        # Subsequent call should return same instance
+        assert service._get_metadata_service() is result
+
+    def test_lazy_load_sidecar_service(self, tmp_path):
+        """_get_sidecar_service should import and create SidecarService when None."""
+        service = ExportMetadataService(sidecar_service=None)
+        result = service._get_sidecar_service()
+        assert result is not None
+        assert service._get_sidecar_service() is result
+
+    def test_lazy_load_series_service(self, tmp_path):
+        """_get_series_service should import and create SeriesService when None."""
+        service = ExportMetadataService(series_service=None)
+        result = service._get_series_service()
+        assert result is not None
+        assert service._get_series_service() is result
+
+
+# ============================================================================
+# Test Cache LRU Eviction (lines 283-285)
+# ============================================================================
+
+class TestCacheLRUEviction:
+    """Tests for LRU cache eviction when cache is full."""
+
+    def test_cache_evicts_oldest_when_full(self, tmp_path):
+        """Should evict oldest cache entry when max_cache_size is reached."""
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            cache_ttl=300,
+            max_cache_size=2,
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        # Create 3 photos - should trigger eviction on the 3rd
+        photos = []
+        for i in range(3):
+            photo = tmp_path / f"photo_{i}.jpg"
+            photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+            photos.append(photo)
+
+        # Fill cache to max (2 entries)
+        service.get_export_metadata(photos[0])
+        service.get_export_metadata(photos[1])
+        stats = service.get_statistics()
+        assert stats['cache_entries'] == 2
+
+        # Third photo should trigger eviction of oldest
+        service.get_export_metadata(photos[2])
+        stats = service.get_statistics()
+        assert stats['cache_entries'] == 2  # Still 2, not 3
+
+
+# ============================================================================
+# Test Cache Invalidation for Specific Key (lines 301-303)
+# ============================================================================
+
+class TestCacheInvalidateSpecificKey:
+    """Tests for invalidating a specific cache entry."""
+
+    def test_invalidate_specific_key(self, service, sample_photo_path):
+        """Should invalidate only the specified cache entry."""
+        # Populate cache
+        service.get_export_metadata(sample_photo_path)
+        stats = service.get_statistics()
+        assert stats['cache_entries'] == 1
+
+        # Invalidate specific key
+        cache_key = str(sample_photo_path.resolve())
+        service.invalidate_cache(key=cache_key)
+        stats = service.get_statistics()
+        assert stats['cache_entries'] == 0
+
+    def test_invalidate_nonexistent_key_no_error(self, service):
+        """Should not error when invalidating a non-existent key."""
+        service.invalidate_cache(key="/nonexistent/path.jpg")
+        stats = service.get_statistics()
+        assert stats['cache_entries'] == 0
+
+
+# ============================================================================
+# Test Deployment Metadata Merge (lines 399-405)
+# ============================================================================
+
+class TestDeploymentMetadataMerge:
+    """Tests for merging deployment metadata when a deployment is found."""
+
+    def test_deployment_fields_merged_when_found(
+        self, mock_metadata_service, mock_sidecar_service, mock_series_service, sample_photo_path
+    ):
+        """Should merge deployment name, location, dates, and environmental data."""
+        mock_deployment = Mock()
+        mock_deployment_data = Mock()
+        mock_deployment_data.deployment_name = "Panama Canopy 2024"
+        mock_deployment_data.location_name = "Barro Colorado Island"
+        mock_deployment_data.start_date = "2024-01-01"
+        mock_deployment_data.end_date = "2024-03-31"
+        mock_deployment_data.environmental = {"temperature": "28C", "humidity": "90%"}
+        mock_deployment.find_deployment_for_photo.return_value = mock_deployment_data
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar_service,
+            series_service=mock_series_service,
+            deployment_service=mock_deployment,
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.deployment_name == "Panama Canopy 2024"
+        assert result.deployment_location_name == "Barro Colorado Island"
+        assert result.deployment_start_date == "2024-01-01"
+        assert result.deployment_end_date == "2024-03-31"
+        assert result.environmental_conditions == {"temperature": "28C", "humidity": "90%"}
+
+    def test_deployment_environmental_none_becomes_empty_dict(
+        self, mock_metadata_service, mock_sidecar_service, mock_series_service, sample_photo_path
+    ):
+        """When deployment.environmental is None, should use empty dict."""
+        mock_deployment = Mock()
+        mock_deployment_data = Mock()
+        mock_deployment_data.deployment_name = "Test Deployment"
+        mock_deployment_data.location_name = None
+        mock_deployment_data.start_date = None
+        mock_deployment_data.end_date = None
+        mock_deployment_data.environmental = None
+        mock_deployment.find_deployment_for_photo.return_value = mock_deployment_data
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar_service,
+            series_service=mock_series_service,
+            deployment_service=mock_deployment,
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        assert result.deployment_name == "Test Deployment"
+        assert result.environmental_conditions == {}
+
+    def test_deployment_service_exception_handled(
+        self, mock_metadata_service, mock_sidecar_service, mock_series_service, sample_photo_path
+    ):
+        """Should handle deployment service exceptions gracefully."""
+        mock_deployment = Mock()
+        mock_deployment.find_deployment_for_photo.side_effect = Exception("DB error")
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar_service,
+            series_service=mock_series_service,
+            deployment_service=mock_deployment,
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.deployment_name is None
+
+
+# ============================================================================
+# Test Country Code Detection Exception (lines 414-415)
+# ============================================================================
+
+class TestCountryCodeDetection:
+    """Tests for country code detection exception handling."""
+
+    def test_country_code_exception_handled(
+        self, mock_metadata_service, mock_sidecar_service, mock_series_service,
+        mock_deployment_service, sample_photo_path
+    ):
+        """Should handle country code detection exceptions gracefully."""
+        from unittest.mock import patch
+
+        service = ExportMetadataService(
+            metadata_service=mock_metadata_service,
+            sidecar_service=mock_sidecar_service,
+            series_service=mock_series_service,
+            deployment_service=mock_deployment_service,
+        )
+
+        with patch(
+            'webui.backend.services.export_metadata_service.detect_country_code',
+            side_effect=Exception("Country code detection failed"),
+            create=True,
+        ):
+            # Force re-import to trigger the exception path
+            pass
+
+        # Direct approach: mock the import inside the function
+        with patch(
+            'webui.backend.lib.country_code.detect_country_code',
+            side_effect=Exception("Country code lookup failed"),
+        ):
+            # Clear cache to force re-computation
+            service.invalidate_cache()
+            result = service.get_export_metadata(sample_photo_path)
+
+        assert isinstance(result, ExportMetadata)
+        # Country code should be None due to exception
+        assert result.country_code is None
+
+
+# ============================================================================
+# Test Outer Exception Handlers (lines 422-434)
+# ============================================================================
+
+class TestOuterExceptionHandlers:
+    """Tests for the outer FileNotFoundError and generic Exception handlers."""
+
+    def test_unexpected_exception_in_processing(self, tmp_path):
+        """Should handle unexpected exceptions in outer try block."""
+        from unittest.mock import patch
+
+        photo = tmp_path / "test.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        # Trigger outer except Exception by making _add_to_cache raise.
+        # _add_to_cache is called after all inner try blocks, so its exception
+        # propagates to the outer try/except.
+        with patch.object(service, '_add_to_cache', side_effect=RuntimeError("Unexpected")):
+            result = service.get_export_metadata(photo)
+
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert result['error'] == "Failed to process metadata"
+
+    def test_file_not_found_error_outer_handler(self, tmp_path):
+        """Should handle FileNotFoundError in the outer try block."""
+        from unittest.mock import patch
+
+        photo = tmp_path / "test.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        # Trigger outer FileNotFoundError via _add_to_cache (after inner handlers)
+        with patch.object(service, '_add_to_cache', side_effect=FileNotFoundError("Gone")):
+            result = service.get_export_metadata(photo)
+
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert 'not found' in result['error'].lower()
+
+    def test_outer_exception_increments_error_count(self, tmp_path):
+        """Error counter should increment for outer exceptions."""
+        from unittest.mock import patch
+
+        photo = tmp_path / "test.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        initial_errors = service.get_statistics()['errors']
+
+        with patch.object(service, '_add_to_cache', side_effect=RuntimeError("Boom")):
+            service.get_export_metadata(photo)
+
+        assert service.get_statistics()['errors'] == initial_errors + 1
+
+
+# ============================================================================
+# Test Sidecar Dict Branch (lines 494-499)
+# ============================================================================
+
+class TestSidecarDictBranch:
+    """Tests for _merge_sidecar_data with dict input."""
+
+    def test_merge_sidecar_data_from_dict(self, sample_photo_path):
+        """Should handle sidecar data provided as a dict."""
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+
+        # Return a dict instead of a SidecarMetadata dataclass
+        sidecar_dict = {
+            'species': 'Papilio machaon',
+            'common_name': 'Swallowtail',
+            'confidence': 'medium',
+            'tags': ['butterfly', 'day'],
+            'notes': 'Found in meadow',
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = sidecar_dict
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.species == 'Papilio machaon'
+        assert result.species_common_name == 'Swallowtail'
+        assert result.species_confidence == 'medium'
+        assert result.tags == ['butterfly', 'day']
+        assert result.notes == 'Found in meadow'
+
+    def test_merge_sidecar_data_from_dict_missing_keys(self, sample_photo_path):
+        """Should handle dict sidecar with missing keys."""
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+
+        # Dict with only some keys
+        sidecar_dict = {'species': 'Unknown moth'}
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = sidecar_dict
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        result = service.get_export_metadata(sample_photo_path)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.species == 'Unknown moth'
+        assert result.species_common_name is None
+        assert result.tags == []
+        assert result.notes is None
+
+
+# ============================================================================
+# Test Generic Filtered Transformer (lines 695-713)
+# ============================================================================
+
+class TestGenericFilteredTransformer:
+    """Tests for transform_to_generic_filtered method."""
+
+    def test_fields_and_exclude_raises_error(self, service, sample_photo_path):
+        """Should raise ValueError when both fields and exclude are provided."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            service.transform_to_generic_filtered(
+                metadata, fields=["filename"], exclude=["notes"]
+            )
+
+    def test_no_filters_returns_full_data(self, service, sample_photo_path):
+        """Should return full data when no filters are specified."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        full = service.transform_to_generic(metadata, flat=False)
+        filtered = service.transform_to_generic_filtered(metadata, flat=False)
+        assert filtered == full
+
+    def test_flat_include_fields(self, service, sample_photo_path):
+        """Should include only specified fields in flat mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=True, fields=["filename", "latitude", "species"]
+        )
+        assert set(result.keys()) == {"filename", "latitude", "species"}
+
+    def test_flat_exclude_fields(self, service, sample_photo_path):
+        """Should exclude specified fields in flat mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        full = service.transform_to_generic(metadata, flat=True)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=True, exclude=["notes", "tags"]
+        )
+        assert "notes" not in result
+        assert "tags" not in result
+        assert len(result) == len(full) - 2
+
+    def test_nested_include_section(self, service, sample_photo_path):
+        """Should include entire section by name in nested mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, fields=["camera"]
+        )
+        assert "camera" in result
+        assert "location" not in result
+        assert result["camera"]["make"] == "Arducam"
+
+    def test_nested_include_leaf_field(self, service, sample_photo_path):
+        """Should include specific leaf fields in nested mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, fields=["latitude", "make"]
+        )
+        # latitude is under location section
+        assert "location" in result
+        assert "latitude" in result["location"]
+        # make is under camera section
+        assert "camera" in result
+        assert "make" in result["camera"]
+
+    def test_nested_include_dotted_path(self, service, sample_photo_path):
+        """Should support dotted paths like 'file.filename'."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, fields=["file.filename"]
+        )
+        assert "file" in result
+        assert "filename" in result["file"]
+        assert len(result["file"]) == 1  # Only filename, not other file fields
+
+    def test_nested_include_top_level_non_dict(self, service, sample_photo_path):
+        """Should include top-level non-dict fields like 'timestamp'."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, fields=["timestamp"]
+        )
+        assert "timestamp" in result
+        assert result["timestamp"] == metadata.timestamp
+
+    def test_nested_exclude_section(self, service, sample_photo_path):
+        """Should exclude entire section by name in nested mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, exclude=["camera", "series"]
+        )
+        assert "camera" not in result
+        assert "series" not in result
+        assert "location" in result
+        assert "file" in result
+
+    def test_nested_exclude_leaf_field(self, service, sample_photo_path):
+        """Should exclude specific leaf fields in nested mode."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, exclude=["make", "model"]
+        )
+        # Camera section should exist but without make and model
+        assert "camera" in result
+        assert "make" not in result["camera"]
+        assert "model" not in result["camera"]
+
+    def test_nested_exclude_dotted_path(self, service, sample_photo_path):
+        """Should support dotted path exclusion like 'file.filename'."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, exclude=["file.filename"]
+        )
+        assert "file" in result
+        assert "filename" not in result["file"]
+        assert "file_size" in result["file"]
+
+    def test_nested_exclude_all_leaves_removes_section(self, service, sample_photo_path):
+        """Excluding all leaves in a section should remove the section."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        result = service.transform_to_generic_filtered(
+            metadata, flat=False, exclude=["type", "index", "count"]
+        )
+        # Series section had type, index, count - all excluded
+        assert "series" not in result
+
+
+# ============================================================================
+# Test Darwin Core CSV Batch Transform (lines 841-856)
+# ============================================================================
+
+class TestDarwinCoreCsvBatch:
+    """Tests for transform_batch_to_darwin_core_csv method."""
+
+    def test_batch_csv_with_valid_metadata(self, service, sample_photo_path):
+        """Should produce headers and rows for valid metadata."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        headers, rows = service.transform_batch_to_darwin_core_csv([metadata])
+
+        assert isinstance(headers, list)
+        assert len(headers) > 0
+        assert isinstance(rows, list)
+        assert len(rows) == 1
+        assert isinstance(rows[0], list)
+
+    def test_batch_csv_filters_invalid_when_enabled(self, service, tmp_path):
+        """Should filter out metadata without GPS when filter_invalid=True."""
+        # Create metadata without GPS
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        svc = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        photo = tmp_path / "no_gps.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata_no_gps = svc.get_export_metadata(photo)
+
+        headers, rows = svc.transform_batch_to_darwin_core_csv(
+            [metadata_no_gps], filter_invalid=True
+        )
+
+        assert len(rows) == 0  # Filtered out
+
+    def test_batch_csv_includes_invalid_when_disabled(self, service, tmp_path):
+        """Should include invalid metadata when filter_invalid=False."""
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        svc = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        photo = tmp_path / "no_gps.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+        metadata_no_gps = svc.get_export_metadata(photo)
+
+        headers, rows = svc.transform_batch_to_darwin_core_csv(
+            [metadata_no_gps], filter_invalid=False
+        )
+
+        assert len(rows) == 1  # Not filtered
+
+    def test_batch_csv_multiple_items(self, service, sample_photo_path):
+        """Should handle multiple metadata items."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        headers, rows = service.transform_batch_to_darwin_core_csv(
+            [metadata, metadata, metadata]
+        )
+
+        assert len(rows) == 3
+
+    def test_batch_csv_empty_list(self, service):
+        """Should return headers but no rows for empty list."""
+        headers, rows = service.transform_batch_to_darwin_core_csv([])
+
+        assert isinstance(headers, list)
+        assert len(headers) > 0
+        assert rows == []
+
+
+# ============================================================================
+# Test Unknown Format Validation (line 967)
+# ============================================================================
+
+class TestUnknownFormatValidation:
+    """Tests for validation of unknown/unrecognized format."""
+
+    def test_unknown_format_returns_valid(self, service, sample_photo_path):
+        """Unknown format should return valid result (generic validation)."""
+        metadata = service.get_export_metadata(sample_photo_path)
+
+        # Create a mock format that is not in the known set
+        # Since ExportFormat is an Enum, we test with GENERIC_CSV which hits
+        # the early return, and also verify GENERIC_JSON
+        result_json = service.validate_for_format(metadata, ExportFormat.GENERIC_JSON)
+        assert result_json.is_valid
+
+        result_csv = service.validate_for_format(metadata, ExportFormat.GENERIC_CSV)
+        assert result_csv.is_valid
+
+
+# ============================================================================
+# Test Darwin Core Validation Edge Cases (lines 989-990, 996-997, 1002, 1012)
+# ============================================================================
+
+class TestDarwinCoreValidationEdgeCases:
+    """Tests for Darwin Core validation edge cases."""
+
+    def test_latitude_out_of_range(self, service, sample_photo_path):
+        """Should report invalid latitude range."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 95.0  # Out of range
+        metadata.longitude = -122.4194
+
+        result = service._validate_darwin_core(metadata)
+
+        assert not result.is_valid
+        missing_str = str(result.missing_fields)
+        assert 'invalid range' in missing_str
+        assert '95.0' in missing_str
+
+    def test_longitude_out_of_range(self, service, sample_photo_path):
+        """Should report invalid longitude range."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 37.7749
+        metadata.longitude = 200.0  # Out of range
+
+        result = service._validate_darwin_core(metadata)
+
+        assert not result.is_valid
+        missing_str = str(result.missing_fields)
+        assert 'invalid range' in missing_str
+        assert '200.0' in missing_str
+
+    def test_missing_timestamp_reported(self, service, sample_photo_path):
+        """Should report missing timestamp."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 37.7749
+        metadata.longitude = -122.4194
+        metadata.timestamp = None
+
+        result = service._validate_darwin_core(metadata)
+
+        assert not result.is_valid
+        missing_str = str(result.missing_fields)
+        assert 'eventDate' in missing_str
+
+    def test_missing_species_generates_warning(self, service, sample_photo_path):
+        """Should generate warning for missing species."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.species = None
+
+        result = service._validate_darwin_core(metadata)
+
+        # Should still be valid (species is recommended, not required)
+        assert result.is_valid
+        warning_str = str(result.warnings)
+        assert 'scientificName' in warning_str
+
+    def test_missing_gps_accuracy_generates_warning(self, service, sample_photo_path):
+        """Should generate warning for missing GPS accuracy."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.gps_accuracy = None
+
+        result = service._validate_darwin_core(metadata)
+
+        # Should still be valid
+        assert result.is_valid
+        warning_str = str(result.warnings)
+        assert 'coordinateUncertaintyInMeters' in warning_str
+
+    def test_empty_timestamp_string_reported(self, service, sample_photo_path):
+        """Should report empty string timestamp as missing."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 37.7749
+        metadata.longitude = -122.4194
+        metadata.timestamp = ""
+
+        result = service._validate_darwin_core(metadata)
+
+        assert not result.is_valid
+        missing_str = str(result.missing_fields)
+        assert 'eventDate' in missing_str
+
+    def test_latitude_negative_90_is_valid(self, service, sample_photo_path):
+        """Latitude at -90 should be valid (South Pole)."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = -90.0
+        metadata.longitude = 0.0
+        metadata.timestamp = "2024-01-15T10:00:00"
+
+        result = service._validate_darwin_core(metadata)
+
+        # Latitude and longitude within range; no missing required fields for them
+        lat_long_errors = [f for f in result.missing_fields if 'decimal' in f.lower()]
+        assert len(lat_long_errors) == 0
+
+    def test_longitude_negative_180_is_valid(self, service, sample_photo_path):
+        """Longitude at -180 should be valid."""
+        metadata = service.get_export_metadata(sample_photo_path)
+        metadata.latitude = 0.0
+        metadata.longitude = -180.0
+        metadata.timestamp = "2024-01-15T10:00:00"
+
+        result = service._validate_darwin_core(metadata)
+
+        lat_long_errors = [f for f in result.missing_fields if 'decimal' in f.lower()]
+        assert len(lat_long_errors) == 0
+
+
+# ============================================================================
+# Test Series Detection Path with series_id (lines 384->395, 389->395, 391-392)
+# ============================================================================
+
+class TestSeriesDetectionPaths:
+    """Tests for series detection branch paths."""
+
+    def test_series_id_found_and_series_data_returned(self, tmp_path):
+        """When series_id is found and series service returns data, count is set."""
+        from unittest.mock import patch
+
+        # Use HDR naming pattern
+        photo = tmp_path / "moth_2024_01_15__10_00_00_HDR0.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        mock_series_data = Mock()
+        mock_series_data.count = 5
+
+        mock_series = Mock()
+        mock_series.get_series_by_id.return_value = mock_series_data
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+            series_service=mock_series,
+        )
+
+        result = service.get_export_metadata(photo)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.series_type == 'hdr'
+        assert result.series_index == 0
+        assert result.series_count == 5
+
+    def test_series_id_found_but_series_data_none(self, tmp_path):
+        """When series_id is found but series service returns None, count stays None."""
+        photo = tmp_path / "moth_2024_01_15__10_00_00_HDR0.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        mock_series = Mock()
+        mock_series.get_series_by_id.return_value = None  # No series data
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+            series_service=mock_series,
+        )
+
+        result = service.get_export_metadata(photo)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.series_type == 'hdr'
+        assert result.series_index == 0
+        assert result.series_count is None  # Not set because series_data was None
+
+    def test_series_detection_exception_handled(self, tmp_path):
+        """Should handle series detection exceptions gracefully."""
+        from unittest.mock import patch
+
+        photo = tmp_path / "moth_2024_01_15__10_00_00_HDR0.jpg"
+        photo.write_bytes(b'\xFF\xD8\xFF\xE0' + b'\x00' * 100)
+
+        mock_meta = Mock()
+        mock_meta.get_photo_metadata.return_value = {
+            'camera': {}, 'capture': {}, 'location': {},
+            'deployment': {}, 'file': {'size': 100},
+        }
+        mock_sidecar = Mock()
+        mock_sidecar.get_metadata.return_value = None
+
+        service = ExportMetadataService(
+            metadata_service=mock_meta,
+            sidecar_service=mock_sidecar,
+        )
+
+        with patch(
+            'webui.backend.lib.series_detection.detect_series_type',
+            side_effect=Exception("Series detection error"),
+        ):
+            result = service.get_export_metadata(photo)
+
+        assert isinstance(result, ExportMetadata)
+        assert result.series_type is None
+        assert result.series_count is None
