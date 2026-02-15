@@ -134,9 +134,9 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'message' in data
-        assert data['error'] == 'Missing query'
-        assert 'required' in data['message'].lower()
+        assert 'code' in data
+        assert 'Missing query' in data['error']
+        assert 'required' in data['error'].lower()
 
     def test_search_missing_query_returns_error(self, client):
         """Missing q parameter should return 400"""
@@ -145,8 +145,8 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
         assert response.status_code == 400
         data = json.loads(response.data)
 
-        assert data['error'] == 'Missing query'
-        assert "parameter 'q' is required" in data['message']
+        assert 'Missing query' in data['error']
+        assert "parameter 'q' is required" in data['error']
 
     def test_search_invalid_query_returns_error(self, client, mock_search_service):
         """Malformed query should return 400 with error details"""
@@ -165,10 +165,9 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
         data = json.loads(response.data)
 
         assert 'error' in data
-        assert 'message' in data
+        assert 'code' in data
         assert 'query' in data
-        assert data['error'] == 'Invalid query'
-        assert 'Unbalanced quotes' in data['message']
+        assert 'Unbalanced quotes' in data['error']
         assert data['query'] == '"luna moth'
 
     def test_search_pagination_limit(self, client, mock_search_service):
@@ -216,7 +215,7 @@ class TestSearchEndpoint(TestSearchAPIEndpoints):
 
         assert 'error' in data
         assert 'Invalid offset' in data['error']
-        assert 'non-negative' in data['message'].lower()
+        assert 'non-negative' in data['error'].lower()
 
     def test_search_includes_thumbnail_urls(self, client):
         """Results should include thumbnail_url for each photo"""
@@ -669,7 +668,7 @@ class TestSearchEdgeCases(TestSearchAPIEndpoints):
 
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['error'] == 'Missing query'
+        assert 'Missing query' in data['error']
 
     def test_search_very_long_query(self, client, mock_search_service):
         """Should handle very long queries (within limit)"""
@@ -685,8 +684,8 @@ class TestSearchEdgeCases(TestSearchAPIEndpoints):
 
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['error'] == 'Query too long'
-        assert '500' in data['message']
+        assert 'Query too long' in data['error']
+        assert '500' in data['error']
 
     def test_search_minimum_limit(self, client, mock_search_service):
         """Should handle limit=1"""

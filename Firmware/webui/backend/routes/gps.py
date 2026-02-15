@@ -9,6 +9,11 @@ import time
 from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config, get_script_path
+from webui.backend.lib.error_codes import (
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 from webui.backend.lib.file_lock import FileLock
 
 logger = logging.getLogger(__name__)
@@ -185,7 +190,7 @@ def get_gps_status():
         return jsonify(status)
     except Exception:
         logger.exception("Failed to get GPS status")
-        return jsonify({"error": "Failed to get GPS status"}), 500
+        return error_response(SERVER_ERROR, "Failed to get GPS status", 500)
 
 
 @gps_bp.route("/config", methods=["GET"])
@@ -221,7 +226,7 @@ def get_gps_config():
         )
     except Exception:
         logger.exception("Failed to get GPS configuration")
-        return jsonify({"error": "Failed to get GPS configuration"}), 500
+        return error_response(SERVER_ERROR, "Failed to get GPS configuration", 500)
 
 
 @gps_bp.route("/config", methods=["PUT"])
@@ -249,56 +254,68 @@ def update_gps_config():
         data = None
 
     if not data:
-        return jsonify({"error": "No data provided"}), 400
+        return error_response(VALIDATION_ERROR, "No data provided")
 
     # Validate all inputs first (before any operations that can fail)
     if "gps_enabled" in data and not isinstance(data["gps_enabled"], bool):
-        return jsonify({"error": "gps_enabled must be a boolean"}), 400
+        return error_response(VALIDATION_ERROR, "gps_enabled must be a boolean")
 
     if "gps_baudrate" in data:
         valid_baudrates = [4800, 9600, 19200, 38400, 57600, 115200]
         if data["gps_baudrate"] not in valid_baudrates:
-            return jsonify({"error": f"Invalid baudrate. Must be one of: {valid_baudrates}"}), 400
+            return error_response(
+                VALIDATION_ERROR, f"Invalid baudrate. Must be one of: {valid_baudrates}"
+            )
 
     if "gps_timeout" in data:
         timeout = data["gps_timeout"]
         if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
-            return jsonify({"error": "gps_timeout must be an integer between 5 and 60"}), 400
+            return error_response(
+                VALIDATION_ERROR, "gps_timeout must be an integer between 5 and 60"
+            )
 
     if "gps_timeout_hot" in data:
         timeout = data["gps_timeout_hot"]
         if not isinstance(timeout, int) or timeout < 5 or timeout > 60:
-            return jsonify({"error": "gps_timeout_hot must be an integer between 5 and 60"}), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "gps_timeout_hot must be an integer between 5 and 60",
+            )
 
     if "gps_timeout_warm" in data:
         timeout = data["gps_timeout_warm"]
         if not isinstance(timeout, int) or timeout < 30 or timeout > 180:
-            return jsonify({"error": "gps_timeout_warm must be an integer between 30 and 180"}), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "gps_timeout_warm must be an integer between 30 and 180",
+            )
 
     if "gps_timeout_cold" in data:
         timeout = data["gps_timeout_cold"]
         if not isinstance(timeout, int) or timeout < 60 or timeout > 300:
-            return jsonify({"error": "gps_timeout_cold must be an integer between 60 and 300"}), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "gps_timeout_cold must be an integer between 60 and 300",
+            )
 
     if "gps_timeout_almanac" in data:
         timeout = data["gps_timeout_almanac"]
         if not isinstance(timeout, int) or timeout < 300 or timeout > 1800:
-            return jsonify(
-                {
-                    "error": "gps_timeout_almanac must be an integer between 300 and 1800 (5-30 minutes)"
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "gps_timeout_almanac must be an integer between 300 and 1800 (5-30 minutes)",
+            )
 
     if "gps_device" in data:
         device = data["gps_device"]
         if not device.startswith("/dev/"):
-            return jsonify({"error": "gps_device must start with /dev/"}), 400
+            return error_response(VALIDATION_ERROR, "gps_device must start with /dev/")
         # Prevent path traversal attacks (e.g., /dev/../etc/passwd)
         import os
 
         normalized_path = os.path.normpath(device)
         if not normalized_path.startswith("/dev/"):
-            return jsonify({"error": "gps_device must start with /dev/"}), 400
+            return error_response(VALIDATION_ERROR, "gps_device must start with /dev/")
 
     # Now wrap file I/O and subprocess operations in try/except for 500 errors
     try:
@@ -322,15 +339,14 @@ def update_gps_config():
                 _update_gpsd_config(new_device, new_baudrate)
                 gpsd_restarted = True
             except subprocess.CalledProcessError as e:
-                return jsonify(
-                    {
-                        "error": "Failed to update gpsd configuration",
-                        "message": f"Sudo command failed: {str(e)}. Check WebUI has sudo permissions.",
-                    }
-                ), 500
+                return error_response(
+                    SERVER_ERROR,
+                    f"Failed to update gpsd configuration: sudo command failed: {e}. Check WebUI has sudo permissions.",
+                    500,
+                )
             except Exception:
                 logger.exception("Failed to restart GPS service")
-                return jsonify({"error": "Failed to restart GPS service"}), 500
+                return error_response(SERVER_ERROR, "Failed to restart GPS service", 500)
 
         return jsonify(
             {
@@ -341,7 +357,7 @@ def update_gps_config():
         )
     except Exception:
         logger.exception("Failed to update GPS configuration")
-        return jsonify({"error": "Failed to update GPS configuration"}), 500
+        return error_response(SERVER_ERROR, "Failed to update GPS configuration", 500)
 
 
 @gps_bp.route("/sync", methods=["POST"])
@@ -366,23 +382,20 @@ def sync_gps():
         # Check if GPS is enabled
         hw_config = get_hardware_config()
         if not hw_config["gps_enabled"]:
-            return jsonify(
-                {
-                    "error": "GPS is disabled",
-                    "message": "Enable GPS in configuration before syncing",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "GPS is disabled: enable GPS in configuration before syncing",
+            )
 
         # Get path to GPS.py script
         gps_script = get_script_path("GPS.py")
 
         if not gps_script.exists():
-            return jsonify(
-                {
-                    "error": "GPS script not found",
-                    "message": "GPS script not found in firmware directory",
-                }
-            ), 500
+            return error_response(
+                SERVER_ERROR,
+                "GPS script not found in firmware directory",
+                500,
+            )
 
         # Calculate adaptive timeout based on last GPS sync time
         control_values = get_control_values(CONTROLS_FILE)
@@ -437,15 +450,14 @@ def sync_gps():
         )
 
     except subprocess.TimeoutExpired:
-        return jsonify(
-            {
-                "error": "GPS sync timeout",
-                "message": f"GPS sync did not complete within {timeout} seconds",
-            }
-        ), 408
+        return error_response(
+            VALIDATION_ERROR,
+            f"GPS sync timeout: did not complete within {timeout} seconds",
+            408,
+        )
     except Exception:
         logger.exception("GPS sync failed")
-        return jsonify({"error": "GPS sync failed"}), 500
+        return error_response(SERVER_ERROR, "GPS sync failed", 500)
 
 
 def _update_gpsd_config(device, baudrate):
