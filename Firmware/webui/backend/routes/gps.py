@@ -341,8 +341,9 @@ def update_gps_config():
             except subprocess.CalledProcessError as e:
                 return error_response(
                     SERVER_ERROR,
-                    f"Failed to update gpsd configuration: sudo command failed: {e}. Check WebUI has sudo permissions.",
+                    "Failed to update gpsd configuration",
                     500,
+                    message=f"Sudo command failed: {e}. Check WebUI has sudo permissions.",
                 )
             except Exception:
                 logger.exception("Failed to restart GPS service")
@@ -384,7 +385,8 @@ def sync_gps():
         if not hw_config["gps_enabled"]:
             return error_response(
                 VALIDATION_ERROR,
-                "GPS is disabled: enable GPS in configuration before syncing",
+                "GPS is disabled",
+                message="Enable GPS in configuration before syncing",
             )
 
         # Get path to GPS.py script
@@ -393,8 +395,9 @@ def sync_gps():
         if not gps_script.exists():
             return error_response(
                 SERVER_ERROR,
-                "GPS script not found in firmware directory",
+                "GPS script not found",
                 500,
+                message="GPS.py not found in firmware directory",
             )
 
         # Calculate adaptive timeout based on last GPS sync time
@@ -452,8 +455,9 @@ def sync_gps():
     except subprocess.TimeoutExpired:
         return error_response(
             VALIDATION_ERROR,
-            f"GPS sync timeout: did not complete within {timeout} seconds",
+            "GPS sync timeout",
             408,
+            message=f"GPS sync did not complete within {timeout} seconds",
         )
     except Exception:
         logger.exception("GPS sync failed")

@@ -568,7 +568,7 @@ class TestGPSConfigUpdateEndpoint:
         assert response.status_code == 500
         data = response.get_json()
         assert "Failed to update gpsd configuration" in data["error"]
-        assert "sudo command failed" in data["error"].lower()
+        assert "Sudo command failed" in data["message"]
 
     def test_update_config_handles_general_error(self, client):
         """PUT /config returns 500 on unexpected error"""

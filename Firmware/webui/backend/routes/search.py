@@ -89,13 +89,14 @@ def search_photos():
     # Get and validate query parameter
     query = request.args.get("q", "").strip()
     if not query:
-        return error_response(VALIDATION_ERROR, "Missing query: parameter 'q' is required")
+        return error_response(VALIDATION_ERROR, "Missing query", message="Query parameter 'q' is required")
 
     # Validate query length to prevent abuse
     if len(query) > MAX_QUERY_LENGTH:
         return error_response(
             VALIDATION_ERROR,
-            f"Query too long: must be {MAX_QUERY_LENGTH} characters or less",
+            "Query too long",
+            message=f"Query must be {MAX_QUERY_LENGTH} characters or less",
         )
 
     # Parse and validate limit parameter
@@ -104,15 +105,15 @@ def search_photos():
         # Cap at maximum
         limit = min(limit, MAX_LIMIT)
     except (ValueError, TypeError):
-        return error_response(VALIDATION_ERROR, "Invalid limit: must be an integer")
+        return error_response(VALIDATION_ERROR, "Invalid limit", message="Limit must be an integer")
 
     # Parse and validate offset parameter
     try:
         offset = int(request.args.get("offset", DEFAULT_OFFSET))
         if offset < 0:
-            return error_response(VALIDATION_ERROR, "Invalid offset: must be non-negative")
+            return error_response(VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer")
     except (ValueError, TypeError):
-        return error_response(VALIDATION_ERROR, "Invalid offset: must be an integer")
+        return error_response(VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer")
 
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
@@ -130,7 +131,8 @@ def search_photos():
     if not result.get("is_valid", True):
         return error_response(
             VALIDATION_ERROR,
-            result.get("error_message", "Invalid query"),
+            "Invalid query",
+            message=result.get("error_message", "Invalid query syntax"),
             query=query,
         )
 
