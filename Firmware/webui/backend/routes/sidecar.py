@@ -39,6 +39,14 @@ from itertools import chain
 
 from flask import Blueprint, current_app, jsonify, request
 
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
+
 # Rate limiting
 try:
     from flask_limiter import Limiter
@@ -367,16 +375,16 @@ def get_photo_metadata(filename: str):
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if photo exists
         if not full_path.exists():
-            return jsonify({"error": "Photo not found"}), 404
+            return error_response(NOT_FOUND, "Photo not found", 404)
 
         # Get metadata from service
         metadata = service.get_metadata(str(full_path))
@@ -402,7 +410,7 @@ def get_photo_metadata(filename: str):
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -468,25 +476,25 @@ def update_photo_metadata(filename: str):
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if photo exists
         if not full_path.exists():
-            return jsonify({"error": "Photo not found"}), 404
+            return error_response(NOT_FOUND, "Photo not found", 404)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
             data = {}
@@ -494,13 +502,13 @@ def update_photo_metadata(filename: str):
         # Validate input
         is_valid, error_msg = validate_metadata_input(data)
         if not is_valid:
-            return jsonify({"error": error_msg}), 400
+            return error_response(VALIDATION_ERROR, error_msg)
 
         # Handle tag_mode (append vs replace)
         tag_mode = data.pop("tag_mode", "append")  # Default to append
 
         if tag_mode not in ["append", "replace"]:
-            return jsonify({"error": "tag_mode must be 'append' or 'replace'"}), 400
+            return error_response(VALIDATION_ERROR, "tag_mode must be 'append' or 'replace'")
 
         # If append mode and tags provided, merge with existing tags
         if tag_mode == "append" and "tags" in data:
@@ -524,7 +532,7 @@ def update_photo_metadata(filename: str):
         updated_metadata = service.update_metadata(str(full_path), data)
 
         if updated_metadata is None:
-            return jsonify({"error": "Failed to update metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to update metadata", 500)
 
         # Invalidate aggregation cache since tags/species may have changed
         invalidate_aggregation_cache()
@@ -534,7 +542,7 @@ def update_photo_metadata(filename: str):
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to update metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -576,22 +584,22 @@ def delete_photo_metadata(filename: str):
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if sidecar exists
         metadata = service.get_metadata(str(full_path))
         if metadata is None:
-            return jsonify({"error": "Metadata not found"}), 404
+            return error_response(NOT_FOUND, "Metadata not found", 404)
 
         # Delete via service (handles cache invalidation and file deletion)
         delete_success = service.delete_metadata(str(full_path))
         if not delete_success:
-            return jsonify({"error": "Failed to delete metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to delete metadata", 500)
 
         # Invalidate aggregation cache since tags/species may have changed
         invalidate_aggregation_cache()
@@ -601,7 +609,7 @@ def delete_photo_metadata(filename: str):
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to delete metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -664,21 +672,21 @@ def list_all_metadata():
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Parse pagination parameters
         try:
             page = request.args.get("page", 1, type=int)
             per_page = request.args.get("per_page", 50, type=int)
         except (ValueError, TypeError):
-            return jsonify({"error": "Invalid pagination parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid pagination parameter")
 
         # Validate pagination
         if page < 1:
-            return jsonify({"error": "Page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "Page must be >= 1")
 
         if per_page < 1:
-            return jsonify({"error": "per_page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "per_page must be >= 1")
 
         # Cap per_page at maximum
         if per_page > MAX_PAGINATION_LIMIT:
@@ -702,7 +710,7 @@ def list_all_metadata():
 
         # Validate series_type if provided
         if series_type and series_type not in ("hdr", "focus_bracket"):
-            return jsonify({"error": "series_type must be 'hdr' or 'focus_bracket'"}), 400
+            return error_response(VALIDATION_ERROR, "series_type must be 'hdr' or 'focus_bracket'")
 
         # Get metadata from service with filters
         result = service.list_metadata_for_directory(
@@ -737,7 +745,7 @@ def list_all_metadata():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to list metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -823,26 +831,26 @@ def bulk_update_metadata():
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
-            return jsonify({"error": "Request body is required"}), 400
+            return error_response(VALIDATION_ERROR, "Request body is required")
 
         # Validate required fields
         if "filenames" not in data:
-            return jsonify({"error": "Field 'filenames' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'filenames' is required")
 
         if "updates" not in data:
-            return jsonify({"error": "Field 'updates' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' is required")
 
         filenames = data["filenames"]
         updates = data["updates"]
@@ -850,29 +858,29 @@ def bulk_update_metadata():
 
         # Validate filenames
         if not isinstance(filenames, list):
-            return jsonify({"error": "Field 'filenames' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'filenames' must be an array")
 
         if len(filenames) == 0:
-            return jsonify({"error": "Field 'filenames' cannot be empty"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'filenames' cannot be empty")
 
         if len(filenames) > MAX_BULK_FILES:
-            return jsonify({"error": f"Maximum {MAX_BULK_FILES} files per request"}), 400
+            return error_response(VALIDATION_ERROR, f"Maximum {MAX_BULK_FILES} files per request")
 
         # Validate updates
         if not isinstance(updates, dict):
-            return jsonify({"error": "Field 'updates' must be an object"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' must be an object")
 
         if len(updates) == 0:
-            return jsonify({"error": "Field 'updates' cannot be empty"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' cannot be empty")
 
         # Validate mode
         if mode not in ["append", "replace"]:
-            return jsonify({"error": "Field 'mode' must be 'append' or 'replace'"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'mode' must be 'append' or 'replace'")
 
         # Validate updates content
         is_valid, error_msg = validate_metadata_input(updates)
         if not is_valid:
-            return jsonify({"error": error_msg}), 400
+            return error_response(VALIDATION_ERROR, error_msg)
 
         # Process each file independently
         success_list = []
@@ -951,7 +959,7 @@ def bulk_update_metadata():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to bulk update metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1006,21 +1014,21 @@ def bulk_get_metadata():
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Parse filenames from query string
         filenames_param = request.args.get("filenames", "")
         if not filenames_param:
-            return jsonify({"error": "Missing 'filenames' query parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'filenames' query parameter")
 
         # Split and clean filenames
         filenames = [f.strip() for f in filenames_param.split(",") if f.strip()]
 
         if len(filenames) == 0:
-            return jsonify({"error": "No valid filenames provided"}), 400
+            return error_response(VALIDATION_ERROR, "No valid filenames provided")
 
         if len(filenames) > MAX_BULK_FILES:
-            return jsonify({"error": f"Maximum {MAX_BULK_FILES} files per request"}), 400
+            return error_response(VALIDATION_ERROR, f"Maximum {MAX_BULK_FILES} files per request")
 
         # Process each file
         success_dict = {}
@@ -1071,7 +1079,7 @@ def bulk_get_metadata():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to bulk fetch metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1127,7 +1135,7 @@ def get_all_tags():
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Parse query parameters
         try:
@@ -1136,14 +1144,14 @@ def get_all_tags():
             sort_by = request.args.get("sort", "count", type=str)
             order = request.args.get("order", "desc", type=str)
         except (ValueError, TypeError):
-            return jsonify({"error": "Invalid query parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid query parameter")
 
         # Validate pagination
         if page < 1:
-            return jsonify({"error": "Page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "Page must be >= 1")
 
         if per_page < 1:
-            return jsonify({"error": "per_page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "per_page must be >= 1")
 
         # Cap per_page at maximum
         if per_page > MAX_PAGINATION_LIMIT:
@@ -1151,10 +1159,10 @@ def get_all_tags():
 
         # Validate sort parameters
         if sort_by not in ["count", "name"]:
-            return jsonify({"error": "sort must be 'count' or 'name'"}), 400
+            return error_response(VALIDATION_ERROR, "sort must be 'count' or 'name'")
 
         if order not in ["asc", "desc"]:
-            return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
+            return error_response(VALIDATION_ERROR, "order must be 'asc' or 'desc'")
 
         # Use cached aggregation data if available and fresh
         # Uses Condition for wait/notify to prevent thundering herd on first build
@@ -1244,7 +1252,7 @@ def get_all_tags():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get tags")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1300,7 +1308,7 @@ def get_all_species():
         # Get sidecar service
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Parse query parameters
         try:
@@ -1309,14 +1317,14 @@ def get_all_species():
             sort_by = request.args.get("sort", "count", type=str)
             order = request.args.get("order", "desc", type=str)
         except (ValueError, TypeError):
-            return jsonify({"error": "Invalid query parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid query parameter")
 
         # Validate pagination
         if page < 1:
-            return jsonify({"error": "Page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "Page must be >= 1")
 
         if per_page < 1:
-            return jsonify({"error": "per_page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "per_page must be >= 1")
 
         # Cap per_page at maximum
         if per_page > MAX_PAGINATION_LIMIT:
@@ -1324,10 +1332,10 @@ def get_all_species():
 
         # Validate sort parameters
         if sort_by not in ["count", "name"]:
-            return jsonify({"error": "sort must be 'count' or 'name'"}), 400
+            return error_response(VALIDATION_ERROR, "sort must be 'count' or 'name'")
 
         if order not in ["asc", "desc"]:
-            return jsonify({"error": "order must be 'asc' or 'desc'"}), 400
+            return error_response(VALIDATION_ERROR, "order must be 'asc' or 'desc'")
 
         # Use cached aggregation data if available and fresh
         # Uses Condition for wait/notify to prevent thundering herd on first build
@@ -1422,7 +1430,7 @@ def get_all_species():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get species")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1500,7 +1508,7 @@ def get_custom_fields():
         # Get sidecar service (not used directly but validates service availability)
         service = current_app.config.get("SIDECAR_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Standard fields to exclude (schema fields + common metadata fields)
         standard_fields = {
@@ -1667,7 +1675,7 @@ def get_custom_fields():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get custom fields")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================

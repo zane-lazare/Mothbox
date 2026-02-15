@@ -37,6 +37,14 @@ import logging
 
 from flask import Blueprint, current_app, jsonify, request
 
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
+
 # Rate limiting
 try:
     from flask_limiter import Limiter
@@ -259,22 +267,22 @@ def get_deployment_metadata(directory: str):
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
-            return jsonify({"error": "Directory not found"}), 404
+            return error_response(NOT_FOUND, "Directory not found", 404)
 
         # Get metadata from service
         metadata = service.get_deployment_metadata(full_path)
 
         if metadata is None:
-            return jsonify({"error": "Deployment not found"}), 404
+            return error_response(NOT_FOUND, "Deployment not found", 404)
 
         # Find source path for response
         from webui.backend.lib.deployment_sidecar import find_deployment_sidecar
@@ -290,7 +298,7 @@ def get_deployment_metadata(directory: str):
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get deployment metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -360,44 +368,45 @@ def create_deployment_metadata(directory: str):
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
-            return jsonify({"error": "Directory not found"}), 404
+            return error_response(NOT_FOUND, "Directory not found", 404)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
-            return jsonify({"error": "Request body is required"}), 400
+            return error_response(VALIDATION_ERROR, "Request body is required")
 
         # Validate required field
         if "deployment_name" not in data:
-            return jsonify({"error": "Field 'deployment_name' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'deployment_name' is required")
 
         # Validate input
         is_valid, error_msg = _validate_deployment_input(data)
         if not is_valid:
-            return jsonify({"error": error_msg}), 400
+            return error_response(VALIDATION_ERROR, error_msg)
 
         # Get format from query params
         format = request.args.get("format", "json")
         if format not in SUPPORTED_FORMATS:
-            return jsonify(
-                {"error": f"Invalid format. Supported: {', '.join(SUPPORTED_FORMATS)}"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Invalid format. Supported: {', '.join(SUPPORTED_FORMATS)}",
+            )
 
         # Create metadata object
         from webui.backend.lib.deployment_sidecar import create_deployment_metadata as lib_create
@@ -422,13 +431,13 @@ def create_deployment_metadata(directory: str):
         success = service.set_deployment_metadata(full_path, metadata, format=format)
 
         if not success:
-            return jsonify({"error": "Failed to write deployment metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to write deployment metadata", 500)
 
         return jsonify(metadata.to_dict()), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to create deployment metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -490,30 +499,30 @@ def update_deployment_metadata(directory: str):
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
-            return jsonify({"error": "Directory not found"}), 404
+            return error_response(NOT_FOUND, "Directory not found", 404)
 
         # Check if deployment exists
         existing = service.get_deployment_metadata(full_path)
         if existing is None:
-            return jsonify({"error": "Deployment not found"}), 404
+            return error_response(NOT_FOUND, "Deployment not found", 404)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
             data = {}
@@ -521,19 +530,19 @@ def update_deployment_metadata(directory: str):
         # Validate input
         is_valid, error_msg = _validate_deployment_input(data)
         if not is_valid:
-            return jsonify({"error": error_msg}), 400
+            return error_response(VALIDATION_ERROR, error_msg)
 
         # Update metadata via service
         updated_metadata = service.update_deployment_metadata(full_path, data)
 
         if updated_metadata is None:
-            return jsonify({"error": "Failed to update deployment metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to update deployment metadata", 500)
 
         return jsonify(updated_metadata.to_dict()), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to update deployment metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -575,28 +584,28 @@ def delete_deployment_metadata(directory: str):
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if deployment exists
         metadata = service.get_deployment_metadata(full_path)
         if metadata is None:
-            return jsonify({"error": "Deployment not found"}), 404
+            return error_response(NOT_FOUND, "Deployment not found", 404)
 
         # Delete via service (handles cache invalidation and file deletion)
         delete_success = service.delete_deployment_metadata(full_path)
         if not delete_success:
-            return jsonify({"error": "Failed to delete deployment metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to delete deployment metadata", 500)
 
         return jsonify({"success": True}), 200
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to delete deployment metadata")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -648,7 +657,7 @@ def list_all_deployments():
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Get optional root_dir parameter
         root_dir_param = request.args.get("root_dir")
@@ -657,7 +666,7 @@ def list_all_deployments():
             # Validate path
             root_dir = validate_photo_path(root_dir_param, PHOTOS_DIR)
             if root_dir is None:
-                return jsonify({"error": "Invalid path: Access denied"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
         else:
             root_dir = None  # Use default (PHOTOS_DIR)
 
@@ -671,7 +680,7 @@ def list_all_deployments():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to list deployments")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -716,22 +725,22 @@ def discover_deployment_for_photo(photo_path: str):
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Path traversal protection
         full_path = validate_photo_path(photo_path, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if photo exists
         if not full_path.exists():
-            return jsonify({"error": "Photo not found"}), 404
+            return error_response(NOT_FOUND, "Photo not found", 404)
 
         # Find deployment via service
         metadata = service.find_deployment_for_photo(full_path)
 
         if metadata is None:
-            return jsonify({"error": "Deployment not found"}), 404
+            return error_response(NOT_FOUND, "Deployment not found", 404)
 
         # Find source path for response
         from webui.backend.lib.deployment_sidecar import find_deployment_sidecar
@@ -747,7 +756,7 @@ def discover_deployment_for_photo(photo_path: str):
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to discover deployment")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -827,53 +836,58 @@ def batch_update_deployments():
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
-            return jsonify({"error": "Request body is required"}), 400
+            return error_response(VALIDATION_ERROR, "Request body is required")
 
         # Validate required fields
         if "updates" not in data:
-            return jsonify({"error": "Field 'updates' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' is required")
 
         updates = data["updates"]
 
         # Validate updates
         if not isinstance(updates, list):
-            return jsonify({"error": "Field 'updates' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' must be an array")
 
         if len(updates) == 0:
-            return jsonify({"error": "Field 'updates' cannot be empty"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'updates' cannot be empty")
 
         if len(updates) > 100:  # Same limit as sidecar bulk operations
-            return jsonify({"error": "Maximum 100 updates per request"}), 400
+            return error_response(VALIDATION_ERROR, "Maximum 100 updates per request")
 
         # Validate each update entry
         for i, update in enumerate(updates):
             if not isinstance(update, dict):
-                return jsonify({"error": f"Update at index {i} must be an object"}), 400
+                return error_response(VALIDATION_ERROR, f"Update at index {i} must be an object")
             if "directory" not in update:
-                return jsonify({"error": f"Update at index {i} missing 'directory' field"}), 400
+                return error_response(
+                    VALIDATION_ERROR, f"Update at index {i} missing 'directory' field"
+                )
             if "data" not in update:
-                return jsonify({"error": f"Update at index {i} missing 'data' field"}), 400
+                return error_response(VALIDATION_ERROR, f"Update at index {i} missing 'data' field")
             if not isinstance(update["data"], dict):
-                return jsonify({"error": f"Update at index {i} 'data' must be an object"}), 400
+                return error_response(
+                    VALIDATION_ERROR, f"Update at index {i} 'data' must be an object"
+                )
 
             # Validate update data
             is_valid, error_msg = _validate_deployment_input(update["data"])
             if not is_valid:
-                return jsonify(
-                    {"error": f"Update at index {i} validation failed: {error_msg}"}
-                ), 400
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Update at index {i} validation failed: {error_msg}",
+                )
 
         # Process each update independently
         success_list = []
@@ -945,7 +959,7 @@ def batch_update_deployments():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to batch update deployments")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1016,47 +1030,47 @@ def generate_deployment_sidecars():
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if data is None:
-            return jsonify({"error": "Request body is required"}), 400
+            return error_response(VALIDATION_ERROR, "Request body is required")
 
         # Validate required fields
         if "directory" not in data:
-            return jsonify({"error": "Field 'directory' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'directory' is required")
 
         if "template" not in data:
-            return jsonify({"error": "Field 'template' is required"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'template' is required")
 
         directory = data["directory"]
         template = data["template"]
 
         # Validate template
         if not isinstance(template, dict):
-            return jsonify({"error": "Field 'template' must be an object"}), 400
+            return error_response(VALIDATION_ERROR, "Field 'template' must be an object")
 
         # Validate template data
         is_valid, error_msg = _validate_deployment_input(template)
         if not is_valid:
-            return jsonify({"error": f"Template validation failed: {error_msg}"}), 400
+            return error_response(VALIDATION_ERROR, f"Template validation failed: {error_msg}")
 
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
-            return jsonify({"error": "Directory not found"}), 404
+            return error_response(NOT_FOUND, "Directory not found", 404)
 
         # Generate sidecars via service
         generated_count = service.generate_sidecars_for_directory(full_path, template)
@@ -1065,7 +1079,7 @@ def generate_deployment_sidecars():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to generate deployment sidecars")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1116,7 +1130,7 @@ def get_deployment_stats():
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Get statistics
         stats = service.get_statistics()
@@ -1125,7 +1139,7 @@ def get_deployment_stats():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get statistics")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -1172,7 +1186,7 @@ def invalidate_deployment_cache():
         # Get deployment service
         service = current_app.config.get("DEPLOYMENT_SERVICE")
         if service is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Get optional directory parameter
         directory_param = request.args.get("directory")
@@ -1181,7 +1195,7 @@ def invalidate_deployment_cache():
             # Validate path
             full_path = validate_photo_path(directory_param, PHOTOS_DIR)
             if full_path is None:
-                return jsonify({"error": "Invalid path: Access denied"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
 
             # Invalidate specific entry
             service.invalidate_cache(full_path)
@@ -1193,7 +1207,7 @@ def invalidate_deployment_cache():
 
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to invalidate cache")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
