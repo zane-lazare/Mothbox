@@ -114,8 +114,9 @@ def delete_cron_job():
         if str(MOTHBOX_HOME) not in command:
             return error_response(
                 VALIDATION_ERROR,
-                f"Command path is not within MOTHBOX_HOME ({MOTHBOX_HOME}). Deletion rejected.",
+                "Command path is not within MOTHBOX_HOME. Deletion rejected.",
                 command=command,
+                mothbox_home=str(MOTHBOX_HOME),
             )
 
         # Validation passed - safe to delete
