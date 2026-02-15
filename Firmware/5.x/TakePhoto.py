@@ -17,14 +17,13 @@ Its order of operations is like this
 -Saving the pixels to disk
 """
 
-import datetime
 import time
 from datetime import datetime, timedelta
 
 from libcamera import Transform
 from picamera2 import Picamera2
 
-computerName = "mothboxNOTSET"
+computer_name = "mothboxNOTSET"
 
 import csv
 import os
@@ -149,12 +148,12 @@ def set_last_calibration(filepath):
                 file.write(line)  # Keep other lines unchanged
 
 
-def flashOff():
+def flash_off():
     relay_off(flash_pin)
     print("Flash Off\n")
 
 
-def flashOn():
+def flash_on():
     relay_on(flash_pin)
     print("Flash On\n")
 
@@ -209,14 +208,12 @@ def load_camera_settings():
         print("No external settings, using internal csv")
         file_path = default_path
 
-    # set the global path to the one we chose
-    chosen_settings_path = file_path
     try:
         with open(file_path) as csv_file:
             reader = csv.DictReader(csv_file)
             the_camera_settings = {}
             for row in reader:
-                setting, value, details = row["SETTING"], row["VALUE"], row["DETAILS"]
+                setting, value, _details = row["SETTING"], row["VALUE"], row["DETAILS"]
 
                 # Coerce CSV strings to correct types using shared schema
                 if setting in INT_SETTINGS:
@@ -310,7 +307,7 @@ def start_cron():
 
 
 def print_af_state(request):
-    md = request.get_metadata()
+    _md = request.get_metadata()
     # print(("Idle", "Scanning", "Success", "Fail")[md['AfState']], md.get('LensPosition'))
 
 
@@ -342,7 +339,7 @@ def run_calibration():
 
     print("!!! Autofocusing !!!")
     afstart = time.time()
-    flashOn()
+    flash_on()
     picam2.start(show_preview=False)
     # picam2.start()
 
@@ -379,10 +376,10 @@ def run_calibration():
     print(f"Calibration AF settings: AfRange={af_range}, AfSpeed={af_speed}")
 
     print("Running autofocus...")
-    success = picam2.autofocus_cycle()
+    _success = picam2.autofocus_cycle()
 
     # picam2.pre_callback = None
-    flashOff()
+    flash_off()
     print("Autofocus completed! " + str(time.time() - afstart))
     md = picam2.capture_metadata()
     calib_lens_position = md["LensPosition"]
@@ -475,7 +472,7 @@ def create_dated_folder(base_path):
     return folder_path + "/"
 
 
-def takePhoto_Manual():
+def take_photo_manual():
     global middleexposure, calib_lens_position, calib_exposure, original_af_mode
     # LensPosition: Manual focus, Set the lens position.
     now = datetime.now()
@@ -508,8 +505,8 @@ def takePhoto_Manual():
     # Trigger autofocus if AfMode was Auto Single and AutoCalibration is OFF
     if not AutoCalibration and original_af_mode == 1:
         print("Running autofocus (Auto Single mode)...")
-        success = picam2.autofocus_cycle()
-        print(f"Autofocus completed: {'success' if success else 'failed'}")
+        _success = picam2.autofocus_cycle()
+        print(f"Autofocus completed: {'success' if _success else 'failed'}")
 
     start = time.time()
 
@@ -519,8 +516,7 @@ def takePhoto_Manual():
         print("About to take single photo:  ", timestamp)
 
     exposureset_delay = 0.3  # values less than 5 don't seem to work! (unless you restart the cam!)
-    requests = []  # Create an empty list to store requests
-    PILs = []
+    pil_images = []
     metadatas = []
     # HDR loop
     for i in range(num_photos):
@@ -533,15 +529,15 @@ def takePhoto_Manual():
 
         time.sleep(exposureset_delay)  # need some time for the settings to sink into the camera)
 
-        flashOn()
+        flash_on()
         request = picam2.capture_request(flush=True)
 
         if not onlyflash:
-            flashOff()
+            flash_off()
         flashtime = time.time() - start
 
-        pilImage = request.make_image("main")
-        PILs.append(pilImage)
+        pil_image = request.make_image("main")
+        pil_images.append(pil_image)
         # image_buffer = request.make_array("main")
         # requests.append(image_buffer)
 
@@ -554,24 +550,22 @@ def takePhoto_Manual():
 
     # Saving loop (can be done later)
     i = 0
-    for img in PILs:
-        exif_data = metadatas[i]
-        pil_image = img
+    for img in pil_images:
         # Save the image using PIL to get the image data on disk
-        folderPath = str(PHOTOS_DIR) + "/"
-        if not os.path.exists(folderPath):
-            os.makedirs(folderPath)
-        os.chmod(folderPath, 0o750)  # nosec B103 - Group access for webui service
+        folder_path = str(PHOTOS_DIR) + "/"
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        os.chmod(folder_path, 0o750)  # nosec B103 - Group access for webui service
 
-        folderPath = create_dated_folder(folderPath)
+        folder_path = create_dated_folder(folder_path)
 
         print(ImageFileType)
         if ImageFileType == 1:  # tiff
-            filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".tiff"
+            filepath = folder_path + computer_name + "_" + timestamp + "_HDR" + str(i) + ".tiff"
         elif ImageFileType == 0:  # jpeg
-            filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".jpg"
+            filepath = folder_path + computer_name + "_" + timestamp + "_HDR" + str(i) + ".jpg"
         elif ImageFileType == 2:  # bmp
-            filepath = folderPath + computerName + "_" + timestamp + "_HDR" + str(i) + ".bmp"
+            filepath = folder_path + computer_name + "_" + timestamp + "_HDR" + str(i) + ".bmp"
 
         # print(exif_data) #This is a LOT of data
         print(camera_settings.get("LensPosition"))
@@ -592,7 +586,7 @@ def takePhoto_Manual():
         }
         # Embed GPS coordinates from controls.txt (written by GPS.py)
         try:
-            from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls, build_gps_ifd
+            from webui.backend.lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
             gps_data = get_gps_data_from_controls()
             gps_ifd = build_gps_ifd(gps_data) if gps_data.get("has_fix") else {}
         except Exception as e:
@@ -612,18 +606,17 @@ def takePhoto_Manual():
         i = i + 1
 
 
-def determinePiModel():
+def determine_pi_model():
     # Check Raspberry Pi model using CPU info
-    cpuinfo = open("/proc/cpuinfo")
     model = None  # Initialize model variable outside the loop
     themodel = None
 
-    for line in cpuinfo:
-        # print(line)
-        if line.startswith("Model"):
-            model = line.split(":")[1].strip()
-            break
-    cpuinfo.close()
+    with open("/proc/cpuinfo") as cpuinfo:
+        for line in cpuinfo:
+            # print(line)
+            if line.startswith("Model"):
+                model = line.split(":")[1].strip()
+                break
 
     # Execute function based on model
     print(model)
@@ -687,15 +680,15 @@ if desktop_available < x * 1024**3:  # x GB in bytes
 
 
 # First figure out if this is a Pi4 or a Pi5
-rpiModel = None
-rpiModel = determinePiModel()
+rpi_model = None
+rpi_model = determine_pi_model()
 
 # default resolution
 width = 9000
 height = 6000
 
 # the Pi4 can't really handle the FULL resolution, but pi5 can!
-if rpiModel == 5:
+if rpi_model == 5:
     width = 9248
     height = 6944
 
@@ -704,7 +697,7 @@ if rpiModel == 5:
 if platform.system() == "Windows":
     print(platform.uname().node)
 else:
-    # computerName = os.uname()[1]
+    # computer_name = os.uname()[1]
     print(os.uname()[1])  # doesnt work on windows
 
 
@@ -728,7 +721,7 @@ try:
     control_values = get_control_values(control_values_fpath)
     onlyflash = control_values.get("OnlyFlash", "True").lower() == "true"
     LastCalibration = float(control_values.get("LastCalibration", 0))
-    computerName = control_values.get("name", "wrong")
+    computer_name = control_values.get("name", "wrong")
     jpeg_quality = int(
         control_values.get("jpeg_quality", 96)
     )  # Default: 96 for backward compatibility
@@ -802,7 +795,7 @@ try:
 
     # remove settings that aren't actually in picamera2
     oldsettingsnames = camera_settings.pop(
-        "Name", computerName
+        "Name", computer_name
     )  # defaults to what is set above if not in the files being read
     ImageFileType = int(camera_settings.pop("ImageFileType", 0))
     VerticalFlip = int(camera_settings.pop("VerticalFlip", 0))
@@ -835,10 +828,10 @@ try:
         camera_settings["AfMode"] = 0
     elif af_mode == 1:
         # Auto Single without AutoCalibration: will trigger autofocus_cycle()
-        # before capture in takePhoto_Manual()
+        # before capture in take_photo_manual()
         print("AfMode=Auto Single, AutoCalibration OFF: will trigger AF before capture")
 
-    # Store original af_mode for takePhoto_Manual() to check
+    # Store original af_mode for take_photo_manual() to check
     original_af_mode = af_mode
 
     if num_photos < 1 or num_photos == 2:
@@ -870,7 +863,7 @@ try:
         picam2.configure(capture_config)
 
     time.sleep(0.5)
-    takePhoto_Manual()
+    take_photo_manual()
 
     picam2.stop()
 
