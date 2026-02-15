@@ -32,6 +32,12 @@ from mothbox_paths import (
     SCHEDULE_SETTINGS_FILE,
     get_control_values,
 )
+from webui.backend.lib.error_codes import (
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +147,7 @@ def get_controls():
         return jsonify(controls)
     except Exception:
         logger.exception("Failed to get controls")
-        return jsonify({"error": "Failed to get controls"}), 500
+        return error_response(SERVER_ERROR, "Failed to get controls", 500)
 
 
 @config_bp.route("/controls", methods=["POST"])
@@ -152,20 +158,20 @@ def update_controls():
         new_controls = request.json
 
         if not isinstance(new_controls, dict):
-            return jsonify({"error": "Invalid request format"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid request format")
 
         # Validate all keys are allowed
         invalid_keys = set(new_controls.keys()) - set(ALLOWED_CONTROLS.keys())
         if invalid_keys:
-            return jsonify({"error": f"Invalid keys: {', '.join(invalid_keys)}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid keys: {', '.join(invalid_keys)}")
 
         # Validate all values
         for key, value in new_controls.items():
             try:
                 if not ALLOWED_CONTROLS[key](value):
-                    return jsonify({"error": f"Invalid value for {key}: {value}"}), 400
+                    return error_response(VALIDATION_ERROR, f"Invalid value for {key}: {value}")
             except (ValueError, TypeError):
-                return jsonify({"error": f"Invalid value for {key}: {value}"}), 400
+                return error_response(VALIDATION_ERROR, f"Invalid value for {key}: {value}")
 
         # Sanitize values - remove newlines and carriage returns
         sanitized = {k: str(v).replace("\n", "").replace("\r", "") for k, v in new_controls.items()}
@@ -187,7 +193,7 @@ def update_controls():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": "Failed to update controls"}), 500
+        return error_response(SERVER_ERROR, "Failed to update controls", 500)
 
 
 @config_bp.route("/schedule", methods=["GET"])
@@ -204,7 +210,7 @@ def get_schedule_settings():
         return jsonify(settings)
     except Exception:
         logger.exception("Failed to get schedule settings")
-        return jsonify({"error": "Failed to get schedule settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to get schedule settings", 500)
 
 
 @config_bp.route("/schedule", methods=["POST"])
@@ -215,7 +221,7 @@ def update_schedule_settings():
         new_settings = request.json
 
         if not isinstance(new_settings, dict):
-            return jsonify({"error": "Invalid request format"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid request format")
 
         # Read existing headers
         with open(SCHEDULE_SETTINGS_FILE) as f:
@@ -225,7 +231,7 @@ def update_schedule_settings():
         # Validate that all keys match existing fieldnames
         invalid_keys = set(new_settings.keys()) - set(fieldnames)
         if invalid_keys:
-            return jsonify({"error": f"Invalid keys: {', '.join(invalid_keys)}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid keys: {', '.join(invalid_keys)}")
 
         # Sanitize all values to prevent CSV injection
         sanitized_settings = {k: sanitize_csv_value(v) for k, v in new_settings.items()}
@@ -248,7 +254,7 @@ def update_schedule_settings():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": "Failed to update schedule settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to update schedule settings", 500)
 
 
 def safe_convert(value: Any, converter: Callable, default: Any) -> Any:
@@ -354,7 +360,7 @@ def get_webui_settings():
         return jsonify(defaults)
     except Exception:
         logger.exception("Failed to get webui settings")
-        return jsonify({"error": "Failed to get webui settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to get webui settings", 500)
 
 
 @config_bp.route("/webui", methods=["POST"])
@@ -409,7 +415,7 @@ def update_webui_settings():
         # Validate all keys are allowed (prevent injection/confusion attacks)
         invalid_keys = set(new_settings.keys()) - ALLOWED_WEBUI_KEYS
         if invalid_keys:
-            return jsonify({"error": f"Invalid keys: {', '.join(invalid_keys)}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid keys: {', '.join(invalid_keys)}")
 
         # Load existing settings to merge with updates (preserves unmodified values)
         existing = {}
@@ -425,13 +431,13 @@ def update_webui_settings():
             frame_rate = int(new_settings.get("frame_rate", existing.get("frame_rate", 10)))
             jpeg_quality = int(new_settings.get("jpeg_quality", existing.get("jpeg_quality", 85)))
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid stream setting type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid stream setting type: {e}")
 
         stream_mode = new_settings.get("stream_mode", existing.get("stream_mode", "simplejpeg"))
         sensor_mode = new_settings.get("sensor_mode", existing.get("sensor_mode", "auto"))
 
         if not isinstance(sensor_mode, str):
-            return jsonify({"error": "sensor_mode must be a string"}), 400
+            return error_response(VALIDATION_ERROR, "sensor_mode must be a string")
 
         # Validate and convert types - Image quality controls
         try:
@@ -440,7 +446,7 @@ def update_webui_settings():
             contrast = float(new_settings.get("contrast", existing.get("contrast", 1.0)))
             saturation = float(new_settings.get("saturation", existing.get("saturation", 1.0)))
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid image quality setting type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid image quality setting type: {e}")
 
         # Validate and convert types - Noise reduction control
         try:
@@ -449,12 +455,12 @@ def update_webui_settings():
             )
             # Ensure it's an integer (reject floats)
             if isinstance(noise_reduction_mode, float) and not noise_reduction_mode.is_integer():
-                return jsonify(
-                    {"error": "noise_reduction_mode must be an integer (0, 1, or 2)"}
-                ), 400
+                return error_response(
+                    VALIDATION_ERROR, "noise_reduction_mode must be an integer (0, 1, or 2)"
+                )
             noise_reduction_mode = int(noise_reduction_mode)
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid noise_reduction_mode type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid noise_reduction_mode type: {e}")
 
         # Validate and convert types - Focus controls
         try:
@@ -462,7 +468,7 @@ def update_webui_settings():
             af_speed = int(new_settings.get("af_speed", existing.get("af_speed", 0)))
             af_range = int(new_settings.get("af_range", existing.get("af_range", 0)))
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid focus control type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid focus control type: {e}")
 
         # Validate and convert types - White balance controls
         awb_enable = new_settings.get("awb_enable", existing.get("awb_enable", "true"))
@@ -472,7 +478,7 @@ def update_webui_settings():
         try:
             awb_mode = int(new_settings.get("awb_mode", existing.get("awb_mode", 0)))
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid white balance mode type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid white balance mode type: {e}")
 
         # Validate and convert types - Colour gains (blue/white saturation fix)
         try:
@@ -483,7 +489,7 @@ def update_webui_settings():
                 new_settings.get("colour_gains_blue", existing.get("colour_gains_blue", 1.500))
             )
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid colour gains type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid colour gains type: {e}")
 
         # Validate and convert types - Exposure controls (exposure-metering feature)
         try:
@@ -491,10 +497,12 @@ def update_webui_settings():
                 "ae_metering_mode", existing.get("ae_metering_mode", 0)
             )
             if isinstance(ae_metering_mode, float) and not ae_metering_mode.is_integer():
-                return jsonify({"error": "ae_metering_mode must be an integer (0, 1, or 2)"}), 400
+                return error_response(
+                    VALIDATION_ERROR, "ae_metering_mode must be an integer (0, 1, or 2)"
+                )
             ae_metering_mode = int(ae_metering_mode)
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid ae_metering_mode type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid ae_metering_mode type: {e}")
 
         ae_enable = new_settings.get("ae_enable", existing.get("ae_enable", True))
         if isinstance(ae_enable, str):
@@ -508,7 +516,7 @@ def update_webui_settings():
                 new_settings.get("analogue_gain", existing.get("analogue_gain", 8.0))
             )
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid exposure settings type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid exposure settings type: {e}")
 
         # Validate and convert types - ISP tuning controls
         use_custom_tuning = new_settings.get(
@@ -543,108 +551,119 @@ def update_webui_settings():
                 )
             )
         except (ValueError, TypeError) as e:
-            return jsonify({"error": f"Invalid focus_peaking_intensity type: {e}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid focus_peaking_intensity type: {e}")
 
         focus_peaking_colour = new_settings.get(
             "focus_peaking_colour", existing.get("focus_peaking_colour", "green")
         )
         if not isinstance(focus_peaking_colour, str):
-            return jsonify({"error": "focus_peaking_colour must be a string"}), 400
+            return error_response(VALIDATION_ERROR, "focus_peaking_colour must be a string")
 
         focus_peaking_algorithm = new_settings.get(
             "focus_peaking_algorithm", existing.get("focus_peaking_algorithm", "laplacian")
         )
         if not isinstance(focus_peaking_algorithm, str):
-            return jsonify({"error": "focus_peaking_algorithm must be a string"}), 400
+            return error_response(VALIDATION_ERROR, "focus_peaking_algorithm must be a string")
 
         # Validate ranges - Stream/encoding
         if not (320 <= stream_width <= 1920):
-            return jsonify({"error": "Width must be between 320 and 1920"}), 400
+            return error_response(VALIDATION_ERROR, "Width must be between 320 and 1920")
         if not (240 <= stream_height <= 1080):
-            return jsonify({"error": "Height must be between 240 and 1080"}), 400
+            return error_response(VALIDATION_ERROR, "Height must be between 240 and 1080")
         if not (1 <= frame_rate <= 30):
-            return jsonify({"error": "Frame rate must be between 1 and 30"}), 400
+            return error_response(VALIDATION_ERROR, "Frame rate must be between 1 and 30")
         if not (50 <= jpeg_quality <= 100):
-            return jsonify({"error": "JPEG quality must be between 50 and 100"}), 400
+            return error_response(VALIDATION_ERROR, "JPEG quality must be between 50 and 100")
         if stream_mode not in ["simplejpeg", "mjpeg_hardware"]:
-            return jsonify({"error": "stream_mode must be simplejpeg or mjpeg_hardware"}), 400
+            return error_response(
+                VALIDATION_ERROR, "stream_mode must be simplejpeg or mjpeg_hardware"
+            )
         if sensor_mode not in ["auto", "4:3", "16:9", "full"]:
-            return jsonify({"error": "sensor_mode must be auto, 4:3, 16:9, or full"}), 400
+            return error_response(VALIDATION_ERROR, "sensor_mode must be auto, 4:3, 16:9, or full")
 
         # Validate ranges - Image quality
         # Using picamera2 typical ranges (0.0-4.0) for safety and hardware compatibility
         if not (0.0 <= sharpness <= 4.0):
-            return jsonify({"error": "Sharpness must be between 0.0 and 4.0"}), 400
+            return error_response(VALIDATION_ERROR, "Sharpness must be between 0.0 and 4.0")
         if not (-1.0 <= brightness <= 1.0):
-            return jsonify({"error": "Brightness must be between -1.0 and 1.0"}), 400
+            return error_response(VALIDATION_ERROR, "Brightness must be between -1.0 and 1.0")
         if not (0.0 <= contrast <= 4.0):
-            return jsonify({"error": "Contrast must be between 0.0 and 4.0"}), 400
+            return error_response(VALIDATION_ERROR, "Contrast must be between 0.0 and 4.0")
         if not (0.0 <= saturation <= 4.0):
-            return jsonify({"error": "Saturation must be between 0.0 and 4.0"}), 400
+            return error_response(VALIDATION_ERROR, "Saturation must be between 0.0 and 4.0")
 
         # Validate ranges - Noise reduction
         if noise_reduction_mode not in [0, 1, 2]:
-            return jsonify(
-                {"error": "noise_reduction_mode must be 0 (Off), 1 (Fast), or 2 (High Quality)"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "noise_reduction_mode must be 0 (Off), 1 (Fast), or 2 (High Quality)",
+            )
 
         # Validate ranges - Focus controls
         if af_mode not in [0, 1, 2]:
-            return jsonify(
-                {"error": "AfMode must be 0 (Manual), 1 (Auto Single), or 2 (Continuous)"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "AfMode must be 0 (Manual), 1 (Auto Single), or 2 (Continuous)",
+            )
         if af_speed not in [0, 1]:
-            return jsonify({"error": "AfSpeed must be 0 (Normal) or 1 (Fast)"}), 400
+            return error_response(VALIDATION_ERROR, "AfSpeed must be 0 (Normal) or 1 (Fast)")
         if af_range not in [0, 1, 2]:
-            return jsonify({"error": "AfRange must be 0 (Normal), 1 (Macro), or 2 (Full)"}), 400
+            return error_response(
+                VALIDATION_ERROR, "AfRange must be 0 (Normal), 1 (Macro), or 2 (Full)"
+            )
 
         # Validate ranges - White balance
         if not isinstance(awb_enable, bool):
-            return jsonify({"error": "AwbEnable must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "AwbEnable must be a boolean")
         if not (0 <= awb_mode <= 7):
-            return jsonify({"error": "AwbMode must be between 0 and 7"}), 400
+            return error_response(VALIDATION_ERROR, "AwbMode must be between 0 and 7")
 
         # Validate ranges - Colour gains
         if not (0.0 <= colour_gains_red <= 8.0):
-            return jsonify({"error": "Red colour gain must be between 0.0 and 8.0"}), 400
+            return error_response(VALIDATION_ERROR, "Red colour gain must be between 0.0 and 8.0")
         if not (0.0 <= colour_gains_blue <= 8.0):
-            return jsonify({"error": "Blue colour gain must be between 0.0 and 8.0"}), 400
+            return error_response(VALIDATION_ERROR, "Blue colour gain must be between 0.0 and 8.0")
 
         # Validate ranges - Exposure controls (exposure-metering feature)
         if ae_metering_mode not in [0, 1, 2]:
-            return jsonify(
-                {"error": "ae_metering_mode must be 0 (Centre-Weighted), 1 (Spot), or 2 (Matrix)"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "ae_metering_mode must be 0 (Centre-Weighted), 1 (Spot), or 2 (Matrix)",
+            )
         if not isinstance(ae_enable, bool):
-            return jsonify({"error": "ae_enable must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "ae_enable must be a boolean")
         if not (100 <= exposure_time <= 200000):
-            return jsonify(
-                {"error": "exposure_time must be between 100 and 200000 microseconds"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "exposure_time must be between 100 and 200000 microseconds"
+            )
         if not (1.0 <= analogue_gain <= 16.0):
-            return jsonify({"error": "analogue_gain must be between 1.0 and 16.0"}), 400
+            return error_response(VALIDATION_ERROR, "analogue_gain must be between 1.0 and 16.0")
 
         # Validate - ISP tuning controls
         if not isinstance(use_custom_tuning, bool):
-            return jsonify({"error": "use_custom_tuning must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "use_custom_tuning must be a boolean")
         if not isinstance(lens_shading_enable, bool):
-            return jsonify({"error": "lens_shading_enable must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "lens_shading_enable must be a boolean")
         if not isinstance(defect_correction_enable, bool):
-            return jsonify({"error": "defect_correction_enable must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "defect_correction_enable must be a boolean")
 
         # Validate - Focus peaking controls
         if not isinstance(focus_peaking_enabled, bool):
-            return jsonify({"error": "focus_peaking_enabled must be a boolean"}), 400
+            return error_response(VALIDATION_ERROR, "focus_peaking_enabled must be a boolean")
         if not (50 <= focus_peaking_intensity <= 200):
-            return jsonify({"error": "focus_peaking_intensity must be between 50 and 200"}), 400
+            return error_response(
+                VALIDATION_ERROR, "focus_peaking_intensity must be between 50 and 200"
+            )
         if focus_peaking_colour not in ["green", "red", "yellow", "cyan", "magenta"]:
-            return jsonify(
-                {"error": "focus_peaking_colour must be green, red, yellow, cyan, or magenta"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "focus_peaking_colour must be green, red, yellow, cyan, or magenta",
+            )
         if focus_peaking_algorithm not in ["laplacian", "sobel", "canny"]:
-            return jsonify(
-                {"error": "focus_peaking_algorithm must be laplacian, sobel, or canny"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "focus_peaking_algorithm must be laplacian, sobel, or canny",
+            )
 
         # Create backup before modification
         backup_path = create_backup(LIVEVIEW_SETTINGS_FILE)
@@ -707,7 +726,7 @@ def update_webui_settings():
                 logger.info(f"Restored backup from {backup_path} after error")
             except Exception as restore_error:
                 logger.error(f"Failed to restore backup: {restore_error}")
-        return jsonify({"error": "Failed to update webui settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to update webui settings", 500)
 
 
 @config_bp.route("/copy-settings", methods=["POST"])
@@ -729,9 +748,10 @@ def copy_settings():
         direction = request_data.get("direction")
 
         if direction not in ["preview_to_capture", "capture_to_preview"]:
-            return jsonify(
-                {"error": 'direction must be "preview_to_capture" or "capture_to_preview"'}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                'direction must be "preview_to_capture" or "capture_to_preview"',
+            )
 
         logger.info(f"Copy settings requested: {direction}")
 
@@ -774,7 +794,7 @@ def copy_settings():
             from mothbox_paths import get_control_values
 
             if not LIVEVIEW_SETTINGS_FILE.exists():
-                return jsonify({"success": False, "error": "webui_settings.txt not found"}), 404
+                return error_response(NOT_FOUND, "webui_settings.txt not found", 404, success=False)
 
             preview_settings = get_control_values(LIVEVIEW_SETTINGS_FILE)
 
@@ -786,7 +806,9 @@ def copy_settings():
             capture_settings_dict = {}
 
             if not CAMERA_SETTINGS_FILE.exists():
-                return jsonify({"success": False, "error": "camera_settings.csv not found"}), 404
+                return error_response(
+                    NOT_FOUND, "camera_settings.csv not found", 404, success=False
+                )
 
             with open(CAMERA_SETTINGS_FILE) as f:
                 reader = csv.DictReader(f)
@@ -932,4 +954,4 @@ def copy_settings():
 
     except Exception:
         logger.exception("Copy settings error")
-        return jsonify({"success": False, "error": "Failed to copy settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to copy settings", 500, success=False)
