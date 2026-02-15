@@ -41,6 +41,14 @@ from pathlib import Path
 from constants import MAX_BULK_DELETE, PHOTO_PATTERNS
 from flask import Blueprint, current_app, jsonify, request, send_file
 
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
+
 # Import will be available when app.py is created
 # For now, using a simple limiter stub
 try:
@@ -149,7 +157,7 @@ def list_photos():
         return jsonify({"photos": photos})
     except Exception as e:
         logger.error(f"Error in list_photos: {e}")
-        return jsonify({"error": "Failed to list photos"}), 500
+        return error_response(SERVER_ERROR, "Failed to list photos", 500)
 
 
 @gallery_bp.route("/photo/<path:photo_path>", methods=["GET"])
@@ -160,16 +168,16 @@ def get_photo(photo_path):
         full_path = validate_photo_path(photo_path, PHOTOS_DIR)
 
         if full_path is None:
-            return jsonify({"error": "Invalid path"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path")
 
         if not full_path.exists():
-            return jsonify({"error": "Photo not found"}), 404
+            return error_response(NOT_FOUND, "Photo not found", 404)
 
         mimetype = mimetypes.guess_type(str(full_path))[0] or "image/jpeg"
         return send_file(full_path, mimetype=mimetype)
     except Exception as e:
         logger.error(f"Error serving photo {photo_path}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to serve photo"}), 500
+        return error_response(SERVER_ERROR, "Failed to serve photo", 500)
 
 
 @gallery_bp.route("/thumbnail/<path:photo_path>", methods=["GET"])
@@ -180,7 +188,7 @@ def get_thumbnail(photo_path):
         full_photo_path = validate_photo_path(photo_path, PHOTOS_DIR)
 
         if full_photo_path is None:
-            return jsonify({"error": "Invalid path"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid path")
 
         # Get size from query params (default: 256)
         size = request.args.get("size", 256, type=int)
@@ -195,7 +203,7 @@ def get_thumbnail(photo_path):
                 return send_file(thumbnail_path, mimetype="image/jpeg")
             except ThumbnailError as e:
                 current_app.logger.error(f"ThumbnailError: {e}")
-                return jsonify({"error": "Failed to generate thumbnail"}), 400
+                return error_response(VALIDATION_ERROR, "Failed to generate thumbnail")
         else:
             # Fallback to original behavior if cache not available
             import io
@@ -206,7 +214,7 @@ def get_thumbnail(photo_path):
             full_path = full_photo_path
 
             if not full_path.exists():
-                return jsonify({"error": "Photo not found"}), 404
+                return error_response(NOT_FOUND, "Photo not found", 404)
 
             # Generate thumbnail
             img = Image.open(full_path)
@@ -221,10 +229,10 @@ def get_thumbnail(photo_path):
     except (ValueError, RuntimeError):
         # ValueError: Path is outside PHOTOS_DIR
         # RuntimeError: resolve() failed (e.g., symlink loop)
-        return jsonify({"error": "Invalid path"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid path")
     except Exception as e:
         logger.error(f"Error listing photos: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @gallery_bp.route("/photos/paginated", methods=["GET"])
@@ -268,7 +276,9 @@ def list_photos_paginated():
             try:
                 limit = int(limit_str)
             except ValueError:
-                return jsonify({"error": f"Limit must be an integer, got '{limit_str}'"}), 400
+                return error_response(
+                    VALIDATION_ERROR, f"Limit must be an integer, got '{limit_str}'"
+                )
         else:
             limit = 50
 
@@ -277,7 +287,9 @@ def list_photos_paginated():
             try:
                 offset = int(offset_str)
             except ValueError:
-                return jsonify({"error": f"Offset must be an integer, got '{offset_str}'"}), 400
+                return error_response(
+                    VALIDATION_ERROR, f"Offset must be an integer, got '{offset_str}'"
+                )
         else:
             offset = 0
 
@@ -293,26 +305,18 @@ def list_photos_paginated():
             try:
                 start_date = datetime.fromisoformat(start_date_str)
             except (ValueError, TypeError):
-                return (
-                    jsonify(
-                        {
-                            "error": f"Invalid start_date format: '{start_date_str}'. Use ISO format (YYYY-MM-DD)"
-                        }
-                    ),
-                    400,
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Invalid start_date format: '{start_date_str}'. Use ISO format (YYYY-MM-DD)",
                 )
 
         if end_date_str:
             try:
                 end_date = datetime.fromisoformat(end_date_str)
             except (ValueError, TypeError):
-                return (
-                    jsonify(
-                        {
-                            "error": f"Invalid end_date format: '{end_date_str}'. Use ISO format (YYYY-MM-DD)"
-                        }
-                    ),
-                    400,
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Invalid end_date format: '{end_date_str}'. Use ISO format (YYYY-MM-DD)",
                 )
 
         # Create photo service and get paginated results
@@ -331,12 +335,12 @@ def list_photos_paginated():
         # Log full error details server-side (CodeQL security requirement)
         logger.error(f"Pagination error: {e}", exc_info=True)
         # Return generic message to user (don't expose internal details)
-        return jsonify({"error": "Invalid pagination parameters"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid pagination parameters")
     except Exception as e:
         # Log full error details server-side
         logger.error(f"Unexpected error in list_photos_paginated: {e}", exc_info=True)
         # Return generic message to user
-        return jsonify({"error": "Internal server error"}), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 # ============================================================================
@@ -377,17 +381,16 @@ def get_photo_metadata(photo_id):
 
     invalid = requested_categories - VALID_CATEGORIES
     if invalid:
-        return jsonify(
-            {
-                "success": False,
-                "error": f"Invalid category: {', '.join(invalid)}. Valid: {', '.join(sorted(VALID_CATEGORIES))}",
-            }
-        ), 400
+        return error_response(
+            VALIDATION_ERROR,
+            f"Invalid category: {', '.join(invalid)}. Valid: {', '.join(sorted(VALID_CATEGORIES))}",
+            success=False,
+        )
 
     # 2. Resolve photo path with security checks
     photo_path = _resolve_photo_path(photo_id)
     if not photo_path:
-        return jsonify({"success": False, "error": "Photo not found", "photo_id": photo_id}), 404
+        return error_response(NOT_FOUND, "Photo not found", 404, success=False, photo_id=photo_id)
 
     # 3. Try cache first
     cache = get_metadata_cache()
@@ -438,7 +441,7 @@ def get_photo_metadata(photo_id):
             # Log full error details server-side (CodeQL security requirement)
             logger.error(f"Metadata extraction failed for {photo_path}: {e}", exc_info=True)
             # Return generic message to user (don't expose internal details)
-            return jsonify({"success": False, "error": "Failed to read metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to read metadata", 500, success=False)
 
     # 5. Apply category filtering
     if "all" not in requested_categories:
@@ -487,7 +490,7 @@ def clear_photo_metadata_cache(photo_id):
     # Resolve photo path
     photo_path = _resolve_photo_path(photo_id)
     if not photo_path:
-        return jsonify({"success": False, "error": "Photo not found", "photo_id": photo_id}), 404
+        return error_response(NOT_FOUND, "Photo not found", 404, success=False, photo_id=photo_id)
 
     # Invalidate cache
     cache = get_metadata_cache()
@@ -579,7 +582,7 @@ def cache_stats():
     thumbnail_cache = current_app.config.get("THUMBNAIL_CACHE")
 
     if not thumbnail_cache:
-        return jsonify({"error": "Cache not available"}), 503
+        return error_response(HARDWARE_ERROR, "Cache not available", 503)
 
     stats = thumbnail_cache.get_statistics()
     return jsonify(stats)
@@ -591,7 +594,7 @@ def cache_invalidate():
     thumbnail_cache = current_app.config.get("THUMBNAIL_CACHE")
 
     if not thumbnail_cache:
-        return jsonify({"error": "Cache not available"}), 503
+        return error_response(HARDWARE_ERROR, "Cache not available", 503)
 
     # Get optional photo_path from request JSON
     data = request.get_json() or {}
@@ -604,7 +607,7 @@ def cache_invalidate():
             photo_path = validate_photo_path(photo_path_str, PHOTOS_DIR)
 
             if photo_path is None:
-                return jsonify({"error": "Invalid path"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid path")
 
             thumbnail_cache.invalidate(photo_path, size=size)
             message = f"Invalidated cache for {photo_path_str}"
@@ -616,7 +619,7 @@ def cache_invalidate():
 
     except Exception as e:
         logger.error(f"Cache invalidation error: {e}", exc_info=True)
-        return jsonify({"error": "Cache invalidation failed"}), 400
+        return error_response(VALIDATION_ERROR, "Cache invalidation failed")
 
 
 @gallery_bp.route("/cache/warm", methods=["POST"])
@@ -642,7 +645,7 @@ def cache_warm():
     cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
-        return jsonify({"error": "Cache warmer not available"}), 503
+        return error_response(HARDWARE_ERROR, "Cache warmer not available", 503)
 
     # Get optional parameters from request JSON
     data = request.get_json() or {}
@@ -657,7 +660,7 @@ def cache_warm():
 
     except Exception as e:
         logger.error(f"Error starting cache warming: {e}")
-        return jsonify({"error": "Failed to start cache warming"}), 400
+        return error_response(VALIDATION_ERROR, "Failed to start cache warming")
 
 
 @gallery_bp.route("/cache/warm/status", methods=["GET"])
@@ -678,7 +681,7 @@ def cache_warm_status(task_id=None):
     cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
-        return jsonify({"error": "Cache warmer not available"}), 503
+        return error_response(HARDWARE_ERROR, "Cache warmer not available", 503)
 
     try:
         status = cache_warmer.get_warming_status(task_id)
@@ -686,7 +689,7 @@ def cache_warm_status(task_id=None):
 
     except Exception as e:
         logger.error(f"Error getting warming status: {e}")
-        return jsonify({"error": "Failed to get warming status"}), 400
+        return error_response(VALIDATION_ERROR, "Failed to get warming status")
 
 
 @gallery_bp.route("/cache/warm/cancel/<task_id>", methods=["POST"])
@@ -695,7 +698,7 @@ def cache_warm_cancel(task_id):
     cache_warmer = current_app.config.get("CACHE_WARMER")
 
     if not cache_warmer:
-        return jsonify({"error": "Cache warmer not available"}), 503
+        return error_response(HARDWARE_ERROR, "Cache warmer not available", 503)
 
     try:
         result = cache_warmer.cancel_warming(task_id)
@@ -703,7 +706,7 @@ def cache_warm_cancel(task_id):
 
     except Exception as e:
         logger.error(f"Error cancelling cache warming: {e}")
-        return jsonify({"error": "Failed to cancel warming task"}), 400
+        return error_response(VALIDATION_ERROR, "Failed to cancel warming task")
 
 
 # For testing: allow resetting the cache singleton
@@ -754,7 +757,7 @@ def list_series():
     series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
-        return jsonify({"error": "Series service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Series service not available", 503)
 
     # Parse pagination parameters
     try:
@@ -762,21 +765,20 @@ def list_series():
         per_page = request.args.get("per_page", 50, type=int)
 
         if page < 1:
-            return jsonify({"error": "Page must be >= 1"}), 400
+            return error_response(VALIDATION_ERROR, "Page must be >= 1")
         if per_page < 1 or per_page > 100:
-            return jsonify({"error": "per_page must be 1-100"}), 400
+            return error_response(VALIDATION_ERROR, "per_page must be 1-100")
 
     except (ValueError, TypeError) as e:
-        return jsonify({"error": f"Invalid pagination parameter: {e}"}), 400
+        return error_response(VALIDATION_ERROR, f"Invalid pagination parameter: {e}")
 
     # Parse type filter
     series_type_filter = request.args.get("type")
     if series_type_filter and series_type_filter not in VALID_SERIES_TYPES:
-        return jsonify(
-            {
-                "error": f"Invalid type: {series_type_filter}. Valid: {', '.join(sorted(VALID_SERIES_TYPES))}"
-            }
-        ), 400
+        return error_response(
+            VALIDATION_ERROR,
+            f"Invalid type: {series_type_filter}. Valid: {', '.join(sorted(VALID_SERIES_TYPES))}",
+        )
 
     try:
         # Get all series from directory
@@ -832,7 +834,7 @@ def list_series():
 
     except Exception as e:
         logger.error(f"Error listing series: {e}", exc_info=True)
-        return jsonify({"error": "Failed to list series"}), 500
+        return error_response(SERVER_ERROR, "Failed to list series", 500)
 
 
 @gallery_bp.route("/series/<series_id>", methods=["GET"])
@@ -857,7 +859,7 @@ def get_series(series_id):
     series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
-        return jsonify({"error": "Series service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Series service not available", 503)
 
     try:
         # First ensure directory is scanned
@@ -867,7 +869,7 @@ def get_series(series_id):
         series = series_service.get_series_by_id(series_id)
 
         if not series:
-            return jsonify({"error": "Series not found", "series_id": series_id}), 404
+            return error_response(NOT_FOUND, "Series not found", 404, series_id=series_id)
 
         # Convert paths to relative strings
         photos_relative = [
@@ -893,7 +895,7 @@ def get_series(series_id):
 
     except Exception as e:
         logger.error(f"Error getting series {series_id}: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get series"}), 500
+        return error_response(SERVER_ERROR, "Failed to get series", 500)
 
 
 @gallery_bp.route("/series/stats", methods=["GET"])
@@ -911,7 +913,7 @@ def get_series_stats():
     series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
-        return jsonify({"error": "Series service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Series service not available", 503)
 
     try:
         stats = series_service.get_statistics()
@@ -919,7 +921,7 @@ def get_series_stats():
 
     except Exception as e:
         logger.error(f"Error getting series stats: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to get statistics", 500)
 
 
 @gallery_bp.route("/series/cache/invalidate", methods=["POST"])
@@ -940,7 +942,7 @@ def invalidate_series_cache():
     series_service = current_app.config.get("SERIES_SERVICE")
 
     if not series_service:
-        return jsonify({"error": "Series service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Series service not available", 503)
 
     try:
         data = request.get_json() or {}
@@ -950,7 +952,7 @@ def invalidate_series_cache():
             # Validate path security
             dir_path = validate_photo_path(directory, PHOTOS_DIR)
             if dir_path is None:
-                return jsonify({"error": "Invalid directory path"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid directory path")
             series_service.invalidate_cache(dir_path)
             message = f"Invalidated series cache for {directory}"
         else:
@@ -961,7 +963,7 @@ def invalidate_series_cache():
 
     except Exception as e:
         logger.error(f"Error invalidating series cache: {e}", exc_info=True)
-        return jsonify({"error": "Failed to invalidate cache"}), 500
+        return error_response(SERVER_ERROR, "Failed to invalidate cache", 500)
 
 
 # ============================================================================
@@ -999,11 +1001,11 @@ def get_photo_locations():
             try:
                 limit = int(limit_str)
             except ValueError:
-                return jsonify({"error": "Limit parameter must be a valid integer"}), 400
+                return error_response(VALIDATION_ERROR, "Limit parameter must be a valid integer")
             if limit <= 0:
-                return jsonify({"error": "Limit must be greater than 0"}), 400
+                return error_response(VALIDATION_ERROR, "Limit must be greater than 0")
             if limit > 10000:
-                return jsonify({"error": "Limit must be 10000 or less"}), 400
+                return error_response(VALIDATION_ERROR, "Limit must be 10000 or less")
         else:
             limit = 1000
 
@@ -1013,7 +1015,7 @@ def get_photo_locations():
 
     except Exception as e:
         logger.error(f"Error getting photo locations: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get photo locations"}), 500
+        return error_response(SERVER_ERROR, "Failed to get photo locations", 500)
 
 
 @gallery_bp.route("/locations/cache/invalidate", methods=["POST"])
@@ -1039,7 +1041,7 @@ def invalidate_locations_cache():
             # Validate path security
             dir_path = validate_photo_path(directory, PHOTOS_DIR)
             if dir_path is None:
-                return jsonify({"error": "Invalid directory path"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid directory path")
             _locations_service.invalidate_cache(dir_path)
             message = f"Invalidated locations cache for {directory}"
         else:
@@ -1050,7 +1052,7 @@ def invalidate_locations_cache():
 
     except Exception as e:
         logger.error(f"Error invalidating locations cache: {e}", exc_info=True)
-        return jsonify({"error": "Failed to invalidate cache"}), 500
+        return error_response(SERVER_ERROR, "Failed to invalidate cache", 500)
 
 
 @gallery_bp.route("/locations/stats", methods=["GET"])
@@ -1074,7 +1076,7 @@ def get_locations_stats():
 
     except Exception as e:
         logger.error(f"Error getting locations stats: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to get statistics", 500)
 
 
 # ============================================================================
@@ -1112,7 +1114,7 @@ def get_clustered_locations():
     clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
-        return jsonify({"error": "Clustering service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Clustering service not available", 503)
 
     try:
         # Parse query parameters
@@ -1125,10 +1127,10 @@ def get_clustered_locations():
             try:
                 radius = int(radius_str)
             except ValueError:
-                return jsonify({"error": "Radius parameter must be a valid integer"}), 400
+                return error_response(VALIDATION_ERROR, "Radius parameter must be a valid integer")
 
             if radius < 0:
-                return jsonify({"error": "Radius must be non-negative"}), 400
+                return error_response(VALIDATION_ERROR, "Radius must be non-negative")
         else:
             radius = None  # Use service default
 
@@ -1137,10 +1139,12 @@ def get_clustered_locations():
             try:
                 min_size = int(min_size_str)
             except ValueError:
-                return jsonify({"error": "min_size parameter must be a valid integer"}), 400
+                return error_response(
+                    VALIDATION_ERROR, "min_size parameter must be a valid integer"
+                )
 
             if min_size < 0:
-                return jsonify({"error": "min_size must be non-negative"}), 400
+                return error_response(VALIDATION_ERROR, "min_size must be non-negative")
         else:
             min_size = None  # Use service default
 
@@ -1245,7 +1249,7 @@ def get_clustered_locations():
 
     except Exception as e:
         logger.error(f"Error getting clustered locations: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get clustered locations"}), 500
+        return error_response(SERVER_ERROR, "Failed to get clustered locations", 500)
 
 
 @gallery_bp.route("/locations/clustered/stats", methods=["GET"])
@@ -1267,7 +1271,7 @@ def get_clustered_locations_stats():
     clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
-        return jsonify({"error": "Clustering service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Clustering service not available", 503)
 
     try:
         stats = clustering_service.get_statistics()
@@ -1275,7 +1279,7 @@ def get_clustered_locations_stats():
 
     except Exception as e:
         logger.error(f"Error getting clustering stats: {e}", exc_info=True)
-        return jsonify({"error": "Failed to get statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to get statistics", 500)
 
 
 @gallery_bp.route("/locations/clustered/cache/invalidate", methods=["POST"])
@@ -1297,7 +1301,7 @@ def invalidate_clustered_locations_cache():
     clustering_service = current_app.config.get("CLUSTERING_SERVICE")
 
     if not clustering_service:
-        return jsonify({"error": "Clustering service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Clustering service not available", 503)
 
     try:
         # Handle missing or empty JSON body gracefully
@@ -1310,7 +1314,7 @@ def invalidate_clustered_locations_cache():
             # Validate path security
             dir_path = validate_photo_path(directory, PHOTOS_DIR)
             if dir_path is None:
-                return jsonify({"error": "Invalid directory path"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid directory path")
             clustering_service.invalidate_cache(dir_path)
             message = f"Invalidated clustering cache for {directory}"
         else:
@@ -1321,7 +1325,7 @@ def invalidate_clustered_locations_cache():
 
     except Exception as e:
         logger.error(f"Error invalidating clustering cache: {e}", exc_info=True)
-        return jsonify({"error": "Failed to invalidate cache"}), 500
+        return error_response(SERVER_ERROR, "Failed to invalidate cache", 500)
 
 
 # ============================================================================
@@ -1362,18 +1366,18 @@ def bulk_delete_photos():
     data = request.get_json()
 
     if not data or "filenames" not in data:
-        return jsonify({"error": "filenames array required"}), 400
+        return error_response(VALIDATION_ERROR, "filenames array required")
 
     filenames = data["filenames"]
 
     if not filenames or not isinstance(filenames, list):
-        return jsonify({"error": "filenames must be non-empty array"}), 400
+        return error_response(VALIDATION_ERROR, "filenames must be non-empty array")
 
     # Deduplicate filenames (preserves first occurrence order)
     filenames = list(dict.fromkeys(filenames))
 
     if len(filenames) > MAX_BULK_DELETE:
-        return jsonify({"error": f"Maximum {MAX_BULK_DELETE} files per request"}), 400
+        return error_response(VALIDATION_ERROR, f"Maximum {MAX_BULK_DELETE} files per request")
 
     success = []
     failed = []
