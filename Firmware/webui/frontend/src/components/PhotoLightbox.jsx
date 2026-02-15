@@ -11,6 +11,7 @@ import MetadataPanel from './metadata/MetadataPanel'
 import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
 import ExportOptionsMenu from './export/ExportOptionsMenu'
 import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
+import usePhotoMetadata from '../hooks/usePhotoMetadata'
 
 /**
  * Adaptive Photo Lightbox Component
@@ -226,6 +227,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
     photos,
     currentIndex,
   })
+
+  // Fetch photo metadata (GPS, EXIF) from backend API
+  // TanStack Query deduplicates by queryKey ['photoMetadata', photoPath]
+  const { data: photoMetadata } = usePhotoMetadata(photo?.path)
 
   // Track image dimensions when loaded
   useEffect(() => {
@@ -618,9 +623,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
           {formatDate(photo.date)} • {formatFileSize(photo.size)}
         </p>
         <LocationHeader
-          latitude={photo.latitude}
-          longitude={photo.longitude}
-          altitude={photo.altitude}
+          latitude={photoMetadata?.location?.latitude ?? photo.latitude}
+          longitude={photoMetadata?.location?.longitude ?? photo.longitude}
+          altitude={photoMetadata?.location?.altitude ?? photo.altitude}
           onLocationClick={onLocationClick}
         />
       </div>
