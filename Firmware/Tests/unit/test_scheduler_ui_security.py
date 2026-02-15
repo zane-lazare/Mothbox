@@ -35,11 +35,14 @@ class TestErrorMessageSanitization:
         from webui.backend.routes.scheduler_ui import _validate_location_params
 
         malicious_tz = "<script>alert('xss')</script>"
-        error, status = _validate_location_params(0.0, 0.0, malicious_tz)
+        with app.app_context():
+            result = _validate_location_params(0.0, 0.0, malicious_tz)
 
-        assert error is not None
+        assert result is not None
+        response, status = result
         assert status == 400
-        error_msg = error.get("error", "")
+        data = response.get_json()
+        error_msg = data.get("error", "")
         assert "<script>" not in error_msg
         assert "alert" not in error_msg
 
@@ -47,60 +50,63 @@ class TestErrorMessageSanitization:
         """Coordinate error messages should be safe."""
         from webui.backend.routes.scheduler_ui import _validate_location_params
 
-        error, status = _validate_location_params(999.0, 999.0, "UTC")
+        with app.app_context():
+            result = _validate_location_params(999.0, 999.0, "UTC")
 
-        assert error is not None
+        assert result is not None
+        response, status = result
         assert status == 400
-        error_msg = error.get("error", "")
+        data = response.get_json()
+        error_msg = data.get("error", "")
         assert "Invalid coordinates" in error_msg
 
-    def test_sanitize_error_message_strips_html(self):
-        """_sanitize_error_message should strip HTML tags."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+    def test_sanitize_message_strips_html(self):
+        """sanitize_message() should strip HTML tags."""
+        from webui.backend.lib.error_codes import sanitize_message
 
         malicious = "<script>alert('xss')</script>Normal text<b>bold</b>"
-        sanitized = _sanitize_error_message(malicious)
+        sanitized = sanitize_message(malicious)
 
         assert "<script>" not in sanitized
         assert "<b>" not in sanitized
         assert "Normal text" in sanitized
         assert "bold" in sanitized
 
-    def test_sanitize_error_message_truncates_long_messages(self):
+    def test_sanitize_message_truncates_long_messages(self):
         """Long error messages should be truncated."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+        from webui.backend.lib.error_codes import sanitize_message
 
         long_msg = "x" * 500
-        sanitized = _sanitize_error_message(long_msg)
+        sanitized = sanitize_message(long_msg)
 
         assert len(sanitized) <= 200
 
-    def test_sanitize_error_message_handles_none(self):
+    def test_sanitize_message_handles_none(self):
         """None input should return generic message."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+        from webui.backend.lib.error_codes import sanitize_message
 
-        assert _sanitize_error_message(None) == "An error occurred"
+        assert sanitize_message(None) == "An error occurred"
 
-    def test_sanitize_error_message_handles_empty(self):
+    def test_sanitize_message_handles_empty(self):
         """Empty input should return generic message."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+        from webui.backend.lib.error_codes import sanitize_message
 
-        assert _sanitize_error_message("") == "An error occurred"
+        assert sanitize_message("") == "An error occurred"
 
-    def test_sanitize_error_message_redacts_internal_paths(self):
+    def test_sanitize_message_redacts_internal_paths(self):
         """Internal file paths should be redacted."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+        from webui.backend.lib.error_codes import sanitize_message
 
         msg = "Failed to read /etc/secrets/api_key.txt"
-        sanitized = _sanitize_error_message(msg)
+        sanitized = sanitize_message(msg)
 
         assert "/etc/secrets" not in sanitized
         assert "[path]" in sanitized
         assert "Failed to read" in sanitized
 
-    def test_sanitize_error_message_redacts_various_paths(self):
+    def test_sanitize_message_redacts_various_paths(self):
         """Various internal paths should be redacted."""
-        from webui.backend.routes.scheduler_ui import _sanitize_error_message
+        from webui.backend.lib.error_codes import sanitize_message
 
         test_cases = [
             "/var/log/mothbox.log",
@@ -112,7 +118,7 @@ class TestErrorMessageSanitization:
         ]
         for path in test_cases:
             msg = f"Error at {path}"
-            sanitized = _sanitize_error_message(msg)
+            sanitized = sanitize_message(msg)
             # Original path should be redacted
             assert path not in sanitized, f"Path {path} should be redacted"
             assert "[path]" in sanitized
