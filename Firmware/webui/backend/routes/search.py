@@ -17,6 +17,13 @@ logger = logging.getLogger(__name__)
 
 from flask import Blueprint, current_app, jsonify, request
 
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
+
 # Rate limiter setup (follows pattern from gallery.py)
 try:
     from flask_limiter import Limiter
@@ -82,18 +89,17 @@ def search_photos():
     # Get and validate query parameter
     query = request.args.get("q", "").strip()
     if not query:
-        return jsonify(
-            {"error": "Missing query", "message": "Query parameter 'q' is required"}
-        ), 400
+        return error_response(
+            VALIDATION_ERROR, "Missing query", message="Query parameter 'q' is required"
+        )
 
     # Validate query length to prevent abuse
     if len(query) > MAX_QUERY_LENGTH:
-        return jsonify(
-            {
-                "error": "Query too long",
-                "message": f"Query must be {MAX_QUERY_LENGTH} characters or less",
-            }
-        ), 400
+        return error_response(
+            VALIDATION_ERROR,
+            "Query too long",
+            message=f"Query must be {MAX_QUERY_LENGTH} characters or less",
+        )
 
     # Parse and validate limit parameter
     try:
@@ -101,39 +107,40 @@ def search_photos():
         # Cap at maximum
         limit = min(limit, MAX_LIMIT)
     except (ValueError, TypeError):
-        return jsonify({"error": "Invalid limit", "message": "Limit must be an integer"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid limit", message="Limit must be an integer")
 
     # Parse and validate offset parameter
     try:
         offset = int(request.args.get("offset", DEFAULT_OFFSET))
         if offset < 0:
-            return jsonify(
-                {"error": "Invalid offset", "message": "Offset must be non-negative"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer"
+            )
     except (ValueError, TypeError):
-        return jsonify({"error": "Invalid offset", "message": "Offset must be an integer"}), 400
+        return error_response(
+            VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer"
+        )
 
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({"error": "Search service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Search service not available", 503)
 
     # Execute search
     try:
         result = search_service.search(query, limit=limit, offset=offset)
     except Exception:
         logger.exception("Search failed")
-        return jsonify({"error": "Search failed"}), 500
+        return error_response(SERVER_ERROR, "Search failed", 500)
 
     # Check if query was valid
     if not result.get("is_valid", True):
-        return jsonify(
-            {
-                "error": "Invalid query",
-                "message": result.get("error_message", "Query parsing failed"),
-                "query": query,
-            }
-        ), 400
+        return error_response(
+            VALIDATION_ERROR,
+            "Invalid query",
+            message=result.get("error_message", "Invalid query syntax"),
+            query=query,
+        )
 
     # Format results for API response
     formatted_results = _format_results(result.get("results", []))
@@ -179,14 +186,14 @@ def search_stats():
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({"error": "Search service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Search service not available", 503)
 
     try:
         stats = search_service.get_statistics()
         return jsonify(stats), 200
     except Exception:
         logger.exception("Failed to get search statistics")
-        return jsonify({"error": "Failed to get statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to get statistics", 500)
 
 
 @search_bp.route("/rebuild", methods=["POST"])
@@ -216,7 +223,7 @@ def rebuild_index():
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({"error": "Search service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Search service not available", 503)
 
     try:
         stats = search_service.build_index()
@@ -231,7 +238,7 @@ def rebuild_index():
         return jsonify(response), 200
     except Exception:
         logger.exception("Index rebuild failed")
-        return jsonify({"error": "Index rebuild failed"}), 500
+        return error_response(SERVER_ERROR, "Index rebuild failed", 500)
 
 
 @search_bp.route("/sync", methods=["POST"])
@@ -265,7 +272,7 @@ def sync_index():
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
     if not search_service:
-        return jsonify({"error": "Search service not available"}), 503
+        return error_response(HARDWARE_ERROR, "Search service not available", 503)
 
     try:
         stats = search_service.sync_index()
@@ -283,7 +290,7 @@ def sync_index():
         return jsonify(response), 200
     except Exception:
         logger.exception("Index sync failed")
-        return jsonify({"error": "Index sync failed"}), 500
+        return error_response(SERVER_ERROR, "Index sync failed", 500)
 
 
 def _format_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

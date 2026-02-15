@@ -106,7 +106,7 @@ def sanitize_message(message: str | None, max_length: int = 200) -> str:
 # ---------------------------------------------------------------------------
 
 
-def error_response(code: str, message: str, status: int = 400, **extra) -> tuple:
+def error_response(code: str, error_msg: str, status: int = 400, **extra) -> tuple:
     """
     Return a standardized JSON error response.
 
@@ -114,13 +114,20 @@ def error_response(code: str, message: str, status: int = 400, **extra) -> tuple
 
     Args:
         code: Error code constant (e.g., ``VALIDATION_ERROR``)
-        message: Human-readable error description (will be sanitized)
+        error_msg: Human-readable error description (will be sanitized)
         status: HTTP status code (default 400)
         **extra: Additional fields to include in the response JSON
-                 (e.g., ``conflict=True``, ``message="detail"``)
+                 (e.g., ``message="detailed description"``, ``query="..."``).
+                 Use ``message=`` to add a separate detail field to the
+                 response while keeping the ``"error"`` field short.
 
     Returns:
         Tuple of (Flask Response, int) suitable for returning from a route
+
+    Response field convention:
+        ``"error"``   — short label (what went wrong)
+        ``"code"``    — machine-readable constant (for programmatic handling)
+        ``"message"`` — optional detailed description (for UI display)
     """
-    body = {"error": sanitize_message(message), "code": code, **extra}
+    body = {"error": sanitize_message(error_msg), "code": code, **extra}
     return jsonify(body), status

@@ -28,6 +28,12 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONFIG_DIR, PHOTOS_DIR
+from webui.backend.lib.error_codes import (
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 from webui.backend.lib.gps_coordinate_resolver import VALID_SOURCES, resolve_coordinates
 from webui.backend.lib.gps_exif_lib import embed_gps_exif
 
@@ -154,7 +160,7 @@ def get_status():
         )
     except Exception:
         logger.exception("Failed to get GPS EXIF tagger status")
-        return jsonify({"error": "Failed to get GPS EXIF tagger status"}), 500
+        return error_response(SERVER_ERROR, "Failed to get GPS EXIF tagger status", 500)
 
 
 # ============================================================================
@@ -186,23 +192,23 @@ def tag_photo():
         data = None
 
     if not data:
-        return jsonify({"error": "No data provided"}), 400
+        return error_response(VALIDATION_ERROR, "No data provided")
 
     # Validate photo_path is present and non-empty
     photo_path_str = data.get("photo_path")
     if not photo_path_str or not isinstance(photo_path_str, str) or not photo_path_str.strip():
-        return jsonify({"error": "photo_path is required"}), 400
+        return error_response(VALIDATION_ERROR, "photo_path is required")
 
     photo_path_str = photo_path_str.strip()
 
     # Validate path (no traversal, relative, under PHOTOS_DIR)
     resolved_path = _validate_relative_path(photo_path_str, PHOTOS_DIR)
     if resolved_path is None:
-        return jsonify({"error": "Invalid path: path traversal not allowed"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid path: path traversal not allowed")
 
     # Check file exists
     if not resolved_path.exists():
-        return jsonify({"error": f"Photo not found: {photo_path_str}"}), 404
+        return error_response(NOT_FOUND, f"Photo not found: {photo_path_str}", 404)
 
     # Determine coordinate source(s)
     source_str = data.get("coordinate_source", "deployment")
@@ -218,13 +224,16 @@ def tag_photo():
     # Validate manual coordinates if provided
     if manual_coords is not None:
         if not isinstance(manual_coords, dict):
-            return jsonify({"error": "manual_coords must be an object with lat and lon"}), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "manual_coords must be an object with lat and lon",
+            )
         lat = manual_coords.get("lat")
         lon = manual_coords.get("lon")
         if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
-            return jsonify({"error": "manual_coords.lat and .lon must be numbers"}), 400
+            return error_response(VALIDATION_ERROR, "manual_coords.lat and .lon must be numbers")
         if lat < -90 or lat > 90 or lon < -180 or lon > 180:
-            return jsonify({"error": "lat must be -90..90, lon must be -180..180"}), 400
+            return error_response(VALIDATION_ERROR, "lat must be -90..90, lon must be -180..180")
 
     try:
         # Lazy import to avoid circular dependency
@@ -240,14 +249,10 @@ def tag_photo():
         )
 
         if resolved is None:
-            return (
-                jsonify(
-                    {
-                        "error": "No coordinates available from the specified source(s)",
-                        "sources_tried": list(sources),
-                    }
-                ),
-                400,
+            return error_response(
+                VALIDATION_ERROR,
+                "No coordinates available from the specified source(s)",
+                sources_tried=list(sources),
             )
 
         # Embed GPS EXIF
@@ -255,7 +260,7 @@ def tag_photo():
 
         if not result["success"]:
             error_msg = result.get("error", "Unknown error during GPS EXIF embedding")
-            return jsonify({"error": error_msg}), 500
+            return error_response(SERVER_ERROR, error_msg, 500)
 
         return jsonify(
             {
@@ -269,10 +274,10 @@ def tag_photo():
         )
 
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        return error_response(VALIDATION_ERROR, str(e))
     except Exception:
         logger.exception("Failed to tag photo: %s", photo_path_str)
-        return jsonify({"error": "Failed to tag photo"}), 500
+        return error_response(SERVER_ERROR, "Failed to tag photo", 500)
 
 
 # ============================================================================
@@ -312,7 +317,7 @@ def batch_tag():
     if directory_str:
         resolved_dir = _validate_relative_path(directory_str, PHOTOS_DIR)
         if resolved_dir is None:
-            return jsonify({"error": "Invalid directory: path traversal not allowed"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid directory: path traversal not allowed")
         target_dir = resolved_dir
     else:
         target_dir = PHOTOS_DIR
@@ -320,7 +325,7 @@ def batch_tag():
     # Parse options
     coordinate_sources = data.get("coordinate_sources", ["deployment", "gps"])
     if not isinstance(coordinate_sources, list):
-        return jsonify({"error": "coordinate_sources must be a list"}), 400
+        return error_response(VALIDATION_ERROR, "coordinate_sources must be a list")
 
     pattern = data.get("pattern", "**/*.jpg")
     force = bool(data.get("force", False))
@@ -330,13 +335,16 @@ def batch_tag():
     # Validate manual coordinates if provided
     if manual_coords is not None:
         if not isinstance(manual_coords, dict):
-            return jsonify({"error": "manual_coords must be an object with lat and lon"}), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "manual_coords must be an object with lat and lon",
+            )
         lat = manual_coords.get("lat")
         lon = manual_coords.get("lon")
         if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
-            return jsonify({"error": "manual_coords.lat and .lon must be numbers"}), 400
+            return error_response(VALIDATION_ERROR, "manual_coords.lat and .lon must be numbers")
         if lat < -90 or lat > 90 or lon < -180 or lon > 180:
-            return jsonify({"error": "lat must be -90..90, lon must be -180..180"}), 400
+            return error_response(VALIDATION_ERROR, "lat must be -90..90, lon must be -180..180")
 
     try:
         from webui.cli.gps_exif_tagger import batch_process_directory
@@ -365,10 +373,10 @@ def batch_tag():
             }
         )
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        return error_response(VALIDATION_ERROR, str(e))
     except Exception:
         logger.exception("Batch tagging failed")
-        return jsonify({"error": "Batch tagging failed"}), 500
+        return error_response(SERVER_ERROR, "Batch tagging failed", 500)
 
 
 # ============================================================================
@@ -391,7 +399,7 @@ def get_config():
         return jsonify(config)
     except Exception:
         logger.exception("Failed to get GPS EXIF config")
-        return jsonify({"error": "Failed to get GPS EXIF config"}), 500
+        return error_response(SERVER_ERROR, "Failed to get GPS EXIF config", 500)
 
 
 # ============================================================================
@@ -421,24 +429,19 @@ def update_config():
         data = None
 
     if not data:
-        return jsonify({"error": "No data provided"}), 400
+        return error_response(VALIDATION_ERROR, "No data provided")
 
     # Validate default_sources if provided
     if "default_sources" in data:
         sources = data["default_sources"]
         if not isinstance(sources, list) or len(sources) == 0:
-            return jsonify({"error": "default_sources must be a non-empty list"}), 400
+            return error_response(VALIDATION_ERROR, "default_sources must be a non-empty list")
 
         for source in sources:
             if source not in VALID_SOURCES:
-                return (
-                    jsonify(
-                        {
-                            "error": f"Invalid source '{source}'. "
-                            f"Valid sources: {', '.join(VALID_SOURCES)}"
-                        }
-                    ),
-                    400,
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Invalid source '{source}'. Valid sources: {', '.join(VALID_SOURCES)}",
                 )
 
     # Build updated config
@@ -454,6 +457,6 @@ def update_config():
         _save_config(current)
     except OSError:
         logger.exception("Failed to save GPS EXIF config")
-        return jsonify({"error": "Failed to save configuration"}), 500
+        return error_response(SERVER_ERROR, "Failed to save configuration", 500)
 
     return jsonify({"success": True, "config": current})
