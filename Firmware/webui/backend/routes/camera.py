@@ -50,6 +50,11 @@ from utils import (
 )
 
 from mothbox_paths import CAMERA_SETTINGS_FILE, PHOTOS_DIR
+from webui.backend.lib.error_codes import (
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 # ============================================================================
 # Operation Timeouts and Delays
@@ -670,7 +675,7 @@ def get_camera_settings():
         return jsonify(settings)
     except Exception:
         logger.exception("Failed to get camera settings")
-        return jsonify({"error": "Failed to get camera settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to get camera settings", 500)
 
 
 @camera_bp.route("/settings", methods=["POST"])
@@ -693,12 +698,12 @@ def update_camera_settings():
             elif key in ALLOWED_WEBUI_SETTINGS:
                 validator = ALLOWED_WEBUI_SETTINGS[key]
             else:
-                return jsonify({"error": f"Invalid setting: {key}"}), 400
+                return error_response(VALIDATION_ERROR, f"Invalid setting: {key}")
             try:
                 if not validator(value):
-                    return jsonify({"error": f"Invalid value for {key}"}), 400
+                    return error_response(VALIDATION_ERROR, f"Invalid value for {key}")
             except (ValueError, TypeError):
-                return jsonify({"error": f"Invalid type for {key}"}), 400
+                return error_response(VALIDATION_ERROR, f"Invalid type for {key}")
 
         # Read current settings (vertical format: each row is a setting)
         csv_rows = []
@@ -740,7 +745,7 @@ def update_camera_settings():
         return jsonify({"success": True})
     except Exception:
         logger.exception("Failed to update camera settings")
-        return jsonify({"error": "Failed to update camera settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to update camera settings", 500)
 
 
 @camera_bp.route("/autofocus", methods=["POST"])
@@ -1200,7 +1205,7 @@ def freeze_settings():
 
     except Exception:
         logger.exception("Freeze settings exception")
-        return jsonify({"error": "Failed to freeze settings"}), 500
+        return error_response(SERVER_ERROR, "Failed to freeze settings", 500)
 
 
 def _execute_test_capture(settings_dict, af_mode, settings_source):
