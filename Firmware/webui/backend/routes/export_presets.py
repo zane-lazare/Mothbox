@@ -19,6 +19,12 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from webui.backend.lib.error_codes import (
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 from webui.backend.lib.export_job_types import ExportJobFilter, ExportJobFormat
 from webui.backend.lib.export_preset_types import ExportPreset, ExportPresetCategory
 
@@ -60,7 +66,7 @@ def list_export_presets():
         return jsonify({"presets": presets, "counts": counts})
     except Exception:
         logger.exception("Error listing export presets")
-        return jsonify({"error": "Failed to list export presets"}), 500
+        return error_response(SERVER_ERROR, "Failed to list export presets", 500)
 
 
 @export_presets_bp.route("/<name>", methods=["GET"])
@@ -79,13 +85,13 @@ def get_export_preset(name: str):
         preset = preset_manager.get_preset(name)
 
         if not preset:
-            return jsonify({"error": f"Preset '{name}' not found"}), 404
+            return error_response(NOT_FOUND, f"Preset '{name}' not found", 404)
 
         # Convert ExportPreset to dict for JSON response
         return jsonify(preset.to_dict())
     except Exception:
         logger.exception("Error getting export preset '%s'", name)
-        return jsonify({"error": "Failed to get export preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to get export preset", 500)
 
 
 @export_presets_bp.route("", methods=["POST"], strict_slashes=False)
@@ -116,33 +122,34 @@ def create_export_preset():
         data = request.json
 
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            return error_response(VALIDATION_ERROR, "No data provided")
 
         # Validate required fields
         name = data.get("name", "").strip()
         if not name:
-            return jsonify({"error": "Preset name is required"}), 400
+            return error_response(VALIDATION_ERROR, "Preset name is required")
 
         display_name = data.get("display_name", "").strip()
         if not display_name:
-            return jsonify({"error": "Preset display_name is required"}), 400
+            return error_response(VALIDATION_ERROR, "Preset display_name is required")
 
         export_format_str = data.get("export_format", "").strip()
         if not export_format_str:
-            return jsonify({"error": "Preset export_format is required"}), 400
+            return error_response(VALIDATION_ERROR, "Preset export_format is required")
 
         # Validate export format
         try:
             export_format = ExportJobFormat(export_format_str)
         except ValueError:
             valid_formats = [f.value for f in ExportJobFormat]
-            return jsonify(
-                {"error": f"Invalid export_format. Must be one of: {valid_formats}"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Invalid export_format. Must be one of: {valid_formats}",
+            )
 
         # Reject built-in category
         if data.get("category") == "built-in":
-            return jsonify({"error": "Cannot create preset with built-in category"}), 400
+            return error_response(VALIDATION_ERROR, "Cannot create preset with built-in category")
 
         # Build filter from request
         filter_data = data.get("filter", {})
@@ -166,11 +173,11 @@ def create_export_preset():
         if success:
             return jsonify({"success": True, "message": message, "name": name}), 201
         else:
-            return jsonify({"error": message}), 400
+            return error_response(VALIDATION_ERROR, message)
 
     except Exception:
         logger.exception("Error creating export preset")
-        return jsonify({"error": "Failed to create export preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to create export preset", 500)
 
 
 @export_presets_bp.route("/<name>", methods=["DELETE"])
@@ -193,12 +200,12 @@ def delete_export_preset(name: str):
         else:
             # Determine appropriate status code
             if "not found" in message.lower():
-                return jsonify({"error": message}), 404
+                return error_response(NOT_FOUND, message, 404)
             elif "built-in" in message.lower():
-                return jsonify({"error": message}), 400
+                return error_response(VALIDATION_ERROR, message)
             else:
-                return jsonify({"error": message}), 400
+                return error_response(VALIDATION_ERROR, message)
 
     except Exception:
         logger.exception("Error deleting export preset '%s'", name)
-        return jsonify({"error": "Failed to delete export preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to delete export preset", 500)
