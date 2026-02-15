@@ -40,6 +40,8 @@ import { useFilters } from '../hooks/useFilters'
 import { combineWithUserSearch } from '../utils/filterQueryBuilder'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage } from '../utils/helpers'
+import GpsTagBanner from '../components/Gallery/GpsTagBanner'
+import { useGpsExifStatus } from '../hooks/useGpsExif'
 import toast from 'react-hot-toast'
 
 /**
@@ -58,6 +60,9 @@ function GalleryContent() {
 
   // Filter state from useFilters hook
   const { searchQuery: filterQuery, hasFilters } = useFilters()
+
+  // GPS EXIF status for untagged photo banner
+  const { data: exifStatus } = useGpsExifStatus()
 
   // Combine user search query with filter query
   const combinedQuery = useMemo(() => {
@@ -674,6 +679,12 @@ function GalleryContent() {
             )}
           </div>
         </div>
+
+        {/* GPS Tag Banner */}
+        <GpsTagBanner
+          untaggedCount={exifStatus?.untagged_count}
+          currentDirectory={undefined}
+        />
 
         {/* Search Bar */}
         <div className="flex gap-2">

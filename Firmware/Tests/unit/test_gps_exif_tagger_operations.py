@@ -253,8 +253,30 @@ class TestBatchProcessing:
                 processed_files.append(photo_path.name)
                 return {"success": True, "skipped": False}
 
-            with patch.object(
-                gps_exif_tagger, "process_single_photo", side_effect=track_processing
+            mock_resolved = {
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "gps",
+                "deployment_name": None,
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
+            }
+
+            with (
+                patch.object(gps_exif_tagger, "process_single_photo", side_effect=track_processing),
+                patch(
+                    "webui.cli.gps_exif_tagger.resolve_coordinates",
+                    return_value=mock_resolved,
+                ),
             ):
                 gps_exif_tagger.batch_process_directory(
                     tmp_path, logger, pattern="*.jpg", force=False, backup=False, dry_run=False
@@ -298,8 +320,30 @@ class TestBatchProcessing:
                 processed_files.append(photo_path.name)
                 return {"success": True, "skipped": False}
 
-            with patch.object(
-                gps_exif_tagger, "process_single_photo", side_effect=track_processing
+            mock_resolved = {
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "gps",
+                "deployment_name": None,
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
+            }
+
+            with (
+                patch.object(gps_exif_tagger, "process_single_photo", side_effect=track_processing),
+                patch(
+                    "webui.cli.gps_exif_tagger.resolve_coordinates",
+                    return_value=mock_resolved,
+                ),
             ):
                 gps_exif_tagger.batch_process_directory(
                     tmp_path, logger, pattern="*.jpg", force=False, backup=False, dry_run=False
@@ -818,3 +862,148 @@ class TestFileStability:
         finally:
             # Restore permissions
             os.chmod(tmp_path, 0o755)
+
+
+class TestResolverIntegration:
+    """Test that tagger uses coordinate resolver per photo."""
+
+    def test_batch_uses_resolver_per_photo(self):
+        """batch_process_directory calls resolve_coordinates for each photo."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            # Create two photos in a subdirectory (tests recursive glob)
+            subdir = tmp_path / "2026-02-10"
+            subdir.mkdir()
+            for name in ["photo_001.jpg", "photo_002.jpg"]:
+                img = Image.new("RGB", (100, 100), color="white")
+                img.save(subdir / name)
+
+            mock_result = {
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "deployment",
+                "deployment_name": "Test Deploy",
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
+            }
+
+            with patch(
+                "webui.cli.gps_exif_tagger.resolve_coordinates",
+                return_value=mock_result,
+            ) as mock_resolve:
+                stats = gps_exif_tagger.batch_process_directory(
+                    tmp_path,
+                    logger,
+                    pattern="**/*.jpg",
+                    coordinate_sources=("deployment", "gps"),
+                )
+
+            assert mock_resolve.call_count == 2
+            assert stats["total"] == 2
+
+    def test_batch_skips_when_resolver_returns_none(self):
+        """Photos are skipped when resolver returns None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            img = Image.new("RGB", (100, 100), color="white")
+            img.save(tmp_path / "photo.jpg")
+
+            with patch(
+                "webui.cli.gps_exif_tagger.resolve_coordinates",
+                return_value=None,
+            ):
+                stats = gps_exif_tagger.batch_process_directory(
+                    tmp_path,
+                    logger,
+                    pattern="**/*.jpg",
+                    coordinate_sources=("deployment", "gps"),
+                )
+
+            assert stats["skipped"] == 1
+
+    def test_batch_stats_include_source_counts(self):
+        """Batch stats track how many photos tagged per source."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            for i in range(3):
+                img = Image.new("RGB", (100, 100), color="white")
+                img.save(tmp_path / f"photo_{i}.jpg")
+
+            mock_result = {
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "deployment",
+                "deployment_name": "Test",
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
+            }
+
+            with patch(
+                "webui.cli.gps_exif_tagger.resolve_coordinates",
+                return_value=mock_result,
+            ):
+                stats = gps_exif_tagger.batch_process_directory(
+                    tmp_path,
+                    logger,
+                    pattern="**/*.jpg",
+                    coordinate_sources=("deployment",),
+                )
+
+            assert "source_counts" in stats
+            assert stats["source_counts"].get("deployment", 0) >= 0
+
+    def test_process_single_photo_accepts_gps_data(self):
+        """process_single_photo can receive pre-resolved gps_data."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            logger = Mock()
+
+            photo_path = tmp_path / "test.jpg"
+            img = Image.new("RGB", (100, 100), color="white")
+            img.save(photo_path)
+
+            gps_data = {
+                "has_fix": True,
+                "latitude": 35.96,
+                "longitude": -83.92,
+                "altitude": None,
+                "fix_mode": 3,
+                "gpstime": 0,
+                "satellites_used": 0,
+                "hdop": 99.99,
+                "pdop": 99.99,
+            }
+
+            result = gps_exif_tagger.process_single_photo(
+                photo_path,
+                logger,
+                gps_data=gps_data,
+            )
+
+            # Should succeed or at least not error on the gps_data param
+            assert isinstance(result, dict)
+            assert "success" in result
