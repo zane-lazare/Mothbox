@@ -23,6 +23,14 @@ from security_utils import sanitize_error_message, validate_photo_path
 from services.metadata_service import MetadataService
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    NOT_FOUND,
+    PERMISSION_ERROR,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,29 +76,29 @@ def get_photo_metadata(photo_path: str):
         # Path traversal protection with multiple security layers
         full_path = validate_photo_path(photo_path, PHOTOS_DIR)
         if full_path is None:
-            return jsonify({"error": "Invalid path: Access denied"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if photo exists
         if not full_path.exists():
-            return jsonify({"error": "Photo not found"}), 404
+            return error_response(NOT_FOUND, "Photo not found", 404)
 
         # Extract metadata
         metadata = metadata_service.get_photo_metadata(full_path)
 
         # Check if metadata extraction failed
         if "error" in metadata:
-            return jsonify({"error": "Failed to extract metadata"}), 500
+            return error_response(SERVER_ERROR, "Failed to extract metadata", 500)
 
         return jsonify(metadata), 200
 
     except (RuntimeError, OSError) as e:
         # Log full error, return sanitized message
         error_msg = sanitize_error_message(e, "File system error occurred")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
     except Exception as e:
         # Log full error, return sanitized message
         error_msg = sanitize_error_message(e, "Internal server error")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 @metadata_bp.route("/batch/metadata", methods=["POST"])
@@ -135,20 +143,20 @@ def get_batch_metadata():
     try:
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
@@ -182,7 +190,7 @@ def get_batch_metadata():
     except Exception as e:
         # Log full error, return sanitized message
         error_msg = sanitize_error_message(e, "Batch processing failed")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
 
 
 # ============================================================================
@@ -239,12 +247,12 @@ def get_tag_autocomplete():
         # Get autocomplete engine
         engine = current_app.config.get("TAG_AUTOCOMPLETE_ENGINE")
         if engine is None:
-            return jsonify({"error": "Service unavailable"}), 503
+            return error_response(HARDWARE_ERROR, "Service unavailable", 503)
 
         # Get query parameter (required)
         query = request.args.get("q")
         if query is None:
-            return jsonify({"error": "Missing required parameter: q"}), 400
+            return error_response(VALIDATION_ERROR, "Missing required parameter: q")
 
         # Get limit parameter (optional, default: 10, max: 50)
         try:
@@ -297,4 +305,4 @@ def get_tag_autocomplete():
     except Exception as e:
         error_msg = sanitize_error_message(e, "Failed to get tag suggestions")
         logger.error(f"Tag autocomplete error: {e}")
-        return jsonify({"error": error_msg}), 500
+        return error_response(SERVER_ERROR, error_msg, 500)
