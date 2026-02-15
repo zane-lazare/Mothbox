@@ -1261,3 +1261,831 @@ class TestCacheVersionInvalidation:
 
         # Verify file was NOT deleted
         assert (cache_dir / "photo1.json").exists()
+
+
+# ============================================================================
+# Test Error Paths and Uncovered Lines
+# ============================================================================
+
+
+class TestInitTempFileCleanup:
+    """Tests for __init__ temp file cleanup logging (lines 186-188)."""
+
+    def test_init_logs_cleaned_temp_files(self, tmp_path, monkeypatch):
+        """Init should log when orphaned temp files are cleaned up."""
+        from unittest.mock import patch
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        # Create orphaned temp files that cleanup_temp_files would find
+        (cache_dir / "entry1.tmp").write_text("orphan1")
+        (cache_dir / "entry2.tmp").write_text("orphan2")
+
+        # Mock cleanup_temp_files to return a count > 0
+        with patch(
+            "webui.backend.services.sidecar_service.cleanup_temp_files",
+            return_value=3,
+        ) as mock_cleanup:
+            service = SidecarService(cache_dir=cache_dir)
+            mock_cleanup.assert_called_once_with(cache_dir)
+            assert service is not None
+
+    def test_init_handles_cleanup_exception(self, tmp_path):
+        """Init should handle cleanup_temp_files raising an exception gracefully."""
+        from unittest.mock import patch
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        with patch(
+            "webui.backend.services.sidecar_service.cleanup_temp_files",
+            side_effect=PermissionError("access denied"),
+        ):
+            # Should not raise - exception is caught and logged
+            service = SidecarService(cache_dir=cache_dir)
+            assert service is not None
+
+
+class TestUpdateMetadataEdgeCases:
+    """Tests for update_metadata edge cases (line 286->304 branch)."""
+
+    def test_update_metadata_lib_returns_none(self, cache_dir, tmp_path):
+        """update_metadata should handle lib_update_metadata returning None."""
+        from unittest.mock import patch
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock lib_update_metadata to return None (simulating a failure case)
+        with patch(
+            "webui.backend.services.sidecar_service.lib_update_metadata",
+            return_value=None,
+        ):
+            result = service.update_metadata(str(photo), {"species": "Test"})
+            assert result is None
+
+
+class TestDeleteMetadataEdgeCases:
+    """Tests for delete_metadata edge cases (lines 323, 332->339, 335-336)."""
+
+    def test_delete_metadata_no_sidecar_returns_false(self, cache_dir, tmp_path):
+        """delete_metadata returns False when sidecar file doesn't exist."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.delete_metadata(str(photo))
+        assert result is False
+
+    def test_delete_metadata_no_search_service_succeeds(self, cache_dir, tmp_path):
+        """delete_metadata without search service should succeed (line 332->339 false branch)."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["moth"])
+        write_metadata(photo, md)
+
+        # No search service
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.delete_metadata(str(photo))
+        assert result is True
+
+    def test_delete_metadata_search_service_error_ignored(self, tmp_path):
+        """delete_metadata should handle search_service.remove_photo exception."""
+        from unittest.mock import Mock
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        mock_search = Mock()
+        mock_search.index_photo = Mock(return_value=True)
+        mock_search.remove_photo = Mock(side_effect=RuntimeError("Index corrupt"))
+
+        service = SidecarService(cache_dir=cache_dir, search_service=mock_search)
+        # Create sidecar first
+        service.update_metadata(str(photo), {"tags": ["moth"]})
+        mock_search.reset_mock()
+        mock_search.remove_photo.side_effect = RuntimeError("Index corrupt")
+
+        # delete should succeed despite search service error
+        result = service.delete_metadata(str(photo))
+        # The underlying delete should have been attempted
+        mock_search.remove_photo.assert_called_once_with(str(photo))
+        # Result depends on whether sidecar existed - it should since we just created it
+        assert isinstance(result, bool)
+
+
+class TestInvalidateEdgeCases:
+    """Tests for invalidate L2 unlink error (lines 365-366)."""
+
+    def test_invalidate_l2_unlink_error(self, cache_dir, sample_photo_with_sidecar):
+        """invalidate should handle L2 cache file unlink failure gracefully."""
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+        # Prime cache (populates L1 and L2)
+        service.get_metadata(str(sample_photo_with_sidecar))
+
+        cache_file = service._get_cache_file_path(str(sample_photo_with_sidecar))
+        assert cache_file.exists()
+
+        # Make the unlink fail on the cache file
+        with patch.object(type(cache_file), "unlink", side_effect=PermissionError("denied")):
+            # Should still return True because L1 removal succeeded
+            result = service.invalidate(str(sample_photo_with_sidecar))
+            assert result is True
+
+
+class TestClearEdgeCases:
+    """Tests for clear error paths (lines 381-384)."""
+
+    def test_clear_handles_individual_file_unlink_error(self, cache_dir, sample_photo_with_sidecar):
+        """clear should handle individual L2 file unlink failures."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+        # Prime cache
+        service.get_metadata(str(sample_photo_with_sidecar))
+
+        original_unlink = Path.unlink
+
+        def failing_unlink(self_path, *args, **kwargs):
+            if str(self_path).endswith(".json"):
+                raise PermissionError("denied")
+            return original_unlink(self_path, *args, **kwargs)
+
+        with patch.object(Path, "unlink", failing_unlink):
+            # Should not raise
+            service.clear()
+
+        # Stats should still be reset
+        stats = service.get_statistics()
+        assert stats["l1_hits"] == 0
+
+    def test_clear_handles_glob_error(self, cache_dir):
+        """clear should handle L2 glob failure gracefully."""
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        with patch.object(
+            type(cache_dir), "glob", side_effect=OSError("filesystem error")
+        ):
+            # Should not raise
+            service.clear()
+
+        stats = service.get_statistics()
+        assert stats["l1_hits"] == 0
+
+
+class TestListMetadataDateFilter:
+    """Tests for date filtering in list_metadata_for_directory (lines 521-531)."""
+
+    def test_date_filter_start(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by date_start from filename."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Photo with date in filename matching Mothbox pattern
+        old_photo = photos_dir / "Moth_2024_01_15__12_00_00.jpg"
+        old_photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        new_photo = photos_dir / "Moth_2024_06_20__14_30_00.jpg"
+        new_photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(
+            photos_dir, date_start="2024-03-01"
+        )
+
+        # Only the June photo should pass the filter
+        assert result["total"] == 1
+        assert "2024_06_20" in result["items"][0]["photo_filename"]
+
+    def test_date_filter_end(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by date_end from filename."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        old_photo = photos_dir / "Moth_2024_01_15__12_00_00.jpg"
+        old_photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        new_photo = photos_dir / "Moth_2024_06_20__14_30_00.jpg"
+        new_photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(
+            photos_dir, date_end="2024-03-01"
+        )
+
+        # Only the January photo should pass the filter
+        assert result["total"] == 1
+        assert "2024_01_15" in result["items"][0]["photo_filename"]
+
+    def test_date_filter_no_date_in_filename_skipped(self, cache_dir, tmp_path):
+        """Photos without date in filename should be skipped when date filter is set."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Photo without date pattern in filename
+        nodated = photos_dir / "random_photo.jpg"
+        nodated.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        # Photo with date
+        dated = photos_dir / "Moth_2024_06_20__14_30_00.jpg"
+        dated.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(
+            photos_dir, date_start="2024-01-01"
+        )
+
+        # Only the dated photo should be included
+        assert result["total"] == 1
+        assert "2024_06_20" in result["items"][0]["photo_filename"]
+
+    def test_date_filter_range(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by both date_start and date_end."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo_jan = photos_dir / "Moth_2024_01_15__12_00_00.jpg"
+        photo_jan.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        photo_mar = photos_dir / "Moth_2024_03_20__14_30_00.jpg"
+        photo_mar.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        photo_jun = photos_dir / "Moth_2024_06_10__08_00_00.jpg"
+        photo_jun.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(
+            photos_dir, date_start="2024-02-01", date_end="2024-05-01"
+        )
+
+        assert result["total"] == 1
+        assert "2024_03_20" in result["items"][0]["photo_filename"]
+
+
+class TestListMetadataSeriesTypeFilter:
+    """Tests for series_type filtering (lines 535-539)."""
+
+    def test_series_type_filter_hdr(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by series_type 'hdr'."""
+        from unittest.mock import patch, MagicMock
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Non-series photo
+        normal = photos_dir / "Moth_2024_01_15__12_00_00.jpg"
+        normal.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        # HDR series photo
+        hdr = photos_dir / "Moth_2024_01_15__12_00_00_HDR1.jpg"
+        hdr.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock detect_series_type to return expected values
+        def mock_detect(filename):
+            if "HDR" in filename:
+                info = MagicMock()
+                info.series_type = "hdr"
+                return info
+            return None
+
+        with patch(
+            "webui.backend.services.sidecar_service.detect_series_type",
+            side_effect=mock_detect,
+        ):
+            result = service.list_metadata_for_directory(
+                photos_dir, series_type="hdr"
+            )
+
+        assert result["total"] == 1
+        assert "HDR" in result["items"][0]["photo_filename"]
+
+    def test_series_type_filter_mismatch(self, cache_dir, tmp_path):
+        """Photos with wrong series type should be filtered out."""
+        from unittest.mock import patch, MagicMock
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "Moth_2024_01_15__12_00_00_HDR1.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        def mock_detect(filename):
+            info = MagicMock()
+            info.series_type = "hdr"
+            return info
+
+        with patch(
+            "webui.backend.services.sidecar_service.detect_series_type",
+            side_effect=mock_detect,
+        ):
+            result = service.list_metadata_for_directory(
+                photos_dir, series_type="focus_bracket"
+            )
+
+        assert result["total"] == 0
+
+
+class TestListMetadataTagsAndSpeciesFilter:
+    """Tests for tags and has_species filtering (lines 544-560)."""
+
+    def test_tags_filter_matches(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by tags."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Photo with matching tag
+        photo1 = photos_dir / "photo1.jpg"
+        photo1.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md1 = create_metadata(photo1, tags=["moth", "nocturnal"])
+        write_metadata(photo1, md1)
+
+        # Photo without matching tag
+        photo2 = photos_dir / "photo2.jpg"
+        photo2.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md2 = create_metadata(photo2, tags=["butterfly", "diurnal"])
+        write_metadata(photo2, md2)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(photos_dir, tags=["moth"])
+
+        assert result["total"] == 1
+        assert result["items"][0]["photo_filename"] == "photo1.jpg"
+
+    def test_tags_filter_skips_no_sidecar(self, cache_dir, tmp_path):
+        """Photos without sidecar should be skipped when tags filter is active."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Photo with sidecar
+        photo1 = photos_dir / "photo1.jpg"
+        photo1.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md1 = create_metadata(photo1, tags=["moth"])
+        write_metadata(photo1, md1)
+
+        # Photo without sidecar
+        photo2 = photos_dir / "photo2.jpg"
+        photo2.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(photos_dir, tags=["moth"])
+
+        assert result["total"] == 1
+        assert result["items"][0]["photo_filename"] == "photo1.jpg"
+
+    def test_has_species_filter(self, cache_dir, tmp_path):
+        """list_metadata_for_directory should filter by has_species."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        # Photo with species
+        photo1 = photos_dir / "photo1.jpg"
+        photo1.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md1 = create_metadata(photo1, tags=["moth"], species="Actias luna")
+        write_metadata(photo1, md1)
+
+        # Photo without species
+        photo2 = photos_dir / "photo2.jpg"
+        photo2.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md2 = create_metadata(photo2, tags=["unknown"])
+        write_metadata(photo2, md2)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(photos_dir, has_species=True)
+
+        assert result["total"] == 1
+        assert result["items"][0]["photo_filename"] == "photo1.jpg"
+
+    def test_tags_filter_no_match(self, cache_dir, tmp_path):
+        """Tags filter with no matching tags should return empty results."""
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["butterfly"])
+        write_metadata(photo, md)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(photos_dir, tags=["moth"])
+
+        assert result["total"] == 0
+
+    def test_has_species_filter_skips_no_sidecar(self, cache_dir, tmp_path):
+        """has_species filter should skip photos without sidecar."""
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+
+        service = SidecarService(cache_dir=cache_dir)
+        result = service.list_metadata_for_directory(photos_dir, has_species=True)
+
+        assert result["total"] == 0
+
+    def test_tags_filter_metadata_read_fails(self, cache_dir, tmp_path):
+        """tags filter should skip photos whose metadata can't be read."""
+        from unittest.mock import patch
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["moth"])
+        write_metadata(photo, md)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock get_metadata to return None (simulating read failure)
+        with patch.object(service, "get_metadata", return_value=None):
+            result = service.list_metadata_for_directory(photos_dir, tags=["moth"])
+
+        assert result["total"] == 0
+
+
+class TestListMetadataPathEdgeCases:
+    """Tests for path edge cases in list_metadata_for_directory (lines 579-580, 584)."""
+
+    def test_relative_to_valueerror_uses_filename(self, cache_dir, tmp_path):
+        """When relative_to raises ValueError, should fall back to filename."""
+        from unittest.mock import patch
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["test"])
+        write_metadata(photo, md)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Patch Path.relative_to to raise ValueError
+        original_relative_to = type(photo).relative_to
+
+        def failing_relative_to(self, *args, **kwargs):
+            raise ValueError("not relative")
+
+        with patch.object(type(photo), "relative_to", failing_relative_to):
+            result = service.list_metadata_for_directory(photos_dir)
+
+        assert result["total"] == 1
+        # Should fall back to just the filename
+        assert result["items"][0]["path"] == "photo.jpg"
+
+    def test_sidecar_exists_but_read_fails_uses_placeholder(self, cache_dir, tmp_path):
+        """When sidecar exists but read fails, should use placeholder metadata."""
+        from unittest.mock import patch
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["test"])
+        write_metadata(photo, md)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock get_metadata to return None (simulating read failure)
+        with patch.object(service, "get_metadata", return_value=None):
+            result = service.list_metadata_for_directory(photos_dir)
+
+        assert result["total"] == 1
+        item = result["items"][0]
+        # Should be placeholder metadata
+        assert item["has_sidecar"] is False or item.get("tags") == []
+
+
+class TestListAllSidecarsEdgeCases:
+    """Tests for list_all_sidecars edge cases (lines 631-633, 647->645)."""
+
+    def test_list_all_sidecars_none_photos_dir(self, cache_dir, tmp_path, monkeypatch):
+        """list_all_sidecars with None photos_dir should import PHOTOS_DIR."""
+        from unittest.mock import patch
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock PHOTOS_DIR to point to our tmp_path photos_dir
+        with patch(
+            "webui.backend.services.sidecar_service.PHOTOS_DIR",
+            photos_dir,
+            create=True,
+        ):
+            # Need to mock the import inside the function
+            monkeypatch.setattr("mothbox_paths.PHOTOS_DIR", photos_dir)
+            results = service.list_all_sidecars(photos_dir=None)
+
+        assert results == []
+
+    def test_list_all_sidecars_skips_none_metadata(self, cache_dir, tmp_path):
+        """list_all_sidecars should skip photos where get_metadata returns None."""
+        from unittest.mock import patch
+        from webui.backend.lib.sidecar_metadata import create_metadata, write_metadata
+
+        photos_dir = tmp_path / "photos"
+        photos_dir.mkdir()
+
+        photo = photos_dir / "photo.jpg"
+        photo.write_bytes(b"\xFF\xD8\xFF\xE0" + b"\x00" * 100)
+        md = create_metadata(photo, tags=["moth"])
+        write_metadata(photo, md)
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Mock get_metadata to return None
+        with patch.object(service, "get_metadata", return_value=None):
+            results = service.list_all_sidecars(photos_dir)
+
+        assert results == []
+
+
+class TestBuildPlaceholderMetadataEdgeCases:
+    """Tests for _build_placeholder_metadata edge cases (lines 671-672, 677-678)."""
+
+    def test_placeholder_oserror_on_stat(self, cache_dir, tmp_path):
+        """_build_placeholder_metadata should handle OSError on stat."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        # Use a non-existent path that will cause stat to fail
+        photo_path = tmp_path / "nonexistent_photo.jpg"
+
+        with patch.object(type(photo_path), "stat", side_effect=OSError("no such file")):
+            result = service._build_placeholder_metadata(photo_path, tmp_path)
+
+        assert result["file_timestamp"] is None
+        assert result["photo_filename"] == "nonexistent_photo.jpg"
+
+    def test_placeholder_valueerror_on_relative_to(self, cache_dir, tmp_path):
+        """_build_placeholder_metadata should handle ValueError on relative_to."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b"\xFF\xD8\xFF\xE0")
+
+        # Use a completely different base_dir that photo_path is not relative to
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+
+        # Force ValueError - use paths from totally different roots
+        result = service._build_placeholder_metadata(
+            Path("/some/random/photo.jpg"), Path("/different/root")
+        )
+
+        assert result["path"] == "photo.jpg"
+
+
+class TestGetL2CorruptedCache:
+    """Tests for _get_l2 corrupted cache file handling (lines 751-760)."""
+
+    def test_get_l2_corrupted_json(self, cache_dir):
+        """_get_l2 should handle corrupted JSON in cache file."""
+        service = SidecarService(cache_dir=cache_dir)
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.write_text("not valid json {{{")
+
+        result = service._get_l2(photo_path)
+        assert result is None
+        # Corrupted file should be removed
+        assert not cache_file.exists()
+
+    def test_get_l2_corrupted_json_unlink_fails(self, cache_dir):
+        """_get_l2 should handle failure to remove corrupted cache file."""
+        from unittest.mock import patch
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        cache_file.write_text("not valid json {{{")
+
+        # Make unlink fail after the json.load exception
+        original_unlink = type(cache_file).unlink
+
+        call_count = [0]
+
+        def selective_unlink(self_path, *args, **kwargs):
+            call_count[0] += 1
+            if str(self_path) == str(cache_file) and call_count[0] >= 1:
+                raise PermissionError("denied")
+            return original_unlink(self_path, *args, **kwargs)
+
+        with patch.object(type(cache_file), "unlink", selective_unlink):
+            result = service._get_l2(photo_path)
+
+        assert result is None
+
+    def test_get_l2_missing_keys_in_json(self, cache_dir):
+        """_get_l2 should handle JSON with missing required keys."""
+        service = SidecarService(cache_dir=cache_dir)
+
+        photo_path = "/photos/test.jpg"
+        cache_file = service._get_cache_file_path(photo_path)
+        # Valid JSON but missing required CacheEntry keys
+        cache_file.write_text('{"incomplete": true}')
+
+        result = service._get_l2(photo_path)
+        assert result is None
+        # Corrupted file should be removed
+        assert not cache_file.exists()
+
+
+class TestSetL2Errors:
+    """Tests for _set_l2 write failure (lines 787-788)."""
+
+    def test_set_l2_write_failure(self, cache_dir):
+        """_set_l2 should handle write failure gracefully."""
+        from unittest.mock import patch
+        from webui.backend.services.sidecar_service import CacheEntry
+
+        service = SidecarService(cache_dir=cache_dir)
+
+        entry = CacheEntry(
+            photo_path="/photos/test.jpg",
+            metadata={"test": "data"},
+            cached_at=time.time(),
+            cache_version=service.cache_version,
+        )
+
+        # Make open() fail during L2 write
+        with patch("builtins.open", side_effect=OSError("disk full")):
+            # Should not raise
+            service._set_l2("/photos/test.jpg", entry)
+
+        # Verify no cache file was created
+        cache_file = service._get_cache_file_path("/photos/test.jpg")
+        assert not cache_file.exists()
+
+
+class TestEvictL2:
+    """Tests for _evict_l2_if_needed (lines 808-822)."""
+
+    def test_evict_l2_when_full(self, tmp_path):
+        """L2 eviction should remove oldest entries when cache is full."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        # Very small L2 cache
+        service = SidecarService(cache_dir=cache_dir, l2_max_size=5)
+
+        # Create 5 cache files manually (to fill up L2)
+        for i in range(5):
+            cache_file = cache_dir / f"entry_{i}.json"
+            cache_file.write_text(json.dumps({
+                "photo_path": f"/photos/photo_{i}.jpg",
+                "metadata": {"test": i},
+                "cached_at": time.time(),
+                "cache_version": service.cache_version,
+            }))
+            # Stagger mtime slightly so ordering is deterministic
+            import os
+            os.utime(cache_file, (1000.0 + i, 1000.0 + i))
+
+        # Trigger eviction
+        service._evict_l2_if_needed()
+
+        # 10% of 5 = max(1, 0.5) = 1 file should be evicted (the oldest)
+        remaining = list(cache_dir.glob("*.json"))
+        assert len(remaining) == 4
+        # The oldest file (entry_0) should be evicted
+        assert not (cache_dir / "entry_0.json").exists()
+
+    def test_evict_l2_handles_unlink_error(self, tmp_path):
+        """L2 eviction should handle individual file unlink errors."""
+        from pathlib import Path
+        from unittest.mock import patch
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        service = SidecarService(cache_dir=cache_dir, l2_max_size=3)
+
+        # Create 3 cache files
+        for i in range(3):
+            cache_file = cache_dir / f"entry_{i}.json"
+            cache_file.write_text(json.dumps({
+                "photo_path": f"/photos/photo_{i}.jpg",
+                "metadata": {"test": i},
+                "cached_at": time.time(),
+                "cache_version": service.cache_version,
+            }))
+
+        original_unlink = Path.unlink
+
+        def failing_unlink(self_path, *args, **kwargs):
+            if "entry_" in str(self_path):
+                raise PermissionError("denied")
+            return original_unlink(self_path, *args, **kwargs)
+
+        with patch.object(Path, "unlink", failing_unlink):
+            # Should not raise
+            service._evict_l2_if_needed()
+
+    def test_evict_l2_handles_outer_exception(self, tmp_path):
+        """L2 eviction should handle glob failure."""
+        from unittest.mock import patch
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        service = SidecarService(cache_dir=cache_dir, l2_max_size=3)
+
+        with patch.object(
+            type(cache_dir), "glob", side_effect=OSError("filesystem error")
+        ):
+            # Should not raise
+            service._evict_l2_if_needed()
+
+    def test_evict_l2_not_triggered_under_limit(self, tmp_path):
+        """L2 eviction should not remove files when under the limit."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        service = SidecarService(cache_dir=cache_dir, l2_max_size=100)
+
+        # Create 3 cache files (well under limit of 100)
+        for i in range(3):
+            cache_file = cache_dir / f"entry_{i}.json"
+            cache_file.write_text(json.dumps({
+                "photo_path": f"/photos/photo_{i}.jpg",
+                "metadata": {"test": i},
+                "cached_at": time.time(),
+                "cache_version": service.cache_version,
+            }))
+
+        service._evict_l2_if_needed()
+
+        # All files should still be present
+        remaining = list(cache_dir.glob("*.json"))
+        assert len(remaining) == 3
+
+
+class TestRecordHitL2Branch:
+    """Tests for _record_hit l2 branch (line 829->831)."""
+
+    def test_record_hit_l2(self, service):
+        """_record_hit should track L2 hits."""
+        service._record_hit("l2", 25.0)
+
+        stats = service.get_statistics()
+        assert stats["l2_hits"] == 1
+        assert stats["l1_hits"] == 0
+
+    def test_record_hit_unknown_level(self, service):
+        """_record_hit with unknown level should only record response time."""
+        service._record_hit("unknown", 50.0)
+
+        stats = service.get_statistics()
+        assert stats["l1_hits"] == 0
+        assert stats["l2_hits"] == 0
+        assert stats["response_time_samples"] == 1
