@@ -19,6 +19,12 @@ vi.mock('../metadata/MetadataPanel', () => ({
   ),
 }))
 
+// Mock usePhotoMetadata hook to avoid API dependencies
+const mockUsePhotoMetadata = vi.fn(() => ({ data: null, isLoading: false, isError: false }))
+vi.mock('../../hooks/usePhotoMetadata', () => ({
+  default: (...args) => mockUsePhotoMetadata(...args),
+}))
+
 // Mock ExportOptionsMenu to simplify testing
 vi.mock('../export/ExportOptionsMenu', () => ({
   default: vi.fn(({ isOpen, photoPath, onClose }) =>
@@ -2709,5 +2715,188 @@ describe('PhotoLightbox - Export functionality', () => {
 
     // Export button should be visible
     expect(screen.getByTestId('export-button')).toBeInTheDocument()
+  })
+})
+
+describe('PhotoLightbox - GPS from Metadata API', () => {
+  const mockOnClose = vi.fn()
+  const mockOnNavigate = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUsePhotoMetadata.mockReturnValue({ data: null, isLoading: false, isError: false })
+  })
+
+  afterEach(() => {
+    document.body.style.overflow = ''
+  })
+
+  it('displays GPS from metadata when photo lacks GPS fields', () => {
+    // Photo has no GPS, but metadata API returns location
+    mockUsePhotoMetadata.mockReturnValue({
+      data: {
+        location: {
+          latitude: 9.1234,
+          longitude: -83.5678,
+          altitude: 1200,
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    const photoWithoutGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      // No latitude/longitude/altitude
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithoutGPS}
+        photos={[photoWithoutGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should show GPS from metadata, not "Location not available"
+    expect(screen.queryByText(/location not available/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('location-coordinates')).toBeInTheDocument()
+  })
+
+  it('shows "Location not available" when no GPS from either source', () => {
+    // Neither photo nor metadata has GPS
+    mockUsePhotoMetadata.mockReturnValue({
+      data: { location: {} },
+      isLoading: false,
+      isError: false,
+    })
+
+    const photoWithoutGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithoutGPS}
+        photos={[photoWithoutGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    expect(screen.getByText(/location not available/i)).toBeInTheDocument()
+  })
+
+  it('prefers metadata GPS over photo GPS fields', () => {
+    // Metadata has different coordinates than photo
+    mockUsePhotoMetadata.mockReturnValue({
+      data: {
+        location: {
+          latitude: 10.0,
+          longitude: -84.0,
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should show metadata coordinates (10°N, 84°W), not photo coordinates (37°N, 122°W)
+    const coords = screen.getByTestId('location-coordinates')
+    expect(coords).toHaveTextContent(/10°/)
+    expect(coords).not.toHaveTextContent(/37°/)
+  })
+
+  it('handles zero coordinates from metadata correctly', () => {
+    mockUsePhotoMetadata.mockReturnValue({
+      data: {
+        location: {
+          latitude: 0,
+          longitude: 0,
+        },
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    const photoWithoutGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithoutGPS}
+        photos={[photoWithoutGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // 0,0 is a valid coordinate (Null Island) — should not show "Location not available"
+    expect(screen.queryByText(/location not available/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('location-coordinates')).toBeInTheDocument()
+  })
+
+  it('falls back to photo GPS when metadata has no location', () => {
+    // Metadata loaded but has no location
+    mockUsePhotoMetadata.mockReturnValue({
+      data: {},
+      isLoading: false,
+      isError: false,
+    })
+
+    const photoWithGPS = {
+      path: '2024-11-10/photo_001.jpg',
+      filename: 'photo_001.jpg',
+      date: '2024-11-10T18:30:00Z',
+      size: 5242880,
+      timestamp: 1699639800,
+      latitude: 37.7749,
+      longitude: -122.4194,
+    }
+
+    render(
+      <PhotoLightbox
+        photo={photoWithGPS}
+        photos={[photoWithGPS]}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />
+    )
+
+    // Should fall back to photo GPS
+    const coords = screen.getByTestId('location-coordinates')
+    expect(coords).toHaveTextContent(/37°/)
   })
 })

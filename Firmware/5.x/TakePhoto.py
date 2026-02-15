@@ -590,11 +590,14 @@ def takePhoto_Manual():
             piexif.ExifIFD.ISOSpeed: int(camera_settings.get("AnalogueGain") * 100),
             piexif.ExifIFD.ISOSpeedRatings: int(camera_settings.get("AnalogueGain") * 100),
         }
-        gps_ifd = {
-            # piexif.GPSIFD.GPSVersionID: (2, 0, 0, 0),
-            # piexif.GPSIFD.GPSAltitudeRef: 1,
-            # piexif.GPSIFD.GPSDateStamp: u"1999:99:99 99:99:99",
-        }
+        # Embed GPS coordinates from controls.txt (written by GPS.py)
+        try:
+            from webui.backend.lib.gps_exif_lib import get_gps_data_from_controls, build_gps_ifd
+            gps_data = get_gps_data_from_controls()
+            gps_ifd = build_gps_ifd(gps_data) if gps_data.get("has_fix") else {}
+        except Exception as e:
+            print(f"GPS EXIF: skipped ({e})")
+            gps_ifd = {}
         first_ifd = {
             piexif.ImageIFD.Make: "Arducam64mp",
             # piexif.ImageIFD.XResolution: (40, 1),
