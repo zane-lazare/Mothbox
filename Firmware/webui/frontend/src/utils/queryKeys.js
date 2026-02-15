@@ -56,6 +56,8 @@ export const QUERY_KEYS = {
   CAMERA_SETTINGS: ['camera-settings'],
   WEBUI_SETTINGS: ['webui-settings'],
   GPS_CONFIG: ['gps-config'],
+  GPS_EXIF_STATUS: ['gps-exif-status'],
+  GPS_EXIF_CONFIG: ['gps-exif-config'],
 
   // System information (kebab-case compound names)
   SYSTEM_INFO: ['system-info'],

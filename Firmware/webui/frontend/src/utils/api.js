@@ -135,6 +135,13 @@ export const syncGps = () => api.post('/gps/sync')
 export const getGpsConfig = () => api.get('/gps/config')
 export const updateGpsConfig = (config) => api.put('/gps/config', config)
 
+// GPS EXIF Tagger APIs
+export const getGpsExifStatus = () => api.get('/gps-exif/status')
+export const getGpsExifConfig = () => api.get('/gps-exif/config')
+export const updateGpsExifConfig = (config) => api.put('/gps-exif/config', config)
+export const tagSinglePhoto = (data) => api.post('/gps-exif/tag-photo', data)
+export const batchTagPhotos = (data) => api.post('/gps-exif/batch-tag', data)
+
 // Sidecar Metadata APIs
 export const getAllTags = (params = {}) => api.get('/sidecar/tags', { params })
 export const getAllSpecies = (params = {}) => api.get('/sidecar/species', { params })
