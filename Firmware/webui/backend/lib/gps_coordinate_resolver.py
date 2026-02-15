@@ -59,8 +59,7 @@ def resolve_coordinates(
     for source in sources:
         if source not in VALID_SOURCES:
             raise ValueError(
-                f"Unknown source '{source}'. "
-                f"Valid sources: {', '.join(VALID_SOURCES)}"
+                f"Unknown source '{source}'. Valid sources: {', '.join(VALID_SOURCES)}"
             )
 
     # Dispatch table for source resolvers

@@ -254,18 +254,29 @@ class TestBatchProcessing:
                 return {"success": True, "skipped": False}
 
             mock_resolved = {
-                "lat": 35.96, "lon": -83.92, "source": "gps",
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "gps",
                 "deployment_name": None,
-                "gps_data": {"has_fix": True, "latitude": 35.96, "longitude": -83.92,
-                             "altitude": None, "fix_mode": 3, "gpstime": 0,
-                             "satellites_used": 0, "hdop": 99.99, "pdop": 99.99},
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
             }
 
-            with patch.object(
-                gps_exif_tagger, "process_single_photo", side_effect=track_processing
-            ), patch(
-                "webui.cli.gps_exif_tagger.resolve_coordinates",
-                return_value=mock_resolved,
+            with (
+                patch.object(gps_exif_tagger, "process_single_photo", side_effect=track_processing),
+                patch(
+                    "webui.cli.gps_exif_tagger.resolve_coordinates",
+                    return_value=mock_resolved,
+                ),
             ):
                 gps_exif_tagger.batch_process_directory(
                     tmp_path, logger, pattern="*.jpg", force=False, backup=False, dry_run=False
@@ -310,18 +321,29 @@ class TestBatchProcessing:
                 return {"success": True, "skipped": False}
 
             mock_resolved = {
-                "lat": 35.96, "lon": -83.92, "source": "gps",
+                "lat": 35.96,
+                "lon": -83.92,
+                "source": "gps",
                 "deployment_name": None,
-                "gps_data": {"has_fix": True, "latitude": 35.96, "longitude": -83.92,
-                             "altitude": None, "fix_mode": 3, "gpstime": 0,
-                             "satellites_used": 0, "hdop": 99.99, "pdop": 99.99},
+                "gps_data": {
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
+                },
             }
 
-            with patch.object(
-                gps_exif_tagger, "process_single_photo", side_effect=track_processing
-            ), patch(
-                "webui.cli.gps_exif_tagger.resolve_coordinates",
-                return_value=mock_resolved,
+            with (
+                patch.object(gps_exif_tagger, "process_single_photo", side_effect=track_processing),
+                patch(
+                    "webui.cli.gps_exif_tagger.resolve_coordinates",
+                    return_value=mock_resolved,
+                ),
             ):
                 gps_exif_tagger.batch_process_directory(
                     tmp_path, logger, pattern="*.jpg", force=False, backup=False, dry_run=False
@@ -928,9 +950,15 @@ class TestResolverIntegration:
                 "source": "deployment",
                 "deployment_name": "Test",
                 "gps_data": {
-                    "has_fix": True, "latitude": 35.96, "longitude": -83.92,
-                    "altitude": None, "fix_mode": 3, "gpstime": 0,
-                    "satellites_used": 0, "hdop": 99.99, "pdop": 99.99,
+                    "has_fix": True,
+                    "latitude": 35.96,
+                    "longitude": -83.92,
+                    "altitude": None,
+                    "fix_mode": 3,
+                    "gpstime": 0,
+                    "satellites_used": 0,
+                    "hdop": 99.99,
+                    "pdop": 99.99,
                 },
             }
 
@@ -959,13 +987,21 @@ class TestResolverIntegration:
             img.save(photo_path)
 
             gps_data = {
-                "has_fix": True, "latitude": 35.96, "longitude": -83.92,
-                "altitude": None, "fix_mode": 3, "gpstime": 0,
-                "satellites_used": 0, "hdop": 99.99, "pdop": 99.99,
+                "has_fix": True,
+                "latitude": 35.96,
+                "longitude": -83.92,
+                "altitude": None,
+                "fix_mode": 3,
+                "gpstime": 0,
+                "satellites_used": 0,
+                "hdop": 99.99,
+                "pdop": 99.99,
             }
 
             result = gps_exif_tagger.process_single_photo(
-                photo_path, logger, gps_data=gps_data,
+                photo_path,
+                logger,
+                gps_data=gps_data,
             )
 
             # Should succeed or at least not error on the gps_data param

@@ -229,6 +229,7 @@ def batch_process_directory(
     backup: bool = False,
     dry_run: bool = False,
     coordinate_sources: tuple[str, ...] = ("deployment", "gps"),
+    manual_coords: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Process all photos in directory (batch mode).
 
@@ -240,6 +241,7 @@ def batch_process_directory(
         backup: If True, create backups
         dry_run: If True, don't modify files
         coordinate_sources: Ordered tuple of coordinate source names to try
+        manual_coords: Dict with "lat" and "lon" for manual source
 
     Returns:
         dict: Batch processing statistics:
@@ -295,6 +297,7 @@ def batch_process_directory(
         resolved = resolve_coordinates(
             photo_path,
             sources=coordinate_sources,
+            manual_coords=manual_coords,
             deployment_service=_get_deployment_service(),
         )
 
@@ -430,9 +433,7 @@ def watch_directory(
                             continue
 
                         source = resolved["source"]
-                        logger.debug(
-                            f"Resolved coordinates for {photo_path.name} from '{source}'"
-                        )
+                        logger.debug(f"Resolved coordinates for {photo_path.name} from '{source}'")
 
                         # Process the photo (use try-except to handle TOCTOU race condition)
                         # File could still be deleted/moved between stability check and processing
@@ -448,9 +449,7 @@ def watch_directory(
 
                             # Log result
                             if result["success"]:
-                                logger.info(
-                                    f"Tagged {photo_path.name} (source: {source})"
-                                )
+                                logger.info(f"Tagged {photo_path.name} (source: {source})")
                             elif result["skipped"]:
                                 logger.debug(f"Skipped {photo_path.name}")
 

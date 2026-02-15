@@ -36,6 +36,10 @@ export default function GpsTagBanner({ untaggedCount, currentDirectory }) {
         toast.error('Please enter valid latitude and longitude')
         return
       }
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        toast.error('Latitude must be -90 to 90, longitude -180 to 180')
+        return
+      }
       payload.manual_coords = { lat, lon }
     }
     batchTag.mutate(payload, {
