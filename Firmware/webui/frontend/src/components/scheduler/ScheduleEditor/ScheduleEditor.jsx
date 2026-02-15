@@ -311,7 +311,7 @@ const ScheduleEditor = ({
 
       await onSave(scheduleData);
     } catch (error) {
-      setErrors({ save: getErrorMessage(error) });
+      setErrors({ save: getErrorMessage(error, 'Failed to save schedule') });
     } finally {
       setIsSaving(false);
     }
