@@ -89,7 +89,9 @@ def search_photos():
     # Get and validate query parameter
     query = request.args.get("q", "").strip()
     if not query:
-        return error_response(VALIDATION_ERROR, "Missing query", message="Query parameter 'q' is required")
+        return error_response(
+            VALIDATION_ERROR, "Missing query", message="Query parameter 'q' is required"
+        )
 
     # Validate query length to prevent abuse
     if len(query) > MAX_QUERY_LENGTH:
@@ -111,9 +113,13 @@ def search_photos():
     try:
         offset = int(request.args.get("offset", DEFAULT_OFFSET))
         if offset < 0:
-            return error_response(VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer")
+            return error_response(
+                VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer"
+            )
     except (ValueError, TypeError):
-        return error_response(VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer")
+        return error_response(
+            VALIDATION_ERROR, "Invalid offset", message="Offset must be a non-negative integer"
+        )
 
     # Get search service from app context
     search_service = current_app.config.get("SEARCH_SERVICE")
