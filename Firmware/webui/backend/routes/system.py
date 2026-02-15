@@ -26,6 +26,10 @@ from mothbox_paths import (
     get_gpio_pins,
     get_hardware_config,
 )
+from webui.backend.lib.error_codes import (
+    SERVER_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +145,7 @@ def get_system_status():
         )
     except Exception as e:
         logger.error(f"Error getting storage info: {e}")
-        return jsonify({"error": "Failed to get storage info"}), 500
+        return error_response(SERVER_ERROR, "Failed to get storage info", 500)
 
 
 def _read_ina260_sensor(address: int) -> dict | None:
@@ -232,7 +236,7 @@ def get_power_status():
         )
     except Exception as e:
         logger.error(f"Error getting power status: {e}")
-        return jsonify({"error": "Failed to get power status"}), 500
+        return error_response(SERVER_ERROR, "Failed to get power status", 500)
 
 
 @system_bp.route("/info", methods=["GET"])
@@ -272,7 +276,7 @@ def get_system_info():
         # Build error response - never include traceback in API response
         # Tracebacks reveal internal paths, versions, and code structure
         # even in development mode, as the API may be accessible from network
-        return jsonify({"error": "Failed to get system info"}), 500
+        return error_response(SERVER_ERROR, "Failed to get system info", 500)
 
 
 @system_bp.route("/config/limits", methods=["GET"])
@@ -369,4 +373,4 @@ def get_diagnostic_info():
         logger.error(traceback.format_exc())
 
         # Return generic error - traceback already logged server-side
-        return jsonify({"error": "Failed to get diagnostic info"}), 500
+        return error_response(SERVER_ERROR, "Failed to get diagnostic info", 500)

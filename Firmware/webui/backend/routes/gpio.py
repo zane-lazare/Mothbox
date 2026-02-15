@@ -8,6 +8,12 @@ from flask import Blueprint, jsonify, request
 from lib.gpio_client import read_gpio_state, relay_off, relay_on, setup_relay
 from lib.gpio_protocol import GPIODaemonError
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_gpio_pins
+from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +33,7 @@ def get_gpio_status():
         return jsonify(status), 200
     except Exception:
         logger.exception("GPIO status error")
-        return jsonify({"error": "Failed to get GPIO status"}), 500
+        return error_response(SERVER_ERROR, "Failed to get GPIO status", 500)
 
 
 @gpio_bp.route("/control", methods=["POST"])
@@ -39,13 +45,13 @@ def control_gpio():
         state = data.get("state")
 
         if not relay or state is None:
-            return jsonify({"error": "Missing relay or state parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Missing relay or state parameter")
         if not isinstance(state, bool):
-            return jsonify({"error": "State must be a boolean value (true/false)"}), 400
+            return error_response(VALIDATION_ERROR, "State must be a boolean value (true/false)")
 
         pins = get_gpio_pins()
         if relay not in pins:
-            return jsonify({"error": f"Invalid relay: {relay}"}), 400
+            return error_response(VALIDATION_ERROR, f"Invalid relay: {relay}")
 
         pin = pins[relay]
         logger.info("GPIO control: %s (pin %s) -> %s", relay, pin, state)
@@ -60,10 +66,10 @@ def control_gpio():
 
     except GPIODaemonError:
         logger.exception("GPIO daemon error")
-        return jsonify({"error": "GPIO daemon not available"}), 503
+        return error_response(HARDWARE_ERROR, "GPIO daemon not available", 503)
     except Exception:
         logger.exception("GPIO control error")
-        return jsonify({"error": "Failed to control GPIO"}), 500
+        return error_response(SERVER_ERROR, "Failed to control GPIO", 500)
 
 
 @gpio_bp.route("/flash", methods=["POST"])
@@ -94,7 +100,7 @@ def trigger_flash():
 
     except GPIODaemonError:
         logger.exception("GPIO daemon error")
-        return jsonify({"error": "GPIO daemon not available"}), 503
+        return error_response(HARDWARE_ERROR, "GPIO daemon not available", 503)
     except Exception:
         logger.exception("Flash trigger error")
-        return jsonify({"error": "Failed to trigger flash"}), 500
+        return error_response(SERVER_ERROR, "Failed to trigger flash", 500)
