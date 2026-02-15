@@ -123,6 +123,11 @@ def error_response(code: str, error_msg: str, status: int = 400, **extra) -> tup
 
     Returns:
         Tuple of (Flask Response, int) suitable for returning from a route
+
+    Response field convention:
+        ``"error"``   — short label (what went wrong)
+        ``"code"``    — machine-readable constant (for programmatic handling)
+        ``"message"`` — optional detailed description (for UI display)
     """
     body = {"error": sanitize_message(error_msg), "code": code, **extra}
     return jsonify(body), status

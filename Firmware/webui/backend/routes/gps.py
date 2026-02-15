@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request
 
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_hardware_config, get_script_path
 from webui.backend.lib.error_codes import (
+    HARDWARE_ERROR,
     SERVER_ERROR,
     VALIDATION_ERROR,
     error_response,
@@ -454,7 +455,7 @@ def sync_gps():
 
     except subprocess.TimeoutExpired:
         return error_response(
-            VALIDATION_ERROR,
+            HARDWARE_ERROR,
             "GPS sync timeout",
             408,
             message=f"GPS sync did not complete within {timeout} seconds",
