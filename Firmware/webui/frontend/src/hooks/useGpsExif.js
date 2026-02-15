@@ -57,6 +57,7 @@ export function useTagSinglePhoto() {
     mutationFn: (data) => tagSinglePhoto(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_EXIF_STATUS })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PHOTOS })
     },
   })
 }

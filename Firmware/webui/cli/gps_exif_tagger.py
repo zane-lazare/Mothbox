@@ -382,13 +382,13 @@ def watch_directory(
         while True:
             # Find all photos matching pattern (case-insensitive)
             photo_files = []
-            for ext in [
-                pattern,
-                pattern.replace(".jpg", ".JPG"),
-                pattern.replace(".jpg", ".jpeg"),
-                pattern.replace(".jpg", ".JPEG"),
-            ]:
-                photo_files.extend(directory.glob(ext))
+            if "." in pattern:
+                base_pattern, ext = pattern.rsplit(".", 1)
+                for variant in [pattern, f"{base_pattern}.{ext.upper()}"]:
+                    photo_files.extend(directory.glob(variant))
+            else:
+                photo_files.extend(directory.glob(pattern))
+            photo_files = list(dict.fromkeys(photo_files))
 
             # Filter out symlinks (security: prevent directory traversal attacks)
             # Only process regular files within the intended directory

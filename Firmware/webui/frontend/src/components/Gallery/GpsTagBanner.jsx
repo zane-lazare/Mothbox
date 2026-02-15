@@ -22,13 +22,14 @@ export default function GpsTagBanner({ untaggedCount, currentDirectory }) {
   if (!untaggedCount || untaggedCount === 0) return null
 
   const handleTag = () => {
+    const sources = effectiveSource.split(',')
     const payload = {
-      coordinate_sources: effectiveSource.split(','),
+      coordinate_sources: sources,
     }
     if (currentDirectory) {
       payload.directory = currentDirectory
     }
-    if (effectiveSource === 'manual') {
+    if (sources.includes('manual')) {
       const lat = parseFloat(manualLat)
       const lon = parseFloat(manualLon)
       if (isNaN(lat) || isNaN(lon)) {
@@ -74,7 +75,7 @@ export default function GpsTagBanner({ untaggedCount, currentDirectory }) {
           </button>
         </div>
       </div>
-      {effectiveSource === 'manual' && (
+      {effectiveSource.split(',').includes('manual') && (
         <div className="mt-2 flex items-center gap-2">
           <input
             type="number"
