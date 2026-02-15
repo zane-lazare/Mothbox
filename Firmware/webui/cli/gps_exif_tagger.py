@@ -48,11 +48,13 @@ if str(_firmware_root) not in sys.path:
     sys.path.insert(0, str(_firmware_root))
 
 from mothbox_paths import PHOTOS_DIR, get_hardware_config
+from webui.backend.lib.gps_coordinate_resolver import resolve_coordinates
 from webui.backend.lib.gps_exif_lib import (
     embed_gps_exif,
     get_gps_data_from_controls,
     is_already_tagged,
 )
+from webui.backend.services.deployment_service import DeploymentService
 
 # Module exports
 __all__ = [
@@ -63,6 +65,18 @@ __all__ = [
     "watch_directory",
     "main",
 ]
+
+
+# Lazy-initialized deployment service for coordinate resolver
+_deployment_service = None
+
+
+def _get_deployment_service():
+    """Get or create the shared DeploymentService instance."""
+    global _deployment_service
+    if _deployment_service is None:
+        _deployment_service = DeploymentService()
+    return _deployment_service
 
 
 # Default configuration constants
@@ -164,6 +178,7 @@ def process_single_photo(
     force: bool = False,
     backup: bool = False,
     dry_run: bool = False,
+    gps_data: dict | None = None,
 ) -> dict[str, Any]:
     """Process a single photo for GPS EXIF tagging.
 
@@ -173,6 +188,7 @@ def process_single_photo(
         force: If True, re-tag even if already tagged
         backup: If True, create backup before modifying
         dry_run: If True, don't modify files
+        gps_data: Pre-resolved GPS data dict (or None to read from controls.txt)
 
     Returns:
         dict: Processing result from embed_gps_exif()
@@ -191,7 +207,7 @@ def process_single_photo(
 
     # Embed GPS EXIF
     logger.debug(f"Processing {photo_path.name}...")
-    result = embed_gps_exif(photo_path, backup=backup, dry_run=dry_run)
+    result = embed_gps_exif(photo_path, gps_data=gps_data, backup=backup, dry_run=dry_run)
 
     # Log result
     if result["success"]:
@@ -212,6 +228,7 @@ def batch_process_directory(
     force: bool = False,
     backup: bool = False,
     dry_run: bool = False,
+    coordinate_sources: tuple[str, ...] = ("deployment", "gps"),
 ) -> dict[str, Any]:
     """Process all photos in directory (batch mode).
 
@@ -222,6 +239,7 @@ def batch_process_directory(
         force: If True, re-tag already tagged photos
         backup: If True, create backups
         dry_run: If True, don't modify files
+        coordinate_sources: Ordered tuple of coordinate source names to try
 
     Returns:
         dict: Batch processing statistics:
@@ -230,9 +248,17 @@ def batch_process_directory(
             - skipped (int): Photos skipped (no GPS or already tagged)
             - errors (int): Photos that failed to process
             - error_list (list): List of (path, error_message) tuples
+            - source_counts (dict): Count of photos tagged per source
     """
     # Initialize statistics
-    stats = {"total": 0, "tagged": 0, "skipped": 0, "errors": 0, "error_list": []}
+    stats = {
+        "total": 0,
+        "tagged": 0,
+        "skipped": 0,
+        "errors": 0,
+        "error_list": [],
+        "source_counts": {},
+    }
 
     # Find all photos matching pattern
     logger.info(f"Scanning {directory} for {pattern} files...")
@@ -265,10 +291,31 @@ def batch_process_directory(
 
     # Process each photo
     for photo_path in photo_files:
-        result = process_single_photo(photo_path, logger, force, backup, dry_run)
+        # Resolve coordinates from the configured source chain
+        resolved = resolve_coordinates(
+            photo_path,
+            sources=coordinate_sources,
+            deployment_service=_get_deployment_service(),
+        )
+
+        if resolved is None:
+            logger.warning(
+                f"Skipping {photo_path.name} (no coordinates from sources: "
+                f"{', '.join(coordinate_sources)})"
+            )
+            stats["skipped"] += 1
+            continue
+
+        source = resolved["source"]
+        logger.debug(f"Resolved coordinates for {photo_path.name} from '{source}'")
+
+        result = process_single_photo(
+            photo_path, logger, force, backup, dry_run, gps_data=resolved["gps_data"]
+        )
 
         if result["success"]:
             stats["tagged"] += 1
+            stats["source_counts"][source] = stats["source_counts"].get(source, 0) + 1
         elif result["skipped"]:
             stats["skipped"] += 1
         elif result["error"]:
@@ -281,6 +328,8 @@ def batch_process_directory(
     logger.info(f"  Tagged: {stats['tagged']}")
     logger.info(f"  Skipped: {stats['skipped']}")
     logger.info(f"  Errors: {stats['errors']}")
+    if stats["source_counts"]:
+        logger.info(f"  Sources: {stats['source_counts']}")
 
     return stats
 
@@ -291,6 +340,7 @@ def watch_directory(
     pattern: str = "*.jpg",
     interval: int = 10,
     backup: bool = False,
+    coordinate_sources: tuple[str, ...] = ("deployment", "gps"),
 ) -> None:
     """Monitor directory and tag new photos (immediate mode).
 
@@ -302,6 +352,7 @@ def watch_directory(
         pattern: Glob pattern for photo files
         interval: Polling interval in seconds (must be >= 1)
         backup: If True, create backups
+        coordinate_sources: Ordered tuple of coordinate source names to try
 
     Implementation:
         - Track last modification times of all photos
@@ -364,6 +415,25 @@ def watch_directory(
                             logger.debug(f"Skipping unstable file: {photo_path.name}")
                             continue
 
+                        # Resolve coordinates from the configured source chain
+                        resolved = resolve_coordinates(
+                            photo_path,
+                            sources=coordinate_sources,
+                            deployment_service=_get_deployment_service(),
+                        )
+
+                        if resolved is None:
+                            logger.warning(
+                                f"Skipping {photo_path.name} (no coordinates from sources: "
+                                f"{', '.join(coordinate_sources)})"
+                            )
+                            continue
+
+                        source = resolved["source"]
+                        logger.debug(
+                            f"Resolved coordinates for {photo_path.name} from '{source}'"
+                        )
+
                         # Process the photo (use try-except to handle TOCTOU race condition)
                         # File could still be deleted/moved between stability check and processing
                         try:
@@ -373,11 +443,14 @@ def watch_directory(
                                 force=False,  # Never force in watch mode
                                 backup=backup,
                                 dry_run=False,
+                                gps_data=resolved["gps_data"],
                             )
 
                             # Log result
                             if result["success"]:
-                                logger.info(f"✓ Tagged {photo_path.name}")
+                                logger.info(
+                                    f"Tagged {photo_path.name} (source: {source})"
+                                )
                             elif result["skipped"]:
                                 logger.debug(f"Skipped {photo_path.name}")
 
@@ -457,8 +530,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Parse coordinate sources (wired into batch/watch calls in a follow-up)
-    coordinate_sources = tuple(s.strip() for s in args.coordinate_source.split(","))  # noqa: F841
+    # Parse coordinate sources
+    coordinate_sources = tuple(s.strip() for s in args.coordinate_source.split(","))
 
     # Setup logging
     logger = setup_logging(args.verbose)
@@ -506,6 +579,7 @@ def main():
                 pattern=args.pattern,
                 interval=args.interval,
                 backup=args.backup,
+                coordinate_sources=coordinate_sources,
             )
         else:
             # Batch mode
@@ -516,6 +590,7 @@ def main():
                 force=args.force,
                 backup=args.backup,
                 dry_run=args.dry_run,
+                coordinate_sources=coordinate_sources,
             )
 
             # Exit with error code if errors occurred
