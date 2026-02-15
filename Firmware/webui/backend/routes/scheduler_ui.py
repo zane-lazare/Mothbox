@@ -15,7 +15,6 @@ Issue #310 - API terminology update (Schema 3.0)
 """
 
 import logging
-import re
 import subprocess
 from datetime import UTC, datetime
 from functools import wraps
@@ -29,6 +28,15 @@ from webui.backend.lib.cron_bridge import (
     CronEntry,
     calculate_next_waketime,
     cron_to_human_readable,
+)
+from webui.backend.lib.error_codes import (
+    ACTIVATION_ERROR,
+    CONFLICT_ERROR,
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+    sanitize_message,
 )
 from webui.backend.lib.schedule_preview import (
     DEFAULT_PREVIEW_DAYS,
@@ -52,16 +60,6 @@ from webui.backend.lib.schedule_storage import is_builtin_schedule
 from webui.backend.lib.timezone_coordinates import get_fallback_coordinates
 from webui.backend.services.scheduler_service import SchedulerService
 
-# Standardized error codes for frontend handling (Issue #385 review)
-# These codes are used by the frontend to display user-friendly error messages
-ERROR_CODES = {
-    "VALIDATION_ERROR": "VALIDATION_ERROR",
-    "NOT_FOUND": "NOT_FOUND",
-    "CONFLICT_ERROR": "CONFLICT_ERROR",
-    "ACTIVATION_ERROR": "ACTIVATION_ERROR",
-    "SERVER_ERROR": "SERVER_ERROR",
-}
-
 # Rate limiter import with fallback for testing
 try:
     from webui.backend.app import limiter
@@ -81,7 +79,7 @@ def _validate_location_params(
     latitude: float | None,
     longitude: float | None,
     timezone_name: str | None,
-) -> tuple[dict | None, int | None]:
+) -> tuple | None:
     """Validate location parameters for schedule operations.
 
     Consolidates coordinate and timezone validation logic (Issue #385 review fix).
@@ -92,65 +90,27 @@ def _validate_location_params(
         timezone_name: Optional timezone name to validate
 
     Returns:
-        Tuple of (error_dict, status_code) if validation fails, or (None, None) if valid.
+        error_response tuple if validation fails, or None if valid.
     """
     valid, coord_error = validate_coordinates(latitude, longitude)
     if not valid:
         # Return sanitized error - coord_error doesn't include user input
-        safe_error = _sanitize_error_message(coord_error)
-        return {"error": f"Invalid coordinates: {safe_error}"}, 400
+        safe_error = sanitize_message(coord_error)
+        return error_response(VALIDATION_ERROR, f"Invalid coordinates: {safe_error}", 400)
 
     if timezone_name:
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
             # Don't reflect user input in error - use generic message
             # Original error logged for debugging, sanitized version returned
-            return {
-                "error": "Invalid timezone: Use IANA timezone names "
-                "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
-            }, 400
+            return error_response(
+                VALIDATION_ERROR,
+                "Invalid timezone: Use IANA timezone names "
+                "(e.g., 'America/New_York', 'Europe/London', 'UTC')",
+                400,
+            )
 
-    return None, None
-
-
-def _sanitize_error_message(message: str | None, max_length: int = 200) -> str:
-    """
-    Sanitize error message for safe display to users.
-
-    Prevents XSS by stripping HTML tags, redacts internal file paths,
-    and truncates long messages. This is defense-in-depth - Flask's
-    jsonify escapes by default, but we strip tags and redact paths
-    to prevent information disclosure and frontend rendering issues.
-
-    Args:
-        message: Raw error message (may contain user input)
-        max_length: Maximum length before truncation
-
-    Returns:
-        Sanitized error message safe for display
-
-    Issue #385 security fix: Reflected XSS prevention + path redaction
-    """
-    if not message:
-        return "An error occurred"
-
-    msg = str(message)
-
-    # Strip HTML tags iteratively (handles nested/malformed tags)
-    prev_len = -1
-    while len(msg) != prev_len:
-        prev_len = len(msg)
-        msg = re.sub(r"<[^>]*>", "", msg)
-        msg = re.sub(r"<[^>]*$", "", msg)  # Incomplete tags
-
-    # Redact internal file paths to prevent information disclosure
-    # Matches Unix-style absolute paths (e.g., /etc/secrets/file.txt)
-    msg = re.sub(r"/(?:etc|var|home|opt|usr|tmp|root)/[^\s'\"]*", "[path]", msg)
-
-    if len(msg) > max_length:
-        msg = msg[: max_length - 3] + "..."
-
-    return msg.strip() or "An error occurred"
+    return None
 
 
 def _requires_coordinates(routines: list[Routine]) -> bool:
@@ -230,13 +190,13 @@ def require_json(f):
         try:
             data = request.get_json()
         except BadRequest:
-            return jsonify({"error": "Request body must be valid JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request body must be valid JSON", 400)
 
         if data is None:
-            return jsonify({"error": "Request body must be valid JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request body must be valid JSON", 400)
 
         if not isinstance(data, dict):
-            return jsonify({"error": "Request body must be a JSON object"}), 400
+            return error_response(VALIDATION_ERROR, "Request body must be a JSON object", 400)
 
         return f(*args, json_data=data, **kwargs)
 
@@ -339,42 +299,37 @@ def get_schedule_preview(schedule_id: str) -> tuple[Response, int]:
         days, error = parse_and_validate_days(days_str)
         if error:
             logger.debug(f"Invalid days parameter '{days_str}': {error}")
-            return jsonify({"error": "Invalid days parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid days parameter", 400)
 
         # Parse coordinates
         latitude, error = parse_and_validate_coordinate(lat_str, "lat")
         if error:
             logger.debug(f"Invalid lat parameter '{lat_str}': {error}")
-            return jsonify({"error": "Invalid lat parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid lat parameter", 400)
 
         longitude, error = parse_and_validate_coordinate(lon_str, "lon")
         if error:
             logger.debug(f"Invalid lon parameter '{lon_str}': {error}")
-            return jsonify({"error": "Invalid lon parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid lon parameter", 400)
 
         # Validate coordinate ranges
         valid, _error = validate_coordinates(latitude, longitude)
         if not valid:
             logger.debug("Invalid coordinate range provided")
-            return jsonify({"error": "Invalid coordinates"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid coordinates", 400)
 
         # Validate timezone
         valid, error = validate_timezone(timezone_name)
         if not valid:
             logger.debug(f"Invalid timezone: {error}")
-            return jsonify({"error": "Invalid timezone"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid timezone", 400)
 
         # Get schedule from service
         service = get_scheduler_service()
         schedule = service.get_schedule(schedule_id)
 
         if schedule is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         # Generate preview
         result = generate_preview(
@@ -389,21 +344,13 @@ def get_schedule_preview(schedule_id: str) -> tuple[Response, int]:
 
     except ValueError as e:
         logger.warning(f"Preview generation error: {e}")
-        return jsonify(
-            {
-                "error": "Preview generation failed",
-            }
-        ), 400
+        return error_response(VALIDATION_ERROR, "Preview generation failed", 400)
 
     except Exception as e:
         logger.error(f"Unexpected error in preview generation: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to generate preview",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to generate preview"
+        )
 
 
 # ============================================================================
@@ -448,13 +395,9 @@ def list_schedules() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error listing schedules: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to list schedules",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to list schedules"
+        )
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["GET"])
@@ -473,23 +416,13 @@ def get_schedule(schedule_id: str) -> tuple[Response, int]:
         schedule = service.get_schedule(schedule_id)
 
         if schedule is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         return jsonify(schedule.to_dict()), 200
 
     except Exception as e:
         logger.error(f"Error getting schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @scheduler_ui_bp.route("/schedules/active", methods=["GET"])
@@ -538,13 +471,9 @@ def get_active_schedule() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error getting active schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to get active schedule",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to get active schedule"
+        )
 
 
 @scheduler_ui_bp.route("/active/next-actions", methods=["GET"])
@@ -590,7 +519,7 @@ def get_next_actions() -> tuple[Response, int]:
             elif limit > 100:
                 limit = 100
         except ValueError:
-            return jsonify({"error": "Invalid limit parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid limit parameter", 400)
 
         service = get_scheduler_service()
         schedule_id = service.get_active_schedule_id()
@@ -622,13 +551,9 @@ def get_next_actions() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error getting next actions: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to get next actions",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to get next actions"
+        )
 
 
 @scheduler_ui_bp.route("/schedules/builtin", methods=["GET"])
@@ -667,13 +592,9 @@ def list_builtin_schedules() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error listing built-in schedules: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to list built-in schedules",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to list built-in schedules"
+        )
 
 
 # ============================================================================
@@ -709,18 +630,10 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
             schedule = Schedule.from_dict(json_data)
         except KeyError as e:
             logger.warning(f"Missing required field in schedule: {e}")
-            return jsonify(
-                {
-                    "error": "Missing required field in schedule",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Missing required field in schedule", 400)
         except Exception as e:
             logger.error(f"Invalid schedule format: {e}", exc_info=True)
-            return jsonify(
-                {
-                    "error": "Invalid schedule format",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Invalid schedule format", 400)
 
         # Create via service (validates internally)
         service = get_scheduler_service()
@@ -728,19 +641,10 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
             success = service.create_schedule(schedule)
         except ScheduleValidationError as e:
             logger.debug(f"Schedule validation failed: {e}")
-            return jsonify(
-                {
-                    "error": "Schedule validation failed",
-                    "code": ERROR_CODES["VALIDATION_ERROR"],
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Schedule validation failed", 400)
 
         if not success:
-            return jsonify(
-                {
-                    "error": "Failed to create schedule",
-                }
-            ), 500
+            return error_response(SERVER_ERROR, "Failed to create schedule", 500)
 
         return jsonify(
             {
@@ -752,13 +656,9 @@ def create_schedule(json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error creating schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to create schedule",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to create schedule"
+        )
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["PUT"])
@@ -795,12 +695,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
         # Check if schedule exists
         existing = service.get_schedule(schedule_id)
         if existing is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         # Handle 'enabled' field separately (Issue #331 fix)
         # enabled/is_active are stored in active_state.json, not schedule JSON files
@@ -813,7 +708,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
                     service.set_enabled_schedule(None)
             except ValueError:
                 logger.exception("Failed to set enabled state")
-                return jsonify({"error": "Invalid schedule state"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid schedule state", 400)
 
         # If only 'enabled' was being updated, we're done
         if not json_data:
@@ -833,26 +728,13 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
             # Built-in schedule protection - intentionally returns generic message
             # (not str(e)) to avoid exposing internal details
             logger.warning(f"Update blocked for built-in schedule: {e}")
-            return jsonify(
-                {
-                    "error": "Cannot modify built-in schedule",
-                }
-            ), 403
+            return error_response(VALIDATION_ERROR, "Cannot modify built-in schedule", 403)
         except ScheduleValidationError as e:
             logger.warning(f"Schedule validation failed: {e}")
-            return jsonify(
-                {
-                    "error": "Validation failed",
-                    "code": ERROR_CODES["VALIDATION_ERROR"],
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Validation failed", 400)
 
         if updated is None:
-            return jsonify(
-                {
-                    "error": "Failed to update schedule",
-                }
-            ), 500
+            return error_response(SERVER_ERROR, "Failed to update schedule", 500)
 
         return jsonify(
             {
@@ -863,12 +745,7 @@ def update_schedule(schedule_id: str, json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error updating schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>", methods=["DELETE"])
@@ -894,12 +771,7 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
         # Check if schedule exists
         existing = service.get_schedule(schedule_id)
         if existing is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         # Delete via service (handles built-in check)
         try:
@@ -907,18 +779,10 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
         except ValueError as e:
             # Built-in schedule protection
             logger.warning(f"Delete blocked for built-in schedule: {e}")
-            return jsonify(
-                {
-                    "error": "Cannot delete built-in schedule",
-                }
-            ), 403
+            return error_response(VALIDATION_ERROR, "Cannot delete built-in schedule", 403)
 
         if not success:
-            return jsonify(
-                {
-                    "error": "Failed to delete schedule",
-                }
-            ), 500
+            return error_response(SERVER_ERROR, "Failed to delete schedule", 500)
 
         return jsonify(
             {
@@ -929,12 +793,7 @@ def delete_schedule(schedule_id: str) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error deleting schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @scheduler_ui_bp.route("/schedules/<schedule_id>/clone", methods=["POST"])
@@ -975,12 +834,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
         # Get original schedule
         original = service.get_schedule(schedule_id)
         if original is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         # Parse optional request body for custom name
         data = request.get_json(silent=True) or {}
@@ -989,24 +843,14 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
         # Validate custom name if provided
         if custom_name is not None:
             if not isinstance(custom_name, str):
-                return jsonify(
-                    {
-                        "error": "Name must be a string",
-                    }
-                ), 400
+                return error_response(VALIDATION_ERROR, "Name must be a string", 400)
             if not custom_name.strip():
-                return jsonify(
-                    {
-                        "error": "Name cannot be empty",
-                    }
-                ), 400
+                return error_response(VALIDATION_ERROR, "Name cannot be empty", 400)
             new_name = custom_name.strip()
             if len(new_name) > MAX_PATTERN_NAME_LENGTH:
-                return jsonify(
-                    {
-                        "error": f"Name exceeds {MAX_PATTERN_NAME_LENGTH} characters",
-                    }
-                ), 400
+                return error_response(
+                    VALIDATION_ERROR, f"Name exceeds {MAX_PATTERN_NAME_LENGTH} characters", 400
+                )
         else:
             new_name = f"{original.name} (Copy)"
             # Truncate if default name exceeds max length
@@ -1047,19 +891,10 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
             success = service.create_schedule(new_schedule)
         except ScheduleValidationError as e:
             logger.warning(f"Cloned schedule validation failed: {e}")
-            return jsonify(
-                {
-                    "error": "Validation failed",
-                    "code": ERROR_CODES["VALIDATION_ERROR"],
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Validation failed", 400)
 
         if not success:
-            return jsonify(
-                {
-                    "error": "Failed to create cloned schedule",
-                }
-            ), 500
+            return error_response(SERVER_ERROR, "Failed to create cloned schedule", 500)
 
         return jsonify(
             {
@@ -1071,12 +906,7 @@ def clone_schedule(schedule_id: str) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error cloning schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 # ============================================================================
@@ -1125,11 +955,9 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify(
-                {
-                    "error": "Both latitude and longitude must be provided together",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Both latitude and longitude must be provided together", 400
+            )
 
         # Determine coordinates with fallback chain (Issue #331)
         # Priority: 1) explicit request, 2) device GPS, 3) timezone approximation
@@ -1142,11 +970,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
                 longitude = float(data["longitude"])
                 coordinates_source = "explicit"
             except (ValueError, TypeError):
-                return jsonify(
-                    {
-                        "error": "Coordinates must be numeric",
-                    }
-                ), 400
+                return error_response(VALIDATION_ERROR, "Coordinates must be numeric", 400)
         else:
             # Try device GPS from controls.txt
             control_values = get_control_values(CONTROLS_FILE)
@@ -1192,9 +1016,9 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
         # Validate coordinate ranges and timezone (Issue #385 review fix)
         # Coordinates may come from explicit request, GPS, or timezone fallback -
         # all sources should be validated to catch invalid controls.txt values
-        error, status = _validate_location_params(latitude, longitude, timezone_name)
-        if error:
-            return jsonify(error), status
+        validation_error = _validate_location_params(latitude, longitude, timezone_name)
+        if validation_error:
+            return validation_error
 
         service = get_scheduler_service()
 
@@ -1237,22 +1061,11 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
         except ScheduleConflictError as e:
             # Log conflict details, return generic message
             logger.info(f"Schedule conflict detected: {e}")
-            return jsonify(
-                {
-                    "error": "Schedule conflict detected",
-                    "code": ERROR_CODES["CONFLICT_ERROR"],
-                    "conflict": True,
-                }
-            ), 409
+            return error_response(CONFLICT_ERROR, "Schedule conflict detected", 409, conflict=True)
         except ScheduleActivationError as e:
             # Log detailed error, return generic message
             logger.warning(f"Schedule activation failed: {e}")
-            return jsonify(
-                {
-                    "error": "Schedule activation failed",
-                    "code": ERROR_CODES["ACTIVATION_ERROR"],
-                }
-            ), 400
+            return error_response(ACTIVATION_ERROR, "Schedule activation failed", 400)
 
         # Include coordinates_source in response for UI notification (Issue #331)
         # Check for entry count warning (approaching system limit)
@@ -1273,12 +1086,7 @@ def activate_schedule(schedule_id: str) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error activating schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @scheduler_ui_bp.route("/schedules/deactivate", methods=["POST"])
@@ -1310,12 +1118,12 @@ def deactivate_current_schedule() -> tuple[Response, int]:
         success = service.deactivate_schedule()
 
         if not success:
-            return jsonify(
-                {
-                    "error": "Failed to clear crontab",
-                    "message": "Cron entries may still be active",
-                }
-            ), 500
+            return error_response(
+                SERVER_ERROR,
+                "Failed to clear crontab",
+                500,
+                detail="Cron entries may still be active",
+            )
 
         if active is None:
             return jsonify(
@@ -1336,13 +1144,9 @@ def deactivate_current_schedule() -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error deactivating schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-                "message": "Failed to deactivate schedule",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error", 500, detail="Failed to deactivate schedule"
+        )
 
 
 # ============================================================================
@@ -1389,51 +1193,40 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify(
-                {
-                    "error": "Both latitude and longitude must be provided together",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Both latitude and longitude must be provided together", 400
+            )
 
         # Type validation for coordinates
         try:
             latitude = float(data["latitude"]) if lat_provided else 0.0
             longitude = float(data["longitude"]) if lon_provided else 0.0
         except (ValueError, TypeError):
-            return jsonify(
-                {
-                    "error": "Coordinates must be numeric",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Coordinates must be numeric", 400)
 
         timezone_name = data.get("timezone", "UTC")
 
         # Validate coordinate ranges if explicitly provided (including 0.0, 0.0)
         # Use helper with timezone_name=None to skip timezone validation (Issue #385)
         if lat_provided and lon_provided:
-            error, status = _validate_location_params(latitude, longitude, None)
-            if error:
-                return jsonify(error), status
+            validation_error = _validate_location_params(latitude, longitude, None)
+            if validation_error:
+                return validation_error
 
         service = get_scheduler_service()
 
         # Check if schedule exists
         schedule = service.get_schedule(schedule_id)
         if schedule is None:
-            return jsonify(
-                {
-                    "error": "Schedule not found",
-                    "code": ERROR_CODES["NOT_FOUND"],
-                }
-            ), 404
+            return error_response(NOT_FOUND, "Schedule not found", 404)
 
         # Check if coordinates required but not provided (solar/moon triggers)
         if not lat_provided and _requires_coordinates(schedule.routines):
-            return jsonify(
-                {
-                    "error": "Coordinates required for schedules with solar or moon triggers",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "Coordinates required for schedules with solar or moon triggers",
+                400,
+            )
 
         # Get cached conflict report
         report = service.get_cached_conflict_report(
@@ -1466,12 +1259,7 @@ def validate_schedule_endpoint(schedule_id: str) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating schedule: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 @scheduler_ui_bp.route("/schedules/validate-draft", methods=["POST"])
@@ -1508,11 +1296,11 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
     try:
         # Validate routines field exists
         if "routines" not in json_data:
-            return jsonify({"error": "routines array required"}), 400
+            return error_response(VALIDATION_ERROR, "routines array required", 400)
 
         routines_data = json_data["routines"]
         if not isinstance(routines_data, list):
-            return jsonify({"error": "routines must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "routines must be an array", 400)
 
         # Empty routines is valid - no conflicts possible
         if not routines_data:
@@ -1532,14 +1320,14 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
             routines = [Routine.from_dict(r) for r in routines_data]
         except (KeyError, ValueError, TypeError) as e:
             logger.debug(f"Invalid routine format: {e}")
-            return jsonify({"error": "Invalid routine format"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid routine format", 400)
 
         # Parse optional parameters
         preview_days = json_data.get("days", DEFAULT_PREVIEW_DAYS)
         try:
             preview_days = min(max(int(preview_days), 1), 90)
         except (ValueError, TypeError):
-            return jsonify({"error": "Invalid days parameter"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid days parameter", 400)
 
         # Check if coordinates were explicitly provided in request
         lat_provided = "latitude" in json_data
@@ -1547,14 +1335,16 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
 
         # Require both coordinates or neither
         if lat_provided != lon_provided:
-            return jsonify({"error": "Both latitude and longitude must be provided together"}), 400
+            return error_response(
+                VALIDATION_ERROR, "Both latitude and longitude must be provided together", 400
+            )
 
         # Type validation for coordinates
         try:
             latitude = float(json_data["latitude"]) if lat_provided else 0.0
             longitude = float(json_data["longitude"]) if lon_provided else 0.0
         except (ValueError, TypeError):
-            return jsonify({"error": "Coordinates must be numeric"}), 400
+            return error_response(VALIDATION_ERROR, "Coordinates must be numeric", 400)
 
         timezone_name = json_data.get("timezone", "UTC")
 
@@ -1563,19 +1353,18 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
             valid, coord_error = validate_coordinates(latitude, longitude)
             if not valid:
                 # Sanitize error - coord_error doesn't include user input but sanitize anyway
-                safe_error = _sanitize_error_message(coord_error)
-                return jsonify({"error": f"Invalid coordinates: {safe_error}"}), 400
+                safe_error = sanitize_message(coord_error)
+                return error_response(VALIDATION_ERROR, f"Invalid coordinates: {safe_error}", 400)
 
         # Validate timezone
         valid, tz_error = validate_timezone(timezone_name)
         if not valid:
             # Don't reflect user input in error - use generic message (Issue #385 security fix)
-            return jsonify(
-                {
-                    "error": "Invalid timezone: Use IANA timezone names "
-                    "(e.g., 'America/New_York', 'Europe/London', 'UTC')"
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "Invalid timezone: Use IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'UTC')",
+                400,
+            )
 
         # Check if coordinates required but not provided (solar/moon triggers)
         # Use same fallback chain as activation: device GPS → timezone approximation
@@ -1628,12 +1417,7 @@ def validate_draft_routines(json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating draft routines: {e}", exc_info=True)
-        return jsonify(
-            {
-                "error": "Internal server error",
-                "code": ERROR_CODES["SERVER_ERROR"],
-            }
-        ), 500
+        return error_response(SERVER_ERROR, "Internal server error", 500)
 
 
 # ============================================================================
@@ -1673,69 +1457,42 @@ def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
         expression = json_data.get("expression")
 
         if expression is None:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Missing required field: expression",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Missing required field: expression", 400, valid=False
+            )
 
         # Type validation
         if not isinstance(expression, str):
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Expression must be a string",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Expression must be a string", 400, valid=False)
 
         # Empty string check
         if not expression or not expression.strip():
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Expression cannot be empty",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Expression cannot be empty", 400, valid=False)
 
         # Length validation (security check)
         if len(expression) > 100:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Expression too long (max 100 characters)",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Expression too long (max 100 characters)", 400, valid=False
+            )
 
         # Get count parameter (default 5, range 1-20)
         count = json_data.get("count", 5)
 
         # Validate count type
         if not isinstance(count, int):
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Count must be an integer",
-                }
-            ), 400
+            return error_response(VALIDATION_ERROR, "Count must be an integer", 400, valid=False)
 
         # Validate count range
         if count < 1 or count > 20:
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Count must be between 1 and 20",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Count must be between 1 and 20", 400, valid=False
+            )
 
         # Validate cron expression syntax
         if not CronEntry.is_valid_expression(expression):
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Invalid cron expression syntax",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Invalid cron expression syntax", 400, valid=False
+            )
 
         # Calculate next execution times
         next_executions = []
@@ -1749,12 +1506,12 @@ def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
                 current_time = datetime.fromtimestamp(next_time + 1, UTC)
         except ValueError as e:
             logger.debug(f"Failed to calculate next execution times: {e}")
-            return jsonify(
-                {
-                    "valid": False,
-                    "error": "Invalid cron expression: cannot calculate execution times",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "Invalid cron expression: cannot calculate execution times",
+                400,
+                valid=False,
+            )
 
         # Get human-readable description
         human_readable = cron_to_human_readable(expression)
@@ -1770,9 +1527,6 @@ def validate_cron_expression(json_data: dict) -> tuple[Response, int]:
 
     except Exception as e:
         logger.error(f"Error validating cron expression: {e}", exc_info=True)
-        return jsonify(
-            {
-                "valid": False,
-                "error": "Internal server error during validation",
-            }
-        ), 500
+        return error_response(
+            SERVER_ERROR, "Internal server error during validation", 500, valid=False
+        )
