@@ -186,6 +186,27 @@ class TestCLIArgumentParsing:
                                 # Verify setup_logging was called with verbose=True
                                 mock_logging.assert_called_once_with(True)
 
+    def test_default_pattern_is_recursive(self):
+        """Default pattern should match photos in subdirectories."""
+        from webui.cli.gps_exif_tagger import PATTERN_DEFAULT
+        assert "**" in PATTERN_DEFAULT, "Default pattern must be recursive"
+
+    def test_coordinate_source_argument_exists(self):
+        """CLI parser accepts --coordinate-source flag."""
+        test_args = [
+            'gps_exif_tagger.py',
+            '--coordinate-source', 'gps,manual',
+        ]
+
+        with patch('sys.argv', test_args):
+            with patch.object(gps_exif_tagger, 'batch_process_directory', return_value={'errors': 0}):
+                with patch.object(gps_exif_tagger, 'setup_logging', return_value=Mock()):
+                    with patch.object(gps_exif_tagger, 'get_hardware_config', return_value={'gps_enabled': True}):
+                        with patch.object(gps_exif_tagger, 'get_gps_data_from_controls', return_value={'has_fix': True}):
+                            with patch('pathlib.Path.exists', return_value=True):
+                                # Should not raise - the flag should be accepted
+                                gps_exif_tagger.main()
+
 
 class TestCLIValidation:
     """Test CLI input validation and error handling."""

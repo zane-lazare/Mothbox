@@ -68,7 +68,7 @@ __all__ = [
 # Default configuration constants
 POLL_INTERVAL_DEFAULT = 10  # Default polling interval in seconds for watch mode
 POLL_INTERVAL_MIN = 1  # Minimum polling interval (prevents CPU spinning)
-PATTERN_DEFAULT = "*.jpg"  # Default file pattern for photo matching
+PATTERN_DEFAULT = "**/*.jpg"  # Default file pattern for photo matching
 JPEG_QUALITY_DEFAULT = 95  # JPEG quality for re-encoding (in lib, referenced here for docs)
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"  # Log message format
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"  # Log timestamp format
@@ -448,8 +448,17 @@ def main():
         "--force", action="store_true", help="Re-tag photos even if already have GPS EXIF"
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--coordinate-source",
+        default="deployment,gps",
+        help="Comma-separated coordinate sources in priority order (default: deployment,gps). "
+        "Valid sources: deployment, gps, manual",
+    )
 
     args = parser.parse_args()
+
+    # Parse coordinate sources (wired into batch/watch calls in a follow-up)
+    coordinate_sources = tuple(s.strip() for s in args.coordinate_source.split(","))  # noqa: F841
 
     # Setup logging
     logger = setup_logging(args.verbose)
