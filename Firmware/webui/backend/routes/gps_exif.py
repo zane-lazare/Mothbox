@@ -215,6 +215,17 @@ def tag_photo():
 
     manual_coords = data.get("manual_coords")
 
+    # Validate manual coordinates if provided
+    if manual_coords is not None:
+        if not isinstance(manual_coords, dict):
+            return jsonify({"error": "manual_coords must be an object with lat and lon"}), 400
+        lat = manual_coords.get("lat")
+        lon = manual_coords.get("lon")
+        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+            return jsonify({"error": "manual_coords.lat and .lon must be numbers"}), 400
+        if lat < -90 or lat > 90 or lon < -180 or lon > 180:
+            return jsonify({"error": "lat must be -90..90, lon must be -180..180"}), 400
+
     try:
         # Lazy import to avoid circular dependency
         from webui.backend.services.deployment_service import DeploymentService
