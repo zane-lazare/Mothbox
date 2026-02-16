@@ -247,14 +247,14 @@ export default function Settings() {
   }
 
   // Derive focus mode from AutoCalibration + AfMode combination
-  const getFocusMode = () => {
+  const focusMode = (() => {
     const autoCal = cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1
     if (autoCal) return 'auto-calibrate'
     const afMode = String(cameraForm.AfMode || '0')
     if (afMode === '1') return 'af-single'
     if (afMode === '2') return 'af-continuous'
     return 'manual'
-  }
+  })()
 
   const handleFocusModeChange = (mode) => {
     const updates = {
@@ -1449,7 +1449,7 @@ export default function Settings() {
                 </label>
                 <select
                   id="focus_mode"
-                  value={getFocusMode()}
+                  value={focusMode}
                   onChange={(e) => handleFocusModeChange(e.target.value)}
                   className="settings-select"
                 >
@@ -1459,15 +1459,17 @@ export default function Settings() {
                   <option value="af-continuous">Autofocus (Continuous)</option>
                 </select>
                 <p className="settings-help-text">
-                  {getFocusMode() === 'auto-calibrate' && 'Automatically optimizes focus position periodically. Recommended for unattended operation.'}
-                  {getFocusMode() === 'manual' && 'Set a fixed focus distance. Best when camera-to-subject distance is constant.'}
-                  {getFocusMode() === 'af-single' && 'Runs autofocus once before each capture. Good for varying distances.'}
-                  {getFocusMode() === 'af-continuous' && 'Continuously adjusts focus. Uses more power but adapts to movement.'}
+                  {{
+                    'auto-calibrate': 'Automatically optimizes focus position periodically. Recommended for unattended operation.',
+                    'manual': 'Set a fixed focus distance. Best when camera-to-subject distance is constant.',
+                    'af-single': 'Runs autofocus once before each capture. Good for varying distances.',
+                    'af-continuous': 'Continuously adjusts focus. Uses more power but adapts to movement.',
+                  }[focusMode]}
                 </p>
               </div>
 
               {/* Auto-Calibrate sub-controls */}
-              {getFocusMode() === 'auto-calibrate' && (
+              {focusMode === 'auto-calibrate' && (
                 <div className="p-2 bg-green-50 border border-green-200 rounded space-y-2">
                   <div className="settings-form-group">
                     <label className="settings-label">
@@ -1512,7 +1514,7 @@ export default function Settings() {
               )}
 
               {/* Manual Focus sub-controls */}
-              {getFocusMode() === 'manual' && (
+              {focusMode === 'manual' && (
                 <div className="settings-form-group">
                   <label className="settings-label">
                     Focus Position: {parseFloat(cameraForm.LensPosition || 0.5).toFixed(2)} diopters
@@ -1538,7 +1540,7 @@ export default function Settings() {
               )}
 
               {/* Autofocus sub-controls (Single or Continuous) */}
-              {(getFocusMode() === 'af-single' || getFocusMode() === 'af-continuous') && (
+              {(focusMode === 'af-single' || focusMode === 'af-continuous') && (
                 <div className="space-y-2">
                   <div className="settings-form-group">
                     <label htmlFor="af_range_capture" className="settings-label">
@@ -1657,7 +1659,7 @@ export default function Settings() {
             <div className="settings-card space-y-2">
               <div className="settings-info-box bg-yellow-50 border-yellow-200">
               <p className="text-xs text-yellow-800">
-                <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibration or Camera page to test.
+                <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibrate mode or Camera page to test.
               </p>
               </div>
             </div>
