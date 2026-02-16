@@ -212,11 +212,11 @@ class TestGetDeploymentMetadata:
             modified_at="2024-01-01T00:00:00Z"
         )
 
-    def test_get_invalid_path_returns_400(self, deployment_client):
-        """Test that invalid path returns 400"""
+    def test_get_invalid_path_returns_403(self, deployment_client):
+        """Test that invalid path returns 403"""
         response = deployment_client.get('/api/deployment/metadata/../../../etc/passwd')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
         assert 'Invalid path' in data['error']
@@ -225,7 +225,7 @@ class TestGetDeploymentMetadata:
         """Test that path traversal attempts are blocked"""
         response = deployment_client.get('/api/deployment/metadata/../../etc/passwd')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
 
@@ -412,7 +412,7 @@ class TestCreateUpdateDeployment:
             json={'deployment_name': 'Test'}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
 
@@ -533,7 +533,7 @@ class TestDeleteDeployment:
         """Test that path traversal is blocked"""
         response = deployment_client.delete('/api/deployment/metadata/../../etc/passwd')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
 
@@ -871,7 +871,7 @@ class TestGenerateSidecars:
             }
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
 
@@ -940,11 +940,11 @@ class TestCacheOperations:
         data = response.get_json()
         assert data['success'] is True
 
-    def test_invalidate_cache_invalid_path_returns_400(self, deployment_client):
-        """Test that invalid path returns 400"""
+    def test_invalidate_cache_invalid_path_returns_403(self, deployment_client):
+        """Test that invalid path returns 403"""
         response = deployment_client.post('/api/deployment/cache/invalidate?directory=../../etc')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
 
@@ -2325,7 +2325,7 @@ class TestGenerateEndpointEdgeCases:
             }
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
         assert 'path' in data['error'].lower() or 'invalid' in data['error'].lower()
@@ -2436,10 +2436,10 @@ class TestListPathValidation:
     """Tests for list endpoint path validation"""
 
     def test_list_with_invalid_root_dir(self, deployment_client):
-        """Test that list with invalid root_dir returns 400"""
+        """Test that list with invalid root_dir returns 403"""
         response = deployment_client.get('/api/deployment/list?root_dir=../../etc')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
         assert 'path' in data['error'].lower() or 'invalid' in data['error'].lower()
@@ -2454,10 +2454,10 @@ class TestDiscoverPathValidation:
     """Tests for discover endpoint path validation"""
 
     def test_discover_path_traversal_attempt(self, deployment_client):
-        """Test that discover with path traversal returns 400"""
+        """Test that discover with path traversal returns 403"""
         response = deployment_client.get('/api/deployment/discover/../../etc/passwd')
 
-        assert response.status_code == 400
+        assert response.status_code == 403
         data = response.get_json()
         assert 'error' in data
         assert 'path' in data['error'].lower() or 'invalid' in data['error'].lower()
