@@ -42,6 +42,7 @@ from flask import Blueprint, current_app, jsonify, request
 from webui.backend.lib.error_codes import (
     HARDWARE_ERROR,
     NOT_FOUND,
+    PERMISSION_ERROR,
     SERVER_ERROR,
     VALIDATION_ERROR,
     error_response,
@@ -380,7 +381,7 @@ def get_photo_metadata(filename: str):
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if photo exists
         if not full_path.exists():
@@ -481,7 +482,7 @@ def update_photo_metadata(filename: str):
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if photo exists
         if not full_path.exists():
@@ -589,7 +590,7 @@ def delete_photo_metadata(filename: str):
         # Path traversal protection
         full_path = validate_photo_path(filename, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if sidecar exists
         metadata = service.get_metadata(str(full_path))

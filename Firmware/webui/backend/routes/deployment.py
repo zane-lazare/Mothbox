@@ -40,6 +40,7 @@ from flask import Blueprint, current_app, jsonify, request
 from webui.backend.lib.error_codes import (
     HARDWARE_ERROR,
     NOT_FOUND,
+    PERMISSION_ERROR,
     SERVER_ERROR,
     VALIDATION_ERROR,
     error_response,
@@ -272,7 +273,7 @@ def get_deployment_metadata(directory: str):
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
@@ -373,7 +374,7 @@ def create_deployment_metadata(directory: str):
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
@@ -504,7 +505,7 @@ def update_deployment_metadata(directory: str):
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
@@ -589,7 +590,7 @@ def delete_deployment_metadata(directory: str):
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if deployment exists
         metadata = service.get_deployment_metadata(full_path)
@@ -666,7 +667,7 @@ def list_all_deployments():
             # Validate path
             root_dir = validate_photo_path(root_dir_param, PHOTOS_DIR)
             if root_dir is None:
-                return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+                return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
         else:
             root_dir = None  # Use default (PHOTOS_DIR)
 
@@ -730,7 +731,7 @@ def discover_deployment_for_photo(photo_path: str):
         # Path traversal protection
         full_path = validate_photo_path(photo_path, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if photo exists
         if not full_path.exists():
@@ -1066,7 +1067,7 @@ def generate_deployment_sidecars():
         # Path traversal protection
         full_path = validate_photo_path(directory, PHOTOS_DIR)
         if full_path is None:
-            return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+            return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
         # Check if directory exists
         if not full_path.exists() or not full_path.is_dir():
@@ -1195,7 +1196,7 @@ def invalidate_deployment_cache():
             # Validate path
             full_path = validate_photo_path(directory_param, PHOTOS_DIR)
             if full_path is None:
-                return error_response(VALIDATION_ERROR, "Invalid path: Access denied")
+                return error_response(PERMISSION_ERROR, "Invalid path: Access denied", 403)
 
             # Invalidate specific entry
             service.invalidate_cache(full_path)
