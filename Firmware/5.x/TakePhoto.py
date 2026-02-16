@@ -17,22 +17,18 @@ Its order of operations is like this
 -Saving the pixels to disk
 """
 
-import time
-from datetime import datetime, timedelta
-
-from libcamera import Transform
-from picamera2 import Picamera2
-
-computer_name = "mothboxNOTSET"
-
 import csv
 import os
 import platform
 import subprocess
 import sys
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import piexif
+from libcamera import Transform
+from picamera2 import Picamera2
 
 # Add parent directory to path to import mothbox_paths
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -53,6 +49,8 @@ from mothbox_paths import (
     get_gpio_pins,
     get_switch_pins,
 )
+
+computer_name = "mothboxNOTSET"
 
 # Load GPIO pins from configuration
 pins = get_gpio_pins()
@@ -86,7 +84,9 @@ else:
 # Check for connection
 if off_connected_to_ground():
     print("GPIO pin", off_pin, "OFF PIN connected to ground.")
-    mode = "OFF"  # this check comes second as the OFF state should override the DEBUG state in case both are attached
+    # this check comes second as the OFF state should override
+    # the DEBUG state in case both are attached
+    mode = "OFF"
 else:
     print("GPIO pin", off_pin, "OFF PIN NOT connected to ground.")
 
@@ -313,9 +313,12 @@ def print_af_state(request):
 
 def run_calibration():
     global calib_lens_position, calib_exposure, camera_settings, width, height, picam2
-    # preview_config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (4624, 3472)})
+    # preview_config = picam2.create_preview_configuration(
+    #     main={'format': 'RGB888', 'size': (4624, 3472)})
     preview_config = picam2.create_preview_configuration(main={"size": (1920 * 2, 1080 * 2)})
-    # still_config = picam2.create_still_configuration(main={"size": (width, height), "format": "RGB888"}, buffer_count=1)
+    # still_config = picam2.create_still_configuration(
+    #     main={"size": (width, height), "format": "RGB888"},
+    #     buffer_count=1)
     picam2.configure(preview_config)
 
     # picam2.set_controls({"AfMode":0,"AfSpeed":0,"AfRange":0, "LensPosition":7.0})
@@ -331,9 +334,10 @@ def run_calibration():
     picam2.set_controls(
         {"ExposureValue": exposurevalue}
     )  # Floating point number between -8.0 and 8.0
-    picam2.set_controls(
-        {"ExposureTime": 500}
-    )  # we want a fast photo so we don't get blurry insects. We lock the exposure time and adjust gain. The max speed seems to be 469, but we will leave some overhead
+    # We want a fast photo so we don't get blurry insects.
+    # We lock the exposure time and adjust gain.
+    # The max speed seems to be 469, but we will leave some overhead.
+    picam2.set_controls({"ExposureTime": 500})
 
     time.sleep(1)
 
@@ -407,7 +411,8 @@ def run_calibration():
     }
     update_camera_settings(chosen_settings_path, new_settings)
 
-    # restart the whole script now because for some reason if we just run the phot taking it is always slightly brighter
+    # Restart the whole script now because for some reason if we just
+    # run the photo taking it is always slightly brighter
     time.sleep(1)
     restart_script()
 
@@ -524,7 +529,9 @@ def take_photo_manual():
 
         picam2.set_controls({"ExposureTime": exposure_times[i]})
         print("exp  ", exposure_times[i], "  ", i)
-        # picam2.set_controls({"NoiseReductionMode":controls.draft.NoiseReductionModeEnum.HighQuality})
+        # picam2.set_controls(
+        #     {"NoiseReductionMode":
+        #      controls.draft.NoiseReductionModeEnum.HighQuality})
         picam2.start()  # need to restart camera or wait a couple frames for settings to change
 
         time.sleep(exposureset_delay)  # need some time for the settings to sink into the camera)
@@ -586,7 +593,11 @@ def take_photo_manual():
         }
         # Embed GPS coordinates from controls.txt (written by GPS.py)
         try:
-            from webui.backend.lib.gps_exif_lib import build_gps_ifd, get_gps_data_from_controls
+            from webui.backend.lib.gps_exif_lib import (
+                build_gps_ifd,
+                get_gps_data_from_controls,
+            )
+
             gps_data = get_gps_data_from_controls()
             gps_ifd = build_gps_ifd(gps_data) if gps_data.get("has_fix") else {}
         except Exception as e:
@@ -693,7 +704,8 @@ if rpi_model == 5:
     height = 6944
 
 
-# I don't really know why we need this below code, but it's here. it may have been an earlier attempt to find the pi model
+# I don't really know why we need this below code, but it's here.
+# It may have been an earlier attempt to find the pi model.
 if platform.system() == "Windows":
     print(platform.uname().node)
 else:
@@ -737,12 +749,14 @@ try:
     print(picam2.camera_controls["AnalogueGain"])
     min_gain, max_gain, default_gain = picam2.camera_controls["AnalogueGain"]
     """
-    # This will be the path to the CSV holding the settings whether it is the one on the disk or the external CSV
+    # This will be the path to the CSV holding the settings whether
+    # it is the one on the disk or the external CSV
     global chosen_settings_path
     default_path = str(CAMERA_SETTINGS_FILE)
     chosen_settings_path = default_path
 
-    # camera_settings = load_camera_settings("camera_settings.csv")#CRONTAB CAN'T TAKE RELATIVE LINKS!
+    # camera_settings = load_camera_settings("camera_settings.csv")
+    # CRONTAB CAN'T TAKE RELATIVE LINKS!
     camera_settings = load_camera_settings()
 
     # before calibration, set these values to the default we read in

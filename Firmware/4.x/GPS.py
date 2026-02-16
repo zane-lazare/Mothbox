@@ -149,7 +149,9 @@ def update_gps_values(
                         if key in updates:
                             updated_lines.append(f"{key}={updates[key]}\n")
                             updated_keys.add(key)
-                            logger.debug(f"Updated {key}={updates[key]}")
+                            logger.debug(  # lgtm[py/clear-text-logging-sensitive-data]
+                                "Updated %s=%s", key, updates[key]
+                            )
                         else:
                             updated_lines.append(line)
                     else:
@@ -161,8 +163,8 @@ def update_gps_values(
                         updated_lines.append(f"{key}={value}\n")
                         # GPS coordinates are equipment deployment locations (camera trap position),
                         # not personal/user data. This logging is intentional for debugging.
-                        logger.debug(
-                            f"Added {key}={value}"
+                        logger.debug(  # lgtm[py/clear-text-logging-sensitive-data]
+                            "Added %s=%s", key, value
                         )
 
                 # Write back to file
@@ -285,8 +287,8 @@ try:
                 logger.warning("Could not determine timezone from coordinates.")
                 # GPS coordinates are equipment deployment locations (camera trap position),
                 # not personal/user data. This logging is intentional for debugging.
-                logger.info(
-                    f"Writing coordinates anyway: lat={latitude}, lon={longitude}"
+                logger.info(  # lgtm[py/clear-text-logging-sensitive-data]
+                    "Writing coordinates anyway: lat=%s, lon=%s", latitude, longitude
                 )
                 # Still write coordinates even if timezone lookup fails
                 # Use default UTC offset of 0 since we couldn't determine it
