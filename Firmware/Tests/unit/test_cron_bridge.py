@@ -1,5 +1,6 @@
 """Unit tests for cron_bridge module - Subtask 1: Data structures."""
 
+import os
 from datetime import date, datetime, timedelta
 from unittest.mock import mock_open, patch
 
@@ -9,6 +10,7 @@ import pytest
 from webui.backend.lib.cron_bridge import (
     CronBridgeResult,
     CronEntry,
+    _rtc_available,
     apply_to_system,
     calculate_next_from_entries,
     calculate_next_waketime,
@@ -830,26 +832,29 @@ class TestRTCWakealarm:
     def test_set_rtc_wakealarm_writes_to_sysfs(self):
         """set_rtc_wakealarm writes epoch to /sys/class/rtc/rtc0/wakealarm."""
         m = mock_open()
-        with patch("builtins.open", m):
-            epoch = 1718463600
-            result = set_rtc_wakealarm(epoch)
-            assert result is True
-            m.assert_called_with("/sys/class/rtc/rtc0/wakealarm", "w")
-            m().write.assert_called_with(str(epoch))
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=True):
+            with patch("builtins.open", m):
+                epoch = 1718463600
+                result = set_rtc_wakealarm(epoch)
+                assert result is True
+                m.assert_called_with("/sys/class/rtc/rtc0/wakealarm", "w")
+                m().write.assert_called_with(str(epoch))
 
     def test_clear_rtc_wakealarm_writes_zero(self):
         """clear_rtc_wakealarm writes 0 to clear existing alarm."""
         m = mock_open()
-        with patch("builtins.open", m):
-            result = clear_rtc_wakealarm()
-            assert result is True
-            m().write.assert_called_with("0")
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=True):
+            with patch("builtins.open", m):
+                result = clear_rtc_wakealarm()
+                assert result is True
+                m().write.assert_called_with("0")
 
     def test_set_rtc_wakealarm_handles_permission_error(self):
         """set_rtc_wakealarm returns False on permission error."""
-        with patch("builtins.open", side_effect=PermissionError("No permission")):
-            result = set_rtc_wakealarm(1718463600)
-            assert result is False
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=True):
+            with patch("builtins.open", side_effect=PermissionError("No permission")):
+                result = set_rtc_wakealarm(1718463600)
+                assert result is False
 
     def test_calculate_next_waketime_with_day_of_week(self):
         """calculate_next_waketime handles day-of-week restrictions."""
@@ -876,9 +881,10 @@ class TestRTCWakealarm:
 
     def test_clear_rtc_wakealarm_handles_file_not_found(self):
         """clear_rtc_wakealarm returns False on file not found error."""
-        with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
-            result = clear_rtc_wakealarm()
-            assert result is False
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=True):
+            with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
+                result = clear_rtc_wakealarm()
+                assert result is False
 
     def test_calculate_next_waketime_handles_complex_expression(self):
         """calculate_next_waketime handles complex cron expressions."""
@@ -888,6 +894,52 @@ class TestRTCWakealarm:
         # Should be 9:30 same day
         expected = int(datetime(2024, 6, 17, 9, 30, 0).timestamp())
         assert abs(next_wake - expected) < 60
+
+    def test_rtc_available_returns_true_when_writable(self):
+        """_rtc_available returns True when RTC file is writable."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=True):
+            _rtc_available.cache_clear()
+            assert _rtc_available() is True
+
+    def test_rtc_available_returns_false_when_not_writable(self):
+        """_rtc_available returns False when RTC file is not writable."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=False):
+            _rtc_available.cache_clear()
+            assert _rtc_available() is False
+
+    def test_rtc_available_checks_correct_path(self):
+        """_rtc_available checks the RTC_WAKEALARM_PATH with W_OK."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=True) as mock_access:
+            _rtc_available.cache_clear()
+            _rtc_available()
+            mock_access.assert_called_once_with("/sys/class/rtc/rtc0/wakealarm", os.W_OK)
+
+    def test_set_rtc_skips_when_not_available(self):
+        """set_rtc_wakealarm returns True without writing when RTC unavailable."""
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=False):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = set_rtc_wakealarm(1718463600)
+                assert result is True
+                m.assert_not_called()
+
+    def test_clear_rtc_skips_when_not_available(self):
+        """clear_rtc_wakealarm returns True without writing when RTC unavailable."""
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=False):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = clear_rtc_wakealarm()
+                assert result is True
+                m.assert_not_called()
+
+    def test_set_rtc_writes_when_available(self):
+        """set_rtc_wakealarm proceeds normally when RTC is available."""
+        with patch("webui.backend.lib.cron_bridge._rtc_available", return_value=True):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = set_rtc_wakealarm(1718463600)
+                assert result is True
+                m.assert_called_once()
 
 
 class TestApplyToSystem:

@@ -8,8 +8,10 @@ Issue: #215
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from typing import Final
 
 import pytz
@@ -48,6 +50,24 @@ logger = logging.getLogger(__name__)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
 RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
+
+
+@lru_cache(maxsize=1)
+def _rtc_available() -> bool:
+    """Check if RTC wakealarm is writable (cached).
+
+    Returns True if the process can write to the RTC sysfs file.
+    Result is cached for the lifetime of the process since RTC
+    availability doesn't change at runtime.
+    """
+    available = os.access(RTC_WAKEALARM_PATH, os.W_OK)
+    if not available:
+        logger.info(
+            "RTC wakealarm not available at %s (not writable), "
+            "RTC wake features will be skipped",
+            RTC_WAKEALARM_PATH,
+        )
+    return available
 
 
 @dataclass
@@ -1424,6 +1444,8 @@ def set_rtc_wakealarm(epoch_time: int) -> bool:
     Returns:
         True if successful, False on error
     """
+    if not _rtc_available():
+        return True
     try:
         with open(RTC_WAKEALARM_PATH, "w") as f:
             f.write(str(epoch_time))
@@ -1442,6 +1464,8 @@ def clear_rtc_wakealarm() -> bool:
     Returns:
         True if successful, False on error
     """
+    if not _rtc_available():
+        return True
     try:
         with open(RTC_WAKEALARM_PATH, "w") as f:
             f.write("0")
