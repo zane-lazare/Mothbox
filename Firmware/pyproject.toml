@@ -182,9 +182,26 @@ exclude = [
     "dist",
     "*.egg-info",
 
-    # Firmware versions (4.x and 5.x - excluded from linting)
-    "4.x/",
-    "5.x/",
+    # Firmware helper/utility scripts (not yet cleaned up)
+    # TakePhoto.py is linted (cleaned in #390); other scripts excluded until cleaned
+    "4.x/scripts/",
+    "5.x/scripts/",
+    "4.x/Attract_Off.py",
+    "4.x/Attract_On.py",
+    "4.x/Backup_Files.py",
+    "4.x/DebugMode.py",
+    "4.x/Measure_Power.py",
+    "4.x/Scheduler.py",
+    "4.x/TurnEverythingOff.py",
+    "4.x/UpdateDisplay.py",
+    "5.x/Backup_Files.py",
+    "5.x/Measure_Power.py",
+    "5.x/PCA9536.py",
+    "5.x/Test_light_sensor.py",
+    "5.x/Testina.py",
+    "5.x/TurnEverythingOff.py",
+    "5.x/testPCA.py",
+    "5.x/testmuxi2c.py",
 
     # Frontend code (JavaScript/React - linted with ESLint)
     "webui/frontend/",
