@@ -41,6 +41,13 @@ from pathlib import Path
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from mothbox_paths import PHOTOS_DIR
+from webui.backend.lib.error_codes import (
+    NOT_FOUND,
+    PERMISSION_ERROR,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 from webui.backend.security_utils import validate_photo_path
 from webui.backend.services.export_metadata_service import (
     ExportFormat,
@@ -136,17 +143,19 @@ def get_export_metadata(photo_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         # Get format parameter (default: json)
         format_param = request.args.get("format", "json").lower()
         if format_param not in ("json", "csv", "darwin_core"):
-            return jsonify({"error": "Invalid format. Use 'json', 'csv', or 'darwin_core'"}), 400
+            return error_response(
+                VALIDATION_ERROR, "Invalid format. Use 'json', 'csv', or 'darwin_core'"
+            )
 
         # Get export metadata
         result = service.get_export_metadata(validated_path)
@@ -155,11 +164,11 @@ def get_export_metadata(photo_path: str):
         if isinstance(result, dict) and "error" in result:
             error_msg = result["error"]
             if error_msg == "Photo not found":
-                return jsonify(result), 404
+                return error_response(NOT_FOUND, "Photo not found", 404)
             elif error_msg == "Permission denied":
-                return jsonify(result), 403
+                return error_response(PERMISSION_ERROR, "Permission denied", 403)
             else:
-                return jsonify(result), 500
+                return error_response(SERVER_ERROR, error_msg, 500)
 
         # Transform to requested format
         if isinstance(result, ExportMetadata):
@@ -167,13 +176,12 @@ def get_export_metadata(photo_path: str):
                 # Validate for Darwin Core first
                 validation = service.validate_for_format(result, ExportFormat.DARWIN_CORE)
                 if not validation.is_valid:
-                    return jsonify(
-                        {
-                            "error": "Darwin Core validation failed",
-                            "missing_fields": validation.missing_fields,
-                            "warnings": validation.warnings,
-                        }
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        "Darwin Core validation failed",
+                        missing_fields=validation.missing_fields,
+                        warnings=validation.warnings,
+                    )
 
                 transformed = service.transform_to_darwin_core(result)
                 # Include warnings if any
@@ -189,7 +197,7 @@ def get_export_metadata(photo_path: str):
 
     except Exception as e:
         logger.error("Error getting export metadata for %s: %s", photo_path, e, exc_info=True)
-        return jsonify({"error": "Failed to get export metadata"}), 500
+        return error_response(SERVER_ERROR, "Failed to get export metadata", 500)
 
 
 @export_bp.route("/metadata/batch", methods=["POST"])
@@ -230,28 +238,28 @@ def get_batch_export_metadata():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
             return jsonify({"results": [], "total": 0, "successful": 0, "failed": 0}), 200
@@ -260,14 +268,15 @@ def get_batch_export_metadata():
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Get format parameter (default: json)
         format_param = data.get("format", "json").lower()
         if format_param not in ("json", "csv"):
-            return jsonify({"error": "Invalid format. Use 'json' or 'csv'"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid format. Use 'json' or 'csv'")
 
         # Validate and resolve all paths with security checks
         resolved_paths = []
@@ -303,7 +312,7 @@ def get_batch_export_metadata():
 
     except Exception as e:
         logger.error("Error in batch export metadata: %s", e, exc_info=True)
-        return jsonify({"error": "Batch processing failed"}), 500
+        return error_response(SERVER_ERROR, "Batch processing failed", 500)
 
 
 # ============================================================================
@@ -408,7 +417,7 @@ def list_export_formats():
 
     except Exception as e:
         logger.error("Error listing formats: %s", e, exc_info=True)
-        return jsonify({"error": "Failed to list formats"}), 500
+        return error_response(SERVER_ERROR, "Failed to list formats", 500)
 
 
 @export_bp.route("/stats", methods=["GET"])
@@ -435,7 +444,7 @@ def get_export_stats():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Get statistics
         stats = service.get_statistics()
@@ -444,7 +453,7 @@ def get_export_stats():
 
     except Exception as e:
         logger.error("Error getting export stats: %s", e, exc_info=True)
-        return jsonify({"error": "Failed to get statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to get statistics", 500)
 
 
 @export_bp.route("/stats/reset", methods=["POST"])
@@ -471,7 +480,7 @@ def reset_export_stats():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Reset statistics
         service.reset_statistics()
@@ -480,7 +489,7 @@ def reset_export_stats():
 
     except Exception as e:
         logger.error("Error resetting export stats: %s", e, exc_info=True)
-        return jsonify({"error": "Failed to reset statistics"}), 500
+        return error_response(SERVER_ERROR, "Failed to reset statistics", 500)
 
 
 # ============================================================================
@@ -578,41 +587,46 @@ def export_darwin_core_batch():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
-            return jsonify(
-                {"error": "No photos provided", "csv_data": "", "headers": [], "row_count": 0}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos provided",
+                csv_data="",
+                headers=[],
+                row_count=0,
+            )
 
         # Get configurable batch size limit
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Options
         validate = data.get("validate", True)
@@ -694,7 +708,7 @@ def export_darwin_core_batch():
 
     except Exception as e:
         logger.error("Error in Darwin Core batch export: %s", e, exc_info=True)
-        return jsonify({"error": "Darwin Core batch export failed"}), 500
+        return error_response(SERVER_ERROR, "Darwin Core batch export failed", 500)
 
 
 @export_bp.route("/darwin-core/deployment/<path:deployment_path>", methods=["GET"])
@@ -728,23 +742,23 @@ def export_deployment_darwin_core(deployment_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         from pathlib import Path
 
         validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         deployment_dir = Path(validated_path)
 
         # Check if directory exists
         if not deployment_dir.exists():
-            return jsonify({"error": "Deployment directory not found"}), 404
+            return error_response(NOT_FOUND, "Deployment directory not found", 404)
 
         if not deployment_dir.is_dir():
-            return jsonify({"error": "Path is not a directory"}), 400
+            return error_response(VALIDATION_ERROR, "Path is not a directory")
 
         # Query parameters
         validate = request.args.get("validate", "true").lower() == "true"
@@ -754,14 +768,13 @@ def export_deployment_darwin_core(deployment_path: str):
         photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
-            return jsonify(
-                {
-                    "error": "No photos found in deployment directory",
-                    "csv_data": "",
-                    "headers": [],
-                    "row_count": 0,
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos found in deployment directory",
+                csv_data="",
+                headers=[],
+                row_count=0,
+            )
 
         # Collect metadata for all photos
         metadata_list = []
@@ -838,7 +851,7 @@ def export_deployment_darwin_core(deployment_path: str):
 
     except Exception as e:
         logger.error("Error in Darwin Core deployment export: %s", e, exc_info=True)
-        return jsonify({"error": "Darwin Core deployment export failed"}), 500
+        return error_response(SERVER_ERROR, "Darwin Core deployment export failed", 500)
 
 
 # ============================================================================
@@ -892,49 +905,48 @@ def export_inaturalist_batch():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify(
-                {
-                    "error": "No photos specified",
-                    "details": "photo_paths array is required and must not be empty",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos specified",
+                details="photo_paths array is required and must not be empty",
+            )
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
-            return jsonify(
-                {
-                    "error": "No photos specified",
-                    "details": "photo_paths array is required and must not be empty",
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos specified",
+                details="photo_paths array is required and must not be empty",
+            )
 
         # Get configurable batch size limit
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Parse options
         from webui.backend.lib.zip_export import ZipExportOptions
@@ -955,12 +967,12 @@ def export_inaturalist_batch():
             # Path traversal protection
             validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
             if validated_path is None:
-                return jsonify(
-                    {
-                        "error": "Invalid path",
-                        "details": f"Path validation failed for: {photo_path}",
-                    }
-                ), 403
+                return error_response(
+                    PERMISSION_ERROR,
+                    "Invalid path",
+                    403,
+                    details=f"Path validation failed for: {photo_path}",
+                )
             resolved_paths.append(Path(validated_path))
 
         # Create temporary file for ZIP
@@ -981,7 +993,7 @@ def export_inaturalist_batch():
                 # Clean up temp file on error
                 if output_path.exists():
                     output_path.unlink()
-                return jsonify({"error": "ZIP export failed", "details": result.errors}), 500
+                return error_response(SERVER_ERROR, "ZIP export failed", 500, details=result.errors)
 
             # Determine response format based on Accept header
             accept = request.headers.get("Accept", "application/json")
@@ -1029,11 +1041,11 @@ def export_inaturalist_batch():
             # Clean up temp file on error
             if output_path.exists():
                 output_path.unlink()
-            return jsonify({"error": "ZIP export failed"}), 500
+            return error_response(SERVER_ERROR, "ZIP export failed", 500)
 
     except Exception as e:
         logger.error("Error in iNaturalist batch export: %s", e, exc_info=True)
-        return jsonify({"error": "iNaturalist batch export failed"}), 500
+        return error_response(SERVER_ERROR, "iNaturalist batch export failed", 500)
 
 
 @export_bp.route("/inaturalist/deployment/<path:deployment_path>", methods=["GET"])
@@ -1070,23 +1082,23 @@ def export_deployment_inaturalist(deployment_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         from pathlib import Path
 
         validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         deployment_dir = Path(validated_path)
 
         # Check if directory exists
         if not deployment_dir.exists():
-            return jsonify({"error": "Deployment directory not found"}), 404
+            return error_response(NOT_FOUND, "Deployment directory not found", 404)
 
         if not deployment_dir.is_dir():
-            return jsonify({"error": "Path is not a directory"}), 400
+            return error_response(VALIDATION_ERROR, "Path is not a directory")
 
         # Query parameters
         include_xmp = request.args.get("include_xmp", "true").lower() == "true"
@@ -1097,7 +1109,7 @@ def export_deployment_inaturalist(deployment_path: str):
         photo_paths = find_photos_in_directory(deployment_dir)
 
         if not photo_paths:
-            return jsonify({"error": "No photos found in deployment directory"}), 400
+            return error_response(VALIDATION_ERROR, "No photos found in deployment directory")
 
         # Create export options
         from webui.backend.lib.zip_export import ZipExportOptions
@@ -1125,7 +1137,7 @@ def export_deployment_inaturalist(deployment_path: str):
                 # Clean up temp file on error
                 if output_path.exists():
                     output_path.unlink()
-                return jsonify({"error": "ZIP export failed", "details": result.errors}), 500
+                return error_response(SERVER_ERROR, "ZIP export failed", 500, details=result.errors)
 
             # Determine response format based on Accept header
             accept = request.headers.get("Accept", "application/json")
@@ -1175,11 +1187,11 @@ def export_deployment_inaturalist(deployment_path: str):
             # Clean up temp file on error
             if output_path.exists():
                 output_path.unlink()
-            return jsonify({"error": "ZIP export failed"}), 500
+            return error_response(SERVER_ERROR, "ZIP export failed", 500)
 
     except Exception as e:
         logger.error("Error in iNaturalist deployment export: %s", e, exc_info=True)
-        return jsonify({"error": "iNaturalist deployment export failed"}), 500
+        return error_response(SERVER_ERROR, "iNaturalist deployment export failed", 500)
 
 
 @export_bp.route("/inaturalist/preview", methods=["POST"])
@@ -1226,39 +1238,40 @@ def preview_inaturalist_export():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
-            return jsonify({"error": "No photos provided"}), 400
+            return error_response(VALIDATION_ERROR, "No photos provided")
 
         # Get configurable batch size limit
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Validate and resolve paths
         from pathlib import Path
@@ -1358,7 +1371,7 @@ def preview_inaturalist_export():
 
     except Exception as e:
         logger.error("Error in iNaturalist preview: %s", e, exc_info=True)
-        return jsonify({"error": "Preview failed"}), 500
+        return error_response(SERVER_ERROR, "Preview failed", 500)
 
 
 # ============================================================================
@@ -1468,19 +1481,19 @@ def export_single_json(photo_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         validated_path = validate_photo_path(photo_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         # Parse field filtering parameters
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
             logger.warning(f"Invalid field filter params: {e}")
-            return jsonify({"error": "Invalid field filter parameters"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid field filter parameters")
 
         # Get export metadata
         result = service.get_export_metadata(validated_path)
@@ -1519,7 +1532,7 @@ def export_single_json(photo_path: str):
 
     except Exception as e:
         logger.error("Error exporting JSON for %s: %s", photo_path, e, exc_info=True)
-        return jsonify({"error": "Failed to export JSON metadata"}), 500
+        return error_response(SERVER_ERROR, "Failed to export JSON metadata", 500)
 
 
 @export_bp.route("/json/batch", methods=["POST"])
@@ -1566,28 +1579,28 @@ def export_batch_json():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
             return jsonify(
@@ -1598,16 +1611,17 @@ def export_batch_json():
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Parse field filtering parameters
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
             logger.warning(f"Invalid field filter params: {e}")
-            return jsonify({"error": "Invalid field filter parameters"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid field filter parameters")
 
         # Collect metadata for all photos
         results = []
@@ -1659,7 +1673,7 @@ def export_batch_json():
 
     except Exception as e:
         logger.error("Error in batch JSON export: %s", e, exc_info=True)
-        return jsonify({"error": "Batch JSON export failed"}), 500
+        return error_response(SERVER_ERROR, "Batch JSON export failed", 500)
 
 
 @export_bp.route("/json/deployment/<path:deployment_path>", methods=["GET"])
@@ -1690,40 +1704,39 @@ def export_deployment_json(deployment_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         deployment_dir = Path(validated_path)
         if not deployment_dir.exists():
-            return jsonify({"error": "Deployment directory not found"}), 404
+            return error_response(NOT_FOUND, "Deployment directory not found", 404)
 
         if not deployment_dir.is_dir():
-            return jsonify({"error": "Path is not a directory"}), 400
+            return error_response(VALIDATION_ERROR, "Path is not a directory")
 
         # Parse field filtering parameters
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
             logger.warning(f"Invalid field filter params: {e}")
-            return jsonify({"error": "Invalid field filter parameters"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid field filter parameters")
 
         # Find all photos in deployment directory
         photo_files = find_photos_in_directory(deployment_dir)
 
         if not photo_files:
-            return jsonify(
-                {
-                    "error": "No photos found in deployment directory",
-                    "results": [],
-                    "total": 0,
-                    "successful": 0,
-                    "failed": 0,
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos found in deployment directory",
+                results=[],
+                total=0,
+                successful=0,
+                failed=0,
+            )
 
         # Collect metadata for all photos
         results = []
@@ -1778,7 +1791,7 @@ def export_deployment_json(deployment_path: str):
         logger.error(
             "Error in deployment JSON export for %s: %s", deployment_path, e, exc_info=True
         )
-        return jsonify({"error": "Deployment JSON export failed"}), 500
+        return error_response(SERVER_ERROR, "Deployment JSON export failed", 500)
 
 
 # ============================================================================
@@ -1901,46 +1914,47 @@ def export_batch_csv():
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate request body
         if not request.is_json:
-            return jsonify({"error": "Request must be JSON"}), 400
+            return error_response(VALIDATION_ERROR, "Request must be JSON")
 
         try:
             data = request.get_json()
         except Exception:
-            return jsonify({"error": "Invalid JSON in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid JSON in request body")
 
         if not data or "photo_paths" not in data:
-            return jsonify({"error": "Missing 'photo_paths' in request body"}), 400
+            return error_response(VALIDATION_ERROR, "Missing 'photo_paths' in request body")
 
         photo_paths = data["photo_paths"]
 
         if not isinstance(photo_paths, list):
-            return jsonify({"error": "'photo_paths' must be an array"}), 400
+            return error_response(VALIDATION_ERROR, "'photo_paths' must be an array")
 
         # Validate all paths are non-empty strings
         if not all(isinstance(p, str) and p.strip() for p in photo_paths):
-            return jsonify({"error": "All photo_paths must be non-empty strings"}), 400
+            return error_response(VALIDATION_ERROR, "All photo_paths must be non-empty strings")
 
         if len(photo_paths) == 0:
-            return jsonify({"error": "No photos provided"}), 400
+            return error_response(VALIDATION_ERROR, "No photos provided")
 
         # Get configurable batch size limit
         max_batch_size = current_app.config.get("EXPORT_MAX_BATCH_SIZE", 1000)
 
         if len(photo_paths) > max_batch_size:
-            return jsonify(
-                {"error": f"Batch size exceeds maximum limit of {max_batch_size} photos"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Batch size exceeds maximum limit of {max_batch_size} photos",
+            )
 
         # Parse field filtering parameters
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
             logger.warning(f"Invalid field filter params: {e}")
-            return jsonify({"error": "Invalid field filter parameters"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid field filter parameters")
 
         include_bom = data.get("include_bom", False)
 
@@ -2018,7 +2032,7 @@ def export_batch_csv():
 
     except Exception as e:
         logger.error("Error in batch CSV export: %s", e, exc_info=True)
-        return jsonify({"error": "Batch CSV export failed"}), 500
+        return error_response(SERVER_ERROR, "Batch CSV export failed", 500)
 
 
 @export_bp.route("/csv/deployment/<path:deployment_path>", methods=["GET"])
@@ -2050,26 +2064,26 @@ def export_deployment_csv(deployment_path: str):
         # Get service from app config
         service = current_app.config.get("EXPORT_METADATA_SERVICE")
         if service is None:
-            return jsonify({"error": "Export service not available"}), 500
+            return error_response(SERVER_ERROR, "Export service not available", 500)
 
         # Validate path to prevent traversal attacks
         validated_path = validate_photo_path(deployment_path, PHOTOS_DIR)
         if validated_path is None:
-            return jsonify({"error": "Invalid path"}), 403
+            return error_response(PERMISSION_ERROR, "Invalid path", 403)
 
         deployment_dir = Path(validated_path)
         if not deployment_dir.exists():
-            return jsonify({"error": "Deployment directory not found"}), 404
+            return error_response(NOT_FOUND, "Deployment directory not found", 404)
 
         if not deployment_dir.is_dir():
-            return jsonify({"error": "Path is not a directory"}), 400
+            return error_response(VALIDATION_ERROR, "Path is not a directory")
 
         # Parse field filtering parameters
         try:
             fields, exclude = _parse_field_filter_params(request)
         except ValueError as e:
             logger.warning(f"Invalid field filter params: {e}")
-            return jsonify({"error": "Invalid field filter parameters"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid field filter parameters")
 
         include_bom = request.args.get("include_bom", "false").lower() == "true"
 
@@ -2077,15 +2091,14 @@ def export_deployment_csv(deployment_path: str):
         photo_files = find_photos_in_directory(deployment_dir)
 
         if not photo_files:
-            return jsonify(
-                {
-                    "error": "No photos found in deployment directory",
-                    "csv_data": "",
-                    "headers": [],
-                    "row_count": 0,
-                    "total": 0,
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No photos found in deployment directory",
+                csv_data="",
+                headers=[],
+                row_count=0,
+                total=0,
+            )
 
         # Get headers (filtered if needed)
         headers = _get_generic_csv_headers(fields, exclude)
@@ -2162,7 +2175,7 @@ def export_deployment_csv(deployment_path: str):
 
     except Exception as e:
         logger.error("Error in deployment CSV export for %s: %s", deployment_path, e, exc_info=True)
-        return jsonify({"error": "Deployment CSV export failed"}), 500
+        return error_response(SERVER_ERROR, "Deployment CSV export failed", 500)
 
 
 # ============================================================================
@@ -2234,14 +2247,14 @@ def aggregate_photos():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({"error": "Request body required"}), 400
+            return error_response(VALIDATION_ERROR, "Request body required")
 
         # Get tolerance parameter (default 50m)
         tolerance_m = data.get("tolerance_m", 50.0)
 
         # Validate tolerance
         if not isinstance(tolerance_m, (int, float)) or tolerance_m < 0:
-            return jsonify({"error": "tolerance_m must be a non-negative number"}), 400
+            return error_response(VALIDATION_ERROR, "tolerance_m must be a non-negative number")
 
         # Get photo paths (either from filter or explicit list)
         photo_paths = []
@@ -2250,7 +2263,7 @@ def aggregate_photos():
             # Explicit photo paths provided
             raw_paths = data["photo_paths"]
             if not isinstance(raw_paths, list):
-                return jsonify({"error": "photo_paths must be a list"}), 400
+                return error_response(VALIDATION_ERROR, "photo_paths must be a list")
 
             # Validate and resolve paths
             for path_str in raw_paths:
@@ -2258,36 +2271,36 @@ def aggregate_photos():
                     # Use validate_photo_path for security
                     resolved_path = validate_photo_path(path_str, PHOTOS_DIR)
                     if resolved_path is None:
-                        return jsonify({"error": f"Invalid photo path: {path_str}"}), 400
+                        return error_response(VALIDATION_ERROR, f"Invalid photo path: {path_str}")
                     photo_paths.append(resolved_path)
                 except (ValueError, PermissionError) as e:
                     logger.warning(f"Invalid photo path: {e}")
-                    return jsonify({"error": "Invalid photo path"}), 400
+                    return error_response(VALIDATION_ERROR, "Invalid photo path")
 
         elif "filter" in data:
             # Filter provided - collect photos
             filter_data = data["filter"]
             if not isinstance(filter_data, dict):
-                return jsonify({"error": "filter must be an object"}), 400
+                return error_response(VALIDATION_ERROR, "filter must be an object")
 
             # Parse filter
             try:
                 job_filter = ExportJobFilter.from_dict(filter_data)
             except Exception as e:
                 logger.warning(f"Invalid export filter: {e}")
-                return jsonify({"error": "Invalid filter"}), 400
+                return error_response(VALIDATION_ERROR, "Invalid filter")
 
             # Use export job service to collect photos
             # This reuses existing filter logic (date, deployment, tags, series, species)
             service = current_app.config.get("EXPORT_JOB_SERVICE")
             if service is None:
                 logger.warning("EXPORT_JOB_SERVICE not configured, functionality may be limited")
-                return jsonify({"error": "Service not properly configured"}), 500
+                return error_response(SERVER_ERROR, "Service not properly configured", 500)
 
             photo_paths = service._collect_photos(job_filter)
 
         else:
-            return jsonify({"error": "Either 'filter' or 'photo_paths' required"}), 400
+            return error_response(VALIDATION_ERROR, "Either 'filter' or 'photo_paths' required")
 
         # Aggregate metadata
         result = aggregate_photo_metadata(photo_paths, tolerance_m=tolerance_m)
@@ -2310,7 +2323,7 @@ def aggregate_photos():
 
     except Exception as e:
         logger.error("Error aggregating photo metadata: %s", e, exc_info=True)
-        return jsonify({"error": "Photo aggregation failed"}), 500
+        return error_response(SERVER_ERROR, "Photo aggregation failed", 500)
 
 
 # ============================================================================
@@ -2402,7 +2415,7 @@ def create_export_job():
 
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         data = request.get_json() or {}
@@ -2416,11 +2429,11 @@ def create_export_job():
         if preset_name:
             preset_manager = current_app.config.get("EXPORT_PRESET_MANAGER")
             if not preset_manager:
-                return jsonify({"error": "Preset manager not configured"}), 500
+                return error_response(SERVER_ERROR, "Preset manager not configured", 500)
 
             preset = preset_manager.get_preset(preset_name)
             if preset is None:
-                return jsonify({"error": f"Preset not found: '{preset_name}'"}), 400
+                return error_response(VALIDATION_ERROR, f"Preset not found: '{preset_name}'")
 
             # Extract preset filter as dict for merging
             if preset.filter:
@@ -2432,17 +2445,16 @@ def create_export_job():
         if not format_str and preset:
             format_str = preset.export_format.value
         if not format_str:
-            return jsonify({"error": "format field is required"}), 400
+            return error_response(VALIDATION_ERROR, "format field is required")
 
         try:
             format_enum = ExportJobFormat(format_str)
         except ValueError:
             valid_formats = [f.value for f in ExportJobFormat]
-            return jsonify(
-                {
-                    "error": f"Invalid format: {format_str}. Must be one of: {', '.join(valid_formats)}"
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Invalid format: {format_str}. Must be one of: {', '.join(valid_formats)}",
+            )
 
         # Parse filter: merge preset filter with explicit filter
         # Explicit values override preset values
@@ -2466,12 +2478,11 @@ def create_export_job():
         }
         invalid_fields = set(filter_data.keys()) - valid_filter_fields
         if invalid_fields:
-            return jsonify(
-                {
-                    "error": f"Invalid filter fields: {', '.join(invalid_fields)}. "
-                    f"Valid fields: {', '.join(sorted(valid_filter_fields))}"
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                f"Invalid filter fields: {', '.join(invalid_fields)}. "
+                f"Valid fields: {', '.join(sorted(valid_filter_fields))}",
+            )
 
         # Validate date format (ISO 8601: YYYY-MM-DD)
         from webui.backend.lib.date_utils import validate_date_string
@@ -2481,7 +2492,7 @@ def create_export_job():
             if date_value is not None:
                 is_valid, error_msg = validate_date_string(date_value)
                 if not is_valid:
-                    return jsonify({"error": f"Invalid {date_field}: {error_msg}"}), 400
+                    return error_response(VALIDATION_ERROR, f"Invalid {date_field}: {error_msg}")
 
         # Validate date_start <= date_end if both provided
         if filter_data.get("date_start") and filter_data.get("date_end"):
@@ -2490,7 +2501,9 @@ def create_export_job():
             start = date.fromisoformat(filter_data["date_start"])
             end = date.fromisoformat(filter_data["date_end"])
             if start > end:
-                return jsonify({"error": "date_start must be before or equal to date_end"}), 400
+                return error_response(
+                    VALIDATION_ERROR, "date_start must be before or equal to date_end"
+                )
 
         # Validate series_type is a valid SeriesType enum value
         series_type_val = filter_data.get("series_type")
@@ -2501,9 +2514,10 @@ def create_export_job():
                 SeriesType(series_type_val)
             except ValueError:
                 valid = [st.value for st in SeriesType]
-                return jsonify(
-                    {"error": f"Invalid series_type: '{series_type_val}'. Must be one of: {valid}"}
-                ), 400
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Invalid series_type: '{series_type_val}'. Must be one of: {valid}",
+                )
 
         filter_obj = ExportJobFilter(
             date_start=filter_data.get("date_start"),
@@ -2525,11 +2539,13 @@ def create_export_job():
         ttl_seconds = data.get("ttl_seconds")
         if ttl_seconds is not None:
             if not isinstance(ttl_seconds, int):
-                return jsonify({"error": "ttl_seconds must be an integer"}), 400
+                return error_response(VALIDATION_ERROR, "ttl_seconds must be an integer")
             if ttl_seconds < 60:
-                return jsonify({"error": "ttl_seconds must be at least 60 seconds"}), 400
+                return error_response(VALIDATION_ERROR, "ttl_seconds must be at least 60 seconds")
             if ttl_seconds > 86400:
-                return jsonify({"error": "ttl_seconds cannot exceed 86400 seconds (24 hours)"}), 400
+                return error_response(
+                    VALIDATION_ERROR, "ttl_seconds cannot exceed 86400 seconds (24 hours)"
+                )
 
         # Create job
         job = service.create_job(
@@ -2551,10 +2567,10 @@ def create_export_job():
 
     except ValueError as e:
         logger.warning(f"Invalid export job parameters: {e}")
-        return jsonify({"error": "Invalid export job parameters"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid export job parameters")
     except Exception as e:
         logger.error("Error creating export job: %s", e, exc_info=True)
-        return jsonify({"error": "Failed to create export job"}), 500
+        return error_response(SERVER_ERROR, "Failed to create export job", 500)
 
 
 @export_bp.route("/jobs", methods=["GET"])
@@ -2587,7 +2603,7 @@ def list_export_jobs():
 
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         # Parse status filter (optional)
@@ -2598,19 +2614,17 @@ def list_export_jobs():
                 status = ExportJobStatus(status_str)
             except ValueError:
                 valid_statuses = [s.value for s in ExportJobStatus]
-                return jsonify(
-                    {
-                        "error": f"Invalid status: {status_str}. "
-                        f"Must be one of: {', '.join(valid_statuses)}"
-                    }
-                ), 400
+                return error_response(
+                    VALIDATION_ERROR,
+                    f"Invalid status: {status_str}. Must be one of: {', '.join(valid_statuses)}",
+                )
 
         # Parse pagination parameters
         try:
             limit = int(request.args.get("limit", 50))
             offset = int(request.args.get("offset", 0))
         except ValueError:
-            return jsonify({"error": "limit and offset must be integers"}), 400
+            return error_response(VALIDATION_ERROR, "limit and offset must be integers")
 
         # Cap limit at 100
         limit = min(limit, 100)
@@ -2632,7 +2646,7 @@ def list_export_jobs():
 
     except Exception as e:
         logger.error("Error listing export jobs: %s", e, exc_info=True)
-        return jsonify({"error": "Failed to list export jobs"}), 500
+        return error_response(SERVER_ERROR, "Failed to list export jobs", 500)
 
 
 @export_bp.route("/jobs/<job_id>", methods=["GET"])
@@ -2670,19 +2684,19 @@ def get_export_job_status(job_id: str):
     """
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         job = service.get_job(job_id)
 
         if job is None:
-            return jsonify({"error": f"Job not found: {job_id}"}), 404
+            return error_response(NOT_FOUND, f"Job not found: {job_id}", 404)
 
         return jsonify(_serialize_job(job)), 200
 
     except Exception as e:
         logger.error("Error getting export job %s: %s", job_id, e, exc_info=True)
-        return jsonify({"error": "Failed to get export job status"}), 500
+        return error_response(SERVER_ERROR, "Failed to get export job status", 500)
 
 
 @export_bp.route("/jobs/<job_id>/download", methods=["GET"])
@@ -2714,26 +2728,23 @@ def download_export_job_result(job_id: str):
 
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         job = service.get_job(job_id)
 
         if job is None:
-            return jsonify({"error": f"Job not found: {job_id}"}), 404
+            return error_response(NOT_FOUND, f"Job not found: {job_id}", 404)
 
         if job.status != ExportJobStatus.COMPLETED:
-            return jsonify(
-                {
-                    "error": "Job not completed",
-                    "status": job.status.value,
-                }
-            ), 400
+            return error_response(
+                VALIDATION_ERROR, "Job not completed", job_status=job.status.value
+            )
 
         output_path = service.get_download_path(job_id)
 
         if output_path is None or not output_path.exists():
-            return jsonify({"error": "Output file not found"}), 404
+            return error_response(NOT_FOUND, "Output file not found", 404)
 
         # Determine mimetype from format
         mimetypes = {
@@ -2752,7 +2763,7 @@ def download_export_job_result(job_id: str):
 
     except Exception as e:
         logger.error("Error downloading export job %s: %s", job_id, e, exc_info=True)
-        return jsonify({"error": "Failed to download export result"}), 500
+        return error_response(SERVER_ERROR, "Failed to download export result", 500)
 
 
 @export_bp.route("/jobs/<job_id>", methods=["DELETE"])
@@ -2782,13 +2793,13 @@ def delete_export_job(job_id: str):
     """
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         success = service.delete_job(job_id)
 
         if not success:
-            return jsonify({"error": f"Job not found: {job_id}"}), 404
+            return error_response(NOT_FOUND, f"Job not found: {job_id}", 404)
 
         return jsonify(
             {
@@ -2799,10 +2810,10 @@ def delete_export_job(job_id: str):
 
     except ValueError as e:
         logger.warning(f"Invalid job ID for deletion: {e}")
-        return jsonify({"error": "Invalid job ID"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid job ID")
     except Exception as e:
         logger.error("Error deleting export job %s: %s", job_id, e, exc_info=True)
-        return jsonify({"error": "Failed to delete export job"}), 500
+        return error_response(SERVER_ERROR, "Failed to delete export job", 500)
 
 
 @export_bp.route("/jobs/<job_id>/cancel", methods=["POST"])
@@ -2832,13 +2843,13 @@ def cancel_export_job(job_id: str):
     """
     service = current_app.config.get("EXPORT_JOB_SERVICE")
     if service is None:
-        return jsonify({"error": "Export job service not available"}), 500
+        return error_response(SERVER_ERROR, "Export job service not available", 500)
 
     try:
         success = service.cancel_job(job_id)
 
         if not success:
-            return jsonify({"error": f"Job not found: {job_id}"}), 404
+            return error_response(NOT_FOUND, f"Job not found: {job_id}", 404)
 
         return jsonify(
             {
@@ -2849,7 +2860,7 @@ def cancel_export_job(job_id: str):
 
     except ValueError as e:
         logger.warning(f"Invalid job ID for cancellation: {e}")
-        return jsonify({"error": "Invalid job ID"}), 400
+        return error_response(VALIDATION_ERROR, "Invalid job ID")
     except Exception as e:
         logger.error("Error cancelling export job %s: %s", job_id, e, exc_info=True)
-        return jsonify({"error": "Failed to cancel export job"}), 500
+        return error_response(SERVER_ERROR, "Failed to cancel export job", 500)
