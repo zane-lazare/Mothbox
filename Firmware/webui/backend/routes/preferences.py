@@ -9,6 +9,11 @@ from preset_manager import PresetManager
 from user_preferences import preferences_manager
 
 from mothbox_paths import BUILTIN_PRESET_DIR, USER_PRESET_DIR
+from webui.backend.lib.error_codes import (
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ def get_preferences():
         return jsonify(prefs)
     except Exception:
         logger.exception("Failed to get preferences")
-        return jsonify({"error": "Failed to get preferences"}), 500
+        return error_response(SERVER_ERROR, "Failed to get preferences", 500)
 
 
 @preferences_bp.route("", methods=["POST"], strict_slashes=False)
@@ -56,17 +61,17 @@ def set_preference():
         data = request.json
 
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            return error_response(VALIDATION_ERROR, "No data provided")
 
         key = data.get("key")
         value = data.get("value")
 
         if not key:
-            return jsonify({"error": "Preference key is required"}), 400
+            return error_response(VALIDATION_ERROR, "Preference key is required")
 
         # Value can be None (to clear a default)
         if value is not None and not isinstance(value, (str, int, float, bool, type(None))):
-            return jsonify({"error": "Invalid value type"}), 400
+            return error_response(VALIDATION_ERROR, "Invalid value type")
 
         # Set preference
         success = preferences_manager.set_preference(key, value)
@@ -81,11 +86,11 @@ def set_preference():
                 }
             )
         else:
-            return jsonify({"error": f'Failed to set preference "{key}"'}), 400
+            return error_response(VALIDATION_ERROR, f'Failed to set preference "{key}"')
 
     except Exception:
         logger.exception("Error setting preference")
-        return jsonify({"error": "Failed to set preference"}), 500
+        return error_response(SERVER_ERROR, "Failed to set preference", 500)
 
 
 @preferences_bp.route("/reset", methods=["POST"])
@@ -102,11 +107,11 @@ def reset_preferences():
         if success:
             return jsonify({"success": True, "message": "All preferences reset to defaults"})
         else:
-            return jsonify({"error": "Failed to reset preferences"}), 500
+            return error_response(SERVER_ERROR, "Failed to reset preferences", 500)
 
     except Exception:
         logger.exception("Error resetting preferences")
-        return jsonify({"error": "Failed to reset preferences"}), 500
+        return error_response(SERVER_ERROR, "Failed to reset preferences", 500)
 
 
 @preferences_bp.route("/validate", methods=["POST"])
@@ -146,4 +151,4 @@ def validate_preferences():
 
     except Exception:
         logger.exception("Error validating preferences")
-        return jsonify({"error": "Failed to validate preferences"}), 500
+        return error_response(SERVER_ERROR, "Failed to validate preferences", 500)

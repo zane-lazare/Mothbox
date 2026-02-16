@@ -17,6 +17,12 @@ from mothbox_paths import (
     USER_PRESET_DIR,
     get_control_values,
 )
+from webui.backend.lib.error_codes import (
+    NOT_FOUND,
+    SERVER_ERROR,
+    VALIDATION_ERROR,
+    error_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +71,7 @@ def list_presets():
         return jsonify({"presets": presets, "counts": counts})
     except Exception as e:
         logger.error(f"Error listing presets: {e}")
-        return jsonify({"error": "Failed to list presets"}), 500
+        return error_response(SERVER_ERROR, "Failed to list presets", 500)
 
 
 @presets_bp.route("/<name>", methods=["GET"])
@@ -83,12 +89,12 @@ def get_preset(name):
         preset_data = preset_manager.get_preset(name)
 
         if not preset_data:
-            return jsonify({"error": f'Preset "{name}" not found'}), 404
+            return error_response(NOT_FOUND, f'Preset "{name}" not found', 404)
 
         return jsonify(preset_data)
     except Exception as e:
         logger.error(f"Error getting preset '{name}': {e}")
-        return jsonify({"error": "Failed to get preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to get preset", 500)
 
 
 @presets_bp.route("", methods=["POST"], strict_slashes=False)
@@ -115,11 +121,11 @@ def create_preset():
         data = request.json
 
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            return error_response(VALIDATION_ERROR, "No data provided")
 
         name = data.get("name", "").strip()
         if not name:
-            return jsonify({"error": "Preset name is required"}), 400
+            return error_response(VALIDATION_ERROR, "Preset name is required")
 
         description = data.get("description", "").strip()
         workflow = data.get("workflow", "both")
@@ -149,7 +155,9 @@ def create_preset():
             settings = data.get("settings", {})
 
             if not settings:
-                return jsonify({"error": "Settings are required when from_current=false"}), 400
+                return error_response(
+                    VALIDATION_ERROR, "Settings are required when from_current=false"
+                )
 
         # Save preset
         success, message = preset_manager.save_preset(
@@ -159,14 +167,14 @@ def create_preset():
         if success:
             return jsonify({"success": True, "message": message, "name": name})
         else:
-            return jsonify({"error": message}), 400
+            return error_response(VALIDATION_ERROR, message)
 
     except Exception as e:
         import traceback
 
         logger.error(f"Error creating preset: {e}")
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Failed to create preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to create preset", 500)
 
 
 @presets_bp.route("/<name>/apply", methods=["POST"])
@@ -187,18 +195,20 @@ def apply_preset(name):
         apply_to = data.get("apply_to", "capture")
 
         if apply_to not in ["capture", "liveview", "both"]:
-            return jsonify({"error": 'apply_to must be "capture", "liveview", or "both"'}), 400
+            return error_response(
+                VALIDATION_ERROR, 'apply_to must be "capture", "liveview", or "both"'
+            )
 
         # Load preset
         preset_data = preset_manager.get_preset(name)
 
         if not preset_data:
-            return jsonify({"error": f'Preset "{name}" not found'}), 404
+            return error_response(NOT_FOUND, f'Preset "{name}" not found', 404)
 
         settings = preset_data.get("settings", {})
 
         if not settings:
-            return jsonify({"error": "Preset has no settings"}), 400
+            return error_response(VALIDATION_ERROR, "Preset has no settings")
 
         # Check preset workflow compatibility
         preset_workflow = preset_data.get("workflow", "both")
@@ -209,37 +219,35 @@ def apply_preset(name):
         if apply_to == "capture":
             if not camera_settings:
                 if preset_workflow == "liveview":
-                    return jsonify(
-                        {
-                            "error": f'Cannot apply liveview-only preset "{name}" to capture workflow. This preset only contains liveview/preview settings.'
-                        }
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        f'Cannot apply liveview-only preset "{name}" to capture workflow. This preset only contains liveview/preview settings.',
+                    )
                 else:
-                    return jsonify(
-                        {
-                            "error": f'Preset "{name}" has no camera settings. '
-                            f"This may indicate a corrupted preset file. "
-                            f'Try re-saving the preset using "Save As" to recreate it.'
-                        }
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        f'Preset "{name}" has no camera settings. '
+                        f"This may indicate a corrupted preset file. "
+                        f'Try re-saving the preset using "Save As" to recreate it.',
+                    )
         elif apply_to == "liveview":
             if not liveview_settings:
                 if preset_workflow == "photo":
-                    return jsonify(
-                        {
-                            "error": f'Cannot apply photo-only preset "{name}" to liveview workflow. This preset only contains camera/capture settings.'
-                        }
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        f'Cannot apply photo-only preset "{name}" to liveview workflow. This preset only contains camera/capture settings.',
+                    )
                 else:
-                    return jsonify(
-                        {
-                            "error": f'Preset "{name}" has no liveview settings. '
-                            f"This may indicate a corrupted preset file. "
-                            f'Try re-saving the preset using "Save As" to recreate it.'
-                        }
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        f'Preset "{name}" has no liveview settings. '
+                        f"This may indicate a corrupted preset file. "
+                        f'Try re-saving the preset using "Save As" to recreate it.',
+                    )
         elif apply_to == "both" and not camera_settings and not liveview_settings:
-            return jsonify({"error": f'Preset "{name}" has no settings for either workflow'}), 400
+            return error_response(
+                VALIDATION_ERROR, f'Preset "{name}" has no settings for either workflow'
+            )
 
         applied = []
 
@@ -255,18 +263,20 @@ def apply_preset(name):
                 elif key in ALLOWED_WEBUI_SETTINGS:
                     validator = ALLOWED_WEBUI_SETTINGS[key]
                 else:
-                    return jsonify({"error": f"Invalid camera setting: {key}"}), 400
+                    return error_response(VALIDATION_ERROR, f"Invalid camera setting: {key}")
 
                 try:
                     if not validator(value):
-                        return jsonify(
-                            {"error": f"Invalid value for camera setting {key}: {value}"}
-                        ), 400
+                        return error_response(
+                            VALIDATION_ERROR,
+                            f"Invalid value for camera setting {key}: {value}",
+                        )
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Invalid type for camera setting {key}: {value} - {e}")
-                    return jsonify(
-                        {"error": f"Invalid type for camera setting {key}: {value}"}
-                    ), 400
+                    return error_response(
+                        VALIDATION_ERROR,
+                        f"Invalid type for camera setting {key}: {value}",
+                    )
 
             # Read current camera_settings.csv
             csv_rows = []
@@ -320,9 +330,10 @@ def apply_preset(name):
 
         # Build response message
         if not applied:
-            return jsonify(
-                {"error": "No settings were applied (preset may be empty for selected target)"}
-            ), 400
+            return error_response(
+                VALIDATION_ERROR,
+                "No settings were applied (preset may be empty for selected target)",
+            )
 
         applied_str = " and ".join(applied)
         message = (
@@ -344,7 +355,7 @@ def apply_preset(name):
 
         logger.error(f"Error applying preset: {e}")
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Failed to apply preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to apply preset", 500)
 
 
 @presets_bp.route("/<name>", methods=["DELETE"])
@@ -364,8 +375,8 @@ def delete_preset(name):
         if success:
             return jsonify({"success": True, "message": message})
         else:
-            return jsonify({"error": message}), 400
+            return error_response(VALIDATION_ERROR, message)
 
     except Exception as e:
         logger.error(f"Error deleting preset '{name}': {e}")
-        return jsonify({"error": "Failed to delete preset"}), 500
+        return error_response(SERVER_ERROR, "Failed to delete preset", 500)
