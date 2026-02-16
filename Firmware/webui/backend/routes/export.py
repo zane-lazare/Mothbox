@@ -2737,9 +2737,7 @@ def download_export_job_result(job_id: str):
             return error_response(NOT_FOUND, f"Job not found: {job_id}", 404)
 
         if job.status != ExportJobStatus.COMPLETED:
-            return error_response(
-                VALIDATION_ERROR, "Job not completed", status=job.status.value
-            )
+            return error_response(VALIDATION_ERROR, "Job not completed", status=job.status.value)
 
         output_path = service.get_download_path(job_id)
 
