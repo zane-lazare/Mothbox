@@ -13,8 +13,6 @@ Endpoints:
 import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from flask import Blueprint, current_app, jsonify, request
 
 from webui.backend.lib.error_codes import (
@@ -23,6 +21,8 @@ from webui.backend.lib.error_codes import (
     VALIDATION_ERROR,
     error_response,
 )
+
+logger = logging.getLogger(__name__)
 
 # Rate limiter setup (follows pattern from gallery.py)
 try:

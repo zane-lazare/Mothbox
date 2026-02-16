@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from picamera2 import Picamera2
 
-logger = logging.getLogger(__name__)
-
 # Setup path to import mothbox_paths
 # Import camera control mapping
 from camera_control_mapping import build_picamera_controls, convert_from_settings_file
@@ -55,6 +53,8 @@ from webui.backend.lib.error_codes import (
     VALIDATION_ERROR,
     error_response,
 )
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Operation Timeouts and Delays
