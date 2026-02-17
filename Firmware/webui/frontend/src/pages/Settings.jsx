@@ -4,6 +4,7 @@ import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 import toast from 'react-hot-toast'
+import { CAMERA_SETTINGS } from '../constants/config'
 import SavePresetModal from '../components/SavePresetModal'
 import GPSSettings from '../components/GPSSettings'
 import CollapsibleCard from '../components/CollapsibleCard'
@@ -25,11 +26,10 @@ export default function Settings() {
     diagnosticHardware: true,
     // Camera Settings - common expanded, advanced collapsed
     cameraPreset: false,
-    cameraAutoCalibration: false,
+    cameraFocusStrategy: false,
     cameraExposure: false,
     cameraHDR: true,
     cameraFocusBracket: true,
-    cameraFocus: false,
     cameraFormat: false,
     cameraAdvanced: true,
     // Live View Settings - common expanded, advanced collapsed
@@ -245,6 +245,43 @@ export default function Settings() {
   const updateCameraForm = (updates) => {
     isDirtyRef.current.camera = true
     setCameraForm(prev => ({ ...prev, ...updates }))
+  }
+
+  /** Clamps a lens position value to [MIN, MAX] and returns a 0-100 percentage. */
+  const lensPositionPercent = (raw) => {
+    const { MIN, MAX, DEFAULT } = CAMERA_SETTINGS.LENS_POSITION
+    const value = Math.min(Math.max(parseFloat(raw || DEFAULT), MIN), MAX)
+    return ((value - MIN) / (MAX - MIN)) * 100
+  }
+
+  /**
+   * Derives the unified focus mode from AutoCalibration and AfMode CSV values.
+   * @returns {'auto-calibrate'|'manual'|'af-single'|'af-continuous'}
+   */
+  const focusMode = (() => {
+    const autoCal = String(cameraForm.AutoCalibration ?? '0') === '1'
+    if (autoCal) return CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE
+    const afMode = String(cameraForm.AfMode ?? CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL)
+    if (afMode === CAMERA_SETTINGS.AF_MODE_VALUES.SINGLE) return CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE
+    if (afMode === CAMERA_SETTINGS.AF_MODE_VALUES.CONTINUOUS) return CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS
+    return CAMERA_SETTINGS.FOCUS_MODES.MANUAL
+  })()
+
+  /**
+   * Updates both AutoCalibration and AfMode CSV fields atomically
+   * when the user selects a new focus mode from the dropdown.
+   * @param {'auto-calibrate'|'manual'|'af-single'|'af-continuous'} mode
+   */
+  const handleFocusModeChange = (mode) => {
+    const updates = {
+      [CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE]:  { AutoCalibration: '1', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL },
+      [CAMERA_SETTINGS.FOCUS_MODES.MANUAL]:          { AutoCalibration: '0', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL },
+      [CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE]:       { AutoCalibration: '0', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.SINGLE },
+      [CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS]:    { AutoCalibration: '0', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.CONTINUOUS },
+    }
+    const update = updates[mode]
+    if (!update) return
+    updateCameraForm(update)
   }
 
   const updateWebuiForm = (updates) => {
@@ -945,63 +982,6 @@ export default function Settings() {
           <div className="space-y-2">
             {/* Grid container for settings cards */}
             <div className="settings-grid">
-              {/* Auto-Calibration Card */}
-              <CollapsibleCard
-                id="cameraAutoCalibration"
-                title="🔧 Auto-Calibration"
-                isCollapsed={collapsedCards.cameraAutoCalibration}
-                onToggle={toggleCard}
-                className="settings-card"
-              >
-                <div className="p-2 bg-green-50 border border-green-200 rounded">
-              <p className="settings-help-text mb-2">
-                Auto optimize exposure, gain, focus
-              </p>
-
-              <div className="space-y-2">
-                {/* Auto-Calibration Enable */}
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1}
-                      onChange={(e) => updateCameraForm({ AutoCalibration: e.target.checked ? '1' : '0'})}
-                      className="settings-checkbox text-green-600"
-                    />
-                    <span className="ml-1 settings-label mb-0">
-                      Enable Auto-Calibration
-                    </span>
-                  </label>
-                </div>
-
-                {/* Auto-Calibration Period */}
-                {(cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1) && (
-                  <div>
-                    <label className="settings-label">
-                      Frequency: Every {cameraForm.AutoCalibrationPeriod || 600} seconds
-                    </label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="1000"
-                      value={cameraForm.AutoCalibrationPeriod || 600}
-                      onChange={(e) => setCameraForm({ ...cameraForm, AutoCalibrationPeriod: e.target.value })}
-                      className="w-full cursor-pointer"
-                    />
-                    <div className="flex justify-between settings-help-text">
-                      <span>1</span>
-                      <span>100</span>
-                      <span>1000</span>
-                    </div>
-                    <p className="settings-help-text">
-                      More frequent = better adaptation
-                    </p>
-                  </div>
-                )}
-              </div>
-                </div>
-              </CollapsibleCard>
-
               {/* Exposure Card */}
               <CollapsibleCard
                 id="cameraExposure"
@@ -1471,89 +1451,163 @@ export default function Settings() {
 
             {/* Third row of grid */}
             <div className="settings-grid">
-              {/* Focus Controls Card */}
+              {/* Focus Strategy Card */}
               <CollapsibleCard
-                id="cameraFocus"
-                title="🎯 Focus"
-                isCollapsed={collapsedCards.cameraFocus}
+                id="cameraFocusStrategy"
+                title="Focus Strategy"
+                isCollapsed={collapsedCards.cameraFocusStrategy}
                 onToggle={toggleCard}
                 className="settings-card"
               >
+              <div data-testid="focus-strategy-card">
 
-              {/* Focus Mode */}
+              {/* Focus Mode Selector */}
               <div className="settings-form-group">
-                <label htmlFor="af_mode_capture" className="settings-label">
+                <label htmlFor="focus_mode" className="settings-label">
                   Focus Mode
                 </label>
                 <select
-                  id="af_mode_capture"
-                  value={cameraForm.AfMode || '0'}
-                  onChange={(e) => updateCameraForm({ AfMode: e.target.value})}
+                  id="focus_mode"
+                  data-testid="focus-mode-select"
+                  aria-label="Focus strategy mode"
+                  aria-describedby="focus-mode-help"
+                  value={focusMode}
+                  onChange={(e) => handleFocusModeChange(e.target.value)}
                   className="settings-select"
                 >
-                  <option value="0">Manual Focus</option>
-                  <option value="1">Auto Focus (Single)</option>
-                  <option value="2">Auto Focus (Continuous)</option>
+                  <option value={CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE}>Auto-Calibrate</option>
+                  <option value={CAMERA_SETTINGS.FOCUS_MODES.MANUAL}>Manual Focus</option>
+                  <option value={CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE}>Autofocus (Single)</option>
+                  <option value={CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS}>Autofocus (Continuous)</option>
                 </select>
+                <p id="focus-mode-help" className="settings-help-text">
+                  {{
+                    [CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE]: 'Automatically optimizes focus position periodically. Recommended for unattended operation.',
+                    [CAMERA_SETTINGS.FOCUS_MODES.MANUAL]: 'Set a fixed focus distance. Best when camera-to-subject distance is constant.',
+                    [CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE]: 'Runs autofocus once before each capture. Good for varying distances.',
+                    [CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS]: 'Continuously adjusts focus. Uses more power but adapts to movement.',
+                  }[focusMode]}
+                </p>
               </div>
 
-              {/* Lens Position (if manual) */}
-              {cameraForm.AfMode === '0' && (
+              {/* Auto-Calibrate sub-controls */}
+              {focusMode === CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE && (
+                <div className="p-2 bg-green-50 border border-green-200 rounded space-y-2">
+                  <div className="settings-form-group">
+                    <label className="settings-label">
+                      Calibration Interval: Every {cameraForm.AutoCalibrationPeriod || CAMERA_SETTINGS.CALIBRATION_INTERVAL.DEFAULT} seconds
+                    </label>
+                    <input
+                      type="range"
+                      data-testid="calibration-interval-slider"
+                      aria-label="Calibration interval in seconds"
+                      aria-describedby="calibration-interval-help"
+                      min={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}
+                      max={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}
+                      value={cameraForm.AutoCalibrationPeriod || CAMERA_SETTINGS.CALIBRATION_INTERVAL.DEFAULT}
+                      onChange={(e) => updateCameraForm({ AutoCalibrationPeriod: e.target.value })}
+                      className="w-full cursor-pointer"
+                    />
+                    <div className="flex justify-between settings-help-text">
+                      <span>{CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}</span>
+                      <span>500</span>
+                      <span>{CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}</span>
+                    </div>
+                    <p id="calibration-interval-help" className="settings-help-text">
+                      More frequent = better adaptation to changing conditions
+                    </p>
+                  </div>
+
+                  {/* Show current calibrated position as read-only */}
+                  <div className="settings-form-group" data-testid="calibration-position-display">
+                    <label className="settings-label">
+                      Current Calibrated Position: {parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT).toFixed(2)} diopters
+                    </label>
+                    <div className="w-full bg-gray-200 rounded h-2">
+                      <div
+                        className="bg-green-500 rounded h-2"
+                        style={{ width: `${lensPositionPercent(cameraForm.LensPosition)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between settings-help-text">
+                      <span>{CAMERA_SETTINGS.LENS_POSITION.MIN} (Far)</span>
+                      <span>{CAMERA_SETTINGS.LENS_POSITION.MAX / 2}</span>
+                      <span>{CAMERA_SETTINGS.LENS_POSITION.MAX} (Near)</span>
+                    </div>
+                    <p className="settings-help-text">
+                      Updated after each calibration cycle
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Focus sub-controls */}
+              {focusMode === CAMERA_SETTINGS.FOCUS_MODES.MANUAL && (
                 <div className="settings-form-group">
                   <label className="settings-label">
-                    Focus Position: {parseFloat(cameraForm.LensPosition || 0.5).toFixed(2)} diopters
+                    Focus Position: {parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT).toFixed(2)} diopters
                   </label>
                   <input
                     type="range"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    value={cameraForm.LensPosition || 0.5}
-                    onChange={(e) => setCameraForm({ ...cameraForm, LensPosition: e.target.value })}
+                    data-testid="lens-position-slider"
+                    aria-label="Focus position in diopters"
+                    aria-describedby="lens-position-help"
+                    min={CAMERA_SETTINGS.LENS_POSITION.MIN}
+                    max={CAMERA_SETTINGS.LENS_POSITION.MAX}
+                    step={CAMERA_SETTINGS.LENS_POSITION.STEP}
+                    value={cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT}
+                    onChange={(e) => updateCameraForm({ LensPosition: e.target.value })}
                     className="w-full cursor-pointer"
                   />
                   <div className="flex justify-between settings-help-text">
-                    <span>0 (Far)</span>
-                    <span>5</span>
-                    <span>10 (Near)</span>
+                    <span>{CAMERA_SETTINGS.LENS_POSITION.MIN} (Far)</span>
+                    <span>{CAMERA_SETTINGS.LENS_POSITION.MAX / 2}</span>
+                    <span>{CAMERA_SETTINGS.LENS_POSITION.MAX} (Near)</span>
                   </div>
-                  <p className="settings-help-text">
-                    Higher values = closer focus distance. Use auto-calibrate to find optimal value.
+                  <p id="lens-position-help" className="settings-help-text">
+                    Higher values = closer focus distance.
                   </p>
                 </div>
               )}
 
-              {/* Focus Range */}
-              <div className="settings-form-group">
-                <label htmlFor="af_range_capture" className="settings-label">
-                  Focus Range
-                </label>
-                <select
-                  id="af_range_capture"
-                  value={cameraForm.AfRange || '1'}
-                  onChange={(e) => updateCameraForm({ AfRange: e.target.value})}
-                  className="settings-select"
-                >
-                  <option value="0">Normal (0.5m - infinity)</option>
-                  <option value="1">Macro (10cm - 50cm) - For insects</option>
-                  <option value="2">Full (10cm - infinity)</option>
-                </select>
-              </div>
+              {/* Autofocus sub-controls (Single or Continuous) */}
+              {(focusMode === CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE || focusMode === CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS) && (
+                <div className="space-y-2">
+                  <div className="settings-form-group">
+                    <label htmlFor="af_range_capture" className="settings-label">
+                      Focus Range
+                    </label>
+                    <select
+                      id="af_range_capture"
+                      data-testid="af-range-select"
+                      value={cameraForm.AfRange || CAMERA_SETTINGS.AF_RANGE_DEFAULT}
+                      onChange={(e) => updateCameraForm({ AfRange: e.target.value})}
+                      className="settings-select"
+                    >
+                      <option value={CAMERA_SETTINGS.AF_RANGE_VALUES.NORMAL}>Normal (0.5m - infinity)</option>
+                      <option value={CAMERA_SETTINGS.AF_RANGE_VALUES.MACRO}>Macro (10cm - 50cm) - For insects</option>
+                      <option value={CAMERA_SETTINGS.AF_RANGE_VALUES.FULL}>Full (10cm - infinity)</option>
+                    </select>
+                  </div>
 
-              {/* Focus Speed */}
-              <div className="settings-form-group">
-                <label htmlFor="af_speed_capture" className="settings-label">
-                  Focus Speed
-                </label>
-                <select
-                  id="af_speed_capture"
-                  value={cameraForm.AfSpeed || '1'}
-                  onChange={(e) => updateCameraForm({ AfSpeed: e.target.value})}
-                  className="settings-select"
-                >
-                  <option value="0">Normal (Accurate)</option>
-                  <option value="1">Fast</option>
-                </select>
+                  <div className="settings-form-group">
+                    <label htmlFor="af_speed_capture" className="settings-label">
+                      Focus Speed
+                    </label>
+                    <select
+                      id="af_speed_capture"
+                      data-testid="af-speed-select"
+                      value={cameraForm.AfSpeed || CAMERA_SETTINGS.AF_SPEED_DEFAULT}
+                      onChange={(e) => updateCameraForm({ AfSpeed: e.target.value})}
+                      className="settings-select"
+                    >
+                      <option value={CAMERA_SETTINGS.AF_SPEED_VALUES.NORMAL}>Normal (Accurate)</option>
+                      <option value={CAMERA_SETTINGS.AF_SPEED_VALUES.FAST}>Fast</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               </div>
               </CollapsibleCard>
 
@@ -1639,7 +1693,7 @@ export default function Settings() {
             <div className="settings-card space-y-2">
               <div className="settings-info-box bg-yellow-50 border-yellow-200">
               <p className="text-xs text-yellow-800">
-                <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibration or Camera page to test.
+                <strong>Note:</strong> Full-resolution captures only. Use Auto-Calibrate mode or Camera page to test.
               </p>
               </div>
             </div>
