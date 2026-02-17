@@ -48,22 +48,27 @@ logger = logging.getLogger(__name__)
 
 # Constants (MAX_CRON_ENTRIES imported from webui.backend.constants)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
-RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"
+RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"  # Requires write permission (root or udev rule)
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
 
 
 @lru_cache(maxsize=1)
-def _rtc_available() -> bool:
+def rtc_available() -> bool:
     """Check if RTC wakealarm is writable (cached).
 
     Returns True if the process can write to the RTC sysfs file.
     Result is cached for the lifetime of the process since RTC
     availability doesn't change at runtime.
+
+    Note:
+        ``os.access(..., os.W_OK)`` returns False both when the path
+        does not exist and when it exists but is not writable, so this
+        single check covers both cases.
     """
     available = os.access(RTC_WAKEALARM_PATH, os.W_OK)
     if not available:
         logger.info(
-            "RTC wakealarm not available at %s (not writable), "
+            "RTC wakealarm not available at %s (not writable or does not exist), "
             "RTC wake features will be skipped",
             RTC_WAKEALARM_PATH,
         )
@@ -1438,13 +1443,17 @@ def set_rtc_wakealarm(epoch_time: int) -> bool:
 
     Reference: Scheduler.py lines 702-716
 
+    If the RTC sysfs file is unavailable (missing or not writable),
+    this is a silent no-op that returns True so callers can proceed
+    without special-casing non-RTC hardware.
+
     Args:
         epoch_time: Unix timestamp for wakeup
 
     Returns:
-        True if successful, False on error
+        True if successful or RTC unavailable, False on write error
     """
-    if not _rtc_available():
+    if not rtc_available():
         return True
     try:
         with open(RTC_WAKEALARM_PATH, "w") as f:
@@ -1459,12 +1468,15 @@ def set_rtc_wakealarm(epoch_time: int) -> bool:
 def clear_rtc_wakealarm() -> bool:
     """Clear existing RTC wakealarm.
 
-    Writes "0" to clear the alarm.
+    Writes "0" to clear the alarm.  If the RTC sysfs file is
+    unavailable (missing or not writable), this is a silent no-op
+    that returns True so callers can proceed without special-casing
+    non-RTC hardware.
 
     Returns:
-        True if successful, False on error
+        True if successful or RTC unavailable, False on write error
     """
-    if not _rtc_available():
+    if not rtc_available():
         return True
     try:
         with open(RTC_WAKEALARM_PATH, "w") as f:
