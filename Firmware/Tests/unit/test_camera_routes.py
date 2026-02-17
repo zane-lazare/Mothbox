@@ -419,6 +419,81 @@ class TestPostCameraSettings:
         """Handle ExposureMode enum conversion"""
         pytest.skip("ExposureMode not used in camera_settings.csv - uses discrete controls instead")
 
+    def test_post_settings_autocorrects_conflicting_focus_mode(self, client, temp_camera_settings):
+        """AutoCalibration=1 with AfMode!=0 should auto-correct AfMode to 0 with warning (#426)."""
+        initial_csv = "SETTING,VALUE,DETAILS\nAutoCalibration,0,\nAfMode,0,\n"
+        temp_camera_settings.write_text(initial_csv)
+
+        response = client.post(
+            "/api/camera/settings",
+            json={"AutoCalibration": "1", "AfMode": "2"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert "warnings" in data
+        assert any("AfMode" in w for w in data["warnings"])
+
+        content = temp_camera_settings.read_text()
+        assert "AutoCalibration,1" in content
+        assert "AfMode,0" in content
+
+    def test_post_settings_no_warning_for_valid_focus_mode(self, client, temp_camera_settings):
+        """Valid combinations should not produce warnings (#426)."""
+        initial_csv = "SETTING,VALUE,DETAILS\nAutoCalibration,0,\nAfMode,0,\n"
+        temp_camera_settings.write_text(initial_csv)
+
+        response = client.post(
+            "/api/camera/settings",
+            json={"AutoCalibration": "1", "AfMode": "0"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data.get("warnings", []) == []
+
+    def test_post_settings_autocorrects_afmode_1_with_autocalibration(self, client, temp_camera_settings):
+        """AfMode=1 (Single) should also be corrected when AutoCalibration=1 (#426)."""
+        initial_csv = "SETTING,VALUE,DETAILS\nAutoCalibration,0,\nAfMode,0,\n"
+        temp_camera_settings.write_text(initial_csv)
+
+        response = client.post(
+            "/api/camera/settings",
+            json={"AutoCalibration": "1", "AfMode": "1"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert len(data.get("warnings", [])) > 0
+
+        content = temp_camera_settings.read_text()
+        assert "AfMode,0" in content
+
+    def test_post_settings_no_autocorrect_when_autocalibration_off(self, client, temp_camera_settings):
+        """AfMode=2 without AutoCalibration=1 should not be corrected (#426)."""
+        initial_csv = "SETTING,VALUE,DETAILS\nAutoCalibration,0,\nAfMode,0,\n"
+        temp_camera_settings.write_text(initial_csv)
+
+        response = client.post(
+            "/api/camera/settings",
+            json={"AfMode": "2"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data.get("warnings", []) == []
+
+        content = temp_camera_settings.read_text()
+        assert "AfMode,2" in content
+
 
 # ============================================================================
 # POST /api/camera/freeze-settings - Freeze settings for capture

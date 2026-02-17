@@ -705,6 +705,18 @@ def update_camera_settings():
             except (ValueError, TypeError):
                 return error_response(VALIDATION_ERROR, f"Invalid type for {key}")
 
+        # Cross-field validation: auto-correct conflicting focus modes (#426)
+        # When AutoCalibration=1, AfMode must be 0 (Manual) — TakePhoto.py
+        # enforces this at runtime, but we correct it at save time too.
+        warnings = []
+        auto_cal = str(new_settings.get("AutoCalibration", "")).strip()
+        af_mode = str(new_settings.get("AfMode", "")).strip()
+        if auto_cal == "1" and af_mode not in ("", "0"):
+            new_settings["AfMode"] = "0"
+            warnings.append(
+                f"AutoCalibration enabled: AfMode auto-corrected from {af_mode} to Manual (0)"
+            )
+
         # Read current settings (vertical format: each row is a setting)
         csv_rows = []
         if CAMERA_SETTINGS_FILE.exists():
@@ -742,7 +754,10 @@ def update_camera_settings():
             writer.writeheader()
             writer.writerows(csv_rows)
 
-        return jsonify({"success": True})
+        response_data = {"success": True}
+        if warnings:
+            response_data["warnings"] = warnings
+        return jsonify(response_data)
     except Exception:
         logger.exception("Failed to update camera settings")
         return error_response(SERVER_ERROR, "Failed to update camera settings", 500)
