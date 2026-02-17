@@ -106,6 +106,7 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
 
   // Also track date key to index mapping for previous day lookup
   const dateKeyList = weekDates.map(d => getLocalDateKey(d))
+  const dateKeyIndex = new Map(dateKeyList.map((key, idx) => [key, idx]))
 
   // Initialize empty structure for all dates
   const grouped = {}
@@ -133,11 +134,11 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
     // For overnight schedules, shift post-midnight hours to previous day
     // This keeps complete cycles (dusk-to-dawn) in the same day column
     if (isOvernight && hour < endHour) {
-      const dateIndex = dateKeyList.indexOf(dateKey)
+      const dateIndex = dateKeyIndex.get(dateKey)
+      if (dateIndex === undefined) return
       if (dateIndex > 0) {
-        // Shift to previous day
         dateKey = dateKeyList[dateIndex - 1]
-      } else if (dateIndex === 0) {
+      } else {
         // First day - skip post-midnight executions (they belong to previous week)
         return
       }
@@ -190,13 +191,22 @@ export function getConflictsForDay(conflicts, dateKey) {
 export function buildExecutionConflictsMap(executions, conflicts) {
   if (!executions || !conflicts) return {}
 
+  // Pre-index conflicts for O(1) lookup instead of O(m) find per execution
+  const byEvent1 = new Map()
+  const byEvent2 = new Map()
+  const byStartTime = new Map()
+  conflicts.forEach(c => {
+    if (c.event1_id && !byEvent1.has(c.event1_id)) byEvent1.set(c.event1_id, c)
+    if (c.event2_id && !byEvent2.has(c.event2_id)) byEvent2.set(c.event2_id, c)
+    if (c.start_time && !byStartTime.has(c.start_time)) byStartTime.set(c.start_time, c)
+  })
+
   const map = {}
   executions.forEach(execution => {
-    const conflict = conflicts.find(c =>
-      c.event1_id === execution.pattern_id ||
-      c.event2_id === execution.pattern_id ||
-      c.start_time === execution.start_time
-    )
+    const conflict =
+      byEvent1.get(execution.pattern_id) ||
+      byEvent2.get(execution.pattern_id) ||
+      byStartTime.get(execution.start_time)
     if (conflict) {
       map[execution.pattern_id] = conflict
     }
