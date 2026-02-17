@@ -200,6 +200,7 @@ exclude = [
     "5.x/Test_light_sensor.py",
     "5.x/Testina.py",
     "5.x/TurnEverythingOff.py",
+    "5.x/UpdateDisplay.py",
     "5.x/testPCA.py",
     "5.x/testmuxi2c.py",
 
@@ -232,7 +233,6 @@ select = [
 ignore = [
     "E501",   # Line too long (handled by formatter, not enforced strictly)
     "B008",   # Do not perform function calls in argument defaults (common in Flask)
-    "E402",   # Module level import not at top (needed for sys.path manipulation in legacy code)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -242,6 +242,18 @@ ignore = [
 "5.x/*.py" = ["S603", "S607"]
 "webui/backend/*.py" = ["S603", "S607"]
 "installation-utils/*.py" = ["S603", "S607"]
+
+# E402: sys.path manipulation before imports is required in these files
+# to resolve mothbox_paths and other local modules at runtime.
+# New files should NOT be added here — structure imports to avoid sys.path at module level.
+"webui/backend/app.py" = ["E402"]
+"webui/backend/lib/gps_exif_lib.py" = ["E402"]
+"webui/backend/utils/__init__.py" = ["E402"]
+"webui/backend/scripts/run_photo_calibration.py" = ["E402"]
+"webui/cli/gps_exif_tagger.py" = ["E402"]
+"webui/cli/batch_tag_photos.py" = ["E402"]
+"webui/cli/verify_gps_exif.py" = ["E402"]
+"check_and_run.py" = ["E402"]
 
 [tool.ruff.format]
 # Use Black-compatible formatting for consistency with Python community standards

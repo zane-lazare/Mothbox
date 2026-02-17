@@ -3,43 +3,12 @@ Live view streaming module for WebSocket camera feed
 """
 
 import base64
+import functools
 import io
 import time
 from contextlib import contextmanager
 from threading import Event, Lock, Thread
 from typing import Any
-
-# Lazy import PIL - only needed when actually encoding images
-# This allows tests to import this module without PIL installed
-PIL_Image = None
-
-
-def _get_pil_image():
-    global PIL_Image
-    if PIL_Image is None:
-        try:
-            from PIL import Image as PIL_Image_module
-
-            PIL_Image = PIL_Image_module
-        except ImportError as err:
-            raise ImportError(
-                "PIL/Pillow is required for image encoding but not installed"
-            ) from err
-    return PIL_Image
-
-
-# Setup path for mothbox imports
-import mothbox_paths
-from mothbox_paths import get_control_values
-
-# Import ISP tuning loader
-try:
-    from tuning_loader import apply_isp_controls, get_tuning_path
-
-    ISP_TUNING_AVAILABLE = True
-except ImportError:
-    ISP_TUNING_AVAILABLE = False
-    print("Warning: ISP tuning loader not available")
 
 # Import camera control mapping
 from camera_control_mapping import (
@@ -58,6 +27,19 @@ from constants import (
     ZOOM_LEVEL_MAX,
     ZOOM_LEVEL_MIN,
 )
+
+# Setup path for mothbox imports
+import mothbox_paths
+from mothbox_paths import get_control_values
+
+# Import ISP tuning loader
+try:
+    from tuning_loader import apply_isp_controls, get_tuning_path
+
+    ISP_TUNING_AVAILABLE = True
+except ImportError:
+    ISP_TUNING_AVAILABLE = False
+    print("Warning: ISP tuning loader not available")
 
 try:
     from picamera2 import Picamera2
@@ -91,6 +73,17 @@ try:
 except ImportError:
     CV2_AVAILABLE = False
     print("OpenCV not available - focus peaking disabled")
+
+
+@functools.lru_cache(maxsize=1)
+def _get_pil_image():
+    try:
+        from PIL import Image
+
+        return Image
+    except ImportError as err:
+        raise ImportError("PIL/Pillow is required for image encoding but not installed") from err
+
 
 # Default camera stream configuration constants
 DEFAULT_STREAM_WIDTH = 1024

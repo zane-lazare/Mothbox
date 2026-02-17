@@ -13,6 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from camera_settings_schema import BOOL_STRING_SETTINGS as _BOOL_STRING_SETTINGS
+from camera_settings_schema import FLOAT_SETTINGS as _FLOAT_SETTINGS
+from camera_settings_schema import INT_SETTINGS as _INT_SETTINGS
+
 # ============================================================================
 # CSV Security
 # ============================================================================
@@ -316,11 +320,6 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 #
 # The webui form may pass Python booleans (True/False) or strings ("True"/"False")
 # for integer settings. This function normalizes values before CSV write.
-
-# Import type sets from shared schema (single source of truth)
-from camera_settings_schema import BOOL_STRING_SETTINGS as _BOOL_STRING_SETTINGS
-from camera_settings_schema import FLOAT_SETTINGS as _FLOAT_SETTINGS
-from camera_settings_schema import INT_SETTINGS as _INT_SETTINGS
 
 
 def coerce_for_csv(key: str, value) -> str:
