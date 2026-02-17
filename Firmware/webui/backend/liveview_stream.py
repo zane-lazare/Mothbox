@@ -3,6 +3,7 @@ Live view streaming module for WebSocket camera feed
 """
 
 import base64
+import functools
 import io
 import time
 from contextlib import contextmanager
@@ -73,23 +74,15 @@ except ImportError:
     CV2_AVAILABLE = False
     print("OpenCV not available - focus peaking disabled")
 
-# Lazy import PIL - only needed when actually encoding images
-# This allows tests to import this module without PIL installed
-PIL_Image = None
 
-
+@functools.lru_cache(maxsize=1)
 def _get_pil_image():
-    global PIL_Image
-    if PIL_Image is None:
-        try:
-            from PIL import Image as PIL_Image_module
+    try:
+        from PIL import Image
 
-            PIL_Image = PIL_Image_module
-        except ImportError as err:
-            raise ImportError(
-                "PIL/Pillow is required for image encoding but not installed"
-            ) from err
-    return PIL_Image
+        return Image
+    except ImportError as err:
+        raise ImportError("PIL/Pillow is required for image encoding but not installed") from err
 
 
 # Default camera stream configuration constants

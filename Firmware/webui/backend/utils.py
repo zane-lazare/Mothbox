@@ -321,6 +321,7 @@ ALLOWED_LIVEVIEW_SETTINGS: dict[str, Callable[[Any], bool]] = {
 # The webui form may pass Python booleans (True/False) or strings ("True"/"False")
 # for integer settings. This function normalizes values before CSV write.
 
+
 def coerce_for_csv(key: str, value) -> str:
     """Coerce a setting value to the correct string representation for CSV.
 
