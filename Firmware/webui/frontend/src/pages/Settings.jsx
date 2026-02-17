@@ -279,7 +279,9 @@ export default function Settings() {
       [CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE]:       { AutoCalibration: '0', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.SINGLE },
       [CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS]:    { AutoCalibration: '0', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.CONTINUOUS },
     }
-    updateCameraForm(updates[mode])
+    const update = updates[mode]
+    if (!update) return
+    updateCameraForm(update)
   }
 
   const updateWebuiForm = (updates) => {
