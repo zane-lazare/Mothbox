@@ -200,6 +200,7 @@ exclude = [
     "5.x/Test_light_sensor.py",
     "5.x/Testina.py",
     "5.x/TurnEverythingOff.py",
+    "5.x/UpdateDisplay.py",
     "5.x/testPCA.py",
     "5.x/testmuxi2c.py",
 
