@@ -1458,6 +1458,8 @@ export default function Settings() {
                 </label>
                 <select
                   id="focus_mode"
+                  aria-label="Focus strategy mode"
+                  aria-describedby="focus-mode-help"
                   value={focusMode}
                   onChange={(e) => handleFocusModeChange(e.target.value)}
                   className="settings-select"
@@ -1467,7 +1469,7 @@ export default function Settings() {
                   <option value={CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE}>Autofocus (Single)</option>
                   <option value={CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS}>Autofocus (Continuous)</option>
                 </select>
-                <p className="settings-help-text">
+                <p id="focus-mode-help" className="settings-help-text">
                   {{
                     [CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE]: 'Automatically optimizes focus position periodically. Recommended for unattended operation.',
                     [CAMERA_SETTINGS.FOCUS_MODES.MANUAL]: 'Set a fixed focus distance. Best when camera-to-subject distance is constant.',
@@ -1486,6 +1488,8 @@ export default function Settings() {
                     </label>
                     <input
                       type="range"
+                      aria-label="Calibration interval in seconds"
+                      aria-describedby="calibration-interval-help"
                       min={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}
                       max={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}
                       value={cameraForm.AutoCalibrationPeriod || CAMERA_SETTINGS.CALIBRATION_INTERVAL.DEFAULT}
@@ -1497,7 +1501,7 @@ export default function Settings() {
                       <span>100</span>
                       <span>{CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}</span>
                     </div>
-                    <p className="settings-help-text">
+                    <p id="calibration-interval-help" className="settings-help-text">
                       More frequent = better adaptation to changing conditions
                     </p>
                   </div>
@@ -1533,6 +1537,8 @@ export default function Settings() {
                   </label>
                   <input
                     type="range"
+                    aria-label="Focus position in diopters"
+                    aria-describedby="lens-position-help"
                     min={CAMERA_SETTINGS.LENS_POSITION.MIN}
                     max={CAMERA_SETTINGS.LENS_POSITION.MAX}
                     step={CAMERA_SETTINGS.LENS_POSITION.STEP}
@@ -1545,7 +1551,7 @@ export default function Settings() {
                     <span>{CAMERA_SETTINGS.LENS_POSITION.MAX / 2}</span>
                     <span>{CAMERA_SETTINGS.LENS_POSITION.MAX} (Near)</span>
                   </div>
-                  <p className="settings-help-text">
+                  <p id="lens-position-help" className="settings-help-text">
                     Higher values = closer focus distance.
                   </p>
                 </div>
