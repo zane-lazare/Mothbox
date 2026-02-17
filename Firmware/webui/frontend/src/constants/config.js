@@ -499,3 +499,28 @@ export const SCHEDULER_LAYOUT_CONFIG = {
   DEFAULT_GRID: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
   SIDEBAR_GRID: 'flex flex-col space-y-3',
 }
+
+/**
+ * Camera settings constants for the Focus Strategy card.
+ * Sync with backend constants.py (FB_MIN_DIOPTERS, FB_MAX_DIOPTERS, AF_MODE_*).
+ *
+ * @property {Object} LENS_POSITION - Lens position slider bounds (diopters)
+ * @property {Object} CALIBRATION_INTERVAL - Auto-calibration period slider bounds (seconds)
+ * @property {Object} FOCUS_MODES - Focus mode identifiers used in UI logic
+ * @property {Object} AF_MODE_VALUES - AfMode register values sent to backend
+ * @property {Object} AF_RANGE_VALUES - AfRange register values sent to backend
+ * @property {Object} AF_SPEED_VALUES - AfSpeed register values sent to backend
+ */
+export const CAMERA_SETTINGS = {
+  LENS_POSITION: { MIN: 0, MAX: 10, STEP: 0.1, DEFAULT: 0.5 },
+  CALIBRATION_INTERVAL: { MIN: 1, MAX: 1000, DEFAULT: 600 },
+  FOCUS_MODES: {
+    AUTO_CALIBRATE: 'auto-calibrate',
+    MANUAL: 'manual',
+    AF_SINGLE: 'af-single',
+    AF_CONTINUOUS: 'af-continuous',
+  },
+  AF_MODE_VALUES: { MANUAL: '0', SINGLE: '1', CONTINUOUS: '2' },
+  AF_RANGE_VALUES: { NORMAL: '0', MACRO: '1', FULL: '2' },
+  AF_SPEED_VALUES: { NORMAL: '0', FAST: '1' },
+}
