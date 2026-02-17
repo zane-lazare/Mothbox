@@ -247,16 +247,24 @@ export default function Settings() {
     setCameraForm(prev => ({ ...prev, ...updates }))
   }
 
-  // Derive focus mode from AutoCalibration + AfMode combination
+  /**
+   * Derives the unified focus mode from AutoCalibration and AfMode CSV values.
+   * @returns {'auto-calibrate'|'manual'|'af-single'|'af-continuous'}
+   */
   const focusMode = (() => {
-    const autoCal = cameraForm.AutoCalibration === '1' || cameraForm.AutoCalibration === 1
+    const autoCal = String(cameraForm.AutoCalibration ?? '0') === '1'
     if (autoCal) return CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE
-    const afMode = String(cameraForm.AfMode || CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL)
+    const afMode = String(cameraForm.AfMode ?? CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL)
     if (afMode === CAMERA_SETTINGS.AF_MODE_VALUES.SINGLE) return CAMERA_SETTINGS.FOCUS_MODES.AF_SINGLE
     if (afMode === CAMERA_SETTINGS.AF_MODE_VALUES.CONTINUOUS) return CAMERA_SETTINGS.FOCUS_MODES.AF_CONTINUOUS
     return CAMERA_SETTINGS.FOCUS_MODES.MANUAL
   })()
 
+  /**
+   * Updates both AutoCalibration and AfMode CSV fields atomically
+   * when the user selects a new focus mode from the dropdown.
+   * @param {'auto-calibrate'|'manual'|'af-single'|'af-continuous'} mode
+   */
   const handleFocusModeChange = (mode) => {
     const updates = {
       [CAMERA_SETTINGS.FOCUS_MODES.AUTO_CALIBRATE]:  { AutoCalibration: '1', AfMode: CAMERA_SETTINGS.AF_MODE_VALUES.MANUAL },
@@ -1481,7 +1489,7 @@ export default function Settings() {
                       min={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}
                       max={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}
                       value={cameraForm.AutoCalibrationPeriod || CAMERA_SETTINGS.CALIBRATION_INTERVAL.DEFAULT}
-                      onChange={(e) => setCameraForm({ ...cameraForm, AutoCalibrationPeriod: e.target.value })}
+                      onChange={(e) => updateCameraForm({ AutoCalibrationPeriod: e.target.value })}
                       className="w-full cursor-pointer"
                     />
                     <div className="flex justify-between settings-help-text">
@@ -1502,7 +1510,7 @@ export default function Settings() {
                     <div className="w-full bg-gray-200 rounded h-2">
                       <div
                         className="bg-green-500 rounded h-2"
-                        style={{ width: `${(parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT) / CAMERA_SETTINGS.LENS_POSITION.MAX) * 100}%` }}
+                        style={{ width: `${(Math.min(Math.max(parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT), CAMERA_SETTINGS.LENS_POSITION.MIN), CAMERA_SETTINGS.LENS_POSITION.MAX) / CAMERA_SETTINGS.LENS_POSITION.MAX) * 100}%` }}
                       />
                     </div>
                     <div className="flex justify-between settings-help-text">
@@ -1510,6 +1518,9 @@ export default function Settings() {
                       <span>{CAMERA_SETTINGS.LENS_POSITION.MAX / 2}</span>
                       <span>{CAMERA_SETTINGS.LENS_POSITION.MAX} (Near)</span>
                     </div>
+                    <p className="settings-help-text">
+                      Updated after each calibration cycle
+                    </p>
                   </div>
                 </div>
               )}
@@ -1526,7 +1537,7 @@ export default function Settings() {
                     max={CAMERA_SETTINGS.LENS_POSITION.MAX}
                     step={CAMERA_SETTINGS.LENS_POSITION.STEP}
                     value={cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT}
-                    onChange={(e) => setCameraForm({ ...cameraForm, LensPosition: e.target.value })}
+                    onChange={(e) => updateCameraForm({ LensPosition: e.target.value })}
                     className="w-full cursor-pointer"
                   />
                   <div className="flex justify-between settings-help-text">
