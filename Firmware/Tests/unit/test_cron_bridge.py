@@ -1,10 +1,11 @@
 """Unit tests for cron_bridge module - Subtask 1: Data structures."""
 
+import os
 from datetime import date, datetime, timedelta
 from unittest.mock import mock_open, patch
 
-import pytz
 import pytest
+import pytz
 
 from webui.backend.lib.cron_bridge import (
     CronBridgeResult,
@@ -26,6 +27,7 @@ from webui.backend.lib.cron_bridge import (
     routine_to_cron,
     routine_to_cron_entries,
     routine_to_dated_cron,
+    rtc_available,
     schedule_to_cron,
     sensor_trigger_to_cron,
     set_rtc_wakealarm,
@@ -830,7 +832,10 @@ class TestRTCWakealarm:
     def test_set_rtc_wakealarm_writes_to_sysfs(self):
         """set_rtc_wakealarm writes epoch to /sys/class/rtc/rtc0/wakealarm."""
         m = mock_open()
-        with patch("builtins.open", m):
+        with (
+            patch("webui.backend.lib.cron_bridge.rtc_available", return_value=True),
+            patch("builtins.open", m),
+        ):
             epoch = 1718463600
             result = set_rtc_wakealarm(epoch)
             assert result is True
@@ -840,14 +845,20 @@ class TestRTCWakealarm:
     def test_clear_rtc_wakealarm_writes_zero(self):
         """clear_rtc_wakealarm writes 0 to clear existing alarm."""
         m = mock_open()
-        with patch("builtins.open", m):
+        with (
+            patch("webui.backend.lib.cron_bridge.rtc_available", return_value=True),
+            patch("builtins.open", m),
+        ):
             result = clear_rtc_wakealarm()
             assert result is True
             m().write.assert_called_with("0")
 
     def test_set_rtc_wakealarm_handles_permission_error(self):
         """set_rtc_wakealarm returns False on permission error."""
-        with patch("builtins.open", side_effect=PermissionError("No permission")):
+        with (
+            patch("webui.backend.lib.cron_bridge.rtc_available", return_value=True),
+            patch("builtins.open", side_effect=PermissionError("No permission")),
+        ):
             result = set_rtc_wakealarm(1718463600)
             assert result is False
 
@@ -876,7 +887,10 @@ class TestRTCWakealarm:
 
     def test_clear_rtc_wakealarm_handles_file_not_found(self):
         """clear_rtc_wakealarm returns False on file not found error."""
-        with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
+        with (
+            patch("webui.backend.lib.cron_bridge.rtc_available", return_value=True),
+            patch("builtins.open", side_effect=FileNotFoundError("File not found")),
+        ):
             result = clear_rtc_wakealarm()
             assert result is False
 
@@ -888,6 +902,62 @@ class TestRTCWakealarm:
         # Should be 9:30 same day
         expected = int(datetime(2024, 6, 17, 9, 30, 0).timestamp())
         assert abs(next_wake - expected) < 60
+
+    def test_rtc_available_returns_true_when_writable(self):
+        """rtc_available returns True when RTC file is writable."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=True):
+            rtc_available.cache_clear()
+            assert rtc_available() is True
+
+    def test_rtc_available_returns_false_when_not_writable(self):
+        """rtc_available returns False when RTC file is not writable."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=False):
+            rtc_available.cache_clear()
+            assert rtc_available() is False
+
+    def test_rtc_available_checks_correct_path(self):
+        """rtc_available checks the RTC_WAKEALARM_PATH with W_OK."""
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=True) as mock_access:
+            rtc_available.cache_clear()
+            rtc_available()
+            mock_access.assert_called_once_with("/sys/class/rtc/rtc0/wakealarm", os.W_OK)
+
+    def test_rtc_available_returns_false_when_path_missing(self):
+        """rtc_available returns False when the sysfs path does not exist.
+
+        os.access(..., os.W_OK) returns False for both non-existent and
+        non-writable paths, so this scenario is handled by the same check.
+        """
+        with patch("webui.backend.lib.cron_bridge.os.access", return_value=False):
+            rtc_available.cache_clear()
+            assert rtc_available() is False
+
+    def test_set_rtc_skips_when_not_available(self):
+        """set_rtc_wakealarm returns True without writing when RTC unavailable."""
+        with patch("webui.backend.lib.cron_bridge.rtc_available", return_value=False):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = set_rtc_wakealarm(1718463600)
+                assert result is True
+                m.assert_not_called()
+
+    def test_clear_rtc_skips_when_not_available(self):
+        """clear_rtc_wakealarm returns True without writing when RTC unavailable."""
+        with patch("webui.backend.lib.cron_bridge.rtc_available", return_value=False):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = clear_rtc_wakealarm()
+                assert result is True
+                m.assert_not_called()
+
+    def test_set_rtc_writes_when_available(self):
+        """set_rtc_wakealarm proceeds normally when RTC is available."""
+        with patch("webui.backend.lib.cron_bridge.rtc_available", return_value=True):
+            m = mock_open()
+            with patch("builtins.open", m):
+                result = set_rtc_wakealarm(1718463600)
+                assert result is True
+                m.assert_called_once()
 
 
 class TestApplyToSystem:
@@ -1027,7 +1097,7 @@ class TestApplyToSystem:
 
     def test_apply_adds_meta_cron_entries(self):
         """apply_to_system adds @reboot and weekly meta-cron entries (Issue #398)."""
-        from unittest.mock import MagicMock, call, patch
+        from unittest.mock import MagicMock, patch
 
         entries = [CronEntry(expression="0 21 * * *", command="cmd1", comment="Mothbox: test")]
         with patch("webui.backend.lib.cron_bridge.CronTab") as mock_crontab_class:
@@ -2206,7 +2276,7 @@ class TestRoutineToCronDispatcher:
         # Both should cover the same times
         pattern_hours = {int(e.expression.split()[1]) for e in pattern_entries}
         # Pattern should cover hours 18-23 and 0-6
-        expected_hours = set(range(18, 24)) | set(range(0, 7))
+        expected_hours = set(range(18, 24)) | set(range(7))
         assert pattern_hours == expected_hours
 
 
