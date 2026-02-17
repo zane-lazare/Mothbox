@@ -213,6 +213,10 @@ Two camera workflows:
 
 **Important**: Camera can only be used by ONE workflow at a time. Tests/code must properly release camera between operations.
 
+### Focus Strategy UI
+
+The Settings page uses a unified Focus Strategy card that maps a single dropdown to two CSV fields (`AutoCalibration` + `AfMode`). Frontend constants are in `CAMERA_SETTINGS` (`webui/frontend/src/constants/config.js`). The card prevents invalid state combinations (e.g., AutoCalibration=1 with AfMode=2).
+
 ## Common Development Commands
 
 ### Testing

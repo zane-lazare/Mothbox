@@ -283,6 +283,34 @@ The live view shows a real-time preview of what the camera sees at approximately
 
 ---
 
+## Focus Strategy
+
+The Focus Strategy card on the Settings page provides a unified interface for configuring how the camera focuses. It combines AutoCalibration and Focus Mode into a single dropdown.
+
+### Focus Modes
+
+| Mode | Best For | How It Works |
+|------|----------|--------------|
+| **Auto-Calibrate** | Unattended operation | Periodically runs autofocus and saves the result. Uses calibrated position for captures. |
+| **Manual Focus** | Fixed camera-to-subject distance | You set an exact focus distance in diopters (0=far, 10=near). |
+| **Autofocus (Single)** | Varying distances | Runs autofocus once before each capture. |
+| **Autofocus (Continuous)** | Moving subjects | Continuously adjusts focus. Uses more power. |
+
+### When to Use Which Mode
+
+- **Most moth traps**: Use **Auto-Calibrate** with a 600-second interval. The camera will periodically re-optimize focus for changing conditions.
+- **Fixed setup on a flat surface**: Use **Manual Focus** at the known distance to your target.
+- **Variable distances**: Use **Autofocus (Single)** for a focus check before each capture.
+- **Live monitoring**: Use **Autofocus (Continuous)** when viewing the live preview and wanting real-time focus tracking.
+
+### Troubleshooting
+
+- **Blurry photos in Auto-Calibrate**: Try a shorter calibration interval (e.g., 60 seconds). The flash must work for calibration to succeed.
+- **Focus hunting in Continuous mode**: Switch to Single or reduce Focus Speed to Normal (Accurate).
+- **Macro subjects out of focus**: Set Focus Range to "Macro (10cm - 50cm)" in AF modes, or use Manual Focus at 7-10 diopters.
+
+---
+
 ## Settings: Test vs Production
 
 ### Test Photo / Instant Capture
