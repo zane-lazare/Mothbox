@@ -1445,11 +1445,12 @@ export default function Settings() {
               {/* Focus Strategy Card */}
               <CollapsibleCard
                 id="cameraFocusStrategy"
-                title="🎯 Focus Strategy"
+                title="Focus Strategy"
                 isCollapsed={collapsedCards.cameraFocusStrategy}
                 onToggle={toggleCard}
                 className="settings-card"
               >
+              <div data-testid="focus-strategy-card">
 
               {/* Focus Mode Selector */}
               <div className="settings-form-group">
@@ -1458,6 +1459,7 @@ export default function Settings() {
                 </label>
                 <select
                   id="focus_mode"
+                  data-testid="focus-mode-select"
                   aria-label="Focus strategy mode"
                   aria-describedby="focus-mode-help"
                   value={focusMode}
@@ -1488,6 +1490,7 @@ export default function Settings() {
                     </label>
                     <input
                       type="range"
+                      data-testid="calibration-interval-slider"
                       aria-label="Calibration interval in seconds"
                       aria-describedby="calibration-interval-help"
                       min={CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}
@@ -1498,7 +1501,7 @@ export default function Settings() {
                     />
                     <div className="flex justify-between settings-help-text">
                       <span>{CAMERA_SETTINGS.CALIBRATION_INTERVAL.MIN}</span>
-                      <span>100</span>
+                      <span>500</span>
                       <span>{CAMERA_SETTINGS.CALIBRATION_INTERVAL.MAX}</span>
                     </div>
                     <p id="calibration-interval-help" className="settings-help-text">
@@ -1507,7 +1510,7 @@ export default function Settings() {
                   </div>
 
                   {/* Show current calibrated position as read-only */}
-                  <div className="settings-form-group">
+                  <div className="settings-form-group" data-testid="calibration-position-display">
                     <label className="settings-label">
                       Current Calibrated Position: {parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT).toFixed(2)} diopters
                     </label>
@@ -1537,6 +1540,7 @@ export default function Settings() {
                   </label>
                   <input
                     type="range"
+                    data-testid="lens-position-slider"
                     aria-label="Focus position in diopters"
                     aria-describedby="lens-position-help"
                     min={CAMERA_SETTINGS.LENS_POSITION.MIN}
@@ -1566,6 +1570,7 @@ export default function Settings() {
                     </label>
                     <select
                       id="af_range_capture"
+                      data-testid="af-range-select"
                       value={cameraForm.AfRange || CAMERA_SETTINGS.AF_RANGE_VALUES.MACRO}
                       onChange={(e) => updateCameraForm({ AfRange: e.target.value})}
                       className="settings-select"
@@ -1582,6 +1587,7 @@ export default function Settings() {
                     </label>
                     <select
                       id="af_speed_capture"
+                      data-testid="af-speed-select"
                       value={cameraForm.AfSpeed || CAMERA_SETTINGS.AF_SPEED_VALUES.FAST}
                       onChange={(e) => updateCameraForm({ AfSpeed: e.target.value})}
                       className="settings-select"
@@ -1593,6 +1599,7 @@ export default function Settings() {
                 </div>
               )}
 
+              </div>
               </CollapsibleCard>
 
               {/* Image Format Card */}
