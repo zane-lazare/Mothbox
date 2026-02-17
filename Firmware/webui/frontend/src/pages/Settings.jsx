@@ -247,6 +247,13 @@ export default function Settings() {
     setCameraForm(prev => ({ ...prev, ...updates }))
   }
 
+  /** Clamps a lens position value to [MIN, MAX] and returns a 0-100 percentage. */
+  const lensPositionPercent = (raw) => {
+    const { MIN, MAX, DEFAULT } = CAMERA_SETTINGS.LENS_POSITION
+    const value = Math.min(Math.max(parseFloat(raw || DEFAULT), MIN), MAX)
+    return ((value - MIN) / (MAX - MIN)) * 100
+  }
+
   /**
    * Derives the unified focus mode from AutoCalibration and AfMode CSV values.
    * @returns {'auto-calibrate'|'manual'|'af-single'|'af-continuous'}
@@ -1517,7 +1524,7 @@ export default function Settings() {
                     <div className="w-full bg-gray-200 rounded h-2">
                       <div
                         className="bg-green-500 rounded h-2"
-                        style={{ width: `${(Math.min(Math.max(parseFloat(cameraForm.LensPosition || CAMERA_SETTINGS.LENS_POSITION.DEFAULT), CAMERA_SETTINGS.LENS_POSITION.MIN), CAMERA_SETTINGS.LENS_POSITION.MAX) / CAMERA_SETTINGS.LENS_POSITION.MAX) * 100}%` }}
+                        style={{ width: `${lensPositionPercent(cameraForm.LensPosition)}%` }}
                       />
                     </div>
                     <div className="flex justify-between settings-help-text">
@@ -1571,7 +1578,7 @@ export default function Settings() {
                     <select
                       id="af_range_capture"
                       data-testid="af-range-select"
-                      value={cameraForm.AfRange || CAMERA_SETTINGS.AF_RANGE_VALUES.MACRO}
+                      value={cameraForm.AfRange || CAMERA_SETTINGS.AF_RANGE_DEFAULT}
                       onChange={(e) => updateCameraForm({ AfRange: e.target.value})}
                       className="settings-select"
                     >
@@ -1588,7 +1595,7 @@ export default function Settings() {
                     <select
                       id="af_speed_capture"
                       data-testid="af-speed-select"
-                      value={cameraForm.AfSpeed || CAMERA_SETTINGS.AF_SPEED_VALUES.FAST}
+                      value={cameraForm.AfSpeed || CAMERA_SETTINGS.AF_SPEED_DEFAULT}
                       onChange={(e) => updateCameraForm({ AfSpeed: e.target.value})}
                       className="settings-select"
                     >

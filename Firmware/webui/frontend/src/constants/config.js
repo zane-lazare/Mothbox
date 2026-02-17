@@ -522,5 +522,7 @@ export const CAMERA_SETTINGS = {
   },
   AF_MODE_VALUES: { MANUAL: '0', SINGLE: '1', CONTINUOUS: '2' },
   AF_RANGE_VALUES: { NORMAL: '0', MACRO: '1', FULL: '2' },
+  AF_RANGE_DEFAULT: '1',   // Macro - optimal for insect photography
   AF_SPEED_VALUES: { NORMAL: '0', FAST: '1' },
+  AF_SPEED_DEFAULT: '1',   // Fast
 }
