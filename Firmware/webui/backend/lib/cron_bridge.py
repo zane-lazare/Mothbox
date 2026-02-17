@@ -48,7 +48,9 @@ logger = logging.getLogger(__name__)
 
 # Constants (MAX_CRON_ENTRIES imported from webui.backend.constants)
 CRON_COMMENT_PREFIX: Final[str] = "Mothbox:"
-RTC_WAKEALARM_PATH: Final[str] = "/sys/class/rtc/rtc0/wakealarm"  # Requires write permission (root or udev rule)
+RTC_WAKEALARM_PATH: Final[str] = (
+    "/sys/class/rtc/rtc0/wakealarm"  # Requires write permission (root or udev rule)
+)
 LUNAR_CYCLE_DAYS: Final[int] = 30  # Minimum days to look ahead for moon phase schedules
 
 
