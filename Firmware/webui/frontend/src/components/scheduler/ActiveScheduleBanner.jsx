@@ -114,7 +114,6 @@ function ActiveScheduleBanner() {
     const coordinatesSource = data?.coordinates_source
     const latitude = data?.latitude
     const longitude = data?.longitude
-    const timezoneName = data?.timezone_name
 
     // Get next FUTURE action from persisted entries - already filtered by API
     // Next actions API structure: { actions: [{ time, action_name, action_type }] }
