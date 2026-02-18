@@ -851,14 +851,35 @@ def detect_conflicts(
 
     conflicts: list[Conflict] = []
 
-    # Check all pairs of executions
-    for i, exec1 in enumerate(executions):
-        for exec2 in executions[i + 1 :]:
-            # Check time overlap
+    # Sort executions by start_time for sweep-line algorithm
+    # (generate_routine_executions already sorts, but be defensive)
+    sorted_execs = sorted(executions, key=lambda e: e.start_time)
+
+    # Phase 1: Sweep-line for time overlaps + resource contention
+    # For each execution, only compare against executions that could overlap
+    # (those whose start_time < current end_time). O(n log n + n*k) where
+    # k = average overlap count, vs previous O(n^2).
+    for i, exec1 in enumerate(sorted_execs):
+        # Only check subsequent executions that start before exec1 ends
+        # Skip zero-duration executions here (handled in Phase 2)
+        if exec1.start_time == exec1.end_time:
+            continue
+
+        for j in range(i + 1, len(sorted_execs)):
+            exec2 = sorted_execs[j]
+
+            # Since sorted by start_time, once exec2 starts after exec1 ends,
+            # no further executions can overlap with exec1
+            if exec2.start_time >= exec1.end_time:
+                break
+
+            # Skip zero-duration in this phase
+            if exec2.start_time == exec2.end_time:
+                continue
+
             overlaps, overlap_start, overlap_end = check_time_overlap(exec1, exec2)
 
             if overlaps and overlap_start and overlap_end:
-                # Create time overlap conflict (warning severity)
                 time_conflict = Conflict(
                     conflict_type=CONFLICT_TIME_OVERLAP,
                     event1_id=exec1.routine_id,
@@ -879,9 +900,18 @@ def detect_conflicts(
                 )
                 conflicts.append(time_conflict)
 
-                # Check resource contention within overlapping routines
+                # Resource contention: index by resource_type for O(m) comparison
+                # instead of O(m^2) all-pairs
+                resource_index: dict[str, list[ResourceUsage]] = defaultdict(list)
+                for usage in exec2.resource_usages:
+                    resource_index[usage.resource_type].append(usage)
+
                 for usage1 in exec1.resource_usages:
-                    for usage2 in exec2.resource_usages:
+                    # check_resource_contention only detects same-type conflicts,
+                    # so only compare with usages of matching resource type
+                    candidates = resource_index.get(usage1.resource_type, [])
+
+                    for usage2 in candidates:
                         contends, conflict_type = check_resource_contention(usage1, usage2)
                         if contends:
                             resource_conflict = Conflict(
@@ -901,26 +931,31 @@ def detect_conflicts(
                             )
                             conflicts.append(resource_conflict)
 
-    # Check instant action collisions (zero-duration executions at same time)
+    # Phase 2: Instant action collisions (zero-duration at same time)
     # These are skipped by check_time_overlap() but still cause resource conflicts
-    # Filter instant actions first - skip section if empty (common case) (Issue #385)
-    instant_actions = [e for e in executions if e.start_time == e.end_time]
+    instant_actions = [e for e in sorted_execs if e.start_time == e.end_time]
 
     if instant_actions:
         time_groups: dict[datetime, list[RoutineExecution]] = defaultdict(list)
         for execution in instant_actions:
             time_groups[execution.start_time].append(execution)
 
-        # Check resource contention within each time group
         for collision_time, colliding_execs in time_groups.items():
             if len(colliding_execs) < 2:
                 continue
 
-            # Check all pairs for resource contention
             for i, exec1 in enumerate(colliding_execs):
                 for exec2 in colliding_execs[i + 1 :]:
+                    # Index resources for O(m) comparison
+                    resource_index: dict[str, list[ResourceUsage]] = defaultdict(list)
+                    for usage in exec2.resource_usages:
+                        resource_index[usage.resource_type].append(usage)
+
                     for usage1 in exec1.resource_usages:
-                        for usage2 in exec2.resource_usages:
+                        # check_resource_contention only detects same-type conflicts
+                        candidates = resource_index.get(usage1.resource_type, [])
+
+                        for usage2 in candidates:
                             contends, conflict_type = check_resource_contention(usage1, usage2)
                             if contends:
                                 instant_conflict = Conflict(

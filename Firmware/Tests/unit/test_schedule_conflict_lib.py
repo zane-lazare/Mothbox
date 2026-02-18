@@ -2777,3 +2777,124 @@ class TestTimeOverlapWithInstants:
         range_start = datetime(2026, 1, 26, 12, 0, 0)
         range_end = datetime(2026, 1, 26, 13, 0, 0)
         assert _check_time_overlap(instant, instant, range_start, range_end) is True
+
+
+# ============================================================================
+# Performance Tests
+# ============================================================================
+
+
+@pytest.mark.skipif(not IMPLEMENTATION_EXISTS, reason="Implementation not available")
+class TestDetectConflictsPerformance:
+    """Performance tests for detect_conflicts with large datasets (#386)."""
+
+    def test_detect_conflicts_100_executions_under_1s(self):
+        """100 overlapping executions should complete well under 1 second."""
+        import time as time_mod
+
+        from webui.backend.lib.schedule_conflict import (
+            RoutineExecution,
+            ResourceUsage,
+            detect_conflicts,
+        )
+        from webui.backend.lib.schedule_schema import Schedule
+
+        # Create 100 overlapping executions with 2 resource usages each
+        executions = []
+        base = datetime(2025, 1, 1, 8, 0, 0)
+        for i in range(100):
+            start = base + timedelta(minutes=i)
+            end = start + timedelta(minutes=10)  # All overlap with neighbors
+            executions.append(
+                RoutineExecution(
+                    routine_id=f"r{i}",
+                    routine_name=f"Routine {i}",
+                    start_time=start,
+                    end_time=end,
+                    resource_usages=[
+                        ResourceUsage(
+                            resource_type="camera",
+                            resource_name="camera",
+                            start_time=start,
+                            end_time=end,
+                            routine_id=f"r{i}",
+                            action_index=0,
+                        ),
+                        ResourceUsage(
+                            resource_type="attract",
+                            resource_name="attract_on",
+                            start_time=start,
+                            end_time=end,
+                            routine_id=f"r{i}",
+                            action_index=1,
+                        ),
+                    ],
+                )
+            )
+
+        schedule = Schedule(
+            schedule_id="perf", name="Perf", routines=[]
+        )
+
+        start_t = time_mod.monotonic()
+        result = detect_conflicts(
+            schedule,
+            executions=executions,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 1),
+        )
+        elapsed = time_mod.monotonic() - start_t
+
+        assert elapsed < 1.0, f"detect_conflicts took {elapsed:.2f}s for 100 executions"
+        assert result.total_executions == 100
+        assert len(result.conflicts) > 0  # Should find overlaps
+
+    def test_detect_conflicts_no_overlaps_fast(self):
+        """Non-overlapping executions should be very fast (no pairs to check)."""
+        import time as time_mod
+
+        from webui.backend.lib.schedule_conflict import (
+            RoutineExecution,
+            ResourceUsage,
+            detect_conflicts,
+        )
+        from webui.backend.lib.schedule_schema import Schedule
+
+        # 200 non-overlapping executions (each 1 min, 5 min apart)
+        executions = []
+        base = datetime(2025, 1, 1, 0, 0, 0)
+        for i in range(200):
+            start = base + timedelta(minutes=i * 5)
+            end = start + timedelta(minutes=1)
+            executions.append(
+                RoutineExecution(
+                    routine_id=f"r{i}",
+                    routine_name=f"Routine {i}",
+                    start_time=start,
+                    end_time=end,
+                    resource_usages=[
+                        ResourceUsage(
+                            resource_type="camera",
+                            resource_name="camera",
+                            start_time=start,
+                            end_time=end,
+                            routine_id=f"r{i}",
+                            action_index=0,
+                        ),
+                    ],
+                )
+            )
+
+        schedule = Schedule(schedule_id="perf", name="Perf", routines=[])
+
+        start_t = time_mod.monotonic()
+        result = detect_conflicts(
+            schedule,
+            executions=executions,
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 1),
+        )
+        elapsed = time_mod.monotonic() - start_t
+
+        assert elapsed < 0.5, f"Non-overlapping took {elapsed:.2f}s for 200 executions"
+        assert len(result.conflicts) == 0
