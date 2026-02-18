@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { SENSOR_TYPES, validateNumericInput } from './constants'
+import { SENSOR_TYPES, SCHEDULE_LIMITS, validateNumericInput } from './constants'
 import { NUMERIC_ERRORS } from './errorMessages'
 
 /** Default pre-condition when enabled */
@@ -9,6 +9,7 @@ const DEFAULT_PRE_CONDITION = {
   sensor_type: 'light',
   comparison: 'lt',
   threshold: 100,
+  cooldown_minutes: 5,
 }
 
 /** Unit labels for sensor types */
@@ -33,6 +34,7 @@ const SENSOR_UNITS = {
 function PreConditionForm({ preCondition, onChange, routineIndex, disabled = false }) {
   const [enabled, setEnabled] = useState(!!preCondition)
   const [thresholdError, setThresholdError] = useState(null)
+  const [cooldownError, setCooldownError] = useState(null)
 
   // Sync internal state with prop changes
   useEffect(() => {
@@ -46,6 +48,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
     const isEnabled = e.target.checked
     setEnabled(isEnabled)
     setThresholdError(null)
+    setCooldownError(null)
     if (!isEnabled) {
       onChange(null)
     } else {
@@ -72,6 +75,19 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
     }
     setThresholdError(null)
     onChange({ ...preCondition, threshold: validated })
+  }
+
+  /**
+   * Handle cooldown change with validation (1-60 minutes)
+   */
+  const handleCooldownChange = (newCooldown) => {
+    const validated = validateNumericInput(newCooldown, 1, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES)
+    if (validated === null) {
+      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES))
+      return
+    }
+    setCooldownError(null)
+    onChange({ ...preCondition, cooldown_minutes: validated })
   }
 
   return (
@@ -163,6 +179,30 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               {thresholdError}
             </p>
           )}
+          {/* Cooldown */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400">Cooldown:</span>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={preCondition?.cooldown_minutes ?? 5}
+              onChange={(e) => handleCooldownChange(e.target.value)}
+              disabled={disabled}
+              aria-label="Cooldown minutes"
+              className="w-16 rounded-md border border-gray-300 dark:border-gray-600
+                         bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white text-center
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="pre-condition-cooldown"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400">minutes</span>
+          </div>
+          {cooldownError && (
+            <p className="text-sm text-red-600 dark:text-red-400" data-testid="pre-condition-cooldown-error">
+              {cooldownError}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -176,6 +216,7 @@ PreConditionForm.propTypes = {
     sensor_type: PropTypes.string,
     comparison: PropTypes.string,
     threshold: PropTypes.number,
+    cooldown_minutes: PropTypes.number,
   }),
   /** Callback when pre-condition changes */
   onChange: PropTypes.func.isRequired,

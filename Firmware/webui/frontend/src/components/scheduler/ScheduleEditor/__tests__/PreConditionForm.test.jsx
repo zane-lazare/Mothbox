@@ -75,6 +75,7 @@ describe('PreConditionForm', () => {
         sensor_type: 'light',
         comparison: 'lt',
         threshold: 100,
+        cooldown_minutes: 5,
       })
     })
 
@@ -557,6 +558,78 @@ describe('PreConditionForm', () => {
       // Should show error and NOT call onChange
       expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
       expect(mockOnChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Cooldown', () => {
+    const preConditionWithCooldown = {
+      trigger_type: 'sensor',
+      sensor_type: 'light',
+      comparison: 'lt',
+      threshold: 100,
+      cooldown_minutes: 5,
+    }
+
+    it('renders cooldown input when enabled', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-cooldown')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-cooldown')).toHaveValue(5)
+    })
+
+    it('does not render cooldown when disabled', () => {
+      render(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.queryByTestId('pre-condition-cooldown')).not.toBeInTheDocument()
+    })
+
+    it('updates cooldown value', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '15' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionWithCooldown,
+        cooldown_minutes: 15,
+      })
+    })
+
+    it('shows error for cooldown below 1', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '0' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows error for cooldown above 60', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '61' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('includes cooldown_minutes in default pre-condition', () => {
+      render(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-toggle-0')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({ cooldown_minutes: 5 })
+      )
     })
   })
 
