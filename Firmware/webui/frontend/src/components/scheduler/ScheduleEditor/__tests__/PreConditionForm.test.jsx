@@ -559,4 +559,55 @@ describe('PreConditionForm', () => {
       expect(mockOnChange).not.toHaveBeenCalled()
     })
   })
+
+  describe('Unit labels', () => {
+    it('shows "lux" unit when sensor type is light', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+      }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('lux')).toBeInTheDocument()
+    })
+
+    it('shows "°C" unit when sensor type is temperature', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'temperature',
+        comparison: 'gt',
+        threshold: 25,
+      }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('°C')).toBeInTheDocument()
+    })
+
+    it('updates unit label when sensor type changes', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+      }
+      const { rerender } = render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('lux')).toBeInTheDocument()
+
+      rerender(
+        <PreConditionForm
+          preCondition={{ ...preCondition, sensor_type: 'temperature' }}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      expect(screen.getByText('°C')).toBeInTheDocument()
+      expect(screen.queryByText('lux')).not.toBeInTheDocument()
+    })
+  })
 })

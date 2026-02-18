@@ -11,6 +11,12 @@ const DEFAULT_PRE_CONDITION = {
   threshold: 100,
 }
 
+/** Unit labels for sensor types */
+const SENSOR_UNITS = {
+  light: 'lux',
+  temperature: '°C',
+}
+
 /**
  * PreConditionForm - Optional sensor condition toggle with configuration
  *
@@ -147,6 +153,9 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
                          disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="pre-condition-threshold"
             />
+            <span className="text-xs text-gray-500 dark:text-gray-400" data-testid="pre-condition-unit">
+              {SENSOR_UNITS[preCondition?.sensor_type] || ''}
+            </span>
           </div>
           {/* Threshold validation error */}
           {thresholdError && (
