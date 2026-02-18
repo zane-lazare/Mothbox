@@ -135,6 +135,12 @@ def health():
                 result["managed_lines"] = int(value)
             elif key == "last_cmd":
                 result["last_command_at"] = value
+            elif key == "commands":
+                result["total_commands"] = int(value)
+            elif key == "errors":
+                result["total_errors"] = int(value)
+            elif key == "memory_kb":
+                result["memory_kb"] = int(value)
     return result
 
 

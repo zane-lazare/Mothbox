@@ -221,6 +221,45 @@ class TestHealthCommand:
         send_to_daemon(sock_path, "HEALTH")
         assert send_to_daemon(sock_path, "PING") == "PONG"
 
+    def test_health_includes_counters(self, running_daemon):
+        """HEALTH response includes commands, errors, and memory_kb."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        send_to_daemon(sock_path, "SET bogus on")  # generates an error
+        response = send_to_daemon(sock_path, "HEALTH")
+        assert "commands=" in response
+        assert "errors=" in response
+        assert "memory_kb=" in response
+
+    def test_health_command_count_increments(self, running_daemon):
+        """Command counter should reflect total commands processed."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        send_to_daemon(sock_path, "PING")
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("commands="):
+                count = int(part.split("=", 1)[1])
+                # At least 2 PINGs + this HEALTH = 3
+                assert count >= 3
+                break
+        else:
+            pytest.fail("commands= not found in HEALTH response")
+
+    def test_health_error_count_increments(self, running_daemon):
+        """Error counter should count ERR responses."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "SET bogus on")  # ERR
+        send_to_daemon(sock_path, "READ bogus")   # ERR
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("errors="):
+                errors = int(part.split("=", 1)[1])
+                assert errors >= 2
+                break
+        else:
+            pytest.fail("errors= not found in HEALTH response")
+
 
 @pytest.mark.unit
 class TestSetCommand:

@@ -24,6 +24,7 @@ import signal
 import socket
 import sys
 import threading
+import resource
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -227,7 +228,9 @@ def run(stop_event: threading.Event | None = None):
 
     # --- Health tracking ---
     started_at = time.time()
-    last_command_at = None  # updated to time.time() on each command
+    last_command_at = None
+    command_count = 0
+    error_count = 0
 
     # --- Helper: persist relay state ---
     def _persist():
@@ -247,7 +250,8 @@ def run(stop_event: threading.Event | None = None):
 
     # --- Command handler ---
     def _handle_command(cmd: str) -> str:
-        nonlocal last_command_at
+        nonlocal last_command_at, command_count
+        command_count += 1
         parts = cmd.strip().split()
         if not parts:
             return "ERR empty command"
@@ -261,6 +265,7 @@ def run(stop_event: threading.Event | None = None):
         elif verb == "HEALTH":
             uptime = time.time() - started_at
             lines_count = len(all_pins)
+            mem_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             if last_command_at is not None:
                 last_cmd_iso = datetime.fromtimestamp(
                     last_command_at, tz=UTC
@@ -268,7 +273,11 @@ def run(stop_event: threading.Event | None = None):
             else:
                 last_cmd_iso = "never"
             last_command_at = time.time()
-            return f"HEALTH uptime={uptime:.1f} lines={lines_count} last_cmd={last_cmd_iso}"
+            return (
+                f"HEALTH uptime={uptime:.1f} lines={lines_count} "
+                f"last_cmd={last_cmd_iso} commands={command_count} "
+                f"errors={error_count} memory_kb={mem_kb}"
+            )
 
         elif verb == "SET" and len(parts) == 3:
             name, value = parts[1], parts[2].lower()
@@ -366,6 +375,8 @@ def run(stop_event: threading.Event | None = None):
                 conn.settimeout(CONN_TIMEOUT)
                 data = _recv_line(conn)
                 response = _handle_command(data) if data else "OK"
+                if response.startswith("ERR"):
+                    error_count += 1
                 conn.sendall((response + "\n").encode())
             except Exception as exc:
                 logger.warning("Error handling client: %s", exc)

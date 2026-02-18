@@ -129,6 +129,16 @@ class TestHealth:
         ):
             health()
 
+    def test_parses_extended_health_fields(self):
+        mock = MockDaemonSocket(
+            "HEALTH uptime=120.5 lines=5 last_cmd=never commands=42 errors=3 memory_kb=8192\n"
+        )
+        with patch("socket.socket", return_value=mock):
+            result = health()
+        assert result["total_commands"] == 42
+        assert result["total_errors"] == 3
+        assert result["memory_kb"] == 8192
+
 
 @pytest.mark.unit
 class TestSetupRelay:
