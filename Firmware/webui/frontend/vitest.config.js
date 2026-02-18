@@ -44,7 +44,13 @@ export default defineConfig({
       exclude: [
         'node_modules/',
         'src/setupTests.js',
-      ]
+      ],
+      thresholds: {
+        statements: 70,
+        branches: 60,
+        functions: 70,
+        lines: 70,
+      },
     }
   },
 })
