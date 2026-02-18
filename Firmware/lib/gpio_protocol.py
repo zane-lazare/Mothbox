@@ -13,6 +13,9 @@ CONN_TIMEOUT = 2.0
 MAX_MSG_LENGTH = 256
 
 
+CMD_HEALTH = "HEALTH"
+
+
 class GPIODaemonError(Exception):
     """Raised by mutations (relay_on, relay_off, write_gpio_state, read_switch)
     when the daemon is unreachable or returns ERR.

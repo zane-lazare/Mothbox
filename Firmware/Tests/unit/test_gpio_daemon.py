@@ -162,6 +162,67 @@ class TestDaemonPing:
 
 
 @pytest.mark.unit
+class TestHealthCommand:
+    """HEALTH command — daemon status reporting."""
+
+    def test_health_returns_expected_fields(self, running_daemon):
+        """HEALTH response contains uptime, lines, and last_cmd fields."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        assert response.startswith("HEALTH ")
+        assert "uptime=" in response
+        assert "lines=" in response
+        assert "last_cmd=" in response
+
+    def test_health_uptime_is_positive(self, running_daemon):
+        """Uptime should be a positive float (daemon has been running)."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        # Parse uptime value
+        for part in response.split():
+            if part.startswith("uptime="):
+                uptime = float(part.split("=", 1)[1])
+                assert uptime >= 0.0
+                break
+        else:
+            pytest.fail("uptime= not found in HEALTH response")
+
+    def test_health_lines_count(self, running_daemon):
+        """Lines count should match total relay + switch pins (5)."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("lines="):
+                lines = int(part.split("=", 1)[1])
+                # 3 relay pins + 2 switch pins = 5
+                assert lines == 5
+                break
+        else:
+            pytest.fail("lines= not found in HEALTH response")
+
+    def test_health_last_cmd_after_ping(self, running_daemon):
+        """After a PING, last_cmd should be an ISO timestamp (not 'never')."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("last_cmd="):
+                last_cmd = part.split("=", 1)[1]
+                assert last_cmd != "never"
+                # Should be an ISO timestamp containing 'T'
+                assert "T" in last_cmd
+                break
+        else:
+            pytest.fail("last_cmd= not found in HEALTH response")
+
+    def test_health_does_not_crash_daemon(self, running_daemon):
+        """Daemon remains responsive after HEALTH command."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "HEALTH")
+        assert send_to_daemon(sock_path, "PING") == "PONG"
+
+
+@pytest.mark.unit
 class TestSetCommand:
     """SET <name> <on|off> commands."""
 
