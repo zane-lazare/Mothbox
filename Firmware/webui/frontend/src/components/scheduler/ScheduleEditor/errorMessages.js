@@ -39,10 +39,11 @@ export const NUMERIC_ERRORS = {
 
   /**
    * Generate error message for cooldown validation.
+   * @param {number} min - Minimum allowed value
    * @param {number} max - Maximum allowed value
    * @returns {string} Error message
    */
-  INVALID_COOLDOWN: (max) => `Cooldown must be between 0 and ${max} minutes`,
+  INVALID_COOLDOWN: (min, max) => `Cooldown must be between ${min} and ${max} minutes`,
 
   /**
    * Error message for invalid threshold values.

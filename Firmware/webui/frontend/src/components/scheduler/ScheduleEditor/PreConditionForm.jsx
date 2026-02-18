@@ -105,7 +105,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
   const handleCooldownChange = (newCooldown) => {
     const validated = validateNumericInput(newCooldown, SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES)
     if (validated === null) {
-      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES))
+      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES))
       return
     }
     setCooldownError(null)
@@ -215,7 +215,7 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
             <input
               type="number"
               min={SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES}
-              max={60}
+              max={SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES}
               value={preCondition?.cooldown_minutes ?? 5}
               onChange={(e) => handleCooldownChange(e.target.value)}
               disabled={disabled}

@@ -78,7 +78,7 @@ const SensorTriggerForm = ({
   const handleCooldownChange = (newCooldown) => {
     const validated = validateNumericInput(newCooldown, 0, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES);
     if (validated === null) {
-      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES));
+      setCooldownError(NUMERIC_ERRORS.INVALID_COOLDOWN(0, SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES));
       return;
     }
     setCooldownError(null);
