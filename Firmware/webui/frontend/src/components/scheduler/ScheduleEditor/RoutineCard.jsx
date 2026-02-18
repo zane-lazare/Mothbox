@@ -13,6 +13,7 @@ import PropTypes from 'prop-types'
 import { ChevronDownIcon, TrashIcon } from '@heroicons/react/24/outline'
 import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
+import PreConditionForm from './PreConditionForm'
 import TriggerLabel from './TriggerLabel'
 import { generateRoutineName, getActionColor } from '@/utils/routineUtils'
 import { RoutinePropType } from './propTypes'
@@ -103,6 +104,19 @@ function RoutineCard({
     [onUpdate, routine]
   )
 
+  /**
+   * Handle pre-condition change
+   */
+  const handlePreConditionChange = useCallback(
+    (newPreCondition) => {
+      onUpdate({
+        ...routine,
+        pre_condition: newPreCondition,
+      })
+    },
+    [onUpdate, routine]
+  )
+
   return (
     <div
       className={`border rounded transition-colors ${
@@ -149,6 +163,9 @@ function RoutineCard({
         {/* Right side: trigger label + chevron + delete */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <TriggerLabel trigger={routine.trigger} />
+          {routine.pre_condition && (
+            <span className="text-xs text-amber-500/70 font-medium">Gated</span>
+          )}
           <ChevronDownIcon
             className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${
               expanded ? 'rotate-180' : ''
@@ -183,6 +200,12 @@ function RoutineCard({
             <TriggerSelector
               trigger={routine.trigger}
               onChange={handleTriggerChange}
+              disabled={disabled}
+            />
+            <PreConditionForm
+              preCondition={routine.pre_condition || null}
+              onChange={handlePreConditionChange}
+              routineIndex={index}
               disabled={disabled}
             />
           </div>
