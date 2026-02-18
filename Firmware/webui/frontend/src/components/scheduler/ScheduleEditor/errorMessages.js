@@ -80,6 +80,7 @@ export const DAY_SELECTION_ERRORS = {
 export const TIME_ERRORS = {
   INVALID_TIME_FORMAT: 'Invalid time format',
   START_AFTER_END: 'Start time must be before end time',
+  SAME_START_END: 'Start and end times cannot be the same',
 };
 
 /**

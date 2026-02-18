@@ -770,6 +770,52 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '21:00', end_time: '07:00' },
       })
     })
+
+    it('shows error when start and end times are the same', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '21:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-error')).toHaveTextContent(
+        'Start and end times cannot be the same'
+      )
+    })
+
+    it('clears error when times are changed to be different', () => {
+      const withSameTime = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '21:00' },
+      }
+      const { rerender } = render(
+        <PreConditionForm preCondition={withSameTime} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-error')).toBeInTheDocument()
+
+      rerender(
+        <PreConditionForm
+          preCondition={{ ...preConditionBase, time_window: { start_time: '21:00', end_time: '06:00' } }}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+    })
+
+    it('renders time window with empty times without error', () => {
+      const withEmptyTimes = {
+        ...preConditionBase,
+        time_window: { start_time: '', end_time: '' },
+      }
+      render(
+        <PreConditionForm preCondition={withEmptyTimes} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-start')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-tw-end')).toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+    })
   })
 
   describe('Unit labels', () => {

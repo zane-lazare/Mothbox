@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { SENSOR_TYPES, SCHEDULE_LIMITS, validateNumericInput } from './constants'
-import { NUMERIC_ERRORS } from './errorMessages'
+import { NUMERIC_ERRORS, TIME_ERRORS } from './errorMessages'
 
 /** Default pre-condition when enabled */
 const DEFAULT_PRE_CONDITION = {
@@ -111,6 +111,14 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
     setCooldownError(null)
     onChange({ ...preCondition, cooldown_minutes: validated })
   }
+
+  // Validate same start/end time (computed from props, not state)
+  const timeWindowError =
+    preCondition?.time_window?.start_time &&
+    preCondition?.time_window?.end_time &&
+    preCondition.time_window.start_time === preCondition.time_window.end_time
+      ? TIME_ERRORS.SAME_START_END
+      : null
 
   return (
     <div className="space-y-3">
@@ -273,6 +281,12 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
                 data-testid="pre-condition-tw-end"
               />
             </div>
+          )}
+          {/* Time window validation error */}
+          {timeWindowError && (
+            <p className="pl-6 text-sm text-red-600 dark:text-red-400" data-testid="pre-condition-tw-error">
+              {timeWindowError}
+            </p>
           )}
         </div>
       )}
