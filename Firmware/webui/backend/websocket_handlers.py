@@ -103,9 +103,16 @@ def register_handlers(socketio, camera_streamer):
 
     @socketio.on("disconnect")
     def handle_disconnect():
-        """Handle client WebSocket disconnection"""
+        """Handle client WebSocket disconnection.
+
+        Runs stop_streaming in a background thread to avoid blocking
+        the event loop and causing race conditions with HTTP responses.
+        See issue #376.
+        """
         print("Client disconnected - stopping live view if active")
-        camera_streamer.stop_streaming()
+        import threading
+
+        threading.Thread(target=camera_streamer.stop_streaming, daemon=True).start()
 
     # New event names
     @socketio.on("start_liveview")

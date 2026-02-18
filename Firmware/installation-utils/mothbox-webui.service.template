@@ -8,7 +8,7 @@ Type=simple
 User=__MOTHBOX_USER__
 Group=gpio
 WorkingDirectory=__MOTHBOX_HOME__/webui/backend
-ExecStart=/usr/bin/python3 __MOTHBOX_HOME__/webui/backend/app.py
+ExecStart=/usr/bin/gunicorn -c __MOTHBOX_HOME__/webui/backend/gunicorn.conf.py --chdir __MOTHBOX_HOME__/webui/backend app:app
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -41,9 +41,6 @@ Environment="PYTHONUNBUFFERED=1"
 #   2. Run: sudo systemctl daemon-reload
 #   3. Run: sudo systemctl restart mothbox-webui
 Environment="ALLOWED_ORIGINS=__ALLOWED_ORIGINS__"
-
-# TODO: Switch to gunicorn for production deployment (issue #19)
-# Future: ExecStart=/usr/bin/gunicorn -c __MOTHBOX_HOME__/webui/backend/gunicorn_config.py app:app
 
 [Install]
 WantedBy=multi-user.target
