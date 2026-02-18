@@ -8,6 +8,7 @@ import * as api from '../../utils/api'
 // Mock the API module
 vi.mock('../../utils/api', () => ({
   getGpioStatus: vi.fn(),
+  getGpioHealth: vi.fn(),
   controlGpio: vi.fn(),
   triggerFlash: vi.fn(),
 }))
@@ -32,8 +33,11 @@ describe('GPIO', () => {
 
     vi.clearAllMocks()
 
-    // Set default mock response
+    // Set default mock responses
     api.getGpioStatus.mockResolvedValue({ data: mockGpioStatus })
+    api.getGpioHealth.mockResolvedValue({
+      data: { reachable: true, uptime_seconds: 8100, managed_lines: 3 },
+    })
   })
 
   const renderComponent = () => {
@@ -170,5 +174,42 @@ describe('GPIO', () => {
     })
 
     expect(screen.queryByText(/Loading GPIO status.../i)).not.toBeInTheDocument()
+  })
+
+  it('shows daemon connected with uptime when health is reachable', async () => {
+    api.getGpioHealth.mockResolvedValue({
+      data: { reachable: true, uptime_seconds: 8100, managed_lines: 3 },
+    })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Daemon connected/i)).toBeInTheDocument()
+    })
+
+    // 8100 seconds = 2h 15m
+    expect(screen.getByText(/uptime 2h 15m/i)).toBeInTheDocument()
+  })
+
+  it('shows daemon offline when health query fails', async () => {
+    api.getGpioHealth.mockRejectedValue(new Error('Connection refused'))
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Daemon offline/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows daemon offline when reachable is false', async () => {
+    api.getGpioHealth.mockResolvedValue({
+      data: { reachable: false },
+    })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Daemon offline/i)).toBeInTheDocument()
+    })
   })
 })

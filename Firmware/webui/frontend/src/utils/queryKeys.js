@@ -49,6 +49,7 @@ export const QUERY_KEYS = {
   SYSTEM_STATUS: ['system-status'],
   POWER_STATUS: ['power-status'],
   GPIO_STATUS: ['gpio-status'],
+  GPIO_HEALTH: ['gpio', 'health'],
   SCHEDULER_STATUS: ['scheduler-status'],
   GPS_STATUS: ['gps-status'],
 

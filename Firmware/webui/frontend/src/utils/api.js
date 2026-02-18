@@ -109,6 +109,7 @@ export const copySettings = (data) => api.post('/config/copy-settings', data)
 
 // GPIO APIs
 export const getGpioStatus = () => api.get('/gpio/status')
+export const getGpioHealth = () => api.get('/gpio/health')
 export const controlGpio = (relay, state) => api.post('/gpio/control', { relay, state })
 export const triggerFlash = () => api.post('/gpio/flash')
 
