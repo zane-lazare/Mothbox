@@ -307,6 +307,26 @@ except Exception as e:
     logger.warning(f"Failed to initialize deployment service: {e}")
     app.config["DEPLOYMENT_SERVICE"] = None
 
+# Clean up orphaned lock files from previous sessions (#408)
+# These functions already exist and are tested — we just need to invoke them at startup.
+try:
+    from webui.backend.lib.schedule_storage import cleanup_temp_files as cleanup_schedule_locks
+
+    removed = cleanup_schedule_locks()
+    if removed > 0:
+        logger.info(f"Cleaned up {removed} orphaned schedule lock file(s)")
+except Exception as e:
+    logger.warning(f"Schedule lock cleanup failed (non-fatal): {e}")
+
+try:
+    from webui.backend.lib.deployment_sidecar import cleanup_temp_files as cleanup_deployment_locks
+
+    removed = cleanup_deployment_locks(PHOTOS_DIR)
+    if removed > 0:
+        logger.info(f"Cleaned up {removed} orphaned deployment lock file(s)")
+except Exception as e:
+    logger.warning(f"Deployment lock cleanup failed (non-fatal): {e}")
+
 # Initialize export preset manager
 from mothbox_paths import EXPORT_BUILTIN_PRESET_DIR, EXPORT_USER_PRESET_DIR
 from webui.backend.export_preset_manager import ExportPresetManager
