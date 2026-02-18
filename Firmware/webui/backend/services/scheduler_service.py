@@ -40,7 +40,7 @@ from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 
-from mothbox_paths import CONFIG_DIR
+from mothbox_paths import CONFIG_DIR, CONTROLS_FILE, get_control_values
 from webui.backend.constants import (
     CRON_ENTRY_WARNING_THRESHOLD,
     CRON_PREVIEW_DAYS_AHEAD,
@@ -946,6 +946,109 @@ class SchedulerService:
             None if no schedule is active.
         """
         return self._active_timezone_name
+
+    def check_and_update_gps(self) -> dict:
+        """
+        Check if GPS coordinates are available and update active schedule if needed (Issue #382).
+
+        Only runs when the active schedule is using timezone-based coordinates.
+        When GPS becomes available, updates coordinates, regenerates cron entries,
+        and persists the new state.
+
+        Returns:
+            dict with "updated" (bool), and if updated: "latitude", "longitude",
+            "previous_source" keys.
+        """
+        # Guard: only act when source is "timezone" and a schedule is active
+        if self._active_coordinates_source != "timezone" or not self._active_schedule_id:
+            return {"updated": False}
+
+        # Read GPS from controls.txt
+        control_values = get_control_values(CONTROLS_FILE)
+        device_lat = control_values.get("lat", "n/a")
+        device_lon = control_values.get("lon", "n/a")
+
+        # Check if GPS is available (not "n/a" and numeric)
+        if device_lat == "n/a" or device_lon == "n/a":
+            return {"updated": False}
+
+        try:
+            latitude = float(device_lat)
+            longitude = float(device_lon)
+        except (ValueError, TypeError):
+            return {"updated": False}
+
+        # Validate coordinate ranges
+        if latitude < -90 or latitude > 90 or longitude < -180 or longitude > 180:
+            logger.warning(f"GPS coordinates out of range: {latitude}, {longitude}")
+            return {"updated": False}
+
+        # GPS available — update coordinates and regenerate cron
+        with self._activation_lock:
+            # Re-check source under lock (may have changed)
+            if self._active_coordinates_source != "timezone":
+                return {"updated": False}
+
+            schedule_id = self._active_schedule_id
+            timezone_name = self._active_timezone_name or "UTC"
+
+            # Get the schedule for cron regeneration
+            schedule = self.get_schedule(schedule_id)
+            if not schedule:
+                logger.error(f"GPS update: schedule not found: {schedule_id}")
+                return {"updated": False}
+
+            try:
+                # Regenerate cron with new coordinates
+                result = schedule_to_cron(
+                    schedule,
+                    latitude=latitude,
+                    longitude=longitude,
+                    timezone_name=timezone_name,
+                )
+                if result.errors:
+                    logger.error(f"GPS update: cron conversion failed: {result.errors}")
+                    return {"updated": False}
+
+                # Apply new cron entries to system
+                apply_to_system(
+                    entries=result.entries,
+                    schedule_id=schedule_id,
+                    set_rtc=True,
+                )
+
+                # Expand entries for frontend
+                expanded_entries = expand_pattern_entries(
+                    entries=result.entries,
+                    days_ahead=CRON_PREVIEW_DAYS_AHEAD,
+                    timezone_name=timezone_name,
+                )
+
+                # Update in-memory state
+                previous_source = self._active_coordinates_source
+                with self._cache_lock:
+                    self._active_coordinates_source = "gps"
+                    self._active_latitude = latitude
+                    self._active_longitude = longitude
+
+                # Persist to disk
+                self._save_active_state(entries=expanded_entries)
+
+                logger.info(
+                    f"GPS auto-update: coordinates updated from {previous_source} to GPS "
+                    f"for schedule {schedule_id}"
+                )
+
+                return {
+                    "updated": True,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "previous_source": previous_source,
+                }
+
+            except Exception as e:
+                logger.error(f"GPS auto-update failed: {e}")
+                return {"updated": False}
 
     def get_enabled_schedule_id(self) -> str | None:
         """
