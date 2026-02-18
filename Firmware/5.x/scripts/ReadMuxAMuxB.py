@@ -1,3 +1,6 @@
+# DEPRECATED: This script uses RPi.GPIO directly, which conflicts with the GPIO daemon.
+# For relay control, use the gpio_client library instead: lib.gpio_client.relay_on/relay_off
+# This script is retained for reference only. See issue #404.
 import sys
 import time
 from pathlib import Path
