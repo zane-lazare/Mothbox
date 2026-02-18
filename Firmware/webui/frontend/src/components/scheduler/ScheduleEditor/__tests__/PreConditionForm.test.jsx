@@ -631,6 +631,42 @@ describe('PreConditionForm', () => {
         expect.objectContaining({ cooldown_minutes: 5 })
       )
     })
+
+    it('shows error for non-numeric cooldown input', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: 'abc' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows error for empty cooldown input', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('accepts decimal cooldown values within range', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '5.5' } })
+
+      expect(screen.queryByTestId('pre-condition-cooldown-error')).not.toBeInTheDocument()
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionWithCooldown,
+        cooldown_minutes: 5.5,
+      })
+    })
   })
 
   describe('Time window', () => {
