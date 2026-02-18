@@ -103,6 +103,56 @@ describe('SocketContext', () => {
     })
   })
 
+  describe('Reconnection', () => {
+    it('provides reconnecting state initially false', async () => {
+      await setupContext()
+      expect(ctx.reconnecting).toBe(false)
+    })
+
+    it('sets reconnecting to true on reconnect_attempt event', async () => {
+      await setupContext()
+      expect(ctx.reconnecting).toBe(false)
+
+      await act(async () => {
+        handlers['reconnect_attempt']()
+      })
+
+      expect(ctx.reconnecting).toBe(true)
+    })
+
+    it('sets reconnecting to false on reconnect event', async () => {
+      await setupContext()
+
+      // Start reconnecting
+      await act(async () => {
+        handlers['reconnect_attempt']()
+      })
+      expect(ctx.reconnecting).toBe(true)
+
+      // Successfully reconnected
+      await act(async () => {
+        handlers['reconnect']()
+      })
+      expect(ctx.reconnecting).toBe(false)
+    })
+
+    it('sets reconnecting to false on reconnect_failed event', async () => {
+      await setupContext()
+
+      // Start reconnecting
+      await act(async () => {
+        handlers['reconnect_attempt']()
+      })
+      expect(ctx.reconnecting).toBe(true)
+
+      // Gave up
+      await act(async () => {
+        handlers['reconnect_failed']()
+      })
+      expect(ctx.reconnecting).toBe(false)
+    })
+  })
+
   describe('Unmount Cleanup', () => {
     it('disconnects socket on unmount', async () => {
       const { unmount } = render(

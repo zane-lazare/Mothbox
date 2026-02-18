@@ -43,4 +43,10 @@ describe('useSocket', () => {
     expect(result.current).toHaveProperty('connected')
     expect(typeof result.current.connected).toBe('boolean')
   })
+
+  it('has reconnecting property', () => {
+    const { result } = renderHook(() => useSocket(), { wrapper })
+    expect(result.current).toHaveProperty('reconnecting')
+    expect(typeof result.current.reconnecting).toBe('boolean')
+  })
 })

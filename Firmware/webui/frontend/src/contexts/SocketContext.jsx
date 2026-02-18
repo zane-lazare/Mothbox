@@ -17,18 +17,36 @@ const SocketContext = createContext(null)
 export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null)
   const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
 
   useEffect(() => {
     const newSocket = io(window.location.origin, {
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     })
 
     newSocket.on('connect', () => {
       setConnected(true)
+      setReconnecting(false)
     })
 
     newSocket.on('disconnect', () => {
       setConnected(false)
+    })
+
+    newSocket.on('reconnect_attempt', () => {
+      setReconnecting(true)
+    })
+
+    newSocket.on('reconnect', () => {
+      setReconnecting(false)
+    })
+
+    newSocket.on('reconnect_failed', () => {
+      setReconnecting(false)
     })
 
     setSocket(newSocket)
@@ -39,8 +57,8 @@ export function SocketProvider({ children }) {
   }, [])
 
   const contextValue = useMemo(
-    () => ({ socket, connected }),
-    [socket, connected]
+    () => ({ socket, connected, reconnecting }),
+    [socket, connected, reconnecting]
   )
 
   return (

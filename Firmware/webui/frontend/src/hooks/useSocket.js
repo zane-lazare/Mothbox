@@ -6,10 +6,10 @@ import { useSocketContext } from '../contexts/SocketContext'
  * Returns the shared Socket.io connection and connection status.
  * Throws if used outside of a SocketProvider.
  *
- * @returns {{ socket: import('socket.io-client').Socket | null, connected: boolean }}
+ * @returns {{ socket: import('socket.io-client').Socket | null, connected: boolean, reconnecting: boolean }}
  *
  * @example
- * const { socket, connected } = useSocket()
+ * const { socket, connected, reconnecting } = useSocket()
  *
  * useEffect(() => {
  *   if (!socket) return
