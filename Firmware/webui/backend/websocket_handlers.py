@@ -26,6 +26,8 @@ Usage:
     register_handlers(socketio, liveview_streamer)
 """
 
+import threading
+
 # Import camera control mapping
 from camera_control_mapping import from_picamera_metadata
 from flask_socketio import emit
@@ -110,9 +112,7 @@ def register_handlers(socketio, camera_streamer):
         See issue #376.
         """
         print("Client disconnected - stopping live view if active")
-        import threading
-
-        threading.Thread(target=camera_streamer.stop_streaming, daemon=True).start()
+        threading.Thread(target=camera_streamer.stop_streaming, daemon=False).start()
 
     # New event names
     @socketio.on("start_liveview")

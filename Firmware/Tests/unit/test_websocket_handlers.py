@@ -326,6 +326,42 @@ class TestWebSocketDisconnectEvent:
             # Note: In actual implementation, this happens in disconnect handler
             print("\n✓ Disconnect handler cleans up streaming")
 
+    def test_disconnect_thread_is_non_daemon(self):
+        """Test disconnect handler creates a non-daemon thread so cleanup completes before exit"""
+        from flask import Flask
+        from flask_socketio import SocketIO
+        from liveview_stream import LiveViewStreamer
+        import websocket_handlers
+
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        socketio_instance = SocketIO(app)
+
+        # Create camera streamer
+        camera_streamer = LiveViewStreamer(socketio_instance)
+
+        # Register handlers
+        websocket_handlers.register_handlers(socketio_instance, camera_streamer)
+
+        # Connect client
+        client = socketio_instance.test_client(app, namespace='/')
+
+        # Patch threading.Thread to capture constructor args
+        with patch('websocket_handlers.threading') as mock_threading:
+            mock_thread = Mock()
+            mock_threading.Thread.return_value = mock_thread
+
+            # Trigger disconnect
+            client.disconnect()
+
+            # Verify Thread was called with daemon=False
+            mock_threading.Thread.assert_called_once_with(
+                target=camera_streamer.stop_streaming, daemon=False
+            )
+            mock_thread.start.assert_called_once()
+
+        print("\n✓ Disconnect thread is non-daemon (cleanup completes before exit)")
+
     def test_disconnect_cleanup_verification(self):
         """Test disconnect properly cleans up resources"""
         from flask import Flask
