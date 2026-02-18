@@ -219,6 +219,19 @@ export const RoutineActionPropType = PropTypes.shape({
 });
 
 /**
+ * PropTypes shape for a sensor pre-condition.
+ * Optional gate that restricts routine execution based on sensor readings.
+ */
+export const PreConditionPropType = PropTypes.shape({
+  trigger_type: PropTypes.string,
+  sensor_type: PropTypes.string,
+  comparison: PropTypes.string,
+  threshold: PropTypes.number,
+  cooldown_minutes: PropTypes.number,
+  time_window: TimeWindowPropType,
+})
+
+/**
  * PropTypes shape for a routine configuration.
  * Routines combine a trigger with a sequence of actions.
  *
@@ -238,6 +251,7 @@ export const RoutinePropType = PropTypes.shape({
   name: PropTypes.string,
   trigger: TriggerPropType,
   actions: PropTypes.arrayOf(RoutineActionPropType),
+  pre_condition: PreConditionPropType,
 });
 
 /**

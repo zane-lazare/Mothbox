@@ -24,6 +24,8 @@ export const SCHEDULE_LIMITS = {
   MIN_INTERVAL_MINUTES: 1,
   /** Maximum cooldown minutes */
   MAX_COOLDOWN_MINUTES: 60,
+  /** Minimum cooldown minutes */
+  MIN_COOLDOWN_MINUTES: 1,
   /** Maximum offset days */
   MAX_OFFSET_DAYS: 7,
 }

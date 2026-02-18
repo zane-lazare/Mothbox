@@ -38,6 +38,39 @@ vi.mock('../../RoutineEditor/ActionList', () => ({
   )),
 }))
 
+// Mock PreConditionForm to simplify tests
+vi.mock('../PreConditionForm', () => ({
+  default: vi.fn(({ preCondition, onChange, disabled }) => (
+    <div data-testid="mock-pre-condition-form">
+      <span data-testid="pre-condition-status">
+        {preCondition ? 'enabled' : 'disabled'}
+      </span>
+      <button
+        onClick={() =>
+          onChange({
+            trigger_type: 'sensor',
+            sensor_type: 'light',
+            comparison: 'lt',
+            threshold: 100,
+            cooldown_minutes: 5,
+          })
+        }
+        disabled={disabled}
+        data-testid="enable-pre-condition"
+      >
+        Enable Pre-Condition
+      </button>
+      <button
+        onClick={() => onChange(null)}
+        disabled={disabled}
+        data-testid="disable-pre-condition"
+      >
+        Disable Pre-Condition
+      </button>
+    </div>
+  )),
+}))
+
 describe('RoutineCard', () => {
   const defaultRoutine = {
     routine_id: 'test-routine-1',
@@ -371,6 +404,76 @@ describe('RoutineCard', () => {
       const nameElement = screen.getByTestId('routine-name')
       expect(nameElement).toHaveClass('truncate')
       expect(nameElement).toHaveTextContent(longNameRoutine.name)
+    })
+  })
+
+  describe('pre-condition integration', () => {
+    it('renders PreConditionForm inside trigger section when expanded', () => {
+      render(<RoutineCard {...defaultProps} defaultExpanded={true} />)
+      expect(screen.getByTestId('mock-pre-condition-form')).toBeInTheDocument()
+    })
+
+    it('passes routine.pre_condition to PreConditionForm', () => {
+      const routineWithPreCondition = {
+        ...defaultRoutine,
+        pre_condition: {
+          trigger_type: 'sensor',
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        },
+      }
+      render(
+        <RoutineCard
+          {...defaultProps}
+          routine={routineWithPreCondition}
+          defaultExpanded={true}
+        />
+      )
+      expect(screen.getByTestId('pre-condition-status')).toHaveTextContent('enabled')
+    })
+
+    it('calls onUpdate with pre_condition when pre-condition changes', async () => {
+      const user = userEvent.setup()
+      const onUpdate = vi.fn()
+      render(
+        <RoutineCard {...defaultProps} onUpdate={onUpdate} defaultExpanded={true} />
+      )
+
+      await user.click(screen.getByTestId('enable-pre-condition'))
+
+      expect(onUpdate).toHaveBeenCalledWith({
+        ...defaultRoutine,
+        pre_condition: {
+          trigger_type: 'sensor',
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+          cooldown_minutes: 5,
+        },
+      })
+    })
+
+    it('shows "Gated" badge when routine has pre_condition', () => {
+      const routineWithPreCondition = {
+        ...defaultRoutine,
+        pre_condition: {
+          trigger_type: 'sensor',
+          sensor_type: 'light',
+          comparison: 'lt',
+          threshold: 100,
+        },
+      }
+      render(
+        <RoutineCard {...defaultProps} routine={routineWithPreCondition} />
+      )
+      expect(screen.getByText('Gated')).toBeInTheDocument()
+    })
+
+    it('does not show "Gated" badge when routine has no pre_condition', () => {
+      render(<RoutineCard {...defaultProps} />)
+      expect(screen.queryByText('Gated')).not.toBeInTheDocument()
     })
   })
 })

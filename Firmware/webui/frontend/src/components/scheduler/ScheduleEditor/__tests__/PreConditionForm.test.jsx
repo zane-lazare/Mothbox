@@ -75,6 +75,7 @@ describe('PreConditionForm', () => {
         sensor_type: 'light',
         comparison: 'lt',
         threshold: 100,
+        cooldown_minutes: 5,
       })
     })
 
@@ -174,7 +175,7 @@ describe('PreConditionForm', () => {
       // Should show error and NOT call onChange
       expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
       expect(screen.getByTestId('pre-condition-error')).toHaveTextContent(
-        'Threshold must be a positive number'
+        'Threshold must be a non-negative number'
       )
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -557,6 +558,314 @@ describe('PreConditionForm', () => {
       // Should show error and NOT call onChange
       expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
       expect(mockOnChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Cooldown', () => {
+    const preConditionWithCooldown = {
+      trigger_type: 'sensor',
+      sensor_type: 'light',
+      comparison: 'lt',
+      threshold: 100,
+      cooldown_minutes: 5,
+    }
+
+    it('renders cooldown input when enabled', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-cooldown')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-cooldown')).toHaveValue(5)
+    })
+
+    it('does not render cooldown when disabled', () => {
+      render(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.queryByTestId('pre-condition-cooldown')).not.toBeInTheDocument()
+    })
+
+    it('updates cooldown value', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '15' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionWithCooldown,
+        cooldown_minutes: 15,
+      })
+    })
+
+    it('shows error for cooldown below 1', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '0' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows error for cooldown above 60', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '61' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('includes cooldown_minutes in default pre-condition', () => {
+      render(
+        <PreConditionForm preCondition={null} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-toggle-0')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({ cooldown_minutes: 5 })
+      )
+    })
+
+    it('shows error for non-numeric cooldown input', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: 'abc' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('shows error for empty cooldown input', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '' } })
+
+      expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+      expect(mockOnChange).not.toHaveBeenCalled()
+    })
+
+    it('accepts decimal cooldown values within range', () => {
+      render(
+        <PreConditionForm preCondition={preConditionWithCooldown} onChange={mockOnChange} routineIndex={0} />
+      )
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      fireEvent.change(cooldownInput, { target: { value: '5.5' } })
+
+      expect(screen.queryByTestId('pre-condition-cooldown-error')).not.toBeInTheDocument()
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionWithCooldown,
+        cooldown_minutes: 5.5,
+      })
+    })
+  })
+
+  describe('Time window', () => {
+    const preConditionBase = {
+      trigger_type: 'sensor',
+      sensor_type: 'light',
+      comparison: 'lt',
+      threshold: 100,
+      cooldown_minutes: 5,
+    }
+
+    it('renders time window toggle when pre-condition is enabled', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).not.toBeChecked()
+    })
+
+    it('shows time inputs when time window toggle is checked', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeChecked()
+      expect(screen.getByTestId('pre-condition-tw-start')).toHaveValue('21:00')
+      expect(screen.getByTestId('pre-condition-tw-end')).toHaveValue('06:00')
+    })
+
+    it('hides time inputs when time window is null', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.queryByTestId('pre-condition-tw-start')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-end')).not.toBeInTheDocument()
+    })
+
+    it('enables time window with defaults when toggle checked', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      })
+    })
+
+    it('removes time window when toggle unchecked', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: null,
+      })
+    })
+
+    it('updates start time', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const startInput = screen.getByTestId('pre-condition-tw-start')
+      fireEvent.change(startInput, { target: { value: '22:30' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '22:30', end_time: '06:00' },
+      })
+    })
+
+    it('updates end time', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const endInput = screen.getByTestId('pre-condition-tw-end')
+      fireEvent.change(endInput, { target: { value: '07:00' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '07:00' },
+      })
+    })
+
+    it('shows error when start and end times are the same', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '21:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-error')).toHaveTextContent(
+        'Start and end times cannot be the same'
+      )
+    })
+
+    it('clears error when times are changed to be different', () => {
+      const withSameTime = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '21:00' },
+      }
+      const { rerender } = render(
+        <PreConditionForm preCondition={withSameTime} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-error')).toBeInTheDocument()
+
+      rerender(
+        <PreConditionForm
+          preCondition={{ ...preConditionBase, time_window: { start_time: '21:00', end_time: '06:00' } }}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+    })
+
+    it('renders time window with empty times without error', () => {
+      const withEmptyTimes = {
+        ...preConditionBase,
+        time_window: { start_time: '', end_time: '' },
+      }
+      render(
+        <PreConditionForm preCondition={withEmptyTimes} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-tw-start')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-tw-end')).toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Unit labels', () => {
+    it('shows "lux" unit when sensor type is light', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+      }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('lux')).toBeInTheDocument()
+    })
+
+    it('shows "°C" unit when sensor type is temperature', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'temperature',
+        comparison: 'gt',
+        threshold: 25,
+      }
+      render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('°C')).toBeInTheDocument()
+    })
+
+    it('updates unit label when sensor type changes', () => {
+      const preCondition = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+      }
+      const { rerender } = render(
+        <PreConditionForm preCondition={preCondition} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByText('lux')).toBeInTheDocument()
+
+      rerender(
+        <PreConditionForm
+          preCondition={{ ...preCondition, sensor_type: 'temperature' }}
+          onChange={mockOnChange}
+          routineIndex={0}
+        />
+      )
+      expect(screen.getByText('°C')).toBeInTheDocument()
+      expect(screen.queryByText('lux')).not.toBeInTheDocument()
     })
   })
 })
