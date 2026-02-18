@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import toast from 'react-hot-toast'
 import ActiveScheduleBanner from '../ActiveScheduleBanner'
 
 // Mock the hooks
@@ -290,6 +291,57 @@ describe('ActiveScheduleBanner', () => {
       render(<ActiveScheduleBanner />)
 
       expect(screen.queryByTestId('timezone-warning')).not.toBeInTheDocument()
+    })
+
+    it('fires toast when coordinates source transitions from timezone to gps', () => {
+      const toastSpy = vi.spyOn(toast, 'success')
+
+      const { rerender } = render(<ActiveScheduleBanner />)
+
+      // Initially timezone
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'timezone',
+          timezone_name: 'Pacific/Auckland',
+        },
+        isLoading: false,
+      })
+      rerender(<ActiveScheduleBanner />)
+
+      // Transition to GPS
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'gps',
+          latitude: -41.287,
+          longitude: 174.776,
+        },
+        isLoading: false,
+      })
+      rerender(<ActiveScheduleBanner />)
+
+      expect(toastSpy).toHaveBeenCalledWith('GPS fix acquired — solar times updated')
+      toastSpy.mockRestore()
+    })
+
+    it('does not fire toast on initial gps render', () => {
+      const toastSpy = vi.spyOn(toast, 'success')
+
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'gps',
+          latitude: -41.287,
+          longitude: 174.776,
+        },
+        isLoading: false,
+      })
+
+      render(<ActiveScheduleBanner />)
+
+      expect(toastSpy).not.toHaveBeenCalled()
+      toastSpy.mockRestore()
     })
   })
 })

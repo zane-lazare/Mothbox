@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
 import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/solid'
@@ -47,7 +47,9 @@ function getActionDisplayName(action) {
  */
 function ActiveScheduleBanner() {
   const [isActivating, setIsActivating] = useState(false)
-  const { data } = useActiveSchedule()
+  const { data } = useActiveSchedule({
+    refetchInterval: 60 * 1000,
+  })
   const { data: schedulesData } = useSchedules({ include_builtin: true })
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
     onError: (error) => {
@@ -57,6 +59,18 @@ function ActiveScheduleBanner() {
   const { mutate: activate } = useActivateSchedule()
 
   const activeSchedule = data?.active_schedule
+
+  // Track previous coordinates source for transition detection (Issue #382)
+  const prevCoordinatesSourceRef = useRef(data?.coordinates_source)
+  useEffect(() => {
+    const currentSource = data?.coordinates_source
+    const prevSource = prevCoordinatesSourceRef.current
+    if (prevSource === 'timezone' && currentSource === 'gps') {
+      toast.success('GPS fix acquired — solar times updated')
+    }
+    prevCoordinatesSourceRef.current = currentSource
+  }, [data?.coordinates_source])
+
   const schedules = schedulesData?.schedules || []
 
   // Find first enabled schedule (when no active schedule)
