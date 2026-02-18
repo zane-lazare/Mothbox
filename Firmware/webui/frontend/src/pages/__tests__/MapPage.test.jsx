@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import MapPage from '../MapPage'
@@ -99,7 +99,7 @@ vi.mock('../../components/ErrorBoundary', () => ({
 
 // Mock LightboxErrorFallback component
 vi.mock('../../components/LightboxErrorFallback', () => ({
-  default: ({ error, onClose }) => (
+  default: ({ error }) => (
     <div data-testid="lightbox-error-fallback">Error: {error?.message}</div>
   ),
 }))
