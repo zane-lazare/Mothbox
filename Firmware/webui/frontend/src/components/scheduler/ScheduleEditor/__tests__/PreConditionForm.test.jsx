@@ -633,6 +633,109 @@ describe('PreConditionForm', () => {
     })
   })
 
+  describe('Time window', () => {
+    const preConditionBase = {
+      trigger_type: 'sensor',
+      sensor_type: 'light',
+      comparison: 'lt',
+      threshold: 100,
+      cooldown_minutes: 5,
+    }
+
+    it('renders time window toggle when pre-condition is enabled', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).not.toBeChecked()
+    })
+
+    it('shows time inputs when time window toggle is checked', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeChecked()
+      expect(screen.getByTestId('pre-condition-tw-start')).toHaveValue('21:00')
+      expect(screen.getByTestId('pre-condition-tw-end')).toHaveValue('06:00')
+    })
+
+    it('hides time inputs when time window is null', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      expect(screen.queryByTestId('pre-condition-tw-start')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-end')).not.toBeInTheDocument()
+    })
+
+    it('enables time window with defaults when toggle checked', () => {
+      render(
+        <PreConditionForm preCondition={preConditionBase} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      })
+    })
+
+    it('removes time window when toggle unchecked', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      fireEvent.click(toggle)
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: null,
+      })
+    })
+
+    it('updates start time', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const startInput = screen.getByTestId('pre-condition-tw-start')
+      fireEvent.change(startInput, { target: { value: '22:30' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '22:30', end_time: '06:00' },
+      })
+    })
+
+    it('updates end time', () => {
+      const withTimeWindow = {
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+      render(
+        <PreConditionForm preCondition={withTimeWindow} onChange={mockOnChange} routineIndex={0} />
+      )
+      const endInput = screen.getByTestId('pre-condition-tw-end')
+      fireEvent.change(endInput, { target: { value: '07:00' } })
+
+      expect(mockOnChange).toHaveBeenCalledWith({
+        ...preConditionBase,
+        time_window: { start_time: '21:00', end_time: '07:00' },
+      })
+    })
+  })
+
   describe('Unit labels', () => {
     it('shows "lux" unit when sensor type is light', () => {
       const preCondition = {

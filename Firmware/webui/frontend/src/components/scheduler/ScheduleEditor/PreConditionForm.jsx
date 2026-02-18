@@ -78,6 +78,28 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
   }
 
   /**
+   * Handle time window toggle - enable/disable time window restriction
+   */
+  const handleTimeWindowToggle = (e) => {
+    const isEnabled = e.target.checked
+    if (isEnabled) {
+      onChange({ ...preCondition, time_window: { start_time: '21:00', end_time: '06:00' } })
+    } else {
+      onChange({ ...preCondition, time_window: null })
+    }
+  }
+
+  /**
+   * Handle time window field change (start_time or end_time)
+   */
+  const handleTimeWindowChange = (field, value) => {
+    onChange({
+      ...preCondition,
+      time_window: { ...preCondition.time_window, [field]: value },
+    })
+  }
+
+  /**
    * Handle cooldown change with validation (1-60 minutes)
    */
   const handleCooldownChange = (newCooldown) => {
@@ -203,6 +225,55 @@ function PreConditionForm({ preCondition, onChange, routineIndex, disabled = fal
               {cooldownError}
             </p>
           )}
+          {/* Time window toggle */}
+          <div className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              id={`pre-condition-tw-toggle-${routineIndex}`}
+              checked={!!preCondition?.time_window}
+              onChange={handleTimeWindowToggle}
+              disabled={disabled}
+              className="rounded border-gray-600 disabled:opacity-50"
+              data-testid="pre-condition-time-window-toggle"
+            />
+            <label
+              htmlFor={`pre-condition-tw-toggle-${routineIndex}`}
+              className="text-gray-400 cursor-pointer"
+            >
+              Restrict to time window
+            </label>
+          </div>
+
+          {/* Time window fields */}
+          {preCondition?.time_window && (
+            <div className="pl-6 flex items-center gap-2 text-sm">
+              <input
+                type="time"
+                value={preCondition.time_window.start_time || '21:00'}
+                onChange={(e) => handleTimeWindowChange('start_time', e.target.value)}
+                disabled={disabled}
+                aria-label="Time window start"
+                className="rounded-md border border-gray-300 dark:border-gray-600
+                           bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
+                           focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="pre-condition-tw-start"
+              />
+              <span className="text-gray-400">to</span>
+              <input
+                type="time"
+                value={preCondition.time_window.end_time || '06:00'}
+                onChange={(e) => handleTimeWindowChange('end_time', e.target.value)}
+                disabled={disabled}
+                aria-label="Time window end"
+                className="rounded-md border border-gray-300 dark:border-gray-600
+                           bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
+                           focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="pre-condition-tw-end"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -217,6 +288,10 @@ PreConditionForm.propTypes = {
     comparison: PropTypes.string,
     threshold: PropTypes.number,
     cooldown_minutes: PropTypes.number,
+    time_window: PropTypes.shape({
+      start_time: PropTypes.string,
+      end_time: PropTypes.string,
+    }),
   }),
   /** Callback when pre-condition changes */
   onChange: PropTypes.func.isRequired,
