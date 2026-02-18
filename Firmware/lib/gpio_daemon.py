@@ -20,11 +20,11 @@ IPC Protocol (newline-delimited text over Unix socket):
 import json
 import logging
 import os
+import resource
 import signal
 import socket
 import sys
 import threading
-import resource
 import time
 from datetime import UTC, datetime
 from pathlib import Path
