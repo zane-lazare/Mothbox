@@ -47,7 +47,7 @@ export const NUMERIC_ERRORS = {
   /**
    * Error message for invalid threshold values.
    */
-  INVALID_THRESHOLD: 'Threshold must be a positive number',
+  INVALID_THRESHOLD: 'Threshold must be a non-negative number',
 
   /**
    * Generate generic range error message.

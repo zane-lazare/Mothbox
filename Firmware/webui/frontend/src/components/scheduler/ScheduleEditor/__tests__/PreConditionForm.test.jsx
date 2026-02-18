@@ -175,7 +175,7 @@ describe('PreConditionForm', () => {
       // Should show error and NOT call onChange
       expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
       expect(screen.getByTestId('pre-condition-error')).toHaveTextContent(
-        'Threshold must be a positive number'
+        'Threshold must be a non-negative number'
       )
       expect(mockOnChange).not.toHaveBeenCalled()
     })
