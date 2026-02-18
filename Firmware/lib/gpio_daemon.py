@@ -20,11 +20,13 @@ IPC Protocol (newline-delimited text over Unix socket):
 import json
 import logging
 import os
+import resource
 import signal
 import socket
 import sys
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -44,6 +46,7 @@ from lib.gpio_protocol import (
     CONN_TIMEOUT,
     LISTEN_BACKLOG,
     MAX_MSG_LENGTH,
+    RECV_TOTAL_TIMEOUT,
     SOCKET_PATH,
 )
 from mothbox_paths import (
@@ -223,6 +226,12 @@ def run(stop_event: threading.Event | None = None):
 
     _sd_notify("READY=1")
 
+    # --- Health tracking ---
+    started_at = time.time()
+    last_command_at = None
+    command_count = 0
+    error_count = 0
+
     # --- Helper: persist relay state ---
     def _persist():
         state = {}
@@ -241,6 +250,8 @@ def run(stop_event: threading.Event | None = None):
 
     # --- Command handler ---
     def _handle_command(cmd: str) -> str:
+        nonlocal last_command_at, command_count
+        command_count += 1
         parts = cmd.strip().split()
         if not parts:
             return "ERR empty command"
@@ -248,7 +259,23 @@ def run(stop_event: threading.Event | None = None):
         verb = parts[0].upper()
 
         if verb == "PING":
+            last_command_at = time.time()
             return "PONG"
+
+        elif verb == "HEALTH":
+            uptime = time.time() - started_at
+            lines_count = len(all_pins)
+            mem_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            if last_command_at is not None:
+                last_cmd_iso = datetime.fromtimestamp(last_command_at, tz=UTC).isoformat()
+            else:
+                last_cmd_iso = "never"
+            last_command_at = time.time()
+            return (
+                f"HEALTH uptime={uptime:.1f} lines={lines_count} "
+                f"last_cmd={last_cmd_iso} commands={command_count} "
+                f"errors={error_count} memory_kb={mem_kb}"
+            )
 
         elif verb == "SET" and len(parts) == 3:
             name, value = parts[1], parts[2].lower()
@@ -262,6 +289,7 @@ def run(stop_event: threading.Event | None = None):
             gpio_request.set_value(pin, _level_for(on, active_low))
             relay_state[name] = on
             _persist()
+            last_command_at = time.time()
             return f"OK {name} {value}"
 
         elif verb == "GET" and len(parts) == 2:
@@ -269,6 +297,7 @@ def run(stop_event: threading.Event | None = None):
             if name not in _RELAY_NAMES:
                 return f"ERR unknown relay '{name}'"
             value = "on" if relay_state[name] else "off"
+            last_command_at = time.time()
             return f"STATE {name} {value}"
 
         elif verb == "READ" and len(parts) == 2:
@@ -278,6 +307,7 @@ def run(stop_event: threading.Event | None = None):
             pin = ipc_to_pin[name]
             raw = gpio_request.get_value(pin)
             level = "low" if raw == 0 else "high"
+            last_command_at = time.time()
             return f"VALUE {name} {level}"
 
         elif verb == "STATUS":
@@ -291,6 +321,7 @@ def run(stop_event: threading.Event | None = None):
                     raw = gpio_request.get_value(pin)
                     level = "low" if raw == 0 else "high"
                     pairs.append(f"{name}={level}")
+            last_command_at = time.time()
             return "STATUS " + ",".join(pairs)
 
         else:
@@ -298,9 +329,17 @@ def run(stop_event: threading.Event | None = None):
 
     # --- Bounded recv helper ---
     def _recv_line(conn):
-        """Read one newline-terminated message, up to MAX_MSG_LENGTH bytes."""
+        """Read one newline-terminated message, up to MAX_MSG_LENGTH bytes.
+
+        Enforces a wall-clock total timeout (RECV_TOTAL_TIMEOUT) to prevent
+        slow-drip clients from blocking the accept loop.
+        """
         buf = b""
+        deadline = time.monotonic() + RECV_TOTAL_TIMEOUT
         while len(buf) < MAX_MSG_LENGTH:
+            if time.monotonic() > deadline:
+                logger.warning("recv_line wall-clock timeout after %.1fs", RECV_TOTAL_TIMEOUT)
+                break
             chunk = conn.recv(1)
             if not chunk:
                 break
@@ -334,6 +373,8 @@ def run(stop_event: threading.Event | None = None):
                 conn.settimeout(CONN_TIMEOUT)
                 data = _recv_line(conn)
                 response = _handle_command(data) if data else "OK"
+                if response.startswith("ERR"):
+                    error_count += 1
                 conn.sendall((response + "\n").encode())
             except Exception as exc:
                 logger.warning("Error handling client: %s", exc)

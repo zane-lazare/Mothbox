@@ -25,6 +25,19 @@ vi.mock('react-hot-toast', () => ({
   },
 }))
 
+// Mock useSocket hook to provide a mock socket (replaces socket.io-client mock)
+vi.mock('../../hooks/useSocket', () => ({
+  default: vi.fn(() => ({
+    socket: {
+      on: vi.fn(),
+      off: vi.fn(),
+      emit: vi.fn(),
+      connected: true,
+    },
+    connected: true,
+  })),
+}))
+
 describe('Settings - Preset Error Notifications Integration Tests', () => {
   let queryClient
 

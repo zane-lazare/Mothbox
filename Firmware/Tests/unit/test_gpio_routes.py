@@ -33,6 +33,54 @@ from lib.gpio_protocol import GPIODaemonError
 
 
 @pytest.mark.unit
+class TestGPIOHealthEndpoint:
+    """Tests for GET /api/gpio/health endpoint"""
+
+    def test_health_returns_200_when_daemon_reachable(self, client, temp_controls_file):
+        """GET /health returns 200 with health data when daemon is up."""
+        mock_health = {
+            "reachable": True,
+            "uptime_seconds": 120.5,
+            "managed_lines": 5,
+            "last_command_at": "2026-02-18T10:00:00+00:00",
+        }
+
+        with patch("routes.gpio.health", return_value=mock_health):
+            response = client.get("/api/gpio/health")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["reachable"] is True
+        assert data["uptime_seconds"] == 120.5
+        assert data["managed_lines"] == 5
+        assert data["last_command_at"] == "2026-02-18T10:00:00+00:00"
+
+    def test_health_returns_503_on_daemon_error(self, client, temp_controls_file):
+        """GET /health returns 503 when daemon is unreachable."""
+        with patch(
+            "routes.gpio.health",
+            side_effect=GPIODaemonError("not running"),
+        ):
+            response = client.get("/api/gpio/health")
+
+        assert response.status_code == 503
+        data = response.get_json()
+        assert "daemon" in data["error"].lower()
+
+    def test_health_returns_500_on_unexpected_error(self, client, temp_controls_file):
+        """GET /health returns 500 on non-daemon errors."""
+        with patch(
+            "routes.gpio.health",
+            side_effect=RuntimeError("Unexpected failure"),
+        ):
+            response = client.get("/api/gpio/health")
+
+        assert response.status_code == 500
+        data = response.get_json()
+        assert "error" in data
+
+
+@pytest.mark.unit
 class TestGPIOStatusEndpoint:
     """Tests for GET /api/gpio/status endpoint"""
 

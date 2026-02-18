@@ -5,7 +5,7 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from lib.gpio_client import read_gpio_state, relay_off, relay_on, setup_relay
+from lib.gpio_client import health, read_gpio_state, relay_off, relay_on, setup_relay
 from lib.gpio_protocol import GPIODaemonError
 from mothbox_paths import CONTROLS_FILE, get_control_values, get_gpio_pins
 from webui.backend.lib.error_codes import (
@@ -18,6 +18,20 @@ from webui.backend.lib.error_codes import (
 logger = logging.getLogger(__name__)
 
 gpio_bp = Blueprint("gpio", __name__)
+
+
+@gpio_bp.route("/health", methods=["GET"])
+def get_gpio_health():
+    """Get GPIO daemon health status."""
+    try:
+        result = health()
+        return jsonify(result), 200
+    except GPIODaemonError:
+        logger.exception("GPIO daemon health check failed")
+        return error_response(HARDWARE_ERROR, "GPIO daemon not available", 503)
+    except Exception:
+        logger.exception("GPIO health check error")
+        return error_response(SERVER_ERROR, "Failed to check GPIO health", 500)
 
 
 @gpio_bp.route("/status", methods=["GET"])

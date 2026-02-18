@@ -162,6 +162,106 @@ class TestDaemonPing:
 
 
 @pytest.mark.unit
+class TestHealthCommand:
+    """HEALTH command — daemon status reporting."""
+
+    def test_health_returns_expected_fields(self, running_daemon):
+        """HEALTH response contains uptime, lines, and last_cmd fields."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        assert response.startswith("HEALTH ")
+        assert "uptime=" in response
+        assert "lines=" in response
+        assert "last_cmd=" in response
+
+    def test_health_uptime_is_positive(self, running_daemon):
+        """Uptime should be a positive float (daemon has been running)."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        # Parse uptime value
+        for part in response.split():
+            if part.startswith("uptime="):
+                uptime = float(part.split("=", 1)[1])
+                assert uptime >= 0.0
+                break
+        else:
+            pytest.fail("uptime= not found in HEALTH response")
+
+    def test_health_lines_count(self, running_daemon):
+        """Lines count should match total relay + switch pins (5)."""
+        sock_path, _, _ = running_daemon
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("lines="):
+                lines = int(part.split("=", 1)[1])
+                # 3 relay pins + 2 switch pins = 5
+                assert lines == 5
+                break
+        else:
+            pytest.fail("lines= not found in HEALTH response")
+
+    def test_health_last_cmd_after_ping(self, running_daemon):
+        """After a PING, last_cmd should be an ISO timestamp (not 'never')."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("last_cmd="):
+                last_cmd = part.split("=", 1)[1]
+                assert last_cmd != "never"
+                # Should be an ISO timestamp containing 'T'
+                assert "T" in last_cmd
+                break
+        else:
+            pytest.fail("last_cmd= not found in HEALTH response")
+
+    def test_health_does_not_crash_daemon(self, running_daemon):
+        """Daemon remains responsive after HEALTH command."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "HEALTH")
+        assert send_to_daemon(sock_path, "PING") == "PONG"
+
+    def test_health_includes_counters(self, running_daemon):
+        """HEALTH response includes commands, errors, and memory_kb."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        send_to_daemon(sock_path, "SET bogus on")  # generates an error
+        response = send_to_daemon(sock_path, "HEALTH")
+        assert "commands=" in response
+        assert "errors=" in response
+        assert "memory_kb=" in response
+
+    def test_health_command_count_increments(self, running_daemon):
+        """Command counter should reflect total commands processed."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "PING")
+        send_to_daemon(sock_path, "PING")
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("commands="):
+                count = int(part.split("=", 1)[1])
+                # At least 2 PINGs + this HEALTH = 3
+                assert count >= 3
+                break
+        else:
+            pytest.fail("commands= not found in HEALTH response")
+
+    def test_health_error_count_increments(self, running_daemon):
+        """Error counter should count ERR responses."""
+        sock_path, _, _ = running_daemon
+        send_to_daemon(sock_path, "SET bogus on")  # ERR
+        send_to_daemon(sock_path, "READ bogus")   # ERR
+        response = send_to_daemon(sock_path, "HEALTH")
+        for part in response.split():
+            if part.startswith("errors="):
+                errors = int(part.split("=", 1)[1])
+                assert errors >= 2
+                break
+        else:
+            pytest.fail("errors= not found in HEALTH response")
+
+
+@pytest.mark.unit
 class TestSetCommand:
     """SET <name> <on|off> commands."""
 
@@ -343,4 +443,26 @@ class TestDaemonHardening:
         time.sleep(3.0)
         slow_sock.close()
         # Daemon should still be responsive
+        assert send_to_daemon(sock_path, "PING") == "PONG"
+
+    def test_slow_drip_client_times_out(self, running_daemon):
+        """A client that sends one byte every second should be cut off by wall-clock timeout."""
+        sock_path, _, _ = running_daemon
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(10.0)
+            s.connect(sock_path)
+            # Drip-feed one byte per second — no newline
+            for _ in range(8):
+                try:
+                    s.sendall(b"A")
+                    time.sleep(1.0)
+                except (BrokenPipeError, OSError):
+                    break
+            # Try to read response — daemon should have timed out and sent ERR or closed
+            try:
+                s.shutdown(socket.SHUT_WR)
+                response = s.recv(4096).decode().strip()
+            except (OSError, ConnectionResetError):
+                response = ""
+        # Either we got an ERR response or the connection was closed; daemon is still alive
         assert send_to_daemon(sock_path, "PING") == "PONG"

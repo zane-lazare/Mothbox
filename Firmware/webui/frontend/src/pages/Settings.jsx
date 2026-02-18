@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getControls, updateControls, getCameraSettings, updateCameraSettings, getSystemInfo, getDiagnosticInfo, getWebuiSettings, updateWebuiSettings, getPresets, applyPreset, deletePreset, createPreset, getPreferences, setPreference } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef } from 'react'
-import { io } from 'socket.io-client'
+import useSocket from '../hooks/useSocket'
 import toast from 'react-hot-toast'
 import { CAMERA_SETTINGS } from '../constants/config'
 import SavePresetModal from '../components/SavePresetModal'
@@ -12,8 +12,8 @@ import { validatePresetSettings, formatValidationErrors } from '../utils/presetV
 
 export default function Settings() {
   const queryClient = useQueryClient()
+  const { socket } = useSocket()
   const [activeTab, setActiveTab] = useState('system')
-  const socketRef = useRef(null)
 
   // Collapsed cards state - smart defaults (common expanded, advanced collapsed)
   const [collapsedCards, setCollapsedCards] = useState({
@@ -103,8 +103,8 @@ export default function Settings() {
       isDirtyRef.current.webui = false
       queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
       // Notify backend to reload settings via WebSocket
-      if (socketRef.current) {
-        socketRef.current.emit('reload_stream_settings')
+      if (socket) {
+        socket.emit('reload_stream_settings')
       }
       // No toast - only used by handleUpdateVideoPreset which shows its own toast
     },
@@ -218,23 +218,22 @@ export default function Settings() {
     }
   }, [webuiSettings])
 
-  // Setup WebSocket connection for stream settings reload
+  // Listen for stream settings reload via shared socket
   useEffect(() => {
-    const wsUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || (window.location.protocol === 'https:' ? '443' : '80')}`
-    socketRef.current = io(wsUrl, { transports: ['websocket', 'polling'] })
+    if (!socket) return
 
-    socketRef.current.on('settings_reloaded', () => {
+    const handleSettingsReloaded = () => {
       // Trigger refetch of webui settings - form will auto-sync if clean
       queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
-    })
+    }
+
+    socket.on('settings_reloaded', handleSettingsReloaded)
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-      }
+      socket.off('settings_reloaded', handleSettingsReloaded)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [socket])
 
   // Wrapper functions to mark forms as dirty when updated
   const updateControlsForm = (updates) => {

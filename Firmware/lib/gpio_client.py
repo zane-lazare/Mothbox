@@ -115,6 +115,35 @@ def _send_command(command: str) -> str:
     return response
 
 
+def health():
+    """Query daemon health status.
+
+    Returns:
+        dict with reachable, uptime_seconds, managed_lines, last_command_at
+
+    Raises:
+        GPIODaemonError: if daemon is unreachable or returns ERR
+    """
+    response = _send_command("HEALTH")
+    result = {"reachable": True}
+    for part in response.split():
+        if "=" in part:
+            key, value = part.split("=", 1)
+            if key == "uptime":
+                result["uptime_seconds"] = float(value)
+            elif key == "lines":
+                result["managed_lines"] = int(value)
+            elif key == "last_cmd":
+                result["last_command_at"] = value
+            elif key == "commands":
+                result["total_commands"] = int(value)
+            elif key == "errors":
+                result["total_errors"] = int(value)
+            elif key == "memory_kb":
+                result["memory_kb"] = int(value)
+    return result
+
+
 def setup_relay(pin: int) -> None:
     """No-op. Daemon owns GPIO setup. Kept for API compatibility."""
 

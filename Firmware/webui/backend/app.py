@@ -5,6 +5,16 @@ Flask API server for Mothbox control and monitoring
 """
 
 # isort: off
+# Eventlet monkey_patch MUST be at the very top, before any other imports,
+# so that eventlet can properly patch the standard library (threading, socket, etc.).
+# Guarded by MOTHBOX_ENV to avoid interfering with test environments.
+import os as _os
+
+if _os.environ.get("MOTHBOX_ENV") not in ("test", "development"):
+    import eventlet
+
+    eventlet.monkey_patch()
+
 # Path setup must happen before webui.* imports
 import sys
 from pathlib import Path
@@ -90,10 +100,13 @@ else:
 # Use same CORS origins as REST API for consistency
 # Production (no CORS_ORIGINS): empty list = reject all cross-origin connections
 # Development (CORS_ORIGINS set): allow configured origins
+_async_mode = (
+    "eventlet" if _os.environ.get("MOTHBOX_ENV") not in ("test", "development") else "threading"
+)
 socketio = SocketIO(
     app,
     cors_allowed_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else [],
-    async_mode="threading",
+    async_mode=_async_mode,
     logger=False,
     engineio_logger=False,
     ping_timeout=60,
@@ -476,37 +489,20 @@ if __name__ == "__main__":
     logger.info("=" * 60)
 
     if config.ENV_NAME == "production":
-        logger.warning("\n" + "=" * 60)
-        logger.warning("WARNING: Running with Werkzeug development server")
-        logger.warning("For production deployment, use gunicorn with eventlet worker")
-        logger.warning("See issue #19: https://github.com/zane-lazare/Mothbox/issues/19")
-        logger.warning("=" * 60 + "\n")
+        # Production mode should use gunicorn, not `python3 app.py`
+        logger.info("\n" + "=" * 60)
+        logger.info("Production mode detected.")
+        logger.info("Start the server with gunicorn instead of running app.py directly:")
+        logger.info("  gunicorn -c gunicorn.conf.py app:app")
+        logger.info("=" * 60 + "\n")
+        sys.exit(0)
 
-    # Block production mode until gunicorn is implemented (issue #19)
-    # Production installations should run in development mode for now
-    if config.ENV_NAME == "production" and not config.DEBUG:
-        raise RuntimeError(
-            "\n" + "=" * 60 + "\n"
-            "ERROR: Production mode requires gunicorn deployment\n"
-            "=" * 60 + "\n"
-            "The Werkzeug development server is not safe for production use.\n"
-            "\n"
-            "For now, run in development mode:\n"
-            "  export MOTHBOX_ENV=development\n"
-            "\n"
-            "Or wait for gunicorn implementation:\n"
-            "  https://github.com/zane-lazare/Mothbox/issues/19\n"
-            "=" * 60
-        )
-
-    # Run development server
-    # Require BOTH debug mode AND development environment for werkzeug
-    # This prevents accidental unsafe werkzeug in production even if DEBUG is misconfigured
+    # Development mode: run with Werkzeug dev server via socketio.run()
     # Cleanup handled by atexit handlers registered during initialization
     socketio.run(
         app,
         host=config.HOST,
         port=config.PORT,
         debug=config.DEBUG,
-        allow_unsafe_werkzeug=(config.DEBUG and config.ENV_NAME == "development"),
+        allow_unsafe_werkzeug=True,
     )

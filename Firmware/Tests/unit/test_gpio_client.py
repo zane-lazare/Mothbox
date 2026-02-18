@@ -88,12 +88,56 @@ from lib.gpio_client import (
     _pin_to_ipc_name,
     _pin_to_relay_name,
     get_relay_level,
+    health,
     read_gpio_state,
     read_switch,
     relay_off,
     relay_on,
     setup_relay,
 )
+
+
+@pytest.mark.unit
+class TestHealth:
+    """health() queries daemon for health status."""
+
+    def test_parses_health_response(self):
+        mock = MockDaemonSocket(
+            "HEALTH uptime=120.5 lines=5 last_cmd=2026-02-18T10:00:00+00:00\n"
+        )
+        with patch("socket.socket", return_value=mock):
+            result = health()
+        assert result["reachable"] is True
+        assert result["uptime_seconds"] == 120.5
+        assert result["managed_lines"] == 5
+        assert result["last_command_at"] == "2026-02-18T10:00:00+00:00"
+        assert mock.sent == b"HEALTH\n"
+
+    def test_parses_health_with_never_last_cmd(self):
+        mock = MockDaemonSocket("HEALTH uptime=0.1 lines=5 last_cmd=never\n")
+        with patch("socket.socket", return_value=mock):
+            result = health()
+        assert result["reachable"] is True
+        assert result["uptime_seconds"] == 0.1
+        assert result["managed_lines"] == 5
+        assert result["last_command_at"] == "never"
+
+    def test_raises_on_daemon_unreachable(self):
+        with (
+            patch("socket.socket", side_effect=ConnectionRefusedError),
+            pytest.raises(GPIODaemonError, match="not running"),
+        ):
+            health()
+
+    def test_parses_extended_health_fields(self):
+        mock = MockDaemonSocket(
+            "HEALTH uptime=120.5 lines=5 last_cmd=never commands=42 errors=3 memory_kb=8192\n"
+        )
+        with patch("socket.socket", return_value=mock):
+            result = health()
+        assert result["total_commands"] == 42
+        assert result["total_errors"] == 3
+        assert result["memory_kb"] == 8192
 
 
 @pytest.mark.unit

@@ -1,6 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getGpioStatus, controlGpio, triggerFlash } from '../utils/api'
+import { getGpioStatus, getGpioHealth, controlGpio, triggerFlash } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
+
+function formatUptime(seconds) {
+  if (seconds == null || seconds < 0) return ''
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
 
 export default function GPIO() {
   const queryClient = useQueryClient()
@@ -12,6 +22,17 @@ export default function GPIO() {
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
     staleTime: 2000, // Consider data fresh for 2 seconds
   })
+
+  const { data: healthData, isError: isHealthError } = useQuery({
+    queryKey: QUERY_KEYS.GPIO_HEALTH,
+    queryFn: () => getGpioHealth().then(res => res.data),
+    refetchInterval: 10000,
+    refetchOnWindowFocus: false,
+    staleTime: 5000,
+    retry: 1,
+  })
+
+  const daemonOnline = healthData?.reachable === true && !isHealthError
 
   const controlMutation = useMutation({
     mutationFn: ({ relay, state }) => controlGpio(relay, state),
@@ -71,6 +92,24 @@ export default function GPIO() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">GPIO Controls</h2>
+
+      {/* Daemon Health */}
+      <div className="flex items-center gap-2 text-sm text-gray-700">
+        <span
+          className={`inline-block h-2.5 w-2.5 rounded-full ${daemonOnline ? 'bg-green-500' : 'bg-red-500'}`}
+          aria-hidden="true"
+        />
+        {daemonOnline ? (
+          <span>
+            Daemon connected
+            {healthData.uptime_seconds != null && (
+              <span className="text-gray-500"> &mdash; uptime {formatUptime(healthData.uptime_seconds)}</span>
+            )}
+          </span>
+        ) : (
+          <span className="text-red-600">Daemon offline</span>
+        )}
+      </div>
 
       {/* Relay Controls */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

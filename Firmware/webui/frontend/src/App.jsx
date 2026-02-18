@@ -12,6 +12,7 @@ import GPIO from './pages/GPIO'
 import SchedulerUI from './pages/SchedulerUI'
 import Export from './pages/Export'
 import { FilterProvider } from './contexts/FilterContext'
+import { SocketProvider } from './contexts/SocketContext'
 
 const queryClient = new QueryClient()
 
@@ -152,35 +153,37 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#363636',
-              color: '#fff',
-            },
-            success: {
-              duration: 3000,
-              iconTheme: {
-                primary: '#10b981',
-                secondary: '#fff',
+        <SocketProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#363636',
+                color: '#fff',
               },
-            },
-            error: {
-              duration: 5000,
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
+              success: {
+                duration: 3000,
+                iconTheme: {
+                  primary: '#10b981',
+                  secondary: '#fff',
+                },
               },
-            },
-          }}
-        />
-        <FilterProvider>
-          <Router>
-            <AppLayout />
-          </Router>
-        </FilterProvider>
+              error: {
+                duration: 5000,
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: '#fff',
+                },
+              },
+            }}
+          />
+          <FilterProvider>
+            <Router>
+              <AppLayout />
+            </Router>
+          </FilterProvider>
+        </SocketProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   )

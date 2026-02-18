@@ -255,6 +255,9 @@ ignore = [
 "webui/cli/verify_gps_exif.py" = ["E402"]
 "check_and_run.py" = ["E402"]
 
+# N999: gunicorn.conf.py is the standard gunicorn config filename (dot is intentional)
+"webui/backend/gunicorn.conf.py" = ["N999"]
+
 [tool.ruff.format]
 # Use Black-compatible formatting for consistency with Python community standards
 quote-style = "double"
