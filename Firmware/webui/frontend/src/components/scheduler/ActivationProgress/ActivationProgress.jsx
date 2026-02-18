@@ -6,19 +6,15 @@
  * - Phase labels for current operation
  * - Error state with retry option
  *
- * The component manages its own Socket.io connection and listens for
- * `schedule:activation_progress` events filtered by scheduleId.
- *
- * @important Only one ActivationProgress should be rendered at a time.
- * Multiple instances will create separate WebSocket connections.
- * The scheduler UI enforces single-schedule activation.
+ * Uses the shared Socket.io connection from SocketProvider (#368).
+ * Registers and unregisters event handlers without disconnecting the socket.
  *
  * @module components/scheduler/ActivationProgress/ActivationProgress
  */
 
 import React, { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
-import { io } from 'socket.io-client'
+import useSocket from '../../../hooks/useSocket'
 import { PHASE_LABELS } from './constants'
 
 /**
@@ -45,12 +41,11 @@ export default function ActivationProgress({
   onError,
   onRetry,
 }) {
+  const { socket } = useSocket()
   const [state, setState] = useState('activating')
   const [progress, setProgress] = useState(0)
   const [phase, setPhase] = useState('checking_conflicts')
   const [errorMessage, setErrorMessage] = useState('')
-  const [reconnectTrigger, setReconnectTrigger] = useState(0)
-  const socketRef = useRef(null)
 
   // Store latest callbacks in refs to avoid effect re-runs when parent re-renders
   const onCompleteRef = useRef(onComplete)
@@ -67,80 +62,51 @@ export default function ActivationProgress({
     onErrorRef.current = onError
   })
 
+  // Register event handlers on the shared socket
   useEffect(() => {
-    // Setup WebSocket connection using window.location.origin for robust URL handling
-    const wsUrl = window.location.origin
+    if (!socket) return
 
-    /**
-     * Helper to handle connection errors uniformly.
-     * Called for both sync errors (io() throws) and async errors (connect_error event).
-     */
-    const handleConnectionError = (error) => {
-      console.error('WebSocket connection failed:', error)
+    const handleConnectionError = () => {
       setState('error')
       setErrorMessage('Connection failed')
       onErrorRef.current?.('Connection failed')
     }
 
-    try {
-      socketRef.current = io(wsUrl, {
-        transports: ['websocket', 'polling'],
-      })
+    const handleProgress = (data) => {
+      // Filter events for this specific schedule
+      if (data.schedule_id !== scheduleId) return
 
-      // Handle async connection errors (network issues, server unavailable, etc.)
-      socketRef.current.on('connect_error', handleConnectionError)
-      socketRef.current.on('error', handleConnectionError)
+      setProgress(data.progress)
+      setPhase(data.phase)
 
-      socketRef.current.on('schedule:activation_progress', (data) => {
-        // Filter events for this specific schedule
-        if (data.schedule_id !== scheduleId) return
-
-        setProgress(data.progress)
-        setPhase(data.phase)
-
-        if (data.phase === 'complete') {
-          setState('complete')
-          onCompleteRef.current?.()
-        } else if (data.phase === 'failed') {
-          setState('error')
-          const msg = data.error || 'Activation failed'
-          setErrorMessage(msg)
-          onErrorRef.current?.(msg)
-        }
-      })
-    } catch (error) {
-      // Handle sync errors (e.g., io() throws immediately)
-      handleConnectionError(error)
-    }
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.off('schedule:activation_progress')
-        socketRef.current.off('connect_error')
-        socketRef.current.off('error')
-        socketRef.current.disconnect()
+      if (data.phase === 'complete') {
+        setState('complete')
+        onCompleteRef.current?.()
+      } else if (data.phase === 'failed') {
+        setState('error')
+        const msg = data.error || 'Activation failed'
+        setErrorMessage(msg)
+        onErrorRef.current?.(msg)
       }
     }
-  }, [scheduleId, reconnectTrigger])
+
+    socket.on('connect_error', handleConnectionError)
+    socket.on('error', handleConnectionError)
+    socket.on('schedule:activation_progress', handleProgress)
+
+    return () => {
+      socket.off('schedule:activation_progress', handleProgress)
+      socket.off('connect_error', handleConnectionError)
+      socket.off('error', handleConnectionError)
+    }
+  }, [socket, scheduleId])
 
   const handleRetryClick = () => {
-    // Disconnect old socket to prevent stale messages from previous attempt
-    if (socketRef.current) {
-      socketRef.current.off('schedule:activation_progress')
-      socketRef.current.off('connect_error')
-      socketRef.current.off('error')
-      socketRef.current.disconnect()
-      socketRef.current = null
-    }
-
-    // Reset state for retry
+    // Reset local state for retry - the shared socket handles reconnection
     setState('activating')
     setProgress(0)
     setPhase('checking_conflicts')
     setErrorMessage('')
-
-    // Force effect re-run to reconnect socket
-    setReconnectTrigger((prev) => prev + 1)
 
     onRetry?.()
   }

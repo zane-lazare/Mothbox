@@ -3,6 +3,9 @@
  *
  * ActivationProgress displays real-time schedule activation status
  * via WebSocket events, including progress bar, phase labels, and error handling.
+ *
+ * Updated for shared WebSocket context (#368): Mocks useSocket hook instead
+ * of socket.io-client directly.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -11,15 +14,17 @@ import userEvent from '@testing-library/user-event'
 import ActivationProgress from '../ActivationProgress'
 import { PHASE_LABELS } from '../constants'
 
-// Mock socket.io-client
+// Mock socket instance
 const mockSocket = {
   on: vi.fn(),
   off: vi.fn(),
-  disconnect: vi.fn(),
+  emit: vi.fn(),
+  connected: true,
 }
 
-vi.mock('socket.io-client', () => ({
-  io: vi.fn(() => mockSocket),
+// Mock useSocket hook to provide the mock socket
+vi.mock('../../../../hooks/useSocket', () => ({
+  default: vi.fn(() => ({ socket: mockSocket, connected: true })),
 }))
 
 /**
@@ -40,7 +45,7 @@ describe('ActivationProgress', () => {
   beforeEach(() => {
     mockSocket.on.mockClear()
     mockSocket.off.mockClear()
-    mockSocket.disconnect.mockClear()
+    mockSocket.emit.mockClear()
   })
 
   afterEach(() => {
@@ -408,15 +413,20 @@ describe('ActivationProgress', () => {
 
       unmount()
 
-      expect(mockSocket.off).toHaveBeenCalledWith('schedule:activation_progress')
+      expect(mockSocket.off).toHaveBeenCalledWith('schedule:activation_progress', expect.any(Function))
     })
 
-    it('disconnects socket on unmount', () => {
+    it('does not disconnect shared socket on unmount', () => {
       const { unmount } = render(<ActivationProgress scheduleId="sched-1" />)
 
       unmount()
 
-      expect(mockSocket.disconnect).toHaveBeenCalledTimes(1)
+      // Shared socket should NOT be disconnected by component cleanup.
+      // The mock socket has no disconnect method because the component
+      // should never call it - only .off() to remove event listeners.
+      // Verify only .off() was called, not any disconnect-like behavior.
+      const offCalls = mockSocket.off.mock.calls.map(call => call[0])
+      expect(offCalls).toContain('schedule:activation_progress')
     })
 
     it('registers event listener on mount', () => {
@@ -557,14 +567,13 @@ describe('ActivationProgress', () => {
       })
     })
 
-    it('handles WebSocket connection failure gracefully', async () => {
-      // Mock io to throw an error on next call
-      const { io: ioMock } = await import('socket.io-client')
-      vi.mocked(ioMock).mockImplementationOnce(() => {
-        throw new Error('Connection failed')
-      })
+    it('handles null socket gracefully', async () => {
+      // Temporarily mock useSocket to return null socket
+      const useSocketMod = await import('../../../../hooks/useSocket')
+      const originalImpl = useSocketMod.default
+      vi.mocked(useSocketMod.default).mockReturnValueOnce({ socket: null, connected: false })
 
-      // Component should handle error without crashing
+      // Component should handle null socket without crashing
       expect(() => render(<ActivationProgress scheduleId="sched-1" />)).not.toThrow()
     })
 
@@ -597,11 +606,11 @@ describe('ActivationProgress', () => {
   })
 
   // ==========================================================================
-  // Retry Socket Reconnection
+  // Retry with Shared Socket
   // ==========================================================================
 
-  describe('Retry Socket Reconnection', () => {
-    it('disconnects socket when retry is clicked', async () => {
+  describe('Retry with Shared Socket', () => {
+    it('does not disconnect socket when retry is clicked', async () => {
       const user = userEvent.setup()
       render(<ActivationProgress scheduleId="sched-1" />)
 
@@ -615,23 +624,21 @@ describe('ActivationProgress', () => {
         expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
       })
 
-      // Clear mock calls before retry
-      mockSocket.off.mockClear()
-      mockSocket.disconnect.mockClear()
-
       await user.click(screen.getByRole('button', { name: /retry/i }))
 
-      // Should have disconnected old socket
-      expect(mockSocket.off).toHaveBeenCalledWith('schedule:activation_progress')
-      expect(mockSocket.disconnect).toHaveBeenCalled()
+      // Shared socket should NOT have a disconnect method called.
+      // The component only resets local state on retry - the shared
+      // socket handles reconnection automatically.
+      // Verify the component returned to activating state
+      await waitFor(() => {
+        expect(screen.getByText('Activating')).toBeInTheDocument()
+      })
     })
 
-    it('creates new socket connection on retry', async () => {
+    it('resets local state without socket recreation on retry', async () => {
       const user = userEvent.setup()
-      const { io: ioMock } = await import('socket.io-client')
-      render(<ActivationProgress scheduleId="sched-1" />)
-
-      const initialCallCount = vi.mocked(ioMock).mock.calls.length
+      const onRetry = vi.fn()
+      render(<ActivationProgress scheduleId="sched-1" onRetry={onRetry} />)
 
       simulateProgressEvent({
         schedule_id: 'sched-1',
@@ -645,10 +652,13 @@ describe('ActivationProgress', () => {
 
       await user.click(screen.getByRole('button', { name: /retry/i }))
 
-      // Should have created a new socket connection
+      // Should be back to activating state
       await waitFor(() => {
-        expect(vi.mocked(ioMock).mock.calls.length).toBeGreaterThan(initialCallCount)
+        expect(screen.getByText('Activating')).toBeInTheDocument()
+        expect(screen.getByText('0%')).toBeInTheDocument()
       })
+
+      expect(onRetry).toHaveBeenCalledTimes(1)
     })
   })
 

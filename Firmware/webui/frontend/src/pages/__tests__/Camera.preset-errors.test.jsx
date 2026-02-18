@@ -24,14 +24,18 @@ vi.mock('react-hot-toast', () => ({
   },
 }))
 
-// Mock socket.io for component rendering
-vi.mock('socket.io-client', () => ({
-  io: vi.fn(() => ({
-    on: vi.fn(),
-    emit: vi.fn(),
-    off: vi.fn(),
-    disconnect: vi.fn(),
-  }))
+// Mock useSocket hook to provide a mock socket (replaces socket.io-client mock)
+vi.mock('../../hooks/useSocket', () => ({
+  default: vi.fn(() => ({
+    socket: {
+      on: vi.fn(),
+      off: vi.fn(),
+      emit: vi.fn(),
+      once: vi.fn(),
+      connected: true,
+    },
+    connected: true,
+  })),
 }))
 
 describe('Camera - Preset Error Notifications Integration Tests', () => {

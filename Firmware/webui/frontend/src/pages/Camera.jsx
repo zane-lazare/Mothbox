@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { capturePhoto, triggerAutofocus, autoCalibrate, copySettings, testCaptureLiveview, freezeSettings, getPresets, applyPreset, createPreset, getPreferences, updateWebuiSettings } from '../utils/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { io } from 'socket.io-client'
+import useSocket from '../hooks/useSocket'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import InstantCaptureButton from '../components/InstantCaptureButton'
@@ -74,11 +74,11 @@ const validateApiResponse = (data, expectedFields, context = 'API response') => 
 }
 
 export default function Camera() {
+  const { socket, connected } = useSocket()
   const [capturing, setCapturing] = useState(false)
   const [lastCapture, setLastCapture] = useState(null)
   const [liveViewActive, setLiveViewActive] = useState(false)
   const [currentFrame, setCurrentFrame] = useState(null)
-  const [connected, setConnected] = useState(false)
   const [metadata, setMetadata] = useState(null)
   const [autofocusing, setAutofocusing] = useState(false)
   const [calibrating, setCalibrating] = useState(false)
@@ -116,7 +116,6 @@ export default function Camera() {
   const [zoomCenter, setZoomCenter] = useState({ x: 0.5, y: 0.5 })  // Normalized zoom center (0.5, 0.5 = center)
   const [afWindow, setAfWindow] = useState(null)  // AF window: {x, y, active, focusing} or null - also serves as visual indicator for area of interest
   const [cameraSettings, setCameraSettings] = useState(null)  // HDR and other camera settings
-  const socketRef = useRef(null)
   const metadataIntervalRef = useRef(null)
   const debounceTimerRef = useRef(null)
   const zoomDebounceTimerRef = useRef(null)  // Debounce timer for zoom updates
@@ -224,8 +223,8 @@ export default function Camera() {
       clearTimeout(debounceTimerRef.current)
     }
     debounceTimerRef.current = setTimeout(() => {
-      if (socketRef.current && liveViewActive) {
-        socketRef.current.emit('update_liveview_control', {
+      if (socket && liveViewActive) {
+        socket.emit('update_liveview_control', {
           [controlName]: value
         })
       }
@@ -238,8 +237,8 @@ export default function Camera() {
       clearTimeout(zoomDebounceTimerRef.current)
     }
     zoomDebounceTimerRef.current = setTimeout(() => {
-      if (socketRef.current && liveViewActive) {
-        socketRef.current.emit('set_zoom', {
+      if (socket && liveViewActive) {
+        socket.emit('set_zoom', {
           zoom_level: zoomLevel,
           center_x: centerX,
           center_y: centerY
@@ -248,6 +247,7 @@ export default function Camera() {
     }, 150) // 150ms debounce - balances responsiveness vs network usage
   }
 
+  // Fetch camera and webui settings on mount
   useEffect(() => {
     // Fetch camera settings on mount (for HDR status display)
     const fetchSettings = async () => {
@@ -309,56 +309,52 @@ export default function Camera() {
     fetchSettings()
     fetchWebuiSettings()
 
-    // Connect to WebSocket server using current window location
-    // This ensures it works whether accessed via localhost, IP, or hostname
-    const host = window.location.hostname
-    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
-    const wsUrl = `${window.location.protocol}//${host}:${port}`
+    return () => {
+      if (metadataIntervalRef.current) {
+        clearInterval(metadataIntervalRef.current)
+      }
+    }
+  }, [])
 
-    socketRef.current = io(wsUrl, {
-      transports: ['websocket', 'polling']
-    })
+  // Register socket event handlers (shared socket from SocketProvider)
+  useEffect(() => {
+    if (!socket) return
 
-    socketRef.current.on('connect', () => {
-      setConnected(true)
-    })
-
-    socketRef.current.on('disconnect', () => {
-      setConnected(false)
+    const handleDisconnect = () => {
       setLiveViewActive(false)
-    })
+    }
 
-    socketRef.current.on('camera_frame', (data) => {
+    const handleCameraFrame = (data) => {
       setCurrentFrame(data.image)
-    })
+    }
 
-    socketRef.current.on('liveview_status', (data) => {
+    const handleLiveviewStatus = (data) => {
       setLiveViewActive(data.streaming)
-    })
+    }
 
-    socketRef.current.on('metadata_update', (data) => {
+    const handleMetadataUpdate = (data) => {
       setMetadata(data)
-    })
+    }
 
-    socketRef.current.on('calibration_progress', (data) => {
+    const handleCalibrationProgress = (data) => {
       setCalibrationProgress(data)
-    })
+    }
 
-    socketRef.current.on('control_updated', (data) => {
+    const handleControlUpdated = (data) => {
       if (!data.success) {
         console.error('Control update failed:', data.error)
         toast.error(`Failed to update control: ${data.error}`)
       }
-    })
+    }
 
-    socketRef.current.on('zoom_updated', (data) => {
+    const handleZoomUpdated = (data) => {
       if (!data.success) {
         console.error('Zoom update failed:', data.error)
         toast.error(`Failed to update zoom: ${data.error}`)
       }
-    })
+    }
 
-    socketRef.current.on('af_window_updated', (data) => {
+    const handleAfWindowUpdated = (data) => {
       if (data.success) {
         // Update AF window state with animation trigger
         if (data.x !== null && data.y !== null) {
@@ -380,9 +376,9 @@ export default function Camera() {
         console.error('AF window update failed:', data.error)
         toast.error(`Failed to update AF window: ${data.error}`)
       }
-    })
+    }
 
-    socketRef.current.on('settings_reloaded', async () => {
+    const handleSettingsReloaded = async () => {
       try {
         const API_URL = import.meta.env.VITE_API_URL || '/api'
         const response = await fetch(`${API_URL}/config/webui`)
@@ -413,25 +409,38 @@ export default function Camera() {
       } catch (error) {
         console.error('Failed to refresh settings after settings_reloaded event:', error)
       }
-    })
+    }
+
+    socket.on('disconnect', handleDisconnect)
+    socket.on('camera_frame', handleCameraFrame)
+    socket.on('liveview_status', handleLiveviewStatus)
+    socket.on('metadata_update', handleMetadataUpdate)
+    socket.on('calibration_progress', handleCalibrationProgress)
+    socket.on('control_updated', handleControlUpdated)
+    socket.on('zoom_updated', handleZoomUpdated)
+    socket.on('af_window_updated', handleAfWindowUpdated)
+    socket.on('settings_reloaded', handleSettingsReloaded)
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.emit('stop_liveview')
-        socketRef.current.disconnect()
-      }
-      if (metadataIntervalRef.current) {
-        clearInterval(metadataIntervalRef.current)
-      }
+      socket.emit('stop_liveview')
+      socket.off('disconnect', handleDisconnect)
+      socket.off('camera_frame', handleCameraFrame)
+      socket.off('liveview_status', handleLiveviewStatus)
+      socket.off('metadata_update', handleMetadataUpdate)
+      socket.off('calibration_progress', handleCalibrationProgress)
+      socket.off('control_updated', handleControlUpdated)
+      socket.off('zoom_updated', handleZoomUpdated)
+      socket.off('af_window_updated', handleAfWindowUpdated)
+      socket.off('settings_reloaded', handleSettingsReloaded)
     }
-  }, [])
+  }, [socket])
 
   // Poll metadata when preview is active
   useEffect(() => {
-    if (liveViewActive && socketRef.current) {
+    if (liveViewActive && socket) {
       // Request metadata every 500ms
       metadataIntervalRef.current = setInterval(() => {
-        socketRef.current.emit('get_metadata')
+        socket.emit('get_metadata')
       }, 500)
     } else {
       if (metadataIntervalRef.current) {
@@ -473,10 +482,10 @@ export default function Camera() {
   }
 
   const toggleLiveView = async () => {
-    if (!socketRef.current) return
+    if (!socket) return
 
     if (liveViewActive) {
-      socketRef.current.emit('stop_liveview')
+      socket.emit('stop_liveview')
       setCurrentFrame(null)
     } else {
       // Fetch latest settings and reload backend before starting preview
@@ -520,14 +529,14 @@ export default function Camera() {
               if (isResolved) return
               isResolved = true
               clearTimeout(timeoutId)
-              socketRef.current.off('settings_reloaded', handleReloaded)
+              socket.off('settings_reloaded', handleReloaded)
 
               // Check if backend reported error during reload
               if (data && data.success === false) {
                 console.warn(
                   `[${new Date().toISOString()}] Backend settings reload failed:`,
                   data.error,
-                  `| Socket connected: ${socketRef.current?.connected}`
+                  `| Socket connected: ${socket?.connected}`
                 )
                 toast.error(`Settings reload failed: ${data.error}. Stream may use cached settings.`, { duration: 5000 })
               }
@@ -538,11 +547,11 @@ export default function Camera() {
             const timeoutId = setTimeout(() => {
               if (isResolved) return
               isResolved = true
-              socketRef.current.off('settings_reloaded', handleReloaded)
+              socket.off('settings_reloaded', handleReloaded)
 
               console.error(
                 `[${new Date().toISOString()}] Settings reload timed out after ${timeoutMs}ms`,
-                `| Socket connected: ${socketRef.current?.connected}`
+                `| Socket connected: ${socket?.connected}`
               )
               toast.error(`Settings reload timed out. Stream will use cached settings.`, { duration: 5000 })
 
@@ -550,7 +559,7 @@ export default function Camera() {
             }, timeoutMs)
 
             // Check socket connection before emitting
-            if (!socketRef.current?.connected) {
+            if (!socket?.connected) {
               clearTimeout(timeoutId)
               console.error(
                 `[${new Date().toISOString()}] Cannot reload settings: WebSocket not connected`
@@ -560,15 +569,15 @@ export default function Camera() {
               return
             }
 
-            socketRef.current.once('settings_reloaded', handleReloaded)
-            socketRef.current.emit('reload_stream_settings')
+            socket.once('settings_reloaded', handleReloaded)
+            socket.emit('reload_stream_settings')
           })
         }
       } catch (error) {
         console.error('Failed to refresh settings before preview start:', error)
       }
 
-      socketRef.current.emit('start_liveview')
+      socket.emit('start_liveview')
     }
   }
 
@@ -917,11 +926,11 @@ export default function Camera() {
     })
 
     // Emit to backend
-    if (socketRef.current) {
+    if (socket) {
       // Only emit set_zoom when zoomed > 1.0x (don't shift crop at 1.0x)
       // At 1.0x, the full sensor view should be shown without any crop shift
       if (zoomLevel > 1.0) {
-        socketRef.current.emit('set_zoom', {
+        socket.emit('set_zoom', {
           zoom_level: zoomLevel,
           center_x: clampedX,
           center_y: clampedY
@@ -929,7 +938,7 @@ export default function Camera() {
       }
 
       // Always set AF window (hardware autofocus region)
-      socketRef.current.emit('set_af_window', {
+      socket.emit('set_af_window', {
         x: clampedX,
         y: clampedY,
         window_size: 0.2  // 20% of frame
@@ -969,22 +978,22 @@ export default function Camera() {
     setAfWindow(null)  // Clear AF window
 
     // Emit all resets to backend
-    if (socketRef.current && liveViewActive) {
+    if (socket && liveViewActive) {
       Object.entries(defaults).forEach(([key, value]) => {
         // Convert camelCase key to PascalCase (sharpness -> Sharpness, afMode -> AfMode)
         const controlName = key.charAt(0).toUpperCase() + key.slice(1)
-        socketRef.current.emit('update_liveview_control', {
+        socket.emit('update_liveview_control', {
           [controlName]: value
         })
       })
       // Reset zoom with centered position
-      socketRef.current.emit('set_zoom', {
+      socket.emit('set_zoom', {
         zoom_level: 1.0,
         center_x: 0.5,
         center_y: 0.5
       })
       // Clear AF window
-      socketRef.current.emit('set_af_window', {
+      socket.emit('set_af_window', {
         x: null,
         y: null
       })
@@ -1994,8 +2003,8 @@ export default function Camera() {
                           <span className="text-yellow-300">✓ AF window set</span>
                           <button
                             onClick={() => {
-                              if (socketRef.current) {
-                                socketRef.current.emit('set_af_window', { x: null, y: null })
+                              if (socket) {
+                                socket.emit('set_af_window', { x: null, y: null })
                                 setAfWindow(null)
                                 toast.success('AF window cleared')
                               }
