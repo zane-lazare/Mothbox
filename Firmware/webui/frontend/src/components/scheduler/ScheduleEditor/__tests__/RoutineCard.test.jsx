@@ -40,7 +40,7 @@ vi.mock('../../RoutineEditor/ActionList', () => ({
 
 // Mock PreConditionForm to simplify tests
 vi.mock('../PreConditionForm', () => ({
-  default: vi.fn(({ preCondition, onChange, routineIndex, disabled }) => ( // eslint-disable-line no-unused-vars
+  default: vi.fn(({ preCondition, onChange, disabled }) => (
     <div data-testid="mock-pre-condition-form">
       <span data-testid="pre-condition-status">
         {preCondition ? 'enabled' : 'disabled'}
