@@ -37,6 +37,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import UTC, datetime
+import threading
 from threading import RLock
 from typing import Any
 
@@ -217,6 +218,11 @@ class SchedulerService:
         self._stats_lock = RLock()
         # Serializes activation/deactivation to prevent TOCTOU races (Issue #385)
         self._activation_lock = RLock()
+
+        # GPS polling timer (Issue #382)
+        # Starts when schedule is activated with timezone-based coordinates.
+        # Polls controls.txt every 60s for GPS fix, then stops.
+        self._gps_poll_timer: threading.Timer | None = None
 
         # Statistics tracking
         self._cache_hits = 0
@@ -1050,6 +1056,52 @@ class SchedulerService:
                 logger.error(f"GPS auto-update failed: {e}")
                 return {"updated": False}
 
+    # GPS polling interval in seconds (Issue #382)
+    GPS_POLL_INTERVAL = 60
+
+    def start_gps_polling(self) -> None:
+        """
+        Start periodic GPS polling (Issue #382).
+
+        Schedules _gps_poll_tick to run every GPS_POLL_INTERVAL seconds.
+        Only starts if coordinates_source is "timezone".
+        """
+        self.stop_gps_polling()  # Cancel any existing timer
+        if self._active_coordinates_source != "timezone":
+            return
+        self._gps_poll_timer = threading.Timer(self.GPS_POLL_INTERVAL, self._gps_poll_tick)
+        self._gps_poll_timer.daemon = True
+        self._gps_poll_timer.start()
+        logger.debug("GPS polling started")
+
+    def stop_gps_polling(self) -> None:
+        """
+        Stop GPS polling timer (Issue #382).
+
+        Safe to call even when no timer is running.
+        """
+        if self._gps_poll_timer is not None:
+            self._gps_poll_timer.cancel()
+            self._gps_poll_timer = None
+            logger.debug("GPS polling stopped")
+
+    def _gps_poll_tick(self) -> None:
+        """
+        Single GPS poll tick (Issue #382).
+
+        Called by the timer. Checks GPS, and if not yet acquired,
+        reschedules itself. If acquired, stops polling.
+        """
+        self._gps_poll_timer = None  # Timer has fired, clear reference
+
+        result = self.check_and_update_gps()
+        if result["updated"]:
+            logger.info("GPS acquired — polling stopped")
+            # Timer stays None (stopped)
+        else:
+            # GPS not yet available, schedule next check
+            self.start_gps_polling()
+
     def get_enabled_schedule_id(self) -> str | None:
         """
         Get the ID of the currently enabled schedule.
@@ -1360,6 +1412,10 @@ class SchedulerService:
                 raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
             _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
+
+            # Start GPS polling if using timezone fallback (Issue #382)
+            self.start_gps_polling()
+
             logger.info(
                 f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})"
             )
@@ -1380,6 +1436,9 @@ class SchedulerService:
         """
         # Serialize with activation lock to prevent concurrent activation/deactivation (Issue #385)
         with self._activation_lock:
+            # Stop GPS polling (Issue #382)
+            self.stop_gps_polling()
+
             schedule_id = self._active_schedule_id
 
             # Clear in-memory state (Issue #331 fix)

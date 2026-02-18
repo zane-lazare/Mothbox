@@ -6,6 +6,8 @@ after timezone-based activation and updates coordinates + cron entries.
 """
 
 import json
+import threading
+import time
 import uuid
 
 import pytest
@@ -238,3 +240,146 @@ class TestCheckAndUpdateGps:
 
         assert len(apply_calls) == 1
         assert apply_calls[0]["schedule_id"] == sample_schedule.schedule_id
+
+
+class TestGpsPollingTimer:
+    """Tests for the GPS polling timer lifecycle."""
+
+    def test_timer_starts_on_timezone_activation(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Timer should start when schedule activated with timezone source."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+
+        # Mock cron bridge
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            lambda **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.schedule_to_cron",
+            lambda *args, **kwargs: type("R", (), {"entries": [], "errors": []})(),
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.expand_pattern_entries",
+            lambda **kwargs: [],
+        )
+
+        service.activate_schedule(
+            schedule_id=sample_schedule.schedule_id,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+            coordinates_source="timezone",
+        )
+
+        assert service._gps_poll_timer is not None
+        # Clean up
+        service.stop_gps_polling()
+
+    def test_timer_does_not_start_on_gps_activation(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Timer should NOT start when schedule activated with GPS source."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            lambda **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.schedule_to_cron",
+            lambda *args, **kwargs: type("R", (), {"entries": [], "errors": []})(),
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.expand_pattern_entries",
+            lambda **kwargs: [],
+        )
+
+        service.activate_schedule(
+            schedule_id=sample_schedule.schedule_id,
+            latitude=-41.0,
+            longitude=174.0,
+            timezone_name="Pacific/Auckland",
+            coordinates_source="gps",
+        )
+
+        assert service._gps_poll_timer is None
+
+    def test_timer_stops_on_deactivation(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Timer should stop when schedule is deactivated."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            lambda **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.schedule_to_cron",
+            lambda *args, **kwargs: type("R", (), {"entries": [], "errors": []})(),
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.expand_pattern_entries",
+            lambda **kwargs: [],
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.remove_from_system",
+            lambda **kwargs: None,
+        )
+
+        service.activate_schedule(
+            schedule_id=sample_schedule.schedule_id,
+            latitude=0.0,
+            longitude=0.0,
+            timezone_name="UTC",
+            coordinates_source="timezone",
+        )
+        assert service._gps_poll_timer is not None
+
+        service.deactivate_schedule()
+        assert service._gps_poll_timer is None
+
+    def test_timer_stops_after_gps_acquired(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Timer should stop after GPS coordinates are successfully acquired."""
+        controls_file = temp_schedules_dir / "controls.txt"
+        controls_file.write_text("lat=-41.2865\nlon=174.7762\n")
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+        service._active_schedule_id = sample_schedule.schedule_id
+        service._active_coordinates_source = "timezone"
+        service._active_latitude = 0.0
+        service._active_longitude = 0.0
+        service._active_timezone_name = "Pacific/Auckland"
+
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            lambda **kwargs: None,
+        )
+
+        # Simulate timer firing by calling _gps_poll_tick directly
+        service._gps_poll_tick()
+
+        # Timer should be None after successful GPS acquisition
+        assert service._gps_poll_timer is None
+
+    def test_stop_gps_polling_is_safe_when_no_timer(self, service):
+        """stop_gps_polling should be safe to call when no timer exists."""
+        service._gps_poll_timer = None
+        service.stop_gps_polling()  # Should not raise
+        assert service._gps_poll_timer is None
