@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
-import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon } from '@heroicons/react/24/solid'
+import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/solid'
 import {
   useActiveSchedule,
   useDeactivateSchedule,
@@ -147,29 +147,25 @@ function ActiveScheduleBanner() {
               Next: {nextTime} {nextActionName}
             </span>
           ) : null}
-          {coordinatesSource && (
-            <span data-testid="location-info">
-              {coordinatesSource === 'gps' &&
-                `Time: Using GPS ${latitude?.toFixed(3)}, ${longitude?.toFixed(3)}`}
-              {coordinatesSource === 'timezone' &&
-                `Time: Using System Locale: ${timezoneName}`}
+          {/* Coordinate source display (Issue #382) */}
+          {coordinatesSource === 'timezone' && (
+            <span data-testid="location-info" className="flex items-center gap-1 text-amber-700">
+              <SignalSlashIcon className="h-4 w-4 animate-pulse" />
+              Approximate location from timezone. Waiting for GPS...
+            </span>
+          )}
+          {coordinatesSource === 'gps' && (
+            <span data-testid="location-info" className="flex items-center gap-1 text-green-700">
+              <SignalIcon className="h-4 w-4" />
+              GPS: {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
+            </span>
+          )}
+          {coordinatesSource === 'explicit' && (
+            <span data-testid="location-info" className="flex items-center gap-1">
+              {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
             </span>
           )}
         </div>
-
-        {/* Warning when using timezone approximation for coordinates (Issue #331) */}
-        {coordinatesSource === 'timezone' && (
-          <div
-            className="mt-3 px-3 py-2 bg-amber-100 border border-amber-200 rounded text-sm text-amber-800 flex items-center gap-2"
-            data-testid="timezone-warning"
-          >
-            <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
-            <span>
-              Using approximate location from system timezone. Solar times may be inaccurate.
-              Sync GPS for precise scheduling.
-            </span>
-          </div>
-        )}
       </div>
     )
   }

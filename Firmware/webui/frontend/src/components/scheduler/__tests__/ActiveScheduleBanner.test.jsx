@@ -219,4 +219,77 @@ describe('ActiveScheduleBanner', () => {
     const icon = container.querySelector('svg')
     expect(icon).toBeInTheDocument()
   })
+
+  describe('GPS coordinate states (Issue #382)', () => {
+    it('shows pulsing amber icon when coordinates source is timezone', () => {
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'timezone',
+          timezone_name: 'Pacific/Auckland',
+        },
+        isLoading: false,
+      })
+
+      const { container } = render(<ActiveScheduleBanner />)
+
+      const pulsingIcon = container.querySelector('.animate-pulse')
+      expect(pulsingIcon).toBeInTheDocument()
+      expect(screen.getByTestId('location-info')).toHaveTextContent(
+        /Approximate location.*Waiting for GPS/
+      )
+    })
+
+    it('shows green GPS icon when coordinates source is gps', () => {
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'gps',
+          latitude: -41.287,
+          longitude: 174.776,
+        },
+        isLoading: false,
+      })
+
+      const { container } = render(<ActiveScheduleBanner />)
+
+      const pulsingIcon = container.querySelector('.animate-pulse')
+      expect(pulsingIcon).not.toBeInTheDocument()
+      expect(screen.getByTestId('location-info')).toHaveTextContent(/GPS/)
+      expect(screen.getByTestId('location-info')).toHaveTextContent(/-41\.287/)
+    })
+
+    it('does not show pulse when coordinates source is explicit', () => {
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'explicit',
+          latitude: -41.287,
+          longitude: 174.776,
+        },
+        isLoading: false,
+      })
+
+      const { container } = render(<ActiveScheduleBanner />)
+
+      const pulsingIcon = container.querySelector('.animate-pulse')
+      expect(pulsingIcon).not.toBeInTheDocument()
+    })
+
+    it('does not show timezone warning when source is gps', () => {
+      useActiveSchedule.mockReturnValue({
+        data: {
+          active_schedule: { id: 'sched-1', name: 'Test' },
+          coordinates_source: 'gps',
+          latitude: -41.287,
+          longitude: 174.776,
+        },
+        isLoading: false,
+      })
+
+      render(<ActiveScheduleBanner />)
+
+      expect(screen.queryByTestId('timezone-warning')).not.toBeInTheDocument()
+    })
+  })
 })
