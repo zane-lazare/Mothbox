@@ -28,6 +28,11 @@ import shutil
 import time
 
 import psutil
+# NOTE: RPi.GPIO is imported here for the Waveshare e-paper library (waveshare_epd),
+# which uses it for SPI/display pin control (RST, DC, CS, BUSY).
+# These pins do NOT overlap with the GPIO daemon's relay/switch pins.
+# Switch reads (off_pin, debug_pin) use gpio_client via the daemon (line 18).
+# See issue #403 for details on this coexistence decision.
 import RPi.GPIO as GPIO
 from PIL import Image, ImageDraw, ImageFont
 from waveshare_epd import epd2in13_V4
