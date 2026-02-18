@@ -455,7 +455,7 @@ export default function Camera() {
         clearInterval(metadataIntervalRef.current)
       }
     }
-  }, [liveViewActive])
+  }, [liveViewActive, socket])
 
   const handleCapture = async () => {
     setCapturing(true)

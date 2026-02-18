@@ -100,7 +100,9 @@ else:
 # Use same CORS origins as REST API for consistency
 # Production (no CORS_ORIGINS): empty list = reject all cross-origin connections
 # Development (CORS_ORIGINS set): allow configured origins
-_async_mode = "eventlet" if _os.environ.get("MOTHBOX_ENV") not in ("test", "development") else "threading"
+_async_mode = (
+    "eventlet" if _os.environ.get("MOTHBOX_ENV") not in ("test", "development") else "threading"
+)
 socketio = SocketIO(
     app,
     cors_allowed_origins=config.CORS_ORIGINS if config.CORS_ORIGINS else [],
@@ -491,9 +493,7 @@ if __name__ == "__main__":
         logger.info("\n" + "=" * 60)
         logger.info("Production mode detected.")
         logger.info("Start the server with gunicorn instead of running app.py directly:")
-        logger.info(
-            "  gunicorn -c gunicorn.conf.py app:app"
-        )
+        logger.info("  gunicorn -c gunicorn.conf.py app:app")
         logger.info("=" * 60 + "\n")
         sys.exit(0)
 

@@ -267,9 +267,7 @@ def run(stop_event: threading.Event | None = None):
             lines_count = len(all_pins)
             mem_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             if last_command_at is not None:
-                last_cmd_iso = datetime.fromtimestamp(
-                    last_command_at, tz=UTC
-                ).isoformat()
+                last_cmd_iso = datetime.fromtimestamp(last_command_at, tz=UTC).isoformat()
             else:
                 last_cmd_iso = "never"
             last_command_at = time.time()

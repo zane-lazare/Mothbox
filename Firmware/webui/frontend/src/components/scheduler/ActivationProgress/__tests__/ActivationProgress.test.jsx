@@ -570,7 +570,6 @@ describe('ActivationProgress', () => {
     it('handles null socket gracefully', async () => {
       // Temporarily mock useSocket to return null socket
       const useSocketMod = await import('../../../../hooks/useSocket')
-      const originalImpl = useSocketMod.default
       vi.mocked(useSocketMod.default).mockReturnValueOnce({ socket: null, connected: false })
 
       // Component should handle null socket without crashing
