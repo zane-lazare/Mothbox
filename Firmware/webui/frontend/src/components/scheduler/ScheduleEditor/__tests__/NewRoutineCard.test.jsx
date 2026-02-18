@@ -41,6 +41,39 @@ vi.mock('../../RoutineEditor/ActionList', () => ({
   )),
 }))
 
+// Mock PreConditionForm
+vi.mock('../PreConditionForm', () => ({
+  default: vi.fn(({ preCondition, onChange, routineIndex, disabled }) => (
+    <div data-testid="mock-pre-condition-form">
+      <span data-testid="pre-condition-status">
+        {preCondition ? 'enabled' : 'disabled'}
+      </span>
+      <button
+        onClick={() =>
+          onChange({
+            trigger_type: 'sensor',
+            sensor_type: 'light',
+            comparison: 'lt',
+            threshold: 100,
+            cooldown_minutes: 5,
+          })
+        }
+        disabled={disabled}
+        data-testid="enable-pre-condition"
+      >
+        Enable Pre-Condition
+      </button>
+      <button
+        onClick={() => onChange(null)}
+        disabled={disabled}
+        data-testid="disable-pre-condition"
+      >
+        Disable Pre-Condition
+      </button>
+    </div>
+  )),
+}))
+
 // Mock uuid
 vi.mock('@/utils/uuid', () => ({
   generateUUID: vi.fn(() => 'mock-uuid-123'),
@@ -172,6 +205,7 @@ describe('NewRoutineCard', () => {
         name: '',
         trigger: { trigger_type: 'interval', interval_minutes: 15, time_window: null },
         actions: [{ id: 'new', action_type: 'camera', action_name: 'takephoto' }],
+        pre_condition: null,
       })
     })
 
@@ -231,6 +265,60 @@ describe('NewRoutineCard', () => {
       // Even with actions, should be disabled
       // Note: We can't add actions when disabled, so save stays disabled
       expect(screen.getByTestId('save-routine')).toBeDisabled()
+    })
+  })
+
+  describe('pre-condition integration', () => {
+    it('renders PreConditionForm', () => {
+      render(<NewRoutineCard {...defaultProps} />)
+      expect(screen.getByTestId('mock-pre-condition-form')).toBeInTheDocument()
+    })
+
+    it('initializes with no pre-condition', () => {
+      render(<NewRoutineCard {...defaultProps} />)
+      expect(screen.getByTestId('pre-condition-status')).toHaveTextContent('disabled')
+    })
+
+    it('includes pre_condition in saved routine when set', async () => {
+      const user = userEvent.setup()
+      const onComplete = vi.fn()
+      render(<NewRoutineCard {...defaultProps} onComplete={onComplete} />)
+
+      // Enable pre-condition
+      await user.click(screen.getByTestId('enable-pre-condition'))
+
+      // Add an action
+      await user.click(screen.getByText('Add Action'))
+
+      // Save
+      await user.click(screen.getByTestId('save-routine'))
+
+      expect(onComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pre_condition: {
+            trigger_type: 'sensor',
+            sensor_type: 'light',
+            comparison: 'lt',
+            threshold: 100,
+            cooldown_minutes: 5,
+          },
+        })
+      )
+    })
+
+    it('saves routine without pre_condition when not set', async () => {
+      const user = userEvent.setup()
+      const onComplete = vi.fn()
+      render(<NewRoutineCard {...defaultProps} onComplete={onComplete} />)
+
+      // Add an action (no pre-condition)
+      await user.click(screen.getByText('Add Action'))
+
+      // Save
+      await user.click(screen.getByTestId('save-routine'))
+
+      const savedRoutine = onComplete.mock.calls[0][0]
+      expect(savedRoutine.pre_condition).toBeNull()
     })
   })
 })
