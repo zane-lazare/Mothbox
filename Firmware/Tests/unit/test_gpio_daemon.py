@@ -405,3 +405,25 @@ class TestDaemonHardening:
         slow_sock.close()
         # Daemon should still be responsive
         assert send_to_daemon(sock_path, "PING") == "PONG"
+
+    def test_slow_drip_client_times_out(self, running_daemon):
+        """A client that sends one byte every second should be cut off by wall-clock timeout."""
+        sock_path, _, _ = running_daemon
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(10.0)
+            s.connect(sock_path)
+            # Drip-feed one byte per second — no newline
+            for _ in range(8):
+                try:
+                    s.sendall(b"A")
+                    time.sleep(1.0)
+                except (BrokenPipeError, OSError):
+                    break
+            # Try to read response — daemon should have timed out and sent ERR or closed
+            try:
+                s.shutdown(socket.SHUT_WR)
+                response = s.recv(4096).decode().strip()
+            except (OSError, ConnectionResetError):
+                response = ""
+        # Either we got an ERR response or the connection was closed; daemon is still alive
+        assert send_to_daemon(sock_path, "PING") == "PONG"

@@ -45,6 +45,7 @@ from lib.gpio_protocol import (
     CONN_TIMEOUT,
     LISTEN_BACKLOG,
     MAX_MSG_LENGTH,
+    RECV_TOTAL_TIMEOUT,
     SOCKET_PATH,
 )
 from mothbox_paths import (
@@ -321,9 +322,17 @@ def run(stop_event: threading.Event | None = None):
 
     # --- Bounded recv helper ---
     def _recv_line(conn):
-        """Read one newline-terminated message, up to MAX_MSG_LENGTH bytes."""
+        """Read one newline-terminated message, up to MAX_MSG_LENGTH bytes.
+
+        Enforces a wall-clock total timeout (RECV_TOTAL_TIMEOUT) to prevent
+        slow-drip clients from blocking the accept loop.
+        """
         buf = b""
+        deadline = time.monotonic() + RECV_TOTAL_TIMEOUT
         while len(buf) < MAX_MSG_LENGTH:
+            if time.monotonic() > deadline:
+                logger.warning("recv_line wall-clock timeout after %.1fs", RECV_TOTAL_TIMEOUT)
+                break
             chunk = conn.recv(1)
             if not chunk:
                 break

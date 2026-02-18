@@ -11,6 +11,7 @@ ACCEPT_TIMEOUT = 0.5
 LISTEN_BACKLOG = 5
 CONN_TIMEOUT = 2.0
 MAX_MSG_LENGTH = 256
+RECV_TOTAL_TIMEOUT = 5.0  # max wall-clock seconds for _recv_line()
 
 
 CMD_HEALTH = "HEALTH"
