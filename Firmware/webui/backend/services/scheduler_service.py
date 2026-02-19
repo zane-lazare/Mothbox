@@ -1052,8 +1052,8 @@ class SchedulerService:
                     "previous_source": previous_source,
                 }
 
-            except Exception as e:
-                logger.error(f"GPS auto-update failed: {e}")
+            except Exception:
+                logger.exception("GPS auto-update failed")
                 return {"updated": False}
 
     # GPS polling interval in seconds (Issue #382)
@@ -1091,16 +1091,22 @@ class SchedulerService:
 
         Called by the timer. Checks GPS, and if not yet acquired,
         reschedules itself. If acquired, stops polling.
+
+        Guards against a race with deactivate_schedule() by checking
+        _active_schedule_id under _activation_lock before rescheduling.
         """
         self._gps_poll_timer = None  # Timer has fired, clear reference
 
         result = self.check_and_update_gps()
         if result["updated"]:
             logger.info("GPS acquired — polling stopped")
-            # Timer stays None (stopped)
-        else:
-            # GPS not yet available, schedule next check
-            self.start_gps_polling()
+            return
+
+        # Guard: don't reschedule if deactivated during check_and_update_gps()
+        with self._activation_lock:
+            if not self._active_schedule_id:
+                return
+        self.start_gps_polling()
 
     def get_enabled_schedule_id(self) -> str | None:
         """

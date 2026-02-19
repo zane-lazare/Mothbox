@@ -6,8 +6,6 @@ after timezone-based activation and updates coordinates + cron entries.
 """
 
 import json
-import threading
-import time
 import uuid
 
 import pytest
@@ -382,4 +380,38 @@ class TestGpsPollingTimer:
         """stop_gps_polling should be safe to call when no timer exists."""
         service._gps_poll_timer = None
         service.stop_gps_polling()  # Should not raise
+        assert service._gps_poll_timer is None
+
+    def test_tick_does_not_reschedule_after_deactivation(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Polling tick should not reschedule if schedule was deactivated mid-tick."""
+        controls_file = temp_schedules_dir / "controls.txt"
+        controls_file.write_text("lat=n/a\nlon=n/a\n")
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+        service._active_schedule_id = sample_schedule.schedule_id
+        service._active_coordinates_source = "timezone"
+        service._active_latitude = 0.0
+        service._active_longitude = 0.0
+        service._active_timezone_name = "UTC"
+
+        # Simulate deactivation happening during check_and_update_gps()
+        original_check = service.check_and_update_gps
+
+        def check_then_deactivate():
+            result = original_check()
+            # Simulate concurrent deactivation clearing state
+            service._active_schedule_id = None
+            service._active_coordinates_source = None
+            return result
+
+        monkeypatch.setattr(service, "check_and_update_gps", check_then_deactivate)
+
+        service._gps_poll_tick()
+
+        # Timer should NOT have been rescheduled
         assert service._gps_poll_timer is None
