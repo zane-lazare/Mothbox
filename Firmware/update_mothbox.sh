@@ -1227,14 +1227,13 @@ if [ -f "$GPIO_TEMPLATE" ]; then
     fi
 fi
 
-# Warn about config changes
+# Inform about config changes (migrations handle adding new keys automatically)
 if [ "$CONFIG_CHANGED" -gt 0 ]; then
-    echo -e "${YELLOW}⚠ Configuration files changed${NC}"
-    echo "The following config files were updated:"
+    echo -e "${CYAN}Configuration files updated in this release:${NC}"
     git diff --name-only "$BASE_COMMIT..$COMPARE_COMMIT" | grep -E '\.csv$|\.txt$' | grep -v 'webui/frontend' | grep -v '.template$' | sed 's/^/  • /'
     echo ""
-    echo -e "${YELLOW}Note: Your existing configuration has been preserved${NC}"
-    echo "Review the changes and update your config if needed"
+    echo -e "${GREEN}✓ New settings were automatically added with safe defaults${NC}"
+    echo "Your existing customized values have been preserved."
     echo ""
 fi
 

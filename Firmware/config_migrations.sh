@@ -29,6 +29,9 @@
 # ==============================================================================
 # Core Helper Functions
 # ==============================================================================
+# NOTE: Key names are used directly in grep/sed regex patterns.
+# They must be plain identifiers: [a-zA-Z_][a-zA-Z0-9_]*
+# Regex metacharacters (. * [ etc.) in key names are NOT escaped.
 
 # backup_config FILE
 #   Create a .pre-migration backup of FILE. Skips if FILE does not exist.
