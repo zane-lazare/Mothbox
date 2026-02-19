@@ -49,9 +49,9 @@ function ActiveScheduleBanner() {
   const [isActivating, setIsActivating] = useState(false)
   // Track coordinates source to drive conditional refetch (Issue #382)
   // Polls every 60s only while waiting for GPS fix (source === 'timezone')
-  const coordinatesSourceRef = useRef(null)
+  const [coordinatesSource, setCoordinatesSource] = useState(null)
   const { data } = useActiveSchedule({
-    refetchInterval: coordinatesSourceRef.current === 'timezone' ? 60 * 1000 : false,
+    refetchInterval: coordinatesSource === 'timezone' ? 60 * 1000 : false,
   })
   const { data: schedulesData } = useSchedules({ include_builtin: true })
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
@@ -72,8 +72,8 @@ function ActiveScheduleBanner() {
       toast.success('GPS fix acquired — solar times updated')
     }
     prevCoordinatesSourceRef.current = currentSource
-    // Update ref driving conditional refetch interval
-    coordinatesSourceRef.current = currentSource
+    // Update state to re-evaluate refetchInterval (stops polling after GPS acquired)
+    setCoordinatesSource(currentSource ?? null)
   }, [data?.coordinates_source])
 
   const schedules = schedulesData?.schedules || []
@@ -116,7 +116,7 @@ function ActiveScheduleBanner() {
   // State 1: Active schedule (green banner)
   if (activeSchedule) {
     const { name } = activeSchedule
-    const coordinatesSource = data?.coordinates_source
+    const displaySource = data?.coordinates_source
     const latitude = data?.latitude
     const longitude = data?.longitude
     const timezoneName = data?.timezone_name
@@ -167,19 +167,19 @@ function ActiveScheduleBanner() {
             </span>
           ) : null}
           {/* Coordinate source display (Issue #382) */}
-          {coordinatesSource === 'timezone' && (
+          {displaySource === 'timezone' && (
             <span data-testid="location-info" className="flex items-center gap-1 text-amber-700">
               <SignalSlashIcon className="h-4 w-4 animate-pulse" />
               Using {timezoneName || 'system locale'}. Waiting for GPS...
             </span>
           )}
-          {coordinatesSource === 'gps' && (
+          {displaySource === 'gps' && (
             <span data-testid="location-info" className="flex items-center gap-1 text-green-700">
               <SignalIcon className="h-4 w-4" />
               GPS: {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
             </span>
           )}
-          {coordinatesSource === 'explicit' && (
+          {displaySource === 'explicit' && (
             <span data-testid="location-info" className="flex items-center gap-1">
               {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
             </span>
