@@ -18,6 +18,13 @@ import {
 } from '../../../hooks/useSchedules'
 import ActivationProgress from '../ActivationProgress/ActivationProgress'
 
+// Coordinate source display config (Issue #382)
+const COORD_SOURCE_CONFIG = {
+  timezone: { dot: 'bg-amber-500', label: 'Approx. location' },
+  gps: { dot: 'bg-green-500', label: 'GPS' },
+  explicit: { dot: 'bg-blue-500', label: 'Manual' },
+}
+
 /**
  * Format time as HH:MM
  * @param {string} isoString - ISO date string
@@ -44,6 +51,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Check if this schedule is the active one
   const { data: activeData, refetch: refetchActive } = useActiveSchedule()
   const isActive = activeData?.active_schedule?.schedule_id === scheduleId
+  const coordinatesSource = isActive ? activeData?.coordinates_source : null
 
   // Get preview data for stats
   const { data: previewData } = useSchedulePreview(
@@ -114,6 +122,8 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   const executionCount = previewData?.total || 0
   const nextExecution = previewData?.executions?.[0]
   const nextTime = nextExecution ? formatTime(nextExecution.scheduled_time) : '--:--'
+
+  const coordSource = coordinatesSource ? COORD_SOURCE_CONFIG[coordinatesSource] : null
 
   // Show progress during activation
   if (isActivating) {
@@ -200,6 +210,13 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
             <div className="text-lg text-gray-900 dark:text-white">{nextTime}</div>
             <div className="text-xs text-gray-500 dark:text-gray-400">Next</div>
           </div>
+          {/* Coordinate source stat (Issue #382) */}
+          {coordSource && (
+            <div className="col-span-3 flex items-center justify-center gap-1.5 pt-2" data-testid="coord-source-stat">
+              <div className={`w-1.5 h-1.5 rounded-full ${coordSource.dot}`} />
+              <span className="text-xs text-gray-500 dark:text-gray-400">{coordSource.label}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

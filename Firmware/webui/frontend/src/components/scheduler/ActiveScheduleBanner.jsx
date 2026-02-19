@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
-import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon } from '@heroicons/react/24/solid'
+import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/solid'
 import {
   useActiveSchedule,
   useDeactivateSchedule,
@@ -47,7 +47,12 @@ function getActionDisplayName(action) {
  */
 function ActiveScheduleBanner() {
   const [isActivating, setIsActivating] = useState(false)
-  const { data } = useActiveSchedule()
+  // Track coordinates source to drive conditional refetch (Issue #382)
+  // Polls every 60s only while waiting for GPS fix (source === 'timezone')
+  const [coordinatesSource, setCoordinatesSource] = useState(null)
+  const { data } = useActiveSchedule({
+    refetchInterval: coordinatesSource === 'timezone' ? 60 * 1000 : false,
+  })
   const { data: schedulesData } = useSchedules({ include_builtin: true })
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
     onError: (error) => {
@@ -57,6 +62,20 @@ function ActiveScheduleBanner() {
   const { mutate: activate } = useActivateSchedule()
 
   const activeSchedule = data?.active_schedule
+
+  // Track previous coordinates source for transition detection (Issue #382)
+  const prevCoordinatesSourceRef = useRef(data?.coordinates_source)
+  useEffect(() => {
+    const currentSource = data?.coordinates_source
+    const prevSource = prevCoordinatesSourceRef.current
+    if (prevSource === 'timezone' && currentSource === 'gps') {
+      toast.success('GPS fix acquired — solar times updated')
+    }
+    prevCoordinatesSourceRef.current = currentSource
+    // Update state to re-evaluate refetchInterval (stops polling after GPS acquired)
+    setCoordinatesSource(currentSource ?? null)
+  }, [data?.coordinates_source])
+
   const schedules = schedulesData?.schedules || []
 
   // Find first enabled schedule (when no active schedule)
@@ -97,7 +116,7 @@ function ActiveScheduleBanner() {
   // State 1: Active schedule (green banner)
   if (activeSchedule) {
     const { name } = activeSchedule
-    const coordinatesSource = data?.coordinates_source
+    const displaySource = data?.coordinates_source
     const latitude = data?.latitude
     const longitude = data?.longitude
     const timezoneName = data?.timezone_name
@@ -147,29 +166,25 @@ function ActiveScheduleBanner() {
               Next: {nextTime} {nextActionName}
             </span>
           ) : null}
-          {coordinatesSource && (
-            <span data-testid="location-info">
-              {coordinatesSource === 'gps' &&
-                `Time: Using GPS ${latitude?.toFixed(3)}, ${longitude?.toFixed(3)}`}
-              {coordinatesSource === 'timezone' &&
-                `Time: Using System Locale: ${timezoneName}`}
+          {/* Coordinate source display (Issue #382) */}
+          {displaySource === 'timezone' && (
+            <span data-testid="location-info" className="flex items-center gap-1 text-amber-700">
+              <SignalSlashIcon className="h-4 w-4 animate-pulse" />
+              Using {timezoneName || 'system locale'}. Waiting for GPS...
+            </span>
+          )}
+          {displaySource === 'gps' && (
+            <span data-testid="location-info" className="flex items-center gap-1 text-green-700">
+              <SignalIcon className="h-4 w-4" />
+              GPS: {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
+            </span>
+          )}
+          {displaySource === 'explicit' && (
+            <span data-testid="location-info" className="flex items-center gap-1">
+              {latitude?.toFixed(3)}, {longitude?.toFixed(3)}
             </span>
           )}
         </div>
-
-        {/* Warning when using timezone approximation for coordinates (Issue #331) */}
-        {coordinatesSource === 'timezone' && (
-          <div
-            className="mt-3 px-3 py-2 bg-amber-100 border border-amber-200 rounded text-sm text-amber-800 flex items-center gap-2"
-            data-testid="timezone-warning"
-          >
-            <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
-            <span>
-              Using approximate location from system timezone. Solar times may be inaccurate.
-              Sync GPS for precise scheduling.
-            </span>
-          </div>
-        )}
       </div>
     )
   }

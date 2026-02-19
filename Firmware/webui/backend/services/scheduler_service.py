@@ -33,6 +33,7 @@ Usage:
 import hashlib
 import json
 import logging
+import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
@@ -40,7 +41,7 @@ from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
 
-from mothbox_paths import CONFIG_DIR
+from mothbox_paths import CONFIG_DIR, CONTROLS_FILE, get_control_values
 from webui.backend.constants import (
     CRON_ENTRY_WARNING_THRESHOLD,
     CRON_PREVIEW_DAYS_AHEAD,
@@ -181,6 +182,8 @@ class SchedulerService:
     NEVER acquire locks in a different order, as this can cause deadlocks.
     """
 
+    GPS_POLL_INTERVAL = 60  # seconds (Issue #382)
+
     def __init__(
         self,
         cache_ttl: int = 300,
@@ -217,6 +220,11 @@ class SchedulerService:
         self._stats_lock = RLock()
         # Serializes activation/deactivation to prevent TOCTOU races (Issue #385)
         self._activation_lock = RLock()
+
+        # GPS polling timer (Issue #382)
+        # Starts when schedule is activated with timezone-based coordinates.
+        # Polls controls.txt every 60s for GPS fix, then stops.
+        self._gps_poll_timer: threading.Timer | None = None
 
         # Statistics tracking
         self._cache_hits = 0
@@ -947,6 +955,166 @@ class SchedulerService:
         """
         return self._active_timezone_name
 
+    def check_and_update_gps(self) -> dict:
+        """
+        Check if GPS coordinates are available and update active schedule if needed (Issue #382).
+
+        Only runs when the active schedule is using timezone-based coordinates.
+        When GPS becomes available, updates coordinates, regenerates cron entries,
+        and persists the new state.
+
+        Returns:
+            dict with "updated" (bool), and if updated: "latitude", "longitude",
+            "previous_source" keys.
+        """
+        # Guard: only act when source is "timezone" and a schedule is active
+        if self._active_coordinates_source != "timezone" or not self._active_schedule_id:
+            return {"updated": False}
+
+        # Read GPS from controls.txt
+        control_values = get_control_values(CONTROLS_FILE)
+        device_lat = control_values.get("lat", "n/a")
+        device_lon = control_values.get("lon", "n/a")
+
+        # Check if GPS is available (not "n/a" and numeric)
+        if device_lat == "n/a" or device_lon == "n/a":
+            return {"updated": False}
+
+        try:
+            latitude = float(device_lat)
+            longitude = float(device_lon)
+        except (ValueError, TypeError):
+            return {"updated": False}
+
+        # Validate coordinate ranges
+        if latitude < -90 or latitude > 90 or longitude < -180 or longitude > 180:
+            logger.warning(f"GPS coordinates out of range: {latitude}, {longitude}")
+            return {"updated": False}
+
+        # GPS available — update coordinates and regenerate cron
+        with self._activation_lock:
+            # Re-check source under lock (may have changed)
+            if self._active_coordinates_source != "timezone":
+                return {"updated": False}
+
+            schedule_id = self._active_schedule_id
+            timezone_name = self._active_timezone_name or "UTC"
+
+            # Get the schedule for cron regeneration
+            schedule = self.get_schedule(schedule_id)
+            if not schedule:
+                logger.error(f"GPS update: schedule not found: {schedule_id}")
+                return {"updated": False}
+
+            try:
+                # Regenerate cron with new coordinates
+                result = schedule_to_cron(
+                    schedule,
+                    latitude=latitude,
+                    longitude=longitude,
+                    timezone_name=timezone_name,
+                )
+                if result.errors:
+                    logger.error(f"GPS update: cron conversion failed: {result.errors}")
+                    return {"updated": False}
+
+                # Apply new cron entries to system
+                apply_to_system(
+                    entries=result.entries,
+                    schedule_id=schedule_id,
+                    set_rtc=True,
+                )
+
+                # Expand entries for frontend
+                expanded_entries = expand_pattern_entries(
+                    entries=result.entries,
+                    days_ahead=CRON_PREVIEW_DAYS_AHEAD,
+                    timezone_name=timezone_name,
+                )
+
+                # Update in-memory state
+                previous_source = self._active_coordinates_source
+                with self._cache_lock:
+                    self._active_coordinates_source = "gps"
+                    self._active_latitude = latitude
+                    self._active_longitude = longitude
+
+                # Persist to disk
+                self._save_active_state(entries=expanded_entries)
+
+                logger.info(
+                    f"GPS auto-update: coordinates updated from {previous_source} to GPS "
+                    f"for schedule {schedule_id}"
+                )
+
+                return {
+                    "updated": True,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "previous_source": previous_source,
+                }
+
+            except Exception:
+                logger.exception("GPS auto-update failed")
+                return {"updated": False}
+
+    def start_gps_polling(self) -> None:
+        """
+        Start periodic GPS polling (Issue #382).
+
+        Schedules _gps_poll_tick to run every GPS_POLL_INTERVAL seconds.
+        Only starts if coordinates_source is "timezone".
+
+        Note: reads _active_coordinates_source without a lock. This is safe
+        because callers (activate_schedule, _gps_poll_tick) either hold
+        _activation_lock or check _active_schedule_id under lock before
+        calling, preventing a timer from outliving a deactivation.
+        """
+        self.stop_gps_polling()  # Cancel any existing timer
+        if self._active_coordinates_source != "timezone":
+            return
+        self._gps_poll_timer = threading.Timer(self.GPS_POLL_INTERVAL, self._gps_poll_tick)
+        self._gps_poll_timer.daemon = True
+        self._gps_poll_timer.start()
+        logger.debug("GPS polling started")
+
+    def stop_gps_polling(self) -> None:
+        """
+        Stop GPS polling timer (Issue #382).
+
+        Safe to call even when no timer is running.
+        """
+        if self._gps_poll_timer is not None:
+            self._gps_poll_timer.cancel()
+            self._gps_poll_timer = None
+            logger.debug("GPS polling stopped")
+
+    def _gps_poll_tick(self) -> None:
+        """
+        Single GPS poll tick (Issue #382).
+
+        Called by the timer. Checks GPS, and if not yet acquired,
+        reschedules itself. If acquired, stops polling.
+
+        Guards against a race with deactivate_schedule() by checking
+        _active_schedule_id under _activation_lock before rescheduling.
+        """
+        self._gps_poll_timer = None  # Timer has fired, clear reference
+
+        result = self.check_and_update_gps()
+        if result["updated"]:
+            logger.info("GPS acquired — polling stopped")
+            return
+
+        # Guard: don't reschedule if deactivated during check_and_update_gps()
+        with self._activation_lock:
+            if not self._active_schedule_id:
+                return
+        # Safe: deactivate_schedule() clears _active_coordinates_source under
+        # _activation_lock, so start_gps_polling() will return early if
+        # deactivation raced between the lock release and this call.
+        self.start_gps_polling()
+
     def get_enabled_schedule_id(self) -> str | None:
         """
         Get the ID of the currently enabled schedule.
@@ -1257,6 +1425,10 @@ class SchedulerService:
                 raise ScheduleActivationError(f"Failed to apply schedule to system: {e}") from e
 
             _emit_progress(ACTIVATION_PHASE_COMPLETE, ACTIVATION_PROGRESS_COMPLETE)
+
+            # Start GPS polling if using timezone fallback (Issue #382)
+            self.start_gps_polling()
+
             logger.info(
                 f"Activated schedule: {schedule_id} (coordinates_source={coordinates_source})"
             )
@@ -1277,6 +1449,9 @@ class SchedulerService:
         """
         # Serialize with activation lock to prevent concurrent activation/deactivation (Issue #385)
         with self._activation_lock:
+            # Stop GPS polling (Issue #382)
+            self.stop_gps_polling()
+
             schedule_id = self._active_schedule_id
 
             # Clear in-memory state (Issue #331 fix)
