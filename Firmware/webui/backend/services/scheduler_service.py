@@ -1110,6 +1110,9 @@ class SchedulerService:
         with self._activation_lock:
             if not self._active_schedule_id:
                 return
+        # Safe: deactivate_schedule() clears _active_coordinates_source under
+        # _activation_lock, so start_gps_polling() will return early if
+        # deactivation raced between the lock release and this call.
         self.start_gps_polling()
 
     def get_enabled_schedule_id(self) -> str | None:

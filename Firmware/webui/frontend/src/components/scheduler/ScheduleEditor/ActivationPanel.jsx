@@ -18,6 +18,13 @@ import {
 } from '../../../hooks/useSchedules'
 import ActivationProgress from '../ActivationProgress/ActivationProgress'
 
+// Coordinate source display config (Issue #382)
+const COORD_SOURCE_CONFIG = {
+  timezone: { dot: 'bg-amber-500', label: 'Approx. location' },
+  gps: { dot: 'bg-green-500', label: 'GPS' },
+  explicit: { dot: 'bg-blue-500', label: 'Manual' },
+}
+
 /**
  * Format time as HH:MM
  * @param {string} isoString - ISO date string
@@ -116,13 +123,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   const nextExecution = previewData?.executions?.[0]
   const nextTime = nextExecution ? formatTime(nextExecution.scheduled_time) : '--:--'
 
-  // Coordinate source display config (Issue #382)
-  const coordSourceConfig = {
-    timezone: { dot: 'bg-amber-500', label: 'Approx. location' },
-    gps: { dot: 'bg-green-500', label: 'GPS' },
-    explicit: { dot: 'bg-blue-500', label: 'Manual' },
-  }
-  const coordSource = coordinatesSource ? coordSourceConfig[coordinatesSource] : null
+  const coordSource = coordinatesSource ? COORD_SOURCE_CONFIG[coordinatesSource] : null
 
   // Show progress during activation
   if (isActivating) {
