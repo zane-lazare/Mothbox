@@ -182,6 +182,8 @@ class SchedulerService:
     NEVER acquire locks in a different order, as this can cause deadlocks.
     """
 
+    GPS_POLL_INTERVAL = 60  # seconds (Issue #382)
+
     def __init__(
         self,
         cache_ttl: int = 300,
@@ -1056,15 +1058,17 @@ class SchedulerService:
                 logger.exception("GPS auto-update failed")
                 return {"updated": False}
 
-    # GPS polling interval in seconds (Issue #382)
-    GPS_POLL_INTERVAL = 60
-
     def start_gps_polling(self) -> None:
         """
         Start periodic GPS polling (Issue #382).
 
         Schedules _gps_poll_tick to run every GPS_POLL_INTERVAL seconds.
         Only starts if coordinates_source is "timezone".
+
+        Note: reads _active_coordinates_source without a lock. This is safe
+        because callers (activate_schedule, _gps_poll_tick) either hold
+        _activation_lock or check _active_schedule_id under lock before
+        calling, preventing a timer from outliving a deactivation.
         """
         self.stop_gps_polling()  # Cancel any existing timer
         if self._active_coordinates_source != "timezone":

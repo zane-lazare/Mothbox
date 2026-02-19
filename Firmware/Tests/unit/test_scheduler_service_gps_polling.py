@@ -224,6 +224,48 @@ class TestCheckAndUpdateGps:
         assert result["updated"] is False
         assert service._active_coordinates_source == "timezone"
 
+    def test_ignores_out_of_range_longitude(self, service, temp_schedules_dir):
+        """Should return updated=False when longitude is out of valid range."""
+        controls_file = temp_schedules_dir / "controls.txt"
+        controls_file.write_text("lat=0\nlon=200\n")
+
+        service._active_coordinates_source = "timezone"
+        service._active_schedule_id = "test-1"
+
+        result = service.check_and_update_gps()
+
+        assert result["updated"] is False
+        assert service._active_coordinates_source == "timezone"
+
+    def test_returns_false_when_cron_conversion_fails(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Should return updated=False when schedule_to_cron returns errors."""
+        controls_file = temp_schedules_dir / "controls.txt"
+        controls_file.write_text("lat=-41.2865\nlon=174.7762\n")
+
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+        service._active_schedule_id = sample_schedule.schedule_id
+        service._active_coordinates_source = "timezone"
+        service._active_latitude = 0.0
+        service._active_longitude = 0.0
+        service._active_timezone_name = "Pacific/Auckland"
+
+        # Mock schedule_to_cron to return errors
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.schedule_to_cron",
+            lambda *args, **kwargs: type("R", (), {"entries": [], "errors": ["bad trigger"]})(),
+        )
+
+        result = service.check_and_update_gps()
+
+        assert result["updated"] is False
+        # Source should remain timezone since update failed
+        assert service._active_coordinates_source == "timezone"
+
     def test_regenerates_cron_entries(
         self, service, temp_schedules_dir, sample_schedule, monkeypatch
     ):

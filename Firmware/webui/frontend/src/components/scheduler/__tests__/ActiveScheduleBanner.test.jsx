@@ -237,7 +237,7 @@ describe('ActiveScheduleBanner', () => {
       const pulsingIcon = container.querySelector('.animate-pulse')
       expect(pulsingIcon).toBeInTheDocument()
       expect(screen.getByTestId('location-info')).toHaveTextContent(
-        /Approximate location.*Waiting for GPS/
+        /Using Pacific\/Auckland.*Waiting for GPS/
       )
     })
 

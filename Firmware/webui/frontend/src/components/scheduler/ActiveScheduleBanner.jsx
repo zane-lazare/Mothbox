@@ -47,8 +47,11 @@ function getActionDisplayName(action) {
  */
 function ActiveScheduleBanner() {
   const [isActivating, setIsActivating] = useState(false)
+  // Track coordinates source to drive conditional refetch (Issue #382)
+  // Polls every 60s only while waiting for GPS fix (source === 'timezone')
+  const coordinatesSourceRef = useRef(null)
   const { data } = useActiveSchedule({
-    refetchInterval: 60 * 1000,
+    refetchInterval: coordinatesSourceRef.current === 'timezone' ? 60 * 1000 : false,
   })
   const { data: schedulesData } = useSchedules({ include_builtin: true })
   const { mutate: deactivate, isPending: isDeactivating } = useDeactivateSchedule({
@@ -69,6 +72,8 @@ function ActiveScheduleBanner() {
       toast.success('GPS fix acquired — solar times updated')
     }
     prevCoordinatesSourceRef.current = currentSource
+    // Update ref driving conditional refetch interval
+    coordinatesSourceRef.current = currentSource
   }, [data?.coordinates_source])
 
   const schedules = schedulesData?.schedules || []
@@ -114,6 +119,7 @@ function ActiveScheduleBanner() {
     const coordinatesSource = data?.coordinates_source
     const latitude = data?.latitude
     const longitude = data?.longitude
+    const timezoneName = data?.timezone_name
 
     // Get next FUTURE action from persisted entries - already filtered by API
     // Next actions API structure: { actions: [{ time, action_name, action_type }] }
@@ -164,7 +170,7 @@ function ActiveScheduleBanner() {
           {coordinatesSource === 'timezone' && (
             <span data-testid="location-info" className="flex items-center gap-1 text-amber-700">
               <SignalSlashIcon className="h-4 w-4 animate-pulse" />
-              Approximate location from timezone. Waiting for GPS...
+              Using {timezoneName || 'system locale'}. Waiting for GPS...
             </span>
           )}
           {coordinatesSource === 'gps' && (
