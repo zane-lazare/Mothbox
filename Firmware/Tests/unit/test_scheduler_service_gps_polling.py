@@ -211,6 +211,19 @@ class TestCheckAndUpdateGps:
         assert result["updated"] is False
         assert service._active_coordinates_source == "timezone"
 
+    def test_ignores_out_of_range_gps_values(self, service, temp_schedules_dir):
+        """Should return updated=False when GPS coordinates are out of valid range."""
+        controls_file = temp_schedules_dir / "controls.txt"
+        controls_file.write_text("lat=200\nlon=0\n")
+
+        service._active_coordinates_source = "timezone"
+        service._active_schedule_id = "test-1"
+
+        result = service.check_and_update_gps()
+
+        assert result["updated"] is False
+        assert service._active_coordinates_source == "timezone"
+
     def test_regenerates_cron_entries(
         self, service, temp_schedules_dir, sample_schedule, monkeypatch
     ):
@@ -306,6 +319,38 @@ class TestGpsPollingTimer:
             longitude=174.0,
             timezone_name="Pacific/Auckland",
             coordinates_source="gps",
+        )
+
+        assert service._gps_poll_timer is None
+
+    def test_timer_does_not_start_on_explicit_activation(
+        self, service, temp_schedules_dir, sample_schedule, monkeypatch
+    ):
+        """Timer should NOT start when schedule activated with explicit coordinates."""
+        from webui.backend.lib.schedule_storage import create_schedule
+
+        create_schedule(sample_schedule)
+        service.set_enabled_schedule(sample_schedule.schedule_id)
+
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.apply_to_system",
+            lambda **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.schedule_to_cron",
+            lambda *args, **kwargs: type("R", (), {"entries": [], "errors": []})(),
+        )
+        monkeypatch.setattr(
+            "webui.backend.services.scheduler_service.expand_pattern_entries",
+            lambda **kwargs: [],
+        )
+
+        service.activate_schedule(
+            schedule_id=sample_schedule.schedule_id,
+            latitude=-41.0,
+            longitude=174.0,
+            timezone_name="Pacific/Auckland",
+            coordinates_source="explicit",
         )
 
         assert service._gps_poll_timer is None

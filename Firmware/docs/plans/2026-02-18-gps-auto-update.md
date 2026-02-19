@@ -1,6 +1,5 @@
 # GPS Auto-Update Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Auto-detect GPS availability after timezone-based schedule activation, update coordinates, regenerate cron entries, and show the transition in the UI.
 
