@@ -10,6 +10,7 @@ Verifies that:
 
 import os
 import subprocess
+import textwrap
 
 import pytest
 
@@ -127,3 +128,101 @@ class TestMissingFiles:
         result = run_migration(migration_script, config_dir)
         assert result.returncode == 0
         assert "cache_max_size_mb=500" in controls.read_text()
+
+
+class TestRealWorldScenarios:
+    """Test migration against realistic config files from actual Mothbox installs."""
+
+    def test_old_install_missing_hdr(self, migration_script, config_dir):
+        """Issue #378: Old installs missing HDR setting default to wrong value."""
+        camera = config_dir / "camera_settings.csv"
+        camera.write_text(textwrap.dedent("""\
+            SETTING,VALUE,DETAILS
+            LensPosition,0.5,lens position
+            ExposureValue,0.6,exposure
+            ExposureTime,499,microseconds
+            AnalogueGain,8.0,gain
+        """))
+
+        result = run_migration(migration_script, config_dir)
+        assert result.returncode == 0
+
+        content = camera.read_text()
+        assert "HDR,1," in content  # default=1 meaning off
+
+    def test_old_install_missing_cache_settings(self, migration_script, config_dir):
+        """Old installs before gallery cache feature."""
+        controls = config_dir / "controls.txt"
+        controls.write_text(textwrap.dedent("""\
+            shutdown_enabled=False
+            name=mothbox
+            softwareversion=5.0.0
+            Relay_Ch1=5
+            Relay_Ch2=19
+            Relay_Ch3=9
+        """))
+
+        result = run_migration(migration_script, config_dir)
+        assert result.returncode == 0
+
+        content = controls.read_text()
+        # New cache settings added
+        assert "cache_max_size_mb=500" in content
+        assert "cache_sizes=64,128,256" in content
+        assert "thumbnail_quality=85" in content
+        # User values preserved
+        assert "Relay_Ch1=5" in content
+        assert "name=mothbox" in content
+
+    def test_full_current_config_unchanged(self, migration_script, config_dir):
+        """Running migration on a fully up-to-date config changes nothing."""
+        controls = config_dir / "controls.txt"
+        controls.write_text(textwrap.dedent("""\
+            shutdown_enabled=False
+            OnlyFlash=False
+            LastCalibration=0
+            nextWake=0
+            name=mothbox
+            softwareversion=5.0.0
+            gpstime=0
+            UTCoff=-5
+            lat=n/a
+            lon=n/a
+            gps_fix_mode=0
+            gps_satellites_used=0
+            gps_satellites_visible=0
+            gps_altitude=0
+            gps_hdop=99.99
+            gps_pdop=99.99
+            last_known_lat=n/a
+            last_known_lon=n/a
+            last_position_time=0
+            weekdays=1;2;3;4;5;6;7
+            hours=19;21;23;2;4
+            minutes=0
+            runtime=59
+            Relay_Ch1=5
+            Relay_Ch2=19
+            Relay_Ch3=9
+            relay_enabled=true
+            relay_active_low=true
+            flash_duration_ms=100
+            off_pin=16
+            debug_pin=12
+            jpeg_quality=96
+            cache_max_size_mb=500
+            cache_sizes=64,128,256
+            thumbnail_quality=85
+            cache_warm_on_startup=false
+            cache_warm_count=100
+            log_level=INFO
+            log_retention_days=7
+        """))
+
+        content_before = controls.read_text()
+
+        result = run_migration(migration_script, config_dir)
+        assert result.returncode == 0
+
+        content_after = controls.read_text()
+        assert content_before == content_after
