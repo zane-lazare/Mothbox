@@ -990,6 +990,14 @@ elif [ "$INSTALL_TYPE" = "legacy" ]; then
     echo ""
 fi
 
+# Run config migrations (add missing keys, rename, remove deprecated)
+MIGRATIONS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/config_migrations.sh"
+if [ -f "$MIGRATIONS_SCRIPT" ]; then
+    source "$MIGRATIONS_SCRIPT"
+    run_config_migrations "$CONFIG_DIR"
+    echo ""
+fi
+
 # If we only needed file sync (no git changes) and no rebuild requested, exit here
 if [ "$GIT_HAS_CHANGES" = "false" ] && [ "$FILES_NEED_SYNC" = "true" ] && [ "$FORCE_FRONTEND_REBUILD" = "false" ]; then
     echo -e "${GREEN}✓ File sync complete, no other updates needed${NC}"
