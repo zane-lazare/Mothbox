@@ -49,6 +49,7 @@ describe('FilterPresetManager', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    delete window.alert
   })
 
   describe('Rendering', () => {
