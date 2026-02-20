@@ -229,7 +229,8 @@ run_config_migrations() {
     local changed=0
 
     if [ -f "$controls" ]; then
-        local new_md5=$(md5sum "$controls" | cut -d' ' -f1)
+        local new_md5
+        new_md5=$(md5sum "$controls" | cut -d' ' -f1)
         if [ "$md5_controls" != "$new_md5" ]; then
             echo -e "  ${GREEN}Updated${NC} controls.txt (added missing keys)"
             changed=1
@@ -241,7 +242,8 @@ run_config_migrations() {
     fi
 
     if [ -f "$camera" ]; then
-        local new_md5=$(md5sum "$camera" | cut -d' ' -f1)
+        local new_md5
+        new_md5=$(md5sum "$camera" | cut -d' ' -f1)
         if [ "$md5_camera" != "$new_md5" ]; then
             echo -e "  ${GREEN}Updated${NC} camera_settings.csv (added missing keys)"
             changed=1
@@ -253,7 +255,8 @@ run_config_migrations() {
     fi
 
     if [ -f "$schedule" ]; then
-        local new_md5=$(md5sum "$schedule" | cut -d' ' -f1)
+        local new_md5
+        new_md5=$(md5sum "$schedule" | cut -d' ' -f1)
         if [ "$md5_schedule" != "$new_md5" ]; then
             echo -e "  ${GREEN}Updated${NC} schedule_settings.csv (added missing keys)"
             changed=1
