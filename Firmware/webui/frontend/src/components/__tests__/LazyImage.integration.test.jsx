@@ -8,7 +8,7 @@ describe('LazyImage Integration Tests', () => {
 
   beforeEach(() => {
     // Mock IntersectionObserver (not the hook, test the real integration)
-    global.IntersectionObserver = vi.fn((callback) => {
+    global.IntersectionObserver = vi.fn(function (callback) {
       observerCallback = callback;
       observerInstance = {
         observe: vi.fn(),
@@ -67,7 +67,7 @@ describe('LazyImage Integration Tests', () => {
 
     // Store all observer callbacks
     const callbacks = [];
-    global.IntersectionObserver = vi.fn((callback) => {
+    global.IntersectionObserver = vi.fn(function (callback) {
       callbacks.push(callback);
       return {
         observe: vi.fn(),
