@@ -8,7 +8,7 @@ describe('useInViewport', () => {
 
   beforeEach(() => {
     // Mock IntersectionObserver
-    global.IntersectionObserver = vi.fn((callback) => {
+    global.IntersectionObserver = vi.fn(function (callback) {
       observerCallback = callback;
       observerInstance = {
         observe: vi.fn(),

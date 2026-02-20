@@ -28,13 +28,8 @@ export default defineConfig({
     // Using forks (separate processes) instead of threads to avoid memory issues
     // Threads share heap memory which causes OOM errors with large test suites
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        minForks: 1,
-        maxForks: process.env.CI ? 1 : 2,  // Single fork in CI for memory safety
-        isolate: true,  // Fresh process per test file - prevents memory accumulation
-      }
-    },
+    maxWorkers: process.env.CI ? 1 : 2,  // Single worker in CI for memory safety
+    isolate: true,  // Fresh process per test file - prevents memory accumulation
     fileParallelism: true,  // Run test files in parallel
     // Force vitest to exit when tests finish, even if async operations are pending
     // This prevents hanging when tests don't properly clean up timers/promises

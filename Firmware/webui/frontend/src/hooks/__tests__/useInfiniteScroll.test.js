@@ -17,7 +17,7 @@ describe('useInfiniteScroll', () => {
     disconnectMock = vi.fn()
 
     // Create IntersectionObserver mock
-    IntersectionObserverMock = vi.fn((callback, options) => {
+    IntersectionObserverMock = vi.fn(function (callback, options) {
       observerCallback = callback
       return {
         observe: observeMock,

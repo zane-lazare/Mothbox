@@ -25,7 +25,7 @@ describe('useVirtualGrid', () => {
       disconnect: vi.fn(),
     };
 
-    global.ResizeObserver = vi.fn((callback) => {
+    global.ResizeObserver = vi.fn(function (callback) {
       resizeObserverCallback = callback;
       return mockResizeObserver;
     });

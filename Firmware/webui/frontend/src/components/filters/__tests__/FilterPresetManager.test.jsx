@@ -49,6 +49,7 @@ describe('FilterPresetManager', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    delete window.alert
   })
 
   describe('Rendering', () => {
@@ -185,15 +186,14 @@ describe('FilterPresetManager', () => {
         throw new Error('Save failed')
       })
 
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      window.alert = vi.fn()
+      const alertSpy = window.alert
 
       renderWithProvider(<FilterPresetManager />)
 
       // Would trigger save and verify error handling
       // For now, just verify the spy is set up
       expect(alertSpy).not.toHaveBeenCalled()
-
-      alertSpy.mockRestore()
     })
   })
 
@@ -240,7 +240,8 @@ describe('FilterPresetManager', () => {
         throw new Error('Load failed')
       })
 
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      window.alert = vi.fn()
+      const alertSpy = window.alert
 
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
@@ -258,8 +259,6 @@ describe('FilterPresetManager', () => {
       await waitFor(() => {
         expect(alertSpy).toHaveBeenCalledWith('Failed to load preset: Load failed')
       })
-
-      alertSpy.mockRestore()
     })
 
     it('should handle null filter state from loadPreset', async () => {
@@ -450,7 +449,8 @@ describe('FilterPresetManager', () => {
         throw new Error('Delete failed')
       })
 
-      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+      window.alert = vi.fn()
+      const alertSpy = window.alert
 
       useFilterPresets.mockReturnValue({
         presets: mockPresets,
@@ -478,8 +478,6 @@ describe('FilterPresetManager', () => {
       await waitFor(() => {
         expect(alertSpy).toHaveBeenCalledWith('Failed to delete preset: Delete failed')
       })
-
-      alertSpy.mockRestore()
     })
   })
 
