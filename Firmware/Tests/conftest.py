@@ -1598,6 +1598,7 @@ def pytest_collection_modifyitems(config, items):
             "test_expert_mode_workflow",  # Uses mocks/tmp_path/Flask test client, no camera/GPIO (Issue #233)
             "test_export_job_gps_precision",  # Uses tmp_path/PIL/Flask test client/threading, no camera/GPIO (Issue #288)
             "test_gpio_daemon_integration",  # Uses mocked gpiod/threading/tmp_path, no real GPIO (Issue #401)
+            "test_config_migration_integration",  # Uses subprocess/tmp_path to test bash scripts, no camera/GPIO (Issue #378)
         )
 
         is_non_hardware_test = any(test in fspath_str for test in non_hardware_tests)
