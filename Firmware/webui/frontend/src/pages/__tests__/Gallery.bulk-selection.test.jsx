@@ -95,11 +95,13 @@ describe('Gallery - Bulk Selection Integration', () => {
 
   // Helper to setup IntersectionObserver mock
   const setupIntersectionObserver = () => {
-    globalThis.IntersectionObserver = vi.fn(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    }))
+    globalThis.IntersectionObserver = vi.fn(function () {
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      }
+    })
   }
 
   beforeEach(() => {
