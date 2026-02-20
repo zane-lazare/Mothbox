@@ -17,12 +17,13 @@ Add `overrides` to `package.json` forcing fixed transitive versions:
 
 ```json
 "overrides": {
-  "minimatch": ">=10.2.1",
-  "ajv": ">=8.18.0"
+  "minimatch": ">=10.2.1"
 }
 ```
 
-eslint stays at 9.39.2 — no config changes. The overrides resolve all 6 eslint-chain vulnerabilities.
+eslint stays at 9.39.2 — no config changes. The overrides resolve minimatch vulnerabilities in the eslint chain.
+
+**Note:** ajv override (`>=8.18.0`) was attempted but removed — ajv 6.x and 8.x have incompatible APIs, causing eslint to crash. The moderate-severity ajv vuln cannot be fixed without upgrading to eslint 10 (which drops `@eslint/eslintrc`). CI gates on `--audit-level=high` so this does not block.
 
 ### 2. Upgrade vitest 3 to 4
 
@@ -56,7 +57,7 @@ isolate: true,
 ## Verification
 
 1. `npm ci` — clean install
-2. `npm audit` — 0 vulnerabilities
+2. `npm audit --audit-level=high` — exit code 0 (moderate ajv remains but doesn't trigger gate)
 3. `npx eslint src/ --max-warnings=0` — eslint works with overridden minimatch
 4. `npx vitest run` — all tests pass with vitest 4
 5. `npm run build` — production build unaffected
