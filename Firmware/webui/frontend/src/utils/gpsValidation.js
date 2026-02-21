@@ -1,5 +1,8 @@
 /**
  * GPS configuration validation utilities
+ *
+ * @deprecated Will be replaced by Zod schemas in src/schemas/gps-settings.ts
+ * during Phase 1 of the form validation standardization (#197). Do not add new imports.
  */
 
 /**

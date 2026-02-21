@@ -1,6 +1,9 @@
 /**
  * Frontend Preset Validation
  *
+ * @deprecated Will be replaced by Zod schemas in src/schemas/camera-preset.ts
+ * during Phase 1 of the form validation standardization (#197). Do not add new imports.
+ *
  * Mirrors backend validation rules from webui/backend/utils.py (ALLOWED_LIVEVIEW_SETTINGS)
  * to provide client-side validation before API calls.
  *
