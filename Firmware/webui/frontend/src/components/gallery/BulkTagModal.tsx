@@ -107,6 +107,7 @@ export default function BulkTagModal({
   const handleAddTag = (tag: string) => {
     const trimmed = tag.trim()
     if (!trimmed) return
+    if (trimmed.length > 100) return
     // Case-insensitive duplicate check
     if (fields.some((t) => t.value.toLowerCase() === trimmed.toLowerCase())) return
     append({ value: trimmed })
@@ -122,7 +123,14 @@ export default function BulkTagModal({
   }
 
   const onSubmit = (data: BulkTagFormData) => {
-    onApply({ tags: data.tags.map(t => t.value), mode: data.mode })
+    // Auto-commit any uncommitted input before submitting
+    const trimmed = inputValue.trim()
+    if (trimmed && trimmed.length <= 100 && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
+      const allTags = [...data.tags.map(t => t.value), trimmed]
+      onApply({ tags: allTags, mode: data.mode })
+    } else {
+      onApply({ tags: data.tags.map(t => t.value), mode: data.mode })
+    }
   }
 
   const modal = (
