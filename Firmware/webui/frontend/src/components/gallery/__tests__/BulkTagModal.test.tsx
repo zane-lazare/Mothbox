@@ -313,6 +313,44 @@ describe('BulkTagModal', () => {
         mode: 'remove'
       })
     })
+
+    it('auto-commits uncommitted input on Apply', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      // Commit one tag, then type another without pressing Enter
+      await user.type(input, 'moth{Enter}')
+      await user.type(input, 'nocturnal')
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth', 'nocturnal'],
+        mode: 'add'
+      })
+    })
+
+    it('drops invalid uncommitted input on Apply and submits existing tags', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      // Commit one valid tag, then type a tag that exceeds max length
+      await user.type(input, 'moth{Enter}')
+      await user.type(input, 'a'.repeat(101))
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth'],
+        mode: 'add'
+      })
+    })
   })
 
   describe('Modal Behavior', () => {
@@ -392,8 +430,9 @@ describe('BulkTagModal', () => {
         </QueryClientProvider>
       )
 
-      // State should be reset
-      expect(screen.queryByText('moth')).not.toBeInTheDocument()
+      // State should be reset — tag chip is gone (check remove button,
+      // not text, because autoFocus opens suggestions which also show "moth")
+      expect(screen.queryByLabelText(/Remove tag moth/i)).not.toBeInTheDocument()
       const newRadioGroup = screen.getByRole('radiogroup')
       expect(within(newRadioGroup).getByLabelText(/Add tags/i)).toBeChecked()
     })

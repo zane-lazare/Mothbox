@@ -129,13 +129,15 @@ export default function BulkTagModal({
     // than routing through Zod, because append() is async and handleSubmit
     // already captured the form snapshot. Invalid input is intentionally
     // discarded — the hint text communicates the Enter/comma convention.
-    const trimmed = inputValue.trim()
-    if (trimmed && trimmed.length <= TAG_MAX_LENGTH && data.tags.length < TAG_MAX_COUNT && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
-      const allTags = [...data.tags.map(t => t.value), trimmed]
-      onApply({ tags: allTags, mode: data.mode })
-    } else {
-      onApply({ tags: data.tags.map(t => t.value), mode: data.mode })
-    }
+    const pendingTag = inputValue.trim()
+    const canAddPending =
+      pendingTag &&
+      pendingTag.length <= TAG_MAX_LENGTH &&
+      data.tags.length < TAG_MAX_COUNT &&
+      !data.tags.some(t => t.value.toLowerCase() === pendingTag.toLowerCase())
+
+    const tagStrings = data.tags.map(t => t.value)
+    onApply({ tags: canAddPending ? [...tagStrings, pendingTag] : tagStrings, mode: data.mode })
   }
 
   const modal = (
@@ -206,6 +208,7 @@ export default function BulkTagModal({
               <input
                 id="bulk-tag-input"
                 type="text"
+                autoFocus
                 value={inputValue}
                 onChange={(e) => {
                   setInputValue(e.target.value)
@@ -256,7 +259,10 @@ export default function BulkTagModal({
             </div>
           )}
 
-          {/* Validation errors */}
+          {/* Array-level validation errors (e.g. "Too many tags").
+             Individual tag errors are suppressed — handleAddTag prevents
+             invalid entries from reaching the field array. The disabled
+             submit button preempts the "At least one tag" error. */}
           {errors.tags?.root && (
             <p role="alert" className="text-red-600 dark:text-red-400 text-sm mb-4">{errors.tags.root.message}</p>
           )}
