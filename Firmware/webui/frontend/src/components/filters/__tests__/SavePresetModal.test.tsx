@@ -397,6 +397,27 @@ describe('SavePresetModal', () => {
   })
 
   describe('Form reset', () => {
+    it('resets form after successful save and reopen', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      const onClose = vi.fn()
+      const { rerender } = renderModal({ onSave, onClose })
+
+      // Save a preset
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'Saved Preset')
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+      expect(onSave).toHaveBeenCalledWith('Saved Preset')
+
+      // Close modal (simulating onClose callback)
+      rerender(<SavePresetModal {...defaultProps} isOpen={false} onSave={onSave} onClose={onClose} />)
+
+      // Reopen — form should be empty with no errors
+      rerender(<SavePresetModal {...defaultProps} isOpen={true} onSave={onSave} onClose={onClose} />)
+      expect(screen.getByLabelText('Preset Name *')).toHaveValue('')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('resets form state and errors when modal reopens', async () => {
       const user = userEvent.setup()
       const { rerender } = renderModal()
