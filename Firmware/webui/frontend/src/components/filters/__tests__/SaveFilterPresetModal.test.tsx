@@ -108,4 +108,150 @@ describe('SaveFilterPresetModal', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
+
+  describe('Save flow', () => {
+    it('calls onSave with trimmed name on submit', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ onSave })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, '  My Preset  ')
+      // Blur to trigger onBlur validation so isValid becomes true
+      await user.tab()
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+
+      expect(onSave).toHaveBeenCalledWith('My Preset')
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not call onSave when form is invalid', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ onSave })
+
+      // Try to submit without entering a name (button should be disabled)
+      const saveButton = screen.getByRole('button', { name: 'Save Preset' })
+      expect(saveButton).toBeDisabled()
+      await user.click(saveButton)
+
+      expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('calls onClose after successful save', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      const onSave = vi.fn()
+      renderModal({ onClose, onSave })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'My Preset')
+      // Blur to trigger onBlur validation so isValid becomes true
+      await user.tab()
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Cancel and close', () => {
+    it('calls onClose when Cancel is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ onClose })
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when backdrop is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ onClose })
+
+      // Backdrop is the element with aria-hidden="true"
+      const backdrop = screen.getByRole('dialog').parentElement!
+        .previousElementSibling as HTMLElement
+      await user.click(backdrop)
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Keyboard shortcuts', () => {
+    it('submits form on Enter key with valid input', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ onSave })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'My Preset')
+      await user.type(input, '{Enter}')
+
+      expect(onSave).toHaveBeenCalledWith('My Preset')
+    })
+
+    it('closes modal on Escape key', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ onClose })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.click(input)
+      await user.keyboard('{Escape}')
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Disabled states', () => {
+    it('disables save button when input is empty', () => {
+      renderModal()
+
+      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
+    })
+
+    it('disables save button when validation error exists', async () => {
+      const user = userEvent.setup()
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'ab')
+      await user.tab()
+
+      await screen.findByRole('alert')
+      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
+    })
+
+    it('disables save button and input when isSaving is true', () => {
+      renderModal({ isSaving: true })
+
+      expect(screen.getByLabelText('Preset Name *')).toBeDisabled()
+      expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled()
+    })
+  })
+
+  describe('Accessibility', () => {
+    it('has correct dialog aria attributes', () => {
+      renderModal()
+
+      const dialog = screen.getByRole('dialog')
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      expect(dialog).toHaveAttribute('aria-labelledby', 'modal-title')
+    })
+
+    it('sets aria-invalid and aria-describedby on errored input', async () => {
+      const user = userEvent.setup()
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'ab')
+      await user.tab()
+
+      await screen.findByRole('alert')
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(input).toHaveAttribute('aria-describedby', 'name-error')
+    })
+  })
 })
