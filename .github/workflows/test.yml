@@ -489,6 +489,7 @@ jobs:
   frontend-typecheck:
     name: Frontend Typecheck (tsc)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: Firmware/webui/frontend

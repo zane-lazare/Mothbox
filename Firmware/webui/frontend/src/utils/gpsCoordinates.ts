@@ -1,8 +1,8 @@
 /**
  * GPS coordinate conversion and formatting utilities.
  *
- * @deprecated This module will be replaced by Zod schemas in src/schemas/coordinates.ts
- * as part of the form validation standardization (#197). Do not add new imports.
+ * @deprecated Will be replaced by Zod schemas in src/schemas/coordinates.ts
+ * during Phase 1 of the form validation standardization (#197). Do not add new imports.
  *
  * This module provides utilities for converting between decimal degrees and
  * DMS (Degrees, Minutes, Seconds) format, validating GPS coordinates, and
