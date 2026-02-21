@@ -305,6 +305,23 @@ describe('SavePresetModal', () => {
       expect(screen.getByLabelText('Preset Name *')).toHaveValue('Default')
     })
 
+    it('allows saving with defaultName unchanged', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ defaultName: 'Default Preset', onSave })
+
+      const input = screen.getByLabelText('Preset Name *')
+      // Blur the input to trigger validation without changing the value
+      await user.click(input)
+      await user.tab()
+
+      const saveButton = screen.getByRole('button', { name: 'Save Preset' })
+      expect(saveButton).not.toBeDisabled()
+      await user.click(saveButton)
+
+      expect(onSave).toHaveBeenCalledWith('Default Preset')
+    })
+
     it('marks form as dirty when defaultName is modified', async () => {
       const user = userEvent.setup()
       renderModal({ defaultName: 'Default' })

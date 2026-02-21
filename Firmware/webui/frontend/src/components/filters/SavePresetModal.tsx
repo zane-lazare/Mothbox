@@ -141,7 +141,8 @@ export function SavePresetModal({
                 type="submit"
                 // With mode:'onBlur', isValid stays false until first blur.
                 // Clicking the button blurs the input first, so the second click works.
-                disabled={isSaving || !isValid || !isDirty}
+                // When defaultName is provided, skip isDirty — the form starts with a valid value.
+                disabled={isSaving || !isValid || (!isDirty && !defaultName)}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 {isSaving ? (
