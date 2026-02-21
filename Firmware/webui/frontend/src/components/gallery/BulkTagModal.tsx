@@ -74,8 +74,8 @@ export default function BulkTagModal({
   // Filter suggestions based on input value
   const suggestions = useMemo(() =>
     tagsData?.tags
-      ?.filter((t: { name: string }) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
-      ?.filter((t: { name: string }) => !fields.some((existing) => existing.value.toLowerCase() === t.name.toLowerCase()))
+      ?.filter((t) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
+      ?.filter((t) => !fields.some((existing) => existing.value.toLowerCase() === t.name.toLowerCase()))
       ?.slice(0, 8) || []
   , [tagsData, inputValue, fields])
 
@@ -213,7 +213,7 @@ export default function BulkTagModal({
               {/* Suggestions Dropdown */}
               {showSuggestions && suggestions.length > 0 && (
                 <ul className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-700 dark:border-gray-600 max-h-48 overflow-auto`}>
-                  {suggestions.map((suggestion: { name: string; count: number }) => (
+                  {suggestions.map((suggestion) => (
                     <li
                       key={suggestion.name}
                       onMouseDown={(e) => {

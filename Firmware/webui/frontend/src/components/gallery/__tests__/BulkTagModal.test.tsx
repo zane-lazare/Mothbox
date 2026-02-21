@@ -26,8 +26,8 @@ const createTestQueryClient = () => new QueryClient({
 
 interface RenderModalProps {
   isOpen?: boolean
-  onClose?: ReturnType<typeof vi.fn>
-  onApply?: ReturnType<typeof vi.fn>
+  onClose?: () => void
+  onApply?: (data: { tags: string[]; mode: string }) => void
   selectedCount?: number
   isLoading?: boolean
   error?: string | null
