@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { filterPresetNameSchema, type FilterPresetNameData } from '../../schemas/preset'
@@ -20,12 +21,20 @@ export function SaveFilterPresetModal({
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isValid, isDirty },
   } = useForm<FilterPresetNameData>({
     resolver: zodResolver(filterPresetNameSchema),
     defaultValues: { name: '' },
     mode: 'onBlur',
   })
+
+  // Reset form when modal opens (useForm persists state across renders)
+  useEffect(() => {
+    if (isOpen) {
+      reset()
+    }
+  }, [isOpen, reset])
 
   if (!isOpen) return null
 
