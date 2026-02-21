@@ -52,6 +52,7 @@ export function renderWithForm<T extends FieldValues = FieldValues>(
   // but Zod 4's ZodType uses `unknown` for the input parameter by default.
   // The cast is safe because the schema validates the same shape as T at
   // runtime — we go through `unknown` to avoid `any`.
+  // TODO: Remove cast when @hookform/resolvers ships native Zod 4 types.
   const resolver = schema
     ? (zodResolver(schema as unknown as Parameters<typeof zodResolver>[0]) as Resolver<T>)
     : undefined;
