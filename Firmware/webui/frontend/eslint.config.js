@@ -70,14 +70,6 @@ export default defineConfig([
     files: ['**/*.{js,jsx,ts,tsx}'],
     rules: {
       'no-restricted-imports': ['warn', {
-        paths: [
-          { name: '../utils/gpsValidation', message: 'Deprecated: use schemas/gps-settings.ts instead (#197)' },
-          { name: '../../utils/gpsValidation', message: 'Deprecated: use schemas/gps-settings.ts instead (#197)' },
-          { name: '../utils/presetValidation', message: 'Deprecated: use schemas/camera-preset.ts instead (#197)' },
-          { name: '../../utils/presetValidation', message: 'Deprecated: use schemas/camera-preset.ts instead (#197)' },
-          { name: '../utils/gpsCoordinates', message: 'Deprecated: use schemas/coordinates.ts instead (#197)' },
-          { name: '../../utils/gpsCoordinates', message: 'Deprecated: use schemas/coordinates.ts instead (#197)' },
-        ],
         patterns: [
           { group: ['**/utils/gpsValidation'], message: 'Deprecated: use schemas/gps-settings.ts instead (#197)' },
           { group: ['**/utils/presetValidation'], message: 'Deprecated: use schemas/camera-preset.ts instead (#197)' },

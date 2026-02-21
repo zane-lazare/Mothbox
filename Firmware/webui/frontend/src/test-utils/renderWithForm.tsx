@@ -21,9 +21,6 @@ interface RenderWithFormOptions<T extends FieldValues>
   formOptions?: Omit<UseFormProps<T>, 'defaultValues' | 'resolver'>;
 }
 
-// Store for capturing form methods from inside the wrapper
-let _capturedMethods: UseFormReturn<FieldValues> | null = null;
-
 /**
  * Render a component wrapped in a FormProvider for testing.
  * Returns all @testing-library/react utilities plus form methods.
@@ -44,15 +41,13 @@ export function renderWithForm<T extends FieldValues = FieldValues>(
 ) {
   const { defaultValues, schema, formOptions, ...renderOptions } = options;
 
-  // Reset captured methods
-  _capturedMethods = null;
+  // Function-scoped capture — no shared module state between calls.
+  let capturedMethods: UseFormReturn<T> | null = null;
 
-  // Build the resolver with a type assertion. The zodResolver overloads
-  // expect the schema's input type to be FieldValues (Record<string, any>),
-  // but Zod 4's ZodType uses `unknown` for the input parameter by default.
-  // The cast is safe because the schema validates the same shape as T at
-  // runtime — we go through `unknown` to avoid `any`.
-  // TODO: Remove cast when @hookform/resolvers ships native Zod 4 types.
+  // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
+  // Zod 4's public ZodType uses `unknown` for its input parameter. The cast
+  // through `unknown` is safe because the schema validates the same shape at
+  // runtime. TODO: Remove when @hookform/resolvers aligns with Zod 4 generics.
   const resolver = schema
     ? (zodResolver(schema as unknown as Parameters<typeof zodResolver>[0]) as Resolver<T>)
     : undefined;
@@ -65,8 +60,7 @@ export function renderWithForm<T extends FieldValues = FieldValues>(
       ...formOptions,
     });
 
-    // Capture methods so they can be returned to the caller
-    _capturedMethods = methods as UseFormReturn<FieldValues>;
+    capturedMethods = methods;
 
     return <FormProvider {...methods}>{children}</FormProvider>;
   }
@@ -79,6 +73,6 @@ export function renderWithForm<T extends FieldValues = FieldValues>(
   return {
     ...result,
     /** Access to the underlying react-hook-form methods */
-    formMethods: _capturedMethods as unknown as UseFormReturn<T>,
+    formMethods: capturedMethods as unknown as UseFormReturn<T>,
   };
 }

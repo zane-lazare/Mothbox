@@ -30,6 +30,7 @@ export function FormField({ name, label, error, helperText, children }: FormFiel
           {label}
         </label>
       )}
+      {/* ref is NOT forwarded — callers must spread field.ref on the input */}
       {React.cloneElement(children, {
         id: name,
         'aria-invalid': !!error,

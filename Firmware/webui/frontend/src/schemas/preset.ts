@@ -8,6 +8,8 @@ import { z } from 'zod';
  * before length checks.
  */
 export const filterPresetNameSchema = z.object({
+  // .min(1) gives "required" message for empty input; .min(3) gives "too short"
+  // for 1-2 char input. Both are needed for distinct UX feedback.
   name: z.string()
     .trim()
     .min(1, 'Preset name is required')
