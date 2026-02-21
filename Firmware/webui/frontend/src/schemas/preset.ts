@@ -22,7 +22,7 @@ export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
 /**
  * Camera preset name schema.
  *
- * Mirrors the validation in SavePresetModal.jsx (lines 21-35).
+ * Used by the camera SavePresetModal (src/components/SavePresetModal).
  * Only letters, numbers, and underscores are allowed.
  */
 export const cameraPresetNameSchema = z.object({
