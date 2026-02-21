@@ -125,14 +125,12 @@ export default function BulkTagModal({
     onApply({ tags: data.tags.map(t => t.value), mode: data.mode })
   }
 
-  const getModeLabel = () => MODE_LABELS[mode]
-
   const modal = (
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
-      {/* Backdrop with click-to-close */}
+      {/* Backdrop with click-to-close (guarded during loading) */}
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={onClose}
+        onClick={() => { if (!isLoading) onClose() }}
       />
 
       {/* Modal content */}
@@ -147,13 +145,14 @@ export default function BulkTagModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 id="bulk-tag-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {getModeLabel()} tags for {selectedCount} photo{selectedCount !== 1 ? 's' : ''}
+            {MODE_LABELS[mode]} tags for {selectedCount} photo{selectedCount !== 1 ? 's' : ''}
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => { if (!isLoading) onClose() }}
             aria-label="Close modal"
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             type="button"
+            disabled={isLoading}
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
