@@ -80,6 +80,9 @@ export function SavePresetModal({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, isSaving, onClose])
 
+  // If dirty, require validity; if untouched, allow only when pre-filled via defaultName.
+  const canSave = isDirty ? isValid : !!defaultName
+
   if (!isOpen) return null
 
   return createPortal(
@@ -149,6 +152,7 @@ export function SavePresetModal({
             </FormField>
             <p
               id="name-counter"
+              aria-live="polite"
               className="text-xs text-gray-500 dark:text-gray-400"
             >
               {nameValue.length}/50 characters
@@ -166,9 +170,7 @@ export function SavePresetModal({
               </button>
               <button
                 type="submit"
-                // When defaultName is provided, skip isDirty — the form starts with a valid value.
-                // When dirty, gate on isValid (updates immediately with mode:'onChange').
-                disabled={isSaving || (!isDirty && !defaultName) || (isDirty && !isValid)}
+                disabled={isSaving || !canSave}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 {isSaving ? (
