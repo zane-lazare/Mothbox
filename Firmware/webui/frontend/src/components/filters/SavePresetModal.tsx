@@ -147,7 +147,10 @@ export function SavePresetModal({
                 } disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:cursor-not-allowed`}
               />
             </FormField>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p
+              id="name-counter"
+              className="text-xs text-gray-500 dark:text-gray-400"
+            >
               {nameValue.length}/50 characters
             </p>
 
