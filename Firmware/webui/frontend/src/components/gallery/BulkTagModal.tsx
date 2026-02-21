@@ -48,7 +48,6 @@ export default function BulkTagModal({
     control,
     reset,
     watch,
-    formState: { isValid },
   } = useForm<BulkTagFormData>({
     resolver: zodResolver(bulkTagSchema),
     defaultValues: { tags: [], mode: 'add' },
