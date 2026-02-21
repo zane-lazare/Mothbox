@@ -57,7 +57,7 @@ describe('filterPresetNameSchema', () => {
   it('rejects a name longer than 50 characters', () => {
     const result = filterPresetNameSchema.safeParse({ name: 'a'.repeat(51) })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be less than 50 characters')
+    expect(firstError(result)).toBe('Name must be 50 characters or less')
   })
 
   it('trims whitespace before validation', () => {
@@ -132,7 +132,7 @@ describe('cameraPresetNameSchema', () => {
   it('rejects a name longer than 50 characters', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'a'.repeat(51) })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be less than 50 characters')
+    expect(firstError(result)).toBe('Name must be 50 characters or less')
   })
 
   it('returns correct error for missing name field', () => {

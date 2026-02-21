@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Filter preset name schema.
  *
- * Used by SaveFilterPresetModal.tsx via zodResolver.
+ * Used by SaveFilterPresetModal.tsx and SavePresetModal.tsx (filters) via zodResolver.
  * Any characters allowed (spaces, special chars); whitespace is trimmed
  * before length checks.
  */
@@ -14,7 +14,7 @@ export const filterPresetNameSchema = z.object({
     .trim()
     .min(1, 'Preset name is required')
     .min(3, 'Name must be at least 3 characters')
-    .max(50, 'Name must be less than 50 characters'),
+    .max(50, 'Name must be 50 characters or less'),
 });
 
 export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
@@ -22,7 +22,8 @@ export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
 /**
  * Camera preset name schema.
  *
- * Mirrors the validation in SavePresetModal.jsx (lines 21-35).
+ * Used by the camera SavePresetModal at src/components/SavePresetModal.jsx
+ * (distinct from the filters SavePresetModal at src/components/filters/).
  * Only letters, numbers, and underscores are allowed.
  */
 export const cameraPresetNameSchema = z.object({
@@ -31,7 +32,7 @@ export const cameraPresetNameSchema = z.object({
     .min(1, 'Preset name is required')
     .min(3, 'Name must be at least 3 characters')
     .regex(/^[a-zA-Z0-9_]+$/, 'Name can only contain letters, numbers, and underscores')
-    .max(50, 'Name must be less than 50 characters'),
+    .max(50, 'Name must be 50 characters or less'),
 });
 
 export type CameraPresetNameData = z.infer<typeof cameraPresetNameSchema>;

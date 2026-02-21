@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { SaveFilterPresetModal } from '../SaveFilterPresetModal'
+import { SavePresetModal } from '../SavePresetModal'
 
 const defaultProps = {
   isOpen: true,
@@ -10,10 +10,10 @@ const defaultProps = {
 }
 
 function renderModal(overrides = {}) {
-  return render(<SaveFilterPresetModal {...defaultProps} {...overrides} />)
+  return render(<SavePresetModal {...defaultProps} {...overrides} />)
 }
 
-describe('SaveFilterPresetModal', () => {
+describe('SavePresetModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -33,6 +33,28 @@ describe('SaveFilterPresetModal', () => {
       renderModal({ isOpen: false })
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('renders close button', () => {
+      renderModal()
+
+      expect(screen.getByRole('button', { name: 'Close modal' })).toBeInTheDocument()
+    })
+
+    it('renders character counter', () => {
+      renderModal()
+
+      expect(screen.getByText('0/50 characters')).toBeInTheDocument()
+    })
+
+    it('updates character counter as user types', async () => {
+      const user = userEvent.setup()
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'Test')
+
+      expect(screen.getByText('4/50 characters')).toBeInTheDocument()
     })
 
     it('shows saving state', () => {
@@ -70,12 +92,19 @@ describe('SaveFilterPresetModal', () => {
       )
     })
 
-    it('shows error for name exceeding 50 characters on blur', async () => {
+    it('enforces maxLength on input element', () => {
+      renderModal()
+
+      expect(screen.getByLabelText('Preset Name *')).toHaveAttribute('maxLength', '50')
+    })
+
+    it('shows Zod error for name exceeding 50 characters on blur', async () => {
       const user = userEvent.setup()
       renderModal()
 
+      // Use fireEvent to bypass maxLength (defense-in-depth for programmatic input)
       const input = screen.getByLabelText('Preset Name *')
-      await user.type(input, 'a'.repeat(51))
+      fireEvent.change(input, { target: { value: 'a'.repeat(51) } })
       await user.tab()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -121,7 +150,6 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, '  My Preset  ')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onSave).toHaveBeenCalledWith('My Preset')
@@ -162,7 +190,6 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
@@ -176,7 +203,6 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).not.toHaveBeenCalled()
@@ -191,6 +217,16 @@ describe('SaveFilterPresetModal', () => {
       renderModal({ onClose })
 
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when close (X) button is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ onClose })
+
+      await user.click(screen.getByRole('button', { name: 'Close modal' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
     })
@@ -266,9 +302,8 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'ab')
-      await user.tab()
 
-      await screen.findByRole('alert')
+      // With mode:'onChange', isValid updates immediately
       expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
@@ -280,13 +315,73 @@ describe('SaveFilterPresetModal', () => {
     })
   })
 
+  describe('Default name', () => {
+    it('populates input with defaultName prop', () => {
+      renderModal({ defaultName: 'Default Preset' })
+
+      expect(screen.getByLabelText('Preset Name *')).toHaveValue('Default Preset')
+    })
+
+    it('resets to defaultName when modal reopens', async () => {
+      const user = userEvent.setup()
+      const { rerender } = renderModal({ defaultName: 'Default' })
+
+      // Modify the input
+      const input = screen.getByLabelText('Preset Name *')
+      await user.clear(input)
+      await user.type(input, 'Modified')
+
+      // Close modal
+      rerender(<SavePresetModal {...defaultProps} isOpen={false} defaultName="Default" />)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      // Reopen modal — should reset to defaultName
+      rerender(<SavePresetModal {...defaultProps} isOpen={true} defaultName="Default" />)
+      expect(screen.getByLabelText('Preset Name *')).toHaveValue('Default')
+    })
+
+    it('allows saving with defaultName unchanged', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ defaultName: 'Default Preset', onSave })
+
+      // Wait for eager trigger() validation to resolve
+      const saveButton = await screen.findByRole('button', { name: 'Save Preset' })
+      expect(saveButton).not.toBeDisabled()
+      await user.click(saveButton)
+
+      expect(onSave).toHaveBeenCalledWith('Default Preset')
+    })
+
+    it('disables save button when defaultName is invalid', async () => {
+      renderModal({ defaultName: 'ab' })
+
+      // trigger() validates on open — invalid defaultName keeps button disabled
+      await screen.findByRole('alert')
+      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
+    })
+
+    it('marks form as dirty when defaultName is modified', async () => {
+      const user = userEvent.setup()
+      renderModal({ defaultName: 'Default' })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.clear(input)
+      await user.type(input, 'Modified')
+      await user.tab()
+
+      // Save button should be enabled (dirty + valid)
+      expect(screen.getByRole('button', { name: 'Save Preset' })).not.toBeDisabled()
+    })
+  })
+
   describe('Accessibility', () => {
     it('has correct dialog aria attributes', () => {
       renderModal()
 
       const dialog = screen.getByRole('dialog')
       expect(dialog).toHaveAttribute('aria-modal', 'true')
-      expect(dialog).toHaveAttribute('aria-labelledby', 'modal-title')
+      expect(dialog).toHaveAttribute('aria-labelledby', 'save-preset-title')
     })
 
     it('marks input as aria-required', () => {
@@ -305,11 +400,39 @@ describe('SaveFilterPresetModal', () => {
 
       await screen.findByRole('alert')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'name-error')
+      expect(input).toHaveAttribute('aria-describedby', 'name-error name-counter')
+    })
+
+    it('associates character counter with input via aria-describedby', () => {
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      expect(input.getAttribute('aria-describedby')).toContain('name-counter')
     })
   })
 
   describe('Form reset', () => {
+    it('resets form after successful save and reopen', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      const onClose = vi.fn()
+      const { rerender } = renderModal({ onSave, onClose })
+
+      // Save a preset
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'Saved Preset')
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+      expect(onSave).toHaveBeenCalledWith('Saved Preset')
+
+      // Close modal (simulating onClose callback)
+      rerender(<SavePresetModal {...defaultProps} isOpen={false} onSave={onSave} onClose={onClose} />)
+
+      // Reopen — form should be empty with no errors
+      rerender(<SavePresetModal {...defaultProps} isOpen={true} onSave={onSave} onClose={onClose} />)
+      expect(screen.getByLabelText('Preset Name *')).toHaveValue('')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('resets form state and errors when modal reopens', async () => {
       const user = userEvent.setup()
       const { rerender } = renderModal()
@@ -322,13 +445,13 @@ describe('SaveFilterPresetModal', () => {
 
       // Close modal
       rerender(
-        <SaveFilterPresetModal {...defaultProps} isOpen={false} />
+        <SavePresetModal {...defaultProps} isOpen={false} />
       )
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
       // Reopen modal — form and errors should be reset
       rerender(
-        <SaveFilterPresetModal {...defaultProps} isOpen={true} />
+        <SavePresetModal {...defaultProps} isOpen={true} />
       )
       const newInput = screen.getByLabelText('Preset Name *')
       expect(newInput).toHaveValue('')

@@ -5,6 +5,8 @@ export interface FormFieldProps {
   label?: string
   error?: { message?: string }
   helperText?: string
+  /** Additional aria-describedby id(s) to append (e.g. a character counter). */
+  extraDescribedBy?: string
   children: React.ReactElement<
     React.InputHTMLAttributes<HTMLElement> & {
       'aria-invalid'?: boolean
@@ -20,12 +22,12 @@ export interface FormFieldProps {
  * unknown props to its underlying input element, so that the injected
  * `id`, `aria-invalid`, and `aria-describedby` attributes reach the DOM.
  */
-export function FormField({ name, label, error, helperText, children }: FormFieldProps) {
-  const describedBy = error
-    ? `${name}-error`
-    : helperText
-      ? `${name}-help`
-      : undefined
+export function FormField({ name, label, error, helperText, extraDescribedBy, children }: FormFieldProps) {
+  const describedByParts = [
+    error ? `${name}-error` : helperText ? `${name}-help` : '',
+    extraDescribedBy ?? '',
+  ].filter(Boolean)
+  const describedBy = describedByParts.length > 0 ? describedByParts.join(' ') : undefined
 
   return (
     <div>
