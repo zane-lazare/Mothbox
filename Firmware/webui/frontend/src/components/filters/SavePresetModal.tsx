@@ -90,29 +90,24 @@ export function SavePresetModal({
   if (!isOpen) return null
 
   return createPortal(
-    <div className={`fixed inset-0 ${Z_INDEX.MODAL} overflow-y-auto`}>
-      {/* Backdrop */}
+    <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center overflow-y-auto p-4`}>
+      {/* Backdrop — absolute so it sits behind the dialog in paint order */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
         onClick={isSaving ? undefined : onClose}
         aria-hidden="true"
         data-testid="modal-backdrop"
       />
 
-      {/* Modal — onClick closes when clicking the dark area outside the dialog */}
+      {/* Modal — stopPropagation prevents dialog clicks from reaching the backdrop */}
       <div
-        className="flex items-center justify-center min-h-screen p-4"
-        onClick={(e) => {
-          if (e.target === e.currentTarget && !isSaving) onClose()
-        }}
+        className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-preset-title"
+        onClick={(e) => e.stopPropagation()}
+        // TODO(#462): Add focus trap wrapper here
       >
-        <div
-          className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="save-preset-title"
-          // TODO(#462): Add focus trap wrapper here
-        >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -194,7 +189,6 @@ export function SavePresetModal({
             </div>
           </form>
         </div>
-      </div>
     </div>,
     document.body
   )
