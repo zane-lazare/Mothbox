@@ -400,7 +400,14 @@ describe('SavePresetModal', () => {
 
       await screen.findByRole('alert')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'name-error')
+      expect(input).toHaveAttribute('aria-describedby', 'name-error name-counter')
+    })
+
+    it('associates character counter with input via aria-describedby', () => {
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      expect(input.getAttribute('aria-describedby')).toContain('name-counter')
     })
   })
 

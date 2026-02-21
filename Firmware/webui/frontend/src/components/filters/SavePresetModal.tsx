@@ -40,7 +40,7 @@ export function SavePresetModal({
     mode: 'onChange',
   })
 
-  const nameValue = watch('name')
+  const nameValue = watch('name', '')
 
   const onSubmit = async (data: FilterPresetNameData) => {
     try {
@@ -139,6 +139,7 @@ export function SavePresetModal({
               label="Preset Name *"
               error={errors.name}
               helperText="Choose a descriptive name for this filter combination"
+              extraDescribedBy="name-counter"
             >
               <input
                 type="text"
