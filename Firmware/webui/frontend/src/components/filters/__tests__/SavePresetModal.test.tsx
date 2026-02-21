@@ -345,12 +345,20 @@ describe('SavePresetModal', () => {
       const onSave = vi.fn()
       renderModal({ defaultName: 'Default Preset', onSave })
 
-      // No interaction needed — defaultName skips isDirty check
-      const saveButton = screen.getByRole('button', { name: 'Save Preset' })
+      // Wait for eager trigger() validation to resolve
+      const saveButton = await screen.findByRole('button', { name: 'Save Preset' })
       expect(saveButton).not.toBeDisabled()
       await user.click(saveButton)
 
       expect(onSave).toHaveBeenCalledWith('Default Preset')
+    })
+
+    it('disables save button when defaultName is invalid', async () => {
+      renderModal({ defaultName: 'ab' })
+
+      // trigger() validates on open — invalid defaultName keeps button disabled
+      await screen.findByRole('alert')
+      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
     it('marks form as dirty when defaultName is modified', async () => {

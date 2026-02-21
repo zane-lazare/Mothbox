@@ -32,6 +32,7 @@ export function SavePresetModal({
     handleSubmit,
     reset,
     watch,
+    trigger,
     formState: { errors, isValid, isDirty },
   } = useForm<FilterPresetNameData>({
     resolver: zodResolver(filterPresetNameSchema),
@@ -59,12 +60,16 @@ export function SavePresetModal({
     }
   }
 
-  // Reset form when modal opens or defaultName changes
+  // Reset form when modal opens or defaultName changes.
+  // Eagerly validate when defaultName is provided so isValid reflects the pre-filled value.
   useEffect(() => {
     if (isOpen) {
       reset({ name: defaultName })
+      if (defaultName) {
+        trigger('name')
+      }
     }
-  }, [isOpen, defaultName, reset])
+  }, [isOpen, defaultName, reset, trigger])
 
   // Document-level Escape handler (works regardless of focus position)
   useEffect(() => {
@@ -80,8 +85,7 @@ export function SavePresetModal({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, isSaving, onClose])
 
-  // If dirty, require validity; if untouched, allow only when pre-filled via defaultName.
-  const canSave = isDirty ? isValid : !!defaultName
+  const canSave = isValid && (isDirty || !!defaultName)
 
   if (!isOpen) return null
 
@@ -95,8 +99,13 @@ export function SavePresetModal({
         data-testid="modal-backdrop"
       />
 
-      {/* Modal */}
-      <div className="flex items-center justify-center min-h-screen p-4">
+      {/* Modal — onClick closes when clicking the dark area outside the dialog */}
+      <div
+        className="flex items-center justify-center min-h-screen p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !isSaving) onClose()
+        }}
+      >
         <div
           className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all"
           role="dialog"
