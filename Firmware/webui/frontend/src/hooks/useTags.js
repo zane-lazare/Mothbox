@@ -4,6 +4,8 @@ import { getAllTags } from '../utils/api'
 /**
  * Custom hook for fetching all tags from sidecar metadata
  *
+ * TypeScript types: ./useTags.d.ts (keep in sync)
+ *
  * Fetches a list of all tags from the sidecar API with optional sorting,
  * ordering, and limiting. The hook uses TanStack Query for caching,
  * loading states, and error handling.

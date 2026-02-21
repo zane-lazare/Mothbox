@@ -24,7 +24,16 @@ const createTestQueryClient = () => new QueryClient({
   defaultOptions: { queries: { retry: false } }
 })
 
-const renderModal = (props = {}) => {
+interface RenderModalProps {
+  isOpen?: boolean
+  onClose?: () => void
+  onApply?: (data: { tags: string[]; mode: 'add' | 'replace' | 'remove' }) => void
+  selectedCount?: number
+  isLoading?: boolean
+  error?: string | null
+}
+
+const renderModal = (props: RenderModalProps = {}) => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -304,6 +313,62 @@ describe('BulkTagModal', () => {
         mode: 'remove'
       })
     })
+
+    it('auto-commits uncommitted input on Apply', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      // Commit one tag, then type another without pressing Enter
+      await user.type(input, 'moth{Enter}')
+      await user.type(input, 'nocturnal')
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth', 'nocturnal'],
+        mode: 'add'
+      })
+    })
+
+    it('drops invalid uncommitted input on Apply and submits existing tags', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      // Commit one valid tag, then type a tag that exceeds max length
+      await user.type(input, 'moth{Enter}')
+      await user.type(input, 'a'.repeat(101))
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth'],
+        mode: 'add'
+      })
+    })
+
+    it('submits uncommitted input when no tags are committed', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      await user.type(input, 'moth')
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      expect(applyButton).toBeEnabled()
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth'],
+        mode: 'add'
+      })
+    })
   })
 
   describe('Modal Behavior', () => {
@@ -325,8 +390,8 @@ describe('BulkTagModal', () => {
       // Click the backdrop (not the modal content)
       // The backdrop is the parent div with bg-black/50 class
       const modal = screen.getByRole('dialog')
-      const container = modal.parentElement
-      const backdrop = container.querySelector('.bg-black\\/50')
+      const container = modal.parentElement!
+      const backdrop = container.querySelector('.bg-black\\/50')!
       await user.click(backdrop)
 
       expect(onClose).toHaveBeenCalledTimes(1)
@@ -383,8 +448,9 @@ describe('BulkTagModal', () => {
         </QueryClientProvider>
       )
 
-      // State should be reset
-      expect(screen.queryByText('moth')).not.toBeInTheDocument()
+      // State should be reset — tag chip is gone (check remove button,
+      // not text, because autoFocus opens suggestions which also show "moth")
+      expect(screen.queryByLabelText(/Remove tag moth/i)).not.toBeInTheDocument()
       const newRadioGroup = screen.getByRole('radiogroup')
       expect(within(newRadioGroup).getByLabelText(/Add tags/i)).toBeChecked()
     })
@@ -421,8 +487,8 @@ describe('BulkTagModal', () => {
 
     it('error message has proper ARIA role', () => {
       renderModal({ error: 'Failed to apply tags' })
-      const errorMessage = screen.getByText('Failed to apply tags')
-      expect(errorMessage).toHaveClass('text-red-600')
+      const errorMessage = screen.getByRole('alert')
+      expect(errorMessage).toHaveTextContent('Failed to apply tags')
     })
   })
 
@@ -438,7 +504,7 @@ describe('BulkTagModal', () => {
       const dialog = screen.getByRole('dialog')
       const titleId = dialog.getAttribute('aria-labelledby')
       expect(titleId).toBeTruthy()
-      expect(document.getElementById(titleId)).toBeInTheDocument()
+      expect(document.getElementById(titleId!)).toBeInTheDocument()
     })
 
     it('mode options are radio buttons with proper ARIA', () => {
@@ -449,7 +515,7 @@ describe('BulkTagModal', () => {
       const radios = within(radioGroup).getAllByRole('radio')
       expect(radios).toHaveLength(3)
       radios.forEach(radio => {
-        expect(radio).toHaveAttribute('name', 'tag-mode')
+        expect(radio).toHaveAttribute('name', 'mode')
       })
     })
 
