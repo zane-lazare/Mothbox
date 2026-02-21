@@ -108,7 +108,7 @@ describe('SavePresetModal', () => {
       await user.tab()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Name must be less than 50 characters'
+        'Name must be 50 characters or less'
       )
     })
 
