@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SavePresetModal } from '../SavePresetModal'
@@ -92,12 +92,19 @@ describe('SavePresetModal', () => {
       )
     })
 
-    it('shows error for name exceeding 50 characters on blur', async () => {
+    it('enforces maxLength on input element', () => {
+      renderModal()
+
+      expect(screen.getByLabelText('Preset Name *')).toHaveAttribute('maxLength', '50')
+    })
+
+    it('shows Zod error for name exceeding 50 characters on blur', async () => {
       const user = userEvent.setup()
       renderModal()
 
+      // Use fireEvent to bypass maxLength (defense-in-depth for programmatic input)
       const input = screen.getByLabelText('Preset Name *')
-      await user.type(input, 'a'.repeat(51))
+      fireEvent.change(input, { target: { value: 'a'.repeat(51) } })
       await user.tab()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
