@@ -134,6 +134,7 @@ export function SavePresetModal({
                 onKeyDown={handleKeyDown}
                 aria-required="true"
                 placeholder="Enter preset name..."
+                maxLength={50}
                 disabled={isSaving}
                 autoFocus
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white dark:border-gray-600 ${
