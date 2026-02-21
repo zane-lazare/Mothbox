@@ -28,8 +28,8 @@ export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
 export const cameraPresetNameSchema = z.object({
   name: z.string()
     .min(1, 'Preset name is required')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Name can only contain letters, numbers, and underscores')
     .min(3, 'Name must be at least 3 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Name can only contain letters, numbers, and underscores')
     .max(50, 'Name must be less than 50 characters'),
 });
 

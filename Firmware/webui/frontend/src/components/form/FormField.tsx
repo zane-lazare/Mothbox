@@ -13,6 +13,13 @@ export interface FormFieldProps {
   >
 }
 
+/**
+ * Wraps a single form input with a label, error message, and helper text.
+ *
+ * The direct child must be a DOM element or a component that forwards
+ * unknown props to its underlying input element, so that the injected
+ * `id`, `aria-invalid`, and `aria-describedby` attributes reach the DOM.
+ */
 export function FormField({ name, label, error, helperText, children }: FormFieldProps) {
   const describedBy = error
     ? `${name}-error`
