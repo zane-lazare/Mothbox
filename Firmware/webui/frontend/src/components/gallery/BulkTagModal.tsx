@@ -95,11 +95,11 @@ export default function BulkTagModal({
   useEffect(() => {
     if (!isOpen) return
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !isLoading) onClose()
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+  }, [isOpen, isLoading, onClose])
 
   if (!isOpen) return null
 
@@ -188,9 +188,10 @@ export default function BulkTagModal({
 
           {/* Tag input */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">Tags</label>
+            <label htmlFor="bulk-tag-input" className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">Tags</label>
             <div className="relative">
               <input
+                id="bulk-tag-input"
                 type="text"
                 value={inputValue}
                 onChange={(e) => {

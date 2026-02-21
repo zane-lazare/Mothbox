@@ -27,7 +27,7 @@ const createTestQueryClient = () => new QueryClient({
 interface RenderModalProps {
   isOpen?: boolean
   onClose?: () => void
-  onApply?: (data: { tags: string[]; mode: string }) => void
+  onApply?: (data: { tags: string[]; mode: 'add' | 'replace' | 'remove' }) => void
   selectedCount?: number
   isLoading?: boolean
   error?: string | null
