@@ -428,10 +428,10 @@ describe('BulkTagModal', () => {
       expect(screen.getByText('Failed to apply tags')).toBeInTheDocument()
     })
 
-    it('error message has proper styling', () => {
+    it('error message has proper ARIA role', () => {
       renderModal({ error: 'Failed to apply tags' })
-      const errorMessage = screen.getByText('Failed to apply tags')
-      expect(errorMessage).toHaveClass('text-red-600')
+      const errorMessage = screen.getByRole('alert')
+      expect(errorMessage).toHaveTextContent('Failed to apply tags')
     })
   })
 

@@ -14,6 +14,10 @@ const MODES = [
   { value: 'remove' as const, label: 'Remove tags', description: 'Remove these tags from photos' },
 ]
 
+const MODE_LABELS: Record<typeof TAG_MODES[number], string> = {
+  add: 'Add', replace: 'Replace', remove: 'Remove',
+}
+
 interface BulkTagModalProps {
   /** Whether the modal is open */
   isOpen: boolean
@@ -39,8 +43,7 @@ export default function BulkTagModal({
 }: BulkTagModalProps) {
   const [inputValue, setInputValue] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const {
     register,
@@ -117,19 +120,11 @@ export default function BulkTagModal({
     }
   }
 
-  const handleRemoveTag = (index: number) => {
-    remove(index)
-  }
-
   const onSubmit = (data: BulkTagFormData) => {
     onApply({ tags: data.tags.map(t => t.value), mode: data.mode })
   }
 
-  const getModeLabel = () => {
-    if (mode === 'add') return 'Add'
-    if (mode === 'replace') return 'Replace'
-    return 'Remove'
-  }
+  const getModeLabel = () => MODE_LABELS[mode]
 
   const modal = (
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
@@ -196,7 +191,6 @@ export default function BulkTagModal({
             <label className="block text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">Tags</label>
             <div className="relative">
               <input
-                ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => {
@@ -242,7 +236,7 @@ export default function BulkTagModal({
                   key={field.id}
                   tag={field.value}
                   removable
-                  onRemove={() => handleRemoveTag(index)}
+                  onRemove={() => remove(index)}
                 />
               ))}
             </div>
@@ -250,7 +244,7 @@ export default function BulkTagModal({
 
           {/* Error message */}
           {error && (
-            <p className="text-red-600 dark:text-red-400 text-sm mb-4">{error}</p>
+            <p role="alert" className="text-red-600 dark:text-red-400 text-sm mb-4">{error}</p>
           )}
 
           {/* Action buttons */}
