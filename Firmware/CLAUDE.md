@@ -48,7 +48,7 @@ Core scripts in each version:
 - `preset_manager.py`: Camera preset system for saving/loading settings
 
 **Frontend** (`webui/frontend/`):
-- React 18 + Vite + Tailwind CSS
+- React 19 + Vite + Tailwind CSS
 - TanStack Query for data fetching
 - Socket.io-client for real-time camera preview
 - Component-based architecture
