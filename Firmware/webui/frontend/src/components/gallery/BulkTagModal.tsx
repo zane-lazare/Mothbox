@@ -108,6 +108,7 @@ export default function BulkTagModal({
     const trimmed = tag.trim()
     if (!trimmed) return
     if (trimmed.length > 100) return
+    if (fields.length >= 50) return
     // Case-insensitive duplicate check
     if (fields.some((t) => t.value.toLowerCase() === trimmed.toLowerCase())) return
     append({ value: trimmed })
@@ -123,9 +124,12 @@ export default function BulkTagModal({
   }
 
   const onSubmit = (data: BulkTagFormData) => {
-    // Auto-commit any uncommitted input before submitting
+    // Auto-commit any uncommitted input before submitting.
+    // Mirrors handleAddTag guards (empty, >100 chars, >=50 tags, duplicate)
+    // rather than routing through Zod, because append() is async and
+    // handleSubmit already captured the form snapshot.
     const trimmed = inputValue.trim()
-    if (trimmed && trimmed.length <= 100 && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
+    if (trimmed && trimmed.length <= 100 && data.tags.length < 50 && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
       const allTags = [...data.tags.map(t => t.value), trimmed]
       onApply({ tags: allTags, mode: data.mode })
     } else {
@@ -265,7 +269,7 @@ export default function BulkTagModal({
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => { if (!isLoading) onClose() }}
               className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                          hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
                          disabled:opacity-50 disabled:cursor-not-allowed"
