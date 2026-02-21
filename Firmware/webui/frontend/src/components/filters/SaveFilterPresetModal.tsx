@@ -42,14 +42,14 @@ export function SaveFilterPresetModal({
     if (!isOpen) return
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isSaving) {
         onClose()
       }
     }
 
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+  }, [isOpen, isSaving, onClose])
 
   if (!isOpen) return null
 
@@ -115,6 +115,7 @@ export function SaveFilterPresetModal({
                 type="text"
                 {...register('name')}
                 onKeyDown={handleKeyDown}
+                aria-required="true"
                 placeholder="e.g., Moths from June 2024"
                 disabled={isSaving}
                 autoFocus

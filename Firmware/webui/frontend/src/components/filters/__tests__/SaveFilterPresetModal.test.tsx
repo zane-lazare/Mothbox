@@ -241,6 +241,16 @@ describe('SaveFilterPresetModal', () => {
 
       expect(onClose).toHaveBeenCalledTimes(1)
     })
+
+    it('does not close modal on Escape key while saving', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ isSaving: true, onClose })
+
+      await user.keyboard('{Escape}')
+
+      expect(onClose).not.toHaveBeenCalled()
+    })
   })
 
   describe('Disabled states', () => {
@@ -279,6 +289,12 @@ describe('SaveFilterPresetModal', () => {
       expect(dialog).toHaveAttribute('aria-labelledby', 'modal-title')
     })
 
+    it('marks input as aria-required', () => {
+      renderModal()
+
+      expect(screen.getByLabelText('Preset Name *')).toHaveAttribute('aria-required', 'true')
+    })
+
     it('sets aria-invalid and aria-describedby on errored input', async () => {
       const user = userEvent.setup()
       renderModal()
@@ -294,14 +310,15 @@ describe('SaveFilterPresetModal', () => {
   })
 
   describe('Form reset', () => {
-    it('resets form state when modal reopens', async () => {
+    it('resets form state and errors when modal reopens', async () => {
       const user = userEvent.setup()
       const { rerender } = renderModal()
 
-      // Type something
+      // Trigger a validation error
       const input = screen.getByLabelText('Preset Name *')
-      await user.type(input, 'My Preset')
-      expect(input).toHaveValue('My Preset')
+      await user.type(input, 'ab')
+      await user.tab()
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
 
       // Close modal
       rerender(
@@ -309,12 +326,13 @@ describe('SaveFilterPresetModal', () => {
       )
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-      // Reopen modal — form should be reset
+      // Reopen modal — form and errors should be reset
       rerender(
         <SaveFilterPresetModal {...defaultProps} isOpen={true} />
       )
       const newInput = screen.getByLabelText('Preset Name *')
       expect(newInput).toHaveValue('')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })
