@@ -9,7 +9,11 @@ import { Z_INDEX } from '../../constants/config'
 interface SavePresetModalProps {
   isOpen: boolean
   onClose: () => void
-  /** Called with the trimmed preset name. Must handle its own errors — thrown errors are logged but not surfaced to the user. */
+  /**
+   * Called with the trimmed preset name. Callers should show their own
+   * toast/notification before (re-)throwing — thrown errors keep the modal
+   * open but are only logged to the console.
+   */
   onSave: (name: string) => void | Promise<void>
   isSaving?: boolean
   defaultName?: string
