@@ -24,7 +24,16 @@ const createTestQueryClient = () => new QueryClient({
   defaultOptions: { queries: { retry: false } }
 })
 
-const renderModal = (props = {}) => {
+interface RenderModalProps {
+  isOpen?: boolean
+  onClose?: ReturnType<typeof vi.fn>
+  onApply?: ReturnType<typeof vi.fn>
+  selectedCount?: number
+  isLoading?: boolean
+  error?: string | null
+}
+
+const renderModal = (props: RenderModalProps = {}) => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
@@ -325,8 +334,8 @@ describe('BulkTagModal', () => {
       // Click the backdrop (not the modal content)
       // The backdrop is the parent div with bg-black/50 class
       const modal = screen.getByRole('dialog')
-      const container = modal.parentElement
-      const backdrop = container.querySelector('.bg-black\\/50')
+      const container = modal.parentElement!
+      const backdrop = container.querySelector('.bg-black\\/50')!
       await user.click(backdrop)
 
       expect(onClose).toHaveBeenCalledTimes(1)
@@ -419,7 +428,7 @@ describe('BulkTagModal', () => {
       expect(screen.getByText('Failed to apply tags')).toBeInTheDocument()
     })
 
-    it('error message has proper ARIA role', () => {
+    it('error message has proper styling', () => {
       renderModal({ error: 'Failed to apply tags' })
       const errorMessage = screen.getByText('Failed to apply tags')
       expect(errorMessage).toHaveClass('text-red-600')
@@ -438,7 +447,7 @@ describe('BulkTagModal', () => {
       const dialog = screen.getByRole('dialog')
       const titleId = dialog.getAttribute('aria-labelledby')
       expect(titleId).toBeTruthy()
-      expect(document.getElementById(titleId)).toBeInTheDocument()
+      expect(document.getElementById(titleId!)).toBeInTheDocument()
     })
 
     it('mode options are radio buttons with proper ARIA', () => {
@@ -449,7 +458,7 @@ describe('BulkTagModal', () => {
       const radios = within(radioGroup).getAllByRole('radio')
       expect(radios).toHaveLength(3)
       radios.forEach(radio => {
-        expect(radio).toHaveAttribute('name', 'tag-mode')
+        expect(radio).toHaveAttribute('name', 'mode')
       })
     })
 
