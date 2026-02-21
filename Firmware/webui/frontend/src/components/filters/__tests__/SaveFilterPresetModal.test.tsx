@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SaveFilterPresetModal } from '../SaveFilterPresetModal'
 
 const defaultProps = {
@@ -121,24 +121,35 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, '  My Preset  ')
-      // Blur to trigger onBlur validation so isValid becomes true
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onSave).toHaveBeenCalledWith('My Preset')
       expect(onSave).toHaveBeenCalledTimes(1)
     })
 
-    it('does not call onSave when form is invalid', async () => {
+    it('does not call onSave when form is empty', async () => {
       const user = userEvent.setup()
       const onSave = vi.fn()
       renderModal({ onSave })
 
-      // Try to submit without entering a name (button should be disabled)
+      // Button disabled when nothing typed (not dirty)
       const saveButton = screen.getByRole('button', { name: 'Save Preset' })
       expect(saveButton).toBeDisabled()
       await user.click(saveButton)
 
+      expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('shows validation error when submitting invalid name', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn()
+      renderModal({ onSave })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'ab')
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
       expect(onSave).not.toHaveBeenCalled()
     })
 
@@ -150,11 +161,23 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
-      // Blur to trigger onBlur validation so isValid becomes true
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps modal open when onSave throws', async () => {
+      const user = userEvent.setup()
+      const onSave = vi.fn().mockRejectedValue(new Error('save failed'))
+      const onClose = vi.fn()
+      renderModal({ onSave, onClose })
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'My Preset')
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
   })
 
@@ -214,16 +237,15 @@ describe('SaveFilterPresetModal', () => {
       expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
-    it('disables save button when validation error exists', async () => {
+    it('enables save button when input has text (validation on submit)', async () => {
       const user = userEvent.setup()
       renderModal()
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'ab')
-      await user.tab()
 
-      await screen.findByRole('alert')
-      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
+      // Button enabled because form is dirty; handleSubmit validates on click
+      expect(screen.getByRole('button', { name: 'Save Preset' })).not.toBeDisabled()
     })
 
     it('disables save button and input when isSaving is true', () => {
@@ -254,6 +276,31 @@ describe('SaveFilterPresetModal', () => {
       await screen.findByRole('alert')
       expect(input).toHaveAttribute('aria-invalid', 'true')
       expect(input).toHaveAttribute('aria-describedby', 'name-error')
+    })
+  })
+
+  describe('Form reset', () => {
+    it('resets form state when modal reopens', async () => {
+      const user = userEvent.setup()
+      const { rerender } = renderModal()
+
+      // Type something
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'My Preset')
+      expect(input).toHaveValue('My Preset')
+
+      // Close modal
+      rerender(
+        <SaveFilterPresetModal {...defaultProps} isOpen={false} />
+      )
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      // Reopen modal — form should be reset
+      rerender(
+        <SaveFilterPresetModal {...defaultProps} isOpen={true} />
+      )
+      const newInput = screen.getByLabelText('Preset Name *')
+      expect(newInput).toHaveValue('')
     })
   })
 })

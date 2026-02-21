@@ -22,7 +22,7 @@ export function SaveFilterPresetModal({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isValid, isDirty },
+    formState: { errors, isDirty },
   } = useForm<FilterPresetNameData>({
     resolver: zodResolver(filterPresetNameSchema),
     defaultValues: { name: '' },
@@ -132,7 +132,7 @@ export function SaveFilterPresetModal({
               </button>
               <button
                 type="submit"
-                disabled={isSaving || !isValid || !isDirty}
+                disabled={isSaving || !isDirty}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 {isSaving ? (
