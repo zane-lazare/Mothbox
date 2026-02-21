@@ -51,6 +51,7 @@ export default function BulkTagModal({
     control,
     reset,
     watch,
+    formState: { errors },
   } = useForm<BulkTagFormData>({
     resolver: zodResolver(bulkTagSchema),
     defaultValues: { tags: [], mode: 'add' },
@@ -241,6 +242,11 @@ export default function BulkTagModal({
                 />
               ))}
             </div>
+          )}
+
+          {/* Validation errors */}
+          {errors.tags?.root && (
+            <p role="alert" className="text-red-600 dark:text-red-400 text-sm mb-4">{errors.tags.root.message}</p>
           )}
 
           {/* Error message */}

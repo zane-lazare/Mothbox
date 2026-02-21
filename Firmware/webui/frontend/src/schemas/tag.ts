@@ -14,8 +14,8 @@ export const TAG_MODES = ['add', 'replace', 'remove'] as const;
  */
 export const bulkTagSchema = z.object({
   tags: z.array(
-    z.object({ value: z.string().trim().min(1, 'Tag cannot be empty') })
-  ).min(1, 'At least one tag is required'),
+    z.object({ value: z.string().trim().min(1, 'Tag cannot be empty').max(100, 'Tag is too long') })
+  ).min(1, 'At least one tag is required').max(50, 'Too many tags'),
   mode: z.enum(TAG_MODES),
 });
 

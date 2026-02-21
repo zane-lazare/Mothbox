@@ -100,4 +100,17 @@ describe('bulkTagSchema – invalid data', () => {
     const result = bulkTagSchema.safeParse({ tags: [{ value: 'moth' }] })
     expect(result.success).toBe(false)
   })
+
+  it('rejects a tag longer than 100 characters', () => {
+    const result = bulkTagSchema.safeParse({ tags: [{ value: 'a'.repeat(101) }], mode: 'add' })
+    expect(result.success).toBe(false)
+    expect(firstError(result)).toBe('Tag is too long')
+  })
+
+  it('rejects more than 50 tags', () => {
+    const tags = Array.from({ length: 51 }, (_, i) => ({ value: `tag-${i}` }))
+    const result = bulkTagSchema.safeParse({ tags, mode: 'add' })
+    expect(result.success).toBe(false)
+    expect(firstError(result)).toBe('Too many tags')
+  })
 })

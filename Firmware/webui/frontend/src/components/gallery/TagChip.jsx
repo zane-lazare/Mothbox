@@ -5,6 +5,8 @@ import { XMarkIcon } from '@heroicons/react/20/solid'
 /**
  * TagChip Component
  *
+ * TypeScript types: ./TagChip.d.ts (keep in sync)
+ *
  * Reusable tag badge component for displaying and interacting with tags.
  * Supports selection, removal, and count display.
  *
