@@ -8,6 +8,7 @@ import { Z_INDEX } from '../../constants/config'
 interface SaveFilterPresetModalProps {
   isOpen: boolean
   onClose: () => void
+  /** Called with the trimmed preset name. Must handle its own errors — thrown errors are logged but not surfaced to the user. */
   onSave: (name: string) => void | Promise<void>
   isSaving?: boolean
 }
@@ -61,6 +62,8 @@ export function SaveFilterPresetModal({
     }
   }
 
+  // Explicit Enter handler — happy-dom doesn't support implicit form
+  // submission, and this ensures consistent behavior across environments.
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -132,6 +135,8 @@ export function SaveFilterPresetModal({
               </button>
               <button
                 type="submit"
+                // With mode:'onBlur', isValid stays false until first blur.
+                // Clicking the button blurs the input first, so the second click works.
                 disabled={isSaving || !isValid || !isDirty}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
               >
