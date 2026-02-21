@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -38,6 +39,26 @@ export function SavePresetModal({
     mode: 'onChange',
   })
 
+  const nameValue = watch('name')
+
+  const onSubmit = async (data: FilterPresetNameData) => {
+    try {
+      await onSave(data.name)
+      onClose()
+    } catch (error) {
+      console.error('Error saving preset:', error)
+    }
+  }
+
+  // Explicit Enter handler — happy-dom doesn't support implicit form
+  // submission, and this ensures consistent behavior across environments.
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(onSubmit)()
+    }
+  }
+
   // Reset form when modal opens or defaultName changes
   useEffect(() => {
     if (isOpen) {
@@ -61,27 +82,7 @@ export function SavePresetModal({
 
   if (!isOpen) return null
 
-  const nameValue = watch('name')
-
-  const onSubmit = async (data: FilterPresetNameData) => {
-    try {
-      await onSave(data.name)
-      onClose()
-    } catch (error) {
-      console.error('Error saving preset:', error)
-    }
-  }
-
-  // Explicit Enter handler — happy-dom doesn't support implicit form
-  // submission, and this ensures consistent behavior across environments.
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(onSubmit)()
-    }
-  }
-
-  return (
+  return createPortal(
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} overflow-y-auto`}>
       {/* Backdrop */}
       <div
@@ -180,7 +181,8 @@ export function SavePresetModal({
           </form>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
