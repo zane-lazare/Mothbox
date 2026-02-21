@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Filter preset name schema.
  *
- * Used by SaveFilterPresetModal.tsx via zodResolver.
+ * Used by SaveFilterPresetModal.tsx and SavePresetModal.tsx (filters) via zodResolver.
  * Any characters allowed (spaces, special chars); whitespace is trimmed
  * before length checks.
  */
