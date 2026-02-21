@@ -14,6 +14,10 @@ function renderModal(overrides = {}) {
 }
 
 describe('SaveFilterPresetModal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   describe('Rendering', () => {
     it('renders modal when open', () => {
       renderModal()
@@ -170,10 +174,7 @@ describe('SaveFilterPresetModal', () => {
       const onClose = vi.fn()
       renderModal({ onClose })
 
-      // Backdrop is the element with aria-hidden="true"
-      const backdrop = screen.getByRole('dialog').parentElement!
-        .previousElementSibling as HTMLElement
-      await user.click(backdrop)
+      await user.click(screen.getByTestId('modal-backdrop'))
 
       expect(onClose).toHaveBeenCalledTimes(1)
     })
@@ -192,13 +193,14 @@ describe('SaveFilterPresetModal', () => {
       expect(onSave).toHaveBeenCalledWith('My Preset')
     })
 
-    it('closes modal on Escape key', async () => {
+    it('closes modal on Escape key from any focused element', async () => {
       const user = userEvent.setup()
       const onClose = vi.fn()
       renderModal({ onClose })
 
-      const input = screen.getByLabelText('Preset Name *')
-      await user.click(input)
+      // Tab past input to a button, then press Escape
+      await user.tab()
+      await user.tab()
       await user.keyboard('{Escape}')
 
       expect(onClose).toHaveBeenCalledTimes(1)

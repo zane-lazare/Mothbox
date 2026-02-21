@@ -1,7 +1,5 @@
 # SaveFilterPresetModal Migration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Migrate SaveFilterPresetModal from manual useState validation to react-hook-form + Zod, converting .jsx to .tsx with new tests.
 
 **Architecture:** Single-field modal using the "Modal (Uncontrolled)" pattern from the form validation design. The form remounts each time `isOpen` becomes true (early return pattern), so `useForm` gets a fresh instance automatically. Zod schema (`filterPresetNameSchema` from `src/schemas/preset.ts`) is the single source of truth for validation. FormField component handles error display and aria attributes.

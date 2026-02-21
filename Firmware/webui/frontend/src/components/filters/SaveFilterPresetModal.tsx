@@ -36,6 +36,20 @@ export function SaveFilterPresetModal({
     }
   }, [isOpen, reset])
 
+  // Document-level Escape handler (works regardless of focus position)
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   const onSubmit = async (data: FilterPresetNameData) => {
@@ -51,9 +65,6 @@ export function SaveFilterPresetModal({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(onSubmit)()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
     }
   }
 
@@ -64,6 +75,7 @@ export function SaveFilterPresetModal({
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
+        data-testid="modal-backdrop"
       />
 
       {/* Modal */}
