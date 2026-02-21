@@ -179,7 +179,7 @@ export function SavePresetModal({
               >
                 {isSaving ? (
                   <>
-                    <span className="inline-block animate-spin mr-2">&#x231B;</span>
+                    <span className="inline-block animate-spin mr-2" aria-hidden="true">&#x231B;</span>
                     Saving...
                   </>
                 ) : (
