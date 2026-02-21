@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import TagChip from './TagChip'
 import useTags from '../../hooks/useTags'
-import { bulkTagSchema, TAG_MODES, type BulkTagFormData } from '../../schemas/tag'
+import { bulkTagSchema, TAG_MODES, TAG_MAX_LENGTH, TAG_MAX_COUNT, type BulkTagFormData } from '../../schemas/tag'
 import { Z_INDEX } from '../../constants/config'
 
 const MODES = [
@@ -107,8 +107,8 @@ export default function BulkTagModal({
   const handleAddTag = (tag: string) => {
     const trimmed = tag.trim()
     if (!trimmed) return
-    if (trimmed.length > 100) return
-    if (fields.length >= 50) return
+    if (trimmed.length > TAG_MAX_LENGTH) return
+    if (fields.length >= TAG_MAX_COUNT) return
     // Case-insensitive duplicate check
     if (fields.some((t) => t.value.toLowerCase() === trimmed.toLowerCase())) return
     append({ value: trimmed })
@@ -125,11 +125,12 @@ export default function BulkTagModal({
 
   const onSubmit = (data: BulkTagFormData) => {
     // Auto-commit any uncommitted input before submitting.
-    // Mirrors handleAddTag guards (empty, >100 chars, >=50 tags, duplicate)
-    // rather than routing through Zod, because append() is async and
-    // handleSubmit already captured the form snapshot.
+    // Mirrors handleAddTag guards (empty, length, count, duplicate) rather
+    // than routing through Zod, because append() is async and handleSubmit
+    // already captured the form snapshot. Invalid input is intentionally
+    // discarded — the hint text communicates the Enter/comma convention.
     const trimmed = inputValue.trim()
-    if (trimmed && trimmed.length <= 100 && data.tags.length < 50 && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
+    if (trimmed && trimmed.length <= TAG_MAX_LENGTH && data.tags.length < TAG_MAX_COUNT && !data.tags.some(t => t.value.toLowerCase() === trimmed.toLowerCase())) {
       const allTags = [...data.tags.map(t => t.value), trimmed]
       onApply({ tags: allTags, mode: data.mode })
     } else {

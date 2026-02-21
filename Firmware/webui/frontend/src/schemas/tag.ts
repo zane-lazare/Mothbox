@@ -5,6 +5,12 @@ import { z } from 'zod';
  */
 export const TAG_MODES = ['add', 'replace', 'remove'] as const;
 
+/** Maximum characters per tag name. Shared by schema and UI guards. */
+export const TAG_MAX_LENGTH = 100;
+
+/** Maximum number of tags per operation. Shared by schema and UI guards. */
+export const TAG_MAX_COUNT = 50;
+
 /**
  * Bulk tag form schema.
  *
@@ -14,8 +20,8 @@ export const TAG_MODES = ['add', 'replace', 'remove'] as const;
  */
 export const bulkTagSchema = z.object({
   tags: z.array(
-    z.object({ value: z.string().trim().min(1, 'Tag cannot be empty').max(100, 'Tag is too long') })
-  ).min(1, 'At least one tag is required').max(50, 'Too many tags'),
+    z.object({ value: z.string().trim().min(1, 'Tag cannot be empty').max(TAG_MAX_LENGTH, 'Tag is too long') })
+  ).min(1, 'At least one tag is required').max(TAG_MAX_COUNT, 'Too many tags'),
   mode: z.enum(TAG_MODES),
 });
 

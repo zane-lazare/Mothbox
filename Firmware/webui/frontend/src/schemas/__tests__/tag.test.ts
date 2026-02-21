@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bulkTagSchema, TAG_MODES } from '../tag'
+import { bulkTagSchema, TAG_MODES, TAG_MAX_LENGTH, TAG_MAX_COUNT } from '../tag'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -101,14 +101,14 @@ describe('bulkTagSchema – invalid data', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects a tag longer than 100 characters', () => {
-    const result = bulkTagSchema.safeParse({ tags: [{ value: 'a'.repeat(101) }], mode: 'add' })
+  it(`rejects a tag longer than ${TAG_MAX_LENGTH} characters`, () => {
+    const result = bulkTagSchema.safeParse({ tags: [{ value: 'a'.repeat(TAG_MAX_LENGTH + 1) }], mode: 'add' })
     expect(result.success).toBe(false)
     expect(firstError(result)).toBe('Tag is too long')
   })
 
-  it('rejects more than 50 tags', () => {
-    const tags = Array.from({ length: 51 }, (_, i) => ({ value: `tag-${i}` }))
+  it(`rejects more than ${TAG_MAX_COUNT} tags`, () => {
+    const tags = Array.from({ length: TAG_MAX_COUNT + 1 }, (_, i) => ({ value: `tag-${i}` }))
     const result = bulkTagSchema.safeParse({ tags, mode: 'add' })
     expect(result.success).toBe(false)
     expect(firstError(result)).toBe('Too many tags')
