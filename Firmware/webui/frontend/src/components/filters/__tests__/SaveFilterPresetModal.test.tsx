@@ -121,6 +121,7 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, '  My Preset  ')
+      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onSave).toHaveBeenCalledWith('My Preset')
@@ -140,14 +141,14 @@ describe('SaveFilterPresetModal', () => {
       expect(onSave).not.toHaveBeenCalled()
     })
 
-    it('shows validation error when submitting invalid name', async () => {
+    it('shows validation error when submitting invalid name via Enter', async () => {
       const user = userEvent.setup()
       const onSave = vi.fn()
       renderModal({ onSave })
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'ab')
-      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
+      await user.type(input, '{Enter}')
 
       expect(await screen.findByRole('alert')).toBeInTheDocument()
       expect(onSave).not.toHaveBeenCalled()
@@ -161,6 +162,7 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
+      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
@@ -174,6 +176,7 @@ describe('SaveFilterPresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
+      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).not.toHaveBeenCalled()
@@ -237,15 +240,16 @@ describe('SaveFilterPresetModal', () => {
       expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
-    it('enables save button when input has text (validation on submit)', async () => {
+    it('disables save button when validation error exists', async () => {
       const user = userEvent.setup()
       renderModal()
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'ab')
+      await user.tab()
 
-      // Button enabled because form is dirty; handleSubmit validates on click
-      expect(screen.getByRole('button', { name: 'Save Preset' })).not.toBeDisabled()
+      await screen.findByRole('alert')
+      expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
     it('disables save button and input when isSaving is true', () => {
