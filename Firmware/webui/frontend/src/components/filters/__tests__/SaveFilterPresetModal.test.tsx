@@ -204,6 +204,16 @@ describe('SaveFilterPresetModal', () => {
 
       expect(onClose).toHaveBeenCalledTimes(1)
     })
+
+    it('does not close modal on backdrop click while saving', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ isSaving: true, onClose })
+
+      await user.click(screen.getByTestId('modal-backdrop'))
+
+      expect(onClose).not.toHaveBeenCalled()
+    })
   })
 
   describe('Keyboard shortcuts', () => {

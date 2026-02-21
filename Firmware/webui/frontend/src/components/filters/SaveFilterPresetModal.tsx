@@ -76,7 +76,7 @@ export function SaveFilterPresetModal({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={onClose}
+        onClick={isSaving ? undefined : onClose}
         aria-hidden="true"
         data-testid="modal-backdrop"
       />
@@ -88,6 +88,7 @@ export function SaveFilterPresetModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
+          // TODO(#462): Add focus trap wrapper here
         >
           {/* Header */}
           <div className="mb-4">
