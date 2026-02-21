@@ -27,22 +27,7 @@ import {
   validateCoordinate,
   formatCoordinateDisplay,
   formatCoordinatePair,
-  type DMSCoordinate,
 } from '../gpsCoordinates';
-
-// ============================================================================
-// Test Data: Real-world coordinates (matching Python test suite)
-// ============================================================================
-
-const SAN_FRANCISCO = { lat: 37.7749, lon: -122.4194 };
-const SYDNEY = { lat: -33.8688, lon: 151.2093 };
-const DEAD_SEA = { lat: 31.5, lon: 35.5, alt: -430.5 };
-const MOUNT_EVEREST = { lat: 27.9881, lon: 86.9250, alt: 5364.0 };
-const NULL_ISLAND = { lat: 0.0, lon: 0.0 };
-const NORTH_POLE = { lat: 90.0, lon: 0.0 };
-const SOUTH_POLE = { lat: -90.0, lon: 0.0 };
-const DATE_LINE_EAST = { lat: 0.0, lon: 180.0 };
-const DATE_LINE_WEST = { lat: 0.0, lon: -180.0 };
 
 // ============================================================================
 // TestDecimalToDMS: Test decimal to DMS conversion
@@ -334,7 +319,7 @@ describe('dmsToDecimal', () => {
       'converts %d° %d\' %f" %s to %f',
       (degrees, minutes, seconds, ref, expected) => {
         // Act: Convert DMS to decimal
-        const decimal = dmsToDecimal(degrees, minutes, seconds, ref);
+        const decimal = dmsToDecimal(degrees, minutes, seconds, ref as 'N' | 'S' | 'E' | 'W');
 
         // Assert: Verify conversion
         expect(Math.abs(decimal - expected)).toBeLessThan(0.0001);
