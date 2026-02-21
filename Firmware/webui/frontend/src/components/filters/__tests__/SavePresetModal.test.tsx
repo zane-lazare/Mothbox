@@ -35,6 +35,28 @@ describe('SavePresetModal', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
+    it('renders close button', () => {
+      renderModal()
+
+      expect(screen.getByRole('button', { name: 'Close modal' })).toBeInTheDocument()
+    })
+
+    it('renders character counter', () => {
+      renderModal()
+
+      expect(screen.getByText('0/50 characters')).toBeInTheDocument()
+    })
+
+    it('updates character counter as user types', async () => {
+      const user = userEvent.setup()
+      renderModal()
+
+      const input = screen.getByLabelText('Preset Name *')
+      await user.type(input, 'Test')
+
+      expect(screen.getByText('4/50 characters')).toBeInTheDocument()
+    })
+
     it('shows saving state', () => {
       renderModal({ isSaving: true })
 
@@ -191,6 +213,16 @@ describe('SavePresetModal', () => {
       renderModal({ onClose })
 
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when close (X) button is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      renderModal({ onClose })
+
+      await user.click(screen.getByRole('button', { name: 'Close modal' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
     })

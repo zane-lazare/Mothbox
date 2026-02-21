@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import { filterPresetNameSchema, type FilterPresetNameData } from '../../schemas/preset'
 import { FormField } from '../form/FormField'
 import { Z_INDEX } from '../../constants/config'
@@ -25,6 +26,7 @@ export function SavePresetModal({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isValid, isDirty },
   } = useForm<FilterPresetNameData>({
     resolver: zodResolver(filterPresetNameSchema),
@@ -54,6 +56,8 @@ export function SavePresetModal({
   }, [isOpen, isSaving, onClose])
 
   if (!isOpen) return null
+
+  const nameValue = watch('name')
 
   const onSubmit = async (data: FilterPresetNameData) => {
     try {
@@ -93,16 +97,27 @@ export function SavePresetModal({
           // TODO(#462): Add focus trap wrapper here
         >
           {/* Header */}
-          <div className="mb-4">
-            <h3
-              id="save-preset-title"
-              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3
+                id="save-preset-title"
+                className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+              >
+                Save Filter Preset
+              </h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Save your current filter settings for quick access later
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              aria-label="Close modal"
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Filter Preset
-            </h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Save your current filter settings for quick access later
-            </p>
+              <XMarkIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
           </div>
 
           {/* Form */}
@@ -126,6 +141,9 @@ export function SavePresetModal({
                 } disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:cursor-not-allowed`}
               />
             </FormField>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {nameValue.length}/50 characters
+            </p>
 
             {/* Actions */}
             <div className="mt-6 flex gap-3">
