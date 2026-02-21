@@ -351,6 +351,24 @@ describe('BulkTagModal', () => {
         mode: 'add'
       })
     })
+
+    it('submits uncommitted input when no tags are committed', async () => {
+      const user = userEvent.setup()
+      const onApply = vi.fn()
+      renderModal({ onApply })
+
+      const input = screen.getByPlaceholderText(/Type to search or create tags/i)
+      await user.type(input, 'moth')
+
+      const applyButton = screen.getByRole('button', { name: /Apply/i })
+      expect(applyButton).toBeEnabled()
+      await user.click(applyButton)
+
+      expect(onApply).toHaveBeenCalledWith({
+        tags: ['moth'],
+        mode: 'add'
+      })
+    })
   })
 
   describe('Modal Behavior', () => {

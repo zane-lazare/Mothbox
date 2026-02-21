@@ -128,7 +128,7 @@ export default function BulkTagModal({
     // Mirrors handleAddTag guards (empty, length, count, duplicate) rather
     // than routing through Zod, because append() is async and handleSubmit
     // already captured the form snapshot. Invalid input is intentionally
-    // discarded — the hint text communicates the Enter/comma convention.
+    // discarded.
     const pendingTag = inputValue.trim()
     const canAddPending =
       pendingTag &&
@@ -139,6 +139,20 @@ export default function BulkTagModal({
     const tagStrings = data.tags.map(t => t.value)
     onApply({ tags: canAddPending ? [...tagStrings, pendingTag] : tagStrings, mode: data.mode })
   }
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const pendingTag = inputValue.trim()
+    if (fields.length === 0 && pendingTag && pendingTag.length <= TAG_MAX_LENGTH) {
+      // No committed tags but valid uncommitted input — bypass handleSubmit
+      // because Zod would reject the empty tags array before onSubmit runs.
+      onApply({ tags: [pendingTag], mode })
+      return
+    }
+    handleSubmit(onSubmit)(e)
+  }
+
+  const hasValidInput = !!inputValue.trim() && inputValue.trim().length <= TAG_MAX_LENGTH
 
   const modal = (
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
@@ -173,7 +187,7 @@ export default function BulkTagModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleFormSubmit}>
           {/* Mode selector */}
           <div className="mb-4" role="radiogroup" aria-label="Tag operation mode">
             {MODES.map(m => (
@@ -286,7 +300,7 @@ export default function BulkTagModal({
             </button>
             <button
               type="submit"
-              disabled={fields.length === 0 || isLoading}
+              disabled={(fields.length === 0 && !hasValidInput) || isLoading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md
                          hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
