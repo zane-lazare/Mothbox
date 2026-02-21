@@ -35,7 +35,7 @@ export function SavePresetModal({
   } = useForm<FilterPresetNameData>({
     resolver: zodResolver(filterPresetNameSchema),
     defaultValues: { name: defaultName },
-    mode: 'onBlur',
+    mode: 'onChange',
   })
 
   // Reset form when modal opens or defaultName changes
@@ -162,10 +162,9 @@ export function SavePresetModal({
               </button>
               <button
                 type="submit"
-                // With mode:'onBlur', isValid stays false until first blur.
-                // Clicking the button blurs the input first, so the second click works.
                 // When defaultName is provided, skip isDirty — the form starts with a valid value.
-                disabled={isSaving || !isValid || (!isDirty && !defaultName)}
+                // When dirty, gate on isValid (updates immediately with mode:'onChange').
+                disabled={isSaving || (!isDirty && !defaultName) || (isDirty && !isValid)}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 {isSaving ? (

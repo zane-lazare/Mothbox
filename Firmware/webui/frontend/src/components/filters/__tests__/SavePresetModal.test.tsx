@@ -150,7 +150,6 @@ describe('SavePresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, '  My Preset  ')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onSave).toHaveBeenCalledWith('My Preset')
@@ -191,7 +190,6 @@ describe('SavePresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).toHaveBeenCalledTimes(1)
@@ -205,7 +203,6 @@ describe('SavePresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'My Preset')
-      await user.tab()
       await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onClose).not.toHaveBeenCalled()
@@ -305,9 +302,8 @@ describe('SavePresetModal', () => {
 
       const input = screen.getByLabelText('Preset Name *')
       await user.type(input, 'ab')
-      await user.tab()
 
-      await screen.findByRole('alert')
+      // With mode:'onChange', isValid updates immediately
       expect(screen.getByRole('button', { name: 'Save Preset' })).toBeDisabled()
     })
 
@@ -349,11 +345,7 @@ describe('SavePresetModal', () => {
       const onSave = vi.fn()
       renderModal({ defaultName: 'Default Preset', onSave })
 
-      const input = screen.getByLabelText('Preset Name *')
-      // Blur the input to trigger validation without changing the value
-      await user.click(input)
-      await user.tab()
-
+      // No interaction needed — defaultName skips isDirty check
       const saveButton = screen.getByRole('button', { name: 'Save Preset' })
       expect(saveButton).not.toBeDisabled()
       await user.click(saveButton)
