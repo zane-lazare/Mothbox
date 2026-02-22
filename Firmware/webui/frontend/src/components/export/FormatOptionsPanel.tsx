@@ -3,7 +3,7 @@ import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   exportOptionsSchema,
-  getExportDefaults,
+  EXPORT_DEFAULTS,
   FORMAT_VALUES,
   type ExportOptionsFormData,
 } from '../../schemas/export-options'
@@ -34,11 +34,11 @@ function FormatOptionsPanelInner({
   onChangeRef.current = onChange
 
   // Cache GPS precision from localStorage once at mount — avoids
-  // reading localStorage on every render (getExportDefaults calls getGpsPrecision)
+  // reading localStorage on every render
   const cachedGpsPrecision = useMemo(() => getGpsPrecision(), [])
 
   const defaults = {
-    ...getExportDefaults(format),
+    ...EXPORT_DEFAULTS[format],
     gps_precision: cachedGpsPrecision,
     ...options,
     format,
@@ -67,7 +67,7 @@ function FormatOptionsPanelInner({
     if (format !== prevFormatRef.current) {
       prevFormatRef.current = format
       const newDefaults = {
-        ...getExportDefaults(format),
+        ...EXPORT_DEFAULTS[format],
         gps_precision: cachedGpsPrecision,
         format,
       } as ExportOptionsFormData
