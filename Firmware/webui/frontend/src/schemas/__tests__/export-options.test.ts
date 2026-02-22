@@ -6,12 +6,6 @@ import {
   EXPORT_DEFAULTS,
 } from '../export-options'
 
-/** Return the first Zod issue message from a failed parse, or null. */
-function firstError(result: { success: boolean; error?: { issues: { message: string }[] } }): string | null {
-  if (result.success) return null
-  return result.error?.issues[0]?.message ?? null
-}
-
 describe('exportOptionsSchema', () => {
   describe('FORMAT_VALUES constant', () => {
     it('contains all four export formats', () => {
