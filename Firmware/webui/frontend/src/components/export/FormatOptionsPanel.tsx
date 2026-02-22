@@ -73,8 +73,8 @@ function FormatOptionsPanelInner({
       } as ExportOptionsFormData
       reset(newDefaults)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when format changes;
     // `cachedGpsPrecision` is stable (useMemo([], [])), `reset` is stable from useForm
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when format changes
   }, [format])
 
   const watchedFormat = watched.format as FormatValue | undefined
