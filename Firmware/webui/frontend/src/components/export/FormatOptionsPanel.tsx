@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -7,7 +7,7 @@ import {
   FORMAT_VALUES,
   type ExportOptionsFormData,
 } from '../../schemas/export-options'
-import { GPS_PRECISION_OPTIONS } from '../../utils/gpsPrecision'
+import { GPS_PRECISION_OPTIONS, getGpsPrecision } from '../../utils/gpsPrecision'
 
 type FormatValue = (typeof FORMAT_VALUES)[number]
 
@@ -33,8 +33,13 @@ function FormatOptionsPanelInner({
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
+  // Cache GPS precision from localStorage once at mount — avoids
+  // reading localStorage on every render (getExportDefaults calls getGpsPrecision)
+  const cachedGpsPrecision = useMemo(() => getGpsPrecision(), [])
+
   const defaults = {
     ...getExportDefaults(format),
+    gps_precision: cachedGpsPrecision,
     ...options,
     format,
   } as ExportOptionsFormData
@@ -63,12 +68,14 @@ function FormatOptionsPanelInner({
       prevFormatRef.current = format
       const newDefaults = {
         ...getExportDefaults(format),
-        ...options,
+        gps_precision: cachedGpsPrecision,
         format,
       } as ExportOptionsFormData
       reset(newDefaults)
     }
-  }, [format, options, reset])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when format changes;
+    // `cachedGpsPrecision` is stable (useMemo([], [])), `reset` is stable from useForm
+  }, [format])
 
   const watchedFormat = watched.format as FormatValue | undefined
 
