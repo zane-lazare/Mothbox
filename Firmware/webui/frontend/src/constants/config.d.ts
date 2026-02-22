@@ -27,5 +27,5 @@ export declare const METADATA_VALIDATION: {
 }
 
 export declare const SPECIES_CONFIG: {
-  CONFIDENCE_OPTIONS: ReadonlyArray<{ value: string; label: string }>
+  CONFIDENCE_OPTIONS: ReadonlyArray<{ value: 'certain' | 'probable' | 'possible' | 'unknown'; label: string }>
 }

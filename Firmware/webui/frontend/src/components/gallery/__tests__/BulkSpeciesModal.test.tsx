@@ -8,7 +8,7 @@ describe('BulkSpeciesModal', () => {
   const mockOnApply = vi.fn()
 
   const defaultProps = {
-    isOpen: true as const,
+    isOpen: true,
     onClose: mockOnClose,
     onApply: mockOnApply,
     selectedCount: 5,
@@ -197,6 +197,14 @@ describe('BulkSpeciesModal', () => {
       expect(mockOnClose).toHaveBeenCalledTimes(1)
     })
 
+    it('Escape does NOT close modal when loading', () => {
+      render(<BulkSpeciesModal {...defaultProps} isLoading={true} />)
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(mockOnClose).not.toHaveBeenCalled()
+    })
+
     it('backdrop click closes modal', async () => {
       const user = userEvent.setup()
       render(<BulkSpeciesModal {...defaultProps} />)
@@ -205,6 +213,26 @@ describe('BulkSpeciesModal', () => {
       await user.click(backdrop)
 
       expect(mockOnClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('backdrop click does NOT close modal when loading', async () => {
+      const user = userEvent.setup()
+      render(<BulkSpeciesModal {...defaultProps} isLoading={true} />)
+
+      const backdrop = screen.getByRole('dialog').parentElement!.firstChild as HTMLElement
+      await user.click(backdrop)
+
+      expect(mockOnClose).not.toHaveBeenCalled()
+    })
+
+    it('close button does NOT close modal when loading', async () => {
+      const user = userEvent.setup()
+      render(<BulkSpeciesModal {...defaultProps} isLoading={true} />)
+
+      const closeButton = screen.getByLabelText(/close modal/i)
+      await user.click(closeButton)
+
+      expect(mockOnClose).not.toHaveBeenCalled()
     })
 
     it('clicking modal content does NOT close modal', async () => {

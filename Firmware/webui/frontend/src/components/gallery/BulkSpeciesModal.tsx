@@ -34,6 +34,7 @@ export default function BulkSpeciesModal({
     handleSubmit,
     reset,
     watch,
+    formState: { errors: formErrors },
   } = useForm<SpeciesFormData>({
     resolver: zodResolver(speciesSchema),
     defaultValues: { species: '', commonName: '', confidence: 'probable' },
@@ -60,18 +61,18 @@ export default function BulkSpeciesModal({
   if (!isOpen) return null
 
   const onSubmit = (data: SpeciesFormData) => {
-    const trimmedSpecies = (data.species ?? '').trim()
-    const trimmedCommonName = (data.commonName ?? '').trim()
+    const species = data.species ?? ''
+    const commonName = data.commonName ?? ''
 
-    if (!trimmedSpecies) return
+    if (!species) return
 
     const payload: { species: string; species_common_name?: string; species_confidence: string } = {
-      species: trimmedSpecies,
+      species,
       species_confidence: data.confidence,
     }
 
-    if (trimmedCommonName) {
-      payload.species_common_name = trimmedCommonName
+    if (commonName) {
+      payload.species_common_name = commonName
     }
 
     onApply(payload)
@@ -128,11 +129,18 @@ export default function BulkSpeciesModal({
               type="text"
               {...register('species')}
               placeholder="e.g., Danaus plexippus"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600
-                         rounded-md bg-white dark:bg-gray-700
+              aria-invalid={!!formErrors.species}
+              aria-describedby={formErrors.species ? 'species-name-error' : undefined}
+              className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700
                          text-gray-900 dark:text-gray-100
-                         focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         ${formErrors.species ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
             />
+            {formErrors.species?.message && (
+              <p id="species-name-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {formErrors.species.message}
+              </p>
+            )}
           </div>
 
           {/* Common Name Input (Optional) */}
@@ -148,11 +156,18 @@ export default function BulkSpeciesModal({
               type="text"
               {...register('commonName')}
               placeholder="e.g., Monarch Butterfly"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600
-                         rounded-md bg-white dark:bg-gray-700
+              aria-invalid={!!formErrors.commonName}
+              aria-describedby={formErrors.commonName ? 'common-name-error' : undefined}
+              className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700
                          text-gray-900 dark:text-gray-100
-                         focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         ${formErrors.commonName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
             />
+            {formErrors.commonName?.message && (
+              <p id="common-name-error" role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {formErrors.commonName.message}
+              </p>
+            )}
           </div>
 
           {/* Confidence Dropdown */}
@@ -190,7 +205,7 @@ export default function BulkSpeciesModal({
           <div className="flex gap-3 mt-6">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => { if (!isLoading) onClose() }}
               className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                          hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
                          disabled:opacity-50 disabled:cursor-not-allowed"
