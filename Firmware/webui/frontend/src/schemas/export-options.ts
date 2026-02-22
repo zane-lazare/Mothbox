@@ -45,7 +45,11 @@ export const exportOptionsSchema = z.discriminatedUnion('format', [
 
 export type ExportOptionsFormData = z.infer<typeof exportOptionsSchema>
 
-/** Per-format default values for form reset. */
+/**
+ * Static per-format default values (gps_precision is always 2 here).
+ * Use `getExportDefaults(format)` instead when you need the user's
+ * stored GPS precision from localStorage.
+ */
 export const EXPORT_DEFAULTS: Record<(typeof FORMAT_VALUES)[number], ExportOptionsFormData> = {
   darwin_core: {
     format: 'darwin_core',

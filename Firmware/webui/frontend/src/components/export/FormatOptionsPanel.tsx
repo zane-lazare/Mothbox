@@ -53,7 +53,9 @@ function FormatOptionsPanelInner({
   // Watch all form values for syncing to parent
   const watched = useWatch({ control })
 
-  // Sync watched values to parent, stripping the `format` key
+  // Sync watched values to parent, stripping the `format` key.
+  // Fires on mount intentionally — the parent needs an initial snapshot of
+  // the form's default values so its state stays in sync from the start.
   useEffect(() => {
     if (!watched || Object.keys(watched).length === 0) return
 
