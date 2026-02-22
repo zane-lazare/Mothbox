@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { speciesSchema, type SpeciesFormData } from '../../schemas/species'
+import { speciesSchema, CONFIDENCE_VALUES, type SpeciesFormData } from '../../schemas/species'
 import { SPECIES_CONFIG, Z_INDEX } from '../../constants/config'
 
 interface BulkSpeciesModalProps {
@@ -12,7 +12,7 @@ interface BulkSpeciesModalProps {
   /** Close handler */
   onClose: () => void
   /** Apply handler - receives { species, species_common_name?, species_confidence } */
-  onApply: (data: { species: string; species_common_name?: string; species_confidence: string }) => void
+  onApply: (data: { species: string; species_common_name?: string; species_confidence: typeof CONFIDENCE_VALUES[number] }) => void
   /** Number of selected photos */
   selectedCount: number
   /** Loading state */
@@ -66,7 +66,7 @@ export default function BulkSpeciesModal({
 
     if (!species) return
 
-    const payload: { species: string; species_common_name?: string; species_confidence: string } = {
+    const payload: { species: string; species_common_name?: string; species_confidence: typeof CONFIDENCE_VALUES[number] } = {
       species,
       species_confidence: data.confidence,
     }
