@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   exportOptionsSchema,
@@ -86,21 +86,31 @@ function FormatOptionsPanelInner({
         >
           GPS Precision
         </label>
-        <select
-          id="gps-precision"
-          {...register('gps_precision', { valueAsNumber: true })}
-          disabled={disabled}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
-                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                    bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                    disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {GPS_PRECISION_OPTIONS.map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <Controller
+          name="gps_precision"
+          control={control}
+          render={({ field }) => (
+            <select
+              id="gps-precision"
+              name={field.name}
+              ref={field.ref}
+              value={String(field.value ?? defaults.gps_precision)}
+              onChange={(e) => field.onChange(Number(e.target.value))}
+              onBlur={field.onBlur}
+              disabled={disabled}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
+                        focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                        bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                        disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {GPS_PRECISION_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+        />
         <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
           Reduce precision for privacy when sharing location data
         </p>
