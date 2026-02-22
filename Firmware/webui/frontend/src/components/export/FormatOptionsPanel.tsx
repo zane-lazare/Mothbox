@@ -56,18 +56,19 @@ function FormatOptionsPanelInner({
     onChangeRef.current(rest as Record<string, unknown>)
   }, [watched])
 
-  // Reset form when parent changes format
+  // Reset form when parent changes format (prevFormatRef prevents re-reset on same format)
+  const prevFormatRef = useRef(format)
   useEffect(() => {
-    const newDefaults = {
-      ...getExportDefaults(format),
-      ...options,
-      format,
-    } as ExportOptionsFormData
-    reset(newDefaults)
-    // Only reset when format changes, not when options change
-    // (options changes come from our own sync, so re-resetting would loop)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [format, reset])
+    if (format !== prevFormatRef.current) {
+      prevFormatRef.current = format
+      const newDefaults = {
+        ...getExportDefaults(format),
+        ...options,
+        format,
+      } as ExportOptionsFormData
+      reset(newDefaults)
+    }
+  }, [format, options, reset])
 
   const watchedFormat = watched.format as FormatValue | undefined
 
