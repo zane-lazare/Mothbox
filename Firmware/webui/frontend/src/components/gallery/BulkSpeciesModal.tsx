@@ -52,7 +52,8 @@ export default function BulkSpeciesModal({
     mode: 'onBlur',
   })
 
-  // Reset form when modal closes
+  // Reset form when modal closes (parent keeps modal mounted; without this,
+  // stale values persist across open/close cycles)
   useEffect(() => {
     if (!isOpen) {
       reset(DEFAULT_VALUES)
@@ -77,6 +78,7 @@ export default function BulkSpeciesModal({
     const species = data.species ?? ''
     const commonName = data.commonName ?? ''
 
+    // Guard: reachable via Enter-key submission which bypasses the disabled button
     if (!species) return
 
     const payload: SpeciesPayload = {
