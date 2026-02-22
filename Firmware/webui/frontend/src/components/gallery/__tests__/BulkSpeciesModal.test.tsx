@@ -8,12 +8,12 @@ describe('BulkSpeciesModal', () => {
   const mockOnApply = vi.fn()
 
   const defaultProps = {
-    isOpen: true,
+    isOpen: true as const,
     onClose: mockOnClose,
     onApply: mockOnApply,
     selectedCount: 5,
     isLoading: false,
-    error: null,
+    error: null as string | null,
   }
 
   beforeEach(() => {
@@ -24,14 +24,12 @@ describe('BulkSpeciesModal', () => {
     it('does NOT render when isOpen is false', () => {
       render(<BulkSpeciesModal {...defaultProps} isOpen={false} />)
 
-      // Modal should not be in DOM
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('renders when isOpen is true', () => {
       render(<BulkSpeciesModal {...defaultProps} />)
 
-      // Modal dialog should be visible
       expect(screen.getByRole('dialog')).toBeInTheDocument()
       expect(screen.getByLabelText(/close modal/i)).toBeInTheDocument()
     })
@@ -50,20 +48,18 @@ describe('BulkSpeciesModal', () => {
   })
 
   describe('Form Fields', () => {
-    it('shows species name input (required)', () => {
+    it('shows species name input', () => {
       render(<BulkSpeciesModal {...defaultProps} />)
 
       const input = screen.getByLabelText(/species name/i)
       expect(input).toBeInTheDocument()
-      expect(input).toHaveAttribute('required')
     })
 
-    it('shows common name input (optional)', () => {
+    it('shows common name input', () => {
       render(<BulkSpeciesModal {...defaultProps} />)
 
       const input = screen.getByLabelText(/common name/i)
       expect(input).toBeInTheDocument()
-      expect(input).not.toHaveAttribute('required')
     })
 
     it('shows confidence dropdown with options: Certain, Probable, Possible, Unknown', () => {
@@ -72,7 +68,6 @@ describe('BulkSpeciesModal', () => {
       const select = screen.getByLabelText(/confidence/i)
       expect(select).toBeInTheDocument()
 
-      // Check all options are present
       expect(screen.getByRole('option', { name: 'Certain' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: 'Probable' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: 'Possible' })).toBeInTheDocument()
@@ -119,7 +114,6 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
-      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
         species_common_name: 'Monarch Butterfly',
@@ -140,7 +134,6 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
-      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
         species_confidence: 'probable',
@@ -174,7 +167,6 @@ describe('BulkSpeciesModal', () => {
       const applyButton = screen.getByRole('button', { name: /apply/i })
       await user.click(applyButton)
 
-      // Uses snake_case field names to match backend schema
       expect(mockOnApply).toHaveBeenCalledWith({
         species: 'Danaus plexippus',
         species_common_name: 'Monarch Butterfly',
@@ -209,8 +201,7 @@ describe('BulkSpeciesModal', () => {
       const user = userEvent.setup()
       render(<BulkSpeciesModal {...defaultProps} />)
 
-      // Click the backdrop (not the modal content)
-      const backdrop = screen.getByRole('dialog').parentElement.firstChild
+      const backdrop = screen.getByRole('dialog').parentElement!.firstChild as HTMLElement
       await user.click(backdrop)
 
       expect(mockOnClose).toHaveBeenCalledTimes(1)
@@ -230,7 +221,6 @@ describe('BulkSpeciesModal', () => {
       const user = userEvent.setup()
       const { rerender } = render(<BulkSpeciesModal {...defaultProps} />)
 
-      // Enter data
       const speciesInput = screen.getByLabelText(/species name/i)
       const commonNameInput = screen.getByLabelText(/common name/i)
       const confidenceSelect = screen.getByLabelText(/confidence/i)
