@@ -13,7 +13,7 @@ vi.mock('../../../utils/gpsPrecision', async () => {
 })
 
 describe('FormatOptionsPanel', () => {
-  let onChange: ReturnType<typeof vi.fn>
+  let onChange: ReturnType<typeof vi.fn<(options: Record<string, unknown>) => void>>
 
   beforeEach(() => {
     onChange = vi.fn()
