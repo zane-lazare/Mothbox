@@ -365,6 +365,92 @@ describe('FormatOptionsPanel', () => {
     })
   })
 
+  describe('format switching', () => {
+    it('shows new format fields after format changes', () => {
+      const { rerender } = render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={onChange}
+        />
+      )
+
+      // Darwin Core fields visible
+      expect(screen.getByLabelText(/validate output/i)).toBeInTheDocument()
+
+      // Switch to CSV
+      rerender(
+        <FormatOptionsPanel
+          format="csv"
+          options={{}}
+          onChange={onChange}
+        />
+      )
+
+      // CSV fields visible, Darwin Core fields gone
+      expect(screen.getByLabelText(/include utf-8 bom/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/delimiter/i)).toBeInTheDocument()
+      expect(screen.queryByLabelText(/validate output/i)).not.toBeInTheDocument()
+    })
+
+    it('calls onChange with new format defaults after switch', async () => {
+      const { rerender } = render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{}}
+          onChange={onChange}
+        />
+      )
+
+      onChange.mockClear()
+
+      rerender(
+        <FormatOptionsPanel
+          format="json"
+          options={{}}
+          onChange={onChange}
+        />
+      )
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalledWith(
+          expect.objectContaining({
+            pretty_print: true,
+            include_raw_exif: false,
+          })
+        )
+      })
+    })
+
+    it('preserves cached gps_precision across format switch', async () => {
+      const { rerender } = render(
+        <FormatOptionsPanel
+          format="darwin_core"
+          options={{ gps_precision: 2 }}
+          onChange={onChange}
+        />
+      )
+
+      onChange.mockClear()
+
+      rerender(
+        <FormatOptionsPanel
+          format="csv"
+          options={{}}
+          onChange={onChange}
+        />
+      )
+
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalledWith(
+          expect.objectContaining({
+            gps_precision: 2,
+          })
+        )
+      })
+    })
+  })
+
   it('updates only changed option while preserving others', async () => {
     const user = userEvent.setup()
 

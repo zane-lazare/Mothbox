@@ -4,6 +4,7 @@ import {
   FORMAT_VALUES,
   DELIMITER_VALUES,
   EXPORT_DEFAULTS,
+  getExportDefaults,
 } from '../export-options'
 
 describe('exportOptionsSchema', () => {
@@ -256,6 +257,31 @@ describe('exportOptionsSchema', () => {
         include_bom: true,
         delimiter: ',',
       })
+    })
+  })
+
+  describe('getExportDefaults', () => {
+    it('returns valid schema data for each format', () => {
+      for (const format of FORMAT_VALUES) {
+        const defaults = getExportDefaults(format)
+        const result = exportOptionsSchema.safeParse(defaults)
+        expect(result.success).toBe(true)
+      }
+    })
+
+    it('includes gps_precision from getGpsPrecision()', () => {
+      const defaults = getExportDefaults('darwin_core')
+      expect(defaults.gps_precision).toBe(2)
+    })
+
+    it('includes format-specific fields', () => {
+      const darwinDefaults = getExportDefaults('darwin_core')
+      expect(darwinDefaults).toHaveProperty('validate')
+      expect(darwinDefaults).toHaveProperty('include_warnings')
+
+      const csvDefaults = getExportDefaults('csv')
+      expect(csvDefaults).toHaveProperty('include_bom')
+      expect(csvDefaults).toHaveProperty('delimiter')
     })
   })
 })
