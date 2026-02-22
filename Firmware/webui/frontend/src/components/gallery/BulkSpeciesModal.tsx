@@ -6,13 +6,24 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import { speciesSchema, CONFIDENCE_VALUES, type SpeciesFormData } from '../../schemas/species'
 import { SPECIES_CONFIG, Z_INDEX } from '../../constants/config'
 
+/** Snake_case payload sent to the parent's onApply callback. */
+export interface SpeciesPayload {
+  species: string
+  species_common_name?: string
+  species_confidence: typeof CONFIDENCE_VALUES[number]
+}
+
+const DEFAULT_VALUES: SpeciesFormData = {
+  species: '', commonName: '', confidence: 'probable', referenceUrl: '',
+}
+
 interface BulkSpeciesModalProps {
   /** Whether the modal is open */
   isOpen: boolean
   /** Close handler */
   onClose: () => void
   /** Apply handler - receives { species, species_common_name?, species_confidence } */
-  onApply: (data: { species: string; species_common_name?: string; species_confidence: typeof CONFIDENCE_VALUES[number] }) => void
+  onApply: (data: SpeciesPayload) => void
   /** Number of selected photos */
   selectedCount: number
   /** Loading state */
@@ -37,14 +48,14 @@ export default function BulkSpeciesModal({
     formState: { errors: formErrors },
   } = useForm<SpeciesFormData>({
     resolver: zodResolver(speciesSchema),
-    defaultValues: { species: '', commonName: '', confidence: 'probable', referenceUrl: '' },
+    defaultValues: DEFAULT_VALUES,
     mode: 'onBlur',
   })
 
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      reset({ species: '', commonName: '', confidence: 'probable', referenceUrl: '' })
+      reset(DEFAULT_VALUES)
     }
   }, [isOpen, reset])
 
@@ -68,7 +79,7 @@ export default function BulkSpeciesModal({
 
     if (!species) return
 
-    const payload: { species: string; species_common_name?: string; species_confidence: typeof CONFIDENCE_VALUES[number] } = {
+    const payload: SpeciesPayload = {
       species,
       species_confidence: data.confidence,
     }
@@ -195,6 +206,8 @@ export default function BulkSpeciesModal({
               ))}
             </select>
           </div>
+
+          {/* referenceUrl — not shown in bulk modal; used by MetadataSpecies (Phase 2) */}
 
           {/* Error message */}
           {error && (
