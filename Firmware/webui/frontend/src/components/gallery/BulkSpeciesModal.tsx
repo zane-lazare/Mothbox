@@ -37,14 +37,14 @@ export default function BulkSpeciesModal({
     formState: { errors: formErrors },
   } = useForm<SpeciesFormData>({
     resolver: zodResolver(speciesSchema),
-    defaultValues: { species: '', commonName: '', confidence: 'probable' },
+    defaultValues: { species: '', commonName: '', confidence: 'probable', referenceUrl: '' },
     mode: 'onBlur',
   })
 
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      reset({ species: '', commonName: '', confidence: 'probable' })
+      reset({ species: '', commonName: '', confidence: 'probable', referenceUrl: '' })
     }
   }, [isOpen, reset])
 
@@ -59,6 +59,8 @@ export default function BulkSpeciesModal({
   }, [isOpen, isLoading, onClose])
 
   if (!isOpen) return null
+
+  const handleClose = () => { if (!isLoading) onClose() }
 
   const onSubmit = (data: SpeciesFormData) => {
     const species = data.species ?? ''
@@ -86,7 +88,7 @@ export default function BulkSpeciesModal({
       {/* Backdrop with click-to-close (guarded during loading) */}
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={() => { if (!isLoading) onClose() }}
+        onClick={handleClose}
       />
 
       {/* Modal content */}
@@ -104,7 +106,7 @@ export default function BulkSpeciesModal({
             Set species for {selectedCount} photo{selectedCount !== 1 ? 's' : ''}
           </h2>
           <button
-            onClick={() => { if (!isLoading) onClose() }}
+            onClick={handleClose}
             aria-label="Close modal"
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             type="button"
@@ -205,7 +207,7 @@ export default function BulkSpeciesModal({
           <div className="flex gap-3 mt-6">
             <button
               type="button"
-              onClick={() => { if (!isLoading) onClose() }}
+              onClick={handleClose}
               className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                          hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
                          disabled:opacity-50 disabled:cursor-not-allowed"
