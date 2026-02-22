@@ -51,11 +51,11 @@ export default function BulkSpeciesModal({
   useEffect(() => {
     if (!isOpen) return
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !isLoading) onClose()
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+  }, [isOpen, isLoading, onClose])
 
   if (!isOpen) return null
 
@@ -82,10 +82,10 @@ export default function BulkSpeciesModal({
 
   const modal = (
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
-      {/* Backdrop with click-to-close */}
+      {/* Backdrop with click-to-close (guarded during loading) */}
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={onClose}
+        onClick={() => { if (!isLoading) onClose() }}
       />
 
       {/* Modal content */}
@@ -103,10 +103,11 @@ export default function BulkSpeciesModal({
             Set species for {selectedCount} photo{selectedCount !== 1 ? 's' : ''}
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => { if (!isLoading) onClose() }}
             aria-label="Close modal"
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
             type="button"
+            disabled={isLoading}
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -170,7 +171,7 @@ export default function BulkSpeciesModal({
                          text-gray-900 dark:text-gray-100
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((option: { value: string; label: string }) => (
+              {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
