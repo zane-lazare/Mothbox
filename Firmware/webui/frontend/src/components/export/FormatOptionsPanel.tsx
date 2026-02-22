@@ -122,7 +122,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('validate' as never)}
+              {...register('validate')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -140,7 +140,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_warnings' as never)}
+              {...register('include_warnings')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -163,7 +163,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_xmp_sidecars' as never)}
+              {...register('include_xmp_sidecars')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -181,7 +181,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_manifest' as never)}
+              {...register('include_manifest')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -199,7 +199,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_csv_summary' as never)}
+              {...register('include_csv_summary')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -222,7 +222,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('pretty_print' as never)}
+              {...register('pretty_print')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -240,7 +240,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_raw_exif' as never)}
+              {...register('include_raw_exif')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -263,7 +263,7 @@ function FormatOptionsPanelInner({
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              {...register('include_bom' as never)}
+              {...register('include_bom')}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -287,7 +287,7 @@ function FormatOptionsPanelInner({
             </label>
             <select
               id="csv-delimiter"
-              {...register('delimiter' as never)}
+              {...register('delimiter')}
               disabled={disabled}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
