@@ -142,6 +142,7 @@ export default function BulkSpeciesModal({
               type="text"
               {...register('species')}
               placeholder="e.g., Danaus plexippus"
+              aria-required="true"
               aria-invalid={!!formErrors.species}
               aria-describedby={formErrors.species ? 'species-name-error' : undefined}
               className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700

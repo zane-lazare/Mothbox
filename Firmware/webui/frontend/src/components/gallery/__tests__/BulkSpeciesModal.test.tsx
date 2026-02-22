@@ -121,6 +121,17 @@ describe('BulkSpeciesModal', () => {
       })
     })
 
+    it('shows inline error when species name exceeds max length', async () => {
+      const user = userEvent.setup()
+      render(<BulkSpeciesModal {...defaultProps} />)
+
+      const speciesInput = screen.getByLabelText(/species name/i)
+      await user.type(speciesInput, 'a'.repeat(201))
+      await user.tab() // trigger onBlur validation
+
+      expect(await screen.findByText('Species name is too long')).toBeInTheDocument()
+    })
+
     it('does not send species_common_name if only whitespace', async () => {
       const user = userEvent.setup()
       render(<BulkSpeciesModal {...defaultProps} />)
