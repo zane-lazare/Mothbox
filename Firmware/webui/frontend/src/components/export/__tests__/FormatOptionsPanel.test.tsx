@@ -211,6 +211,18 @@ describe('FormatOptionsPanel', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('renders nothing when format is an unknown string', () => {
+    const { container } = render(
+      <FormatOptionsPanel
+        format="xml"
+        options={{}}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(container.firstChild).toBeNull()
+  })
+
   // GPS Precision tests (Issue #288)
   describe('GPS Precision Option', () => {
     it('shows GPS precision dropdown for darwin_core format', () => {
