@@ -1,18 +1,75 @@
-import PropTypes from 'prop-types'
-import { GPS_PRECISION_OPTIONS, getGpsPrecision } from '../../utils/gpsPrecision'
+import { useEffect, useRef } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  exportOptionsSchema,
+  getExportDefaults,
+  FORMAT_VALUES,
+  type ExportOptionsFormData,
+} from '../../schemas/export-options'
+import { GPS_PRECISION_OPTIONS } from '../../utils/gpsPrecision'
 
-function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }) {
-  const handleOptionChange = (key, value) => {
-    onChange({ ...options, [key]: value })
-  }
+type FormatValue = (typeof FORMAT_VALUES)[number]
 
-  // Don't render anything if no format selected
-  if (!format) {
-    return null
-  }
+interface FormatOptionsPanelProps {
+  format: string | null
+  options?: Record<string, unknown>
+  onChange: (options: Record<string, unknown>) => void
+  disabled?: boolean
+}
 
-  // Get current GPS precision value (from options or global setting)
-  const currentPrecision = options.gps_precision ?? getGpsPrecision()
+/**
+ * Inner component that owns the react-hook-form instance.
+ * Separated from the outer guard to avoid violating React's Rules of Hooks
+ * (the guard returns null before hooks would be called).
+ */
+function FormatOptionsPanelInner({
+  format,
+  options = {},
+  onChange,
+  disabled = false,
+}: FormatOptionsPanelProps & { format: FormatValue }) {
+  // Stable ref for onChange so it never triggers the sync useEffect
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  const defaults = {
+    ...getExportDefaults(format),
+    ...options,
+    format,
+  } as ExportOptionsFormData
+
+  const { register, control, reset } = useForm<ExportOptionsFormData>({
+    resolver: zodResolver(exportOptionsSchema),
+    defaultValues: defaults,
+    mode: 'onChange',
+  })
+
+  // Watch all form values for syncing to parent
+  const watched = useWatch({ control })
+
+  // Sync watched values to parent, stripping the `format` key
+  useEffect(() => {
+    if (!watched || Object.keys(watched).length === 0) return
+
+    const { format: _format, ...rest } = watched
+    onChangeRef.current(rest as Record<string, unknown>)
+  }, [watched])
+
+  // Reset form when parent changes format
+  useEffect(() => {
+    const newDefaults = {
+      ...getExportDefaults(format),
+      ...options,
+      format,
+    } as ExportOptionsFormData
+    reset(newDefaults)
+    // Only reset when format changes, not when options change
+    // (options changes come from our own sync, so re-resetting would loop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [format, reset])
+
+  const watchedFormat = watched.format as FormatValue | undefined
 
   return (
     <div className="space-y-4">
@@ -30,8 +87,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
         </label>
         <select
           id="gps-precision"
-          value={currentPrecision}
-          onChange={(e) => handleOptionChange('gps_precision', parseInt(e.target.value, 10))}
+          {...register('gps_precision', { valueAsNumber: true })}
           disabled={disabled}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500
@@ -50,13 +106,12 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
       </div>
 
       {/* Darwin Core Options */}
-      {format === 'darwin_core' && (
+      {watchedFormat === 'darwin_core' && (
         <div className="space-y-3">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.validate || false}
-              onChange={(e) => handleOptionChange('validate', e.target.checked)}
+              {...register('validate' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -74,8 +129,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_warnings || false}
-              onChange={(e) => handleOptionChange('include_warnings', e.target.checked)}
+              {...register('include_warnings' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -93,13 +147,12 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
       )}
 
       {/* iNaturalist Options */}
-      {format === 'inaturalist' && (
+      {watchedFormat === 'inaturalist' && (
         <div className="space-y-3">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_xmp_sidecars !== false} // Default true
-              onChange={(e) => handleOptionChange('include_xmp_sidecars', e.target.checked)}
+              {...register('include_xmp_sidecars' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -117,8 +170,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_manifest !== false} // Default true
-              onChange={(e) => handleOptionChange('include_manifest', e.target.checked)}
+              {...register('include_manifest' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -136,8 +188,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_csv_summary || false}
-              onChange={(e) => handleOptionChange('include_csv_summary', e.target.checked)}
+              {...register('include_csv_summary' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -155,13 +206,12 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
       )}
 
       {/* JSON Options */}
-      {format === 'json' && (
+      {watchedFormat === 'json' && (
         <div className="space-y-3">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.pretty_print !== false} // Default true
-              onChange={(e) => handleOptionChange('pretty_print', e.target.checked)}
+              {...register('pretty_print' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -179,8 +229,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_raw_exif || false}
-              onChange={(e) => handleOptionChange('include_raw_exif', e.target.checked)}
+              {...register('include_raw_exif' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -198,13 +247,12 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
       )}
 
       {/* CSV Options */}
-      {format === 'csv' && (
+      {watchedFormat === 'csv' && (
         <div className="space-y-3">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
-              checked={options.include_bom !== false} // Default true
-              onChange={(e) => handleOptionChange('include_bom', e.target.checked)}
+              {...register('include_bom' as never)}
               disabled={disabled}
               className="mt-0.5 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500
                         disabled:opacity-50 disabled:cursor-not-allowed"
@@ -228,8 +276,7 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
             </label>
             <select
               id="csv-delimiter"
-              value={options.delimiter || ','}
-              onChange={(e) => handleOptionChange('delimiter', e.target.value)}
+              {...register('delimiter' as never)}
               disabled={disabled}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500
@@ -250,11 +297,31 @@ function FormatOptionsPanel({ format, options = {}, onChange, disabled = false }
   )
 }
 
-FormatOptionsPanel.propTypes = {
-  format: PropTypes.string,
-  options: PropTypes.object,
-  onChange: PropTypes.func.isRequired,
-  disabled: PropTypes.bool,
+/**
+ * Format-specific options panel for the export workflow.
+ *
+ * Outer guard component: returns null when no format is selected,
+ * otherwise renders FormatOptionsPanelInner which owns the form.
+ */
+function FormatOptionsPanel({
+  format,
+  options = {},
+  onChange,
+  disabled = false,
+}: FormatOptionsPanelProps) {
+  // Guard: don't render anything if no format selected
+  if (!format || !FORMAT_VALUES.includes(format as FormatValue)) {
+    return null
+  }
+
+  return (
+    <FormatOptionsPanelInner
+      format={format as FormatValue}
+      options={options}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  )
 }
 
 export default FormatOptionsPanel
