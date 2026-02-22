@@ -1,48 +1,56 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import PropTypes from 'prop-types'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { SPECIES_CONFIG, Z_INDEX } from '@/constants/config'
+import { speciesSchema, type SpeciesFormData } from '../../schemas/species'
+import { SPECIES_CONFIG, Z_INDEX } from '../../constants/config'
 
-/**
- * BulkSpeciesModal Component
- *
- * Modal for bulk species assignment with species name, common name, and confidence level.
- *
- * @component
- * @example
- * <BulkSpeciesModal
- *   isOpen={true}
- *   onClose={() => setIsOpen(false)}
- *   onApply={({ species, commonName, confidence }) => console.log('Apply', species, commonName, confidence)}
- *   selectedCount={5}
- * />
- */
+interface BulkSpeciesModalProps {
+  /** Whether the modal is open */
+  isOpen: boolean
+  /** Close handler */
+  onClose: () => void
+  /** Apply handler - receives { species, species_common_name?, species_confidence } */
+  onApply: (data: { species: string; species_common_name?: string; species_confidence: string }) => void
+  /** Number of selected photos */
+  selectedCount: number
+  /** Loading state */
+  isLoading?: boolean
+  /** Error message */
+  error?: string | null
+}
+
 export default function BulkSpeciesModal({
   isOpen,
   onClose,
   onApply,
   selectedCount,
   isLoading = false,
-  error = null
-}) {
-  const [species, setSpecies] = useState('')
-  const [commonName, setCommonName] = useState('')
-  const [confidence, setConfidence] = useState('probable')
+  error = null,
+}: BulkSpeciesModalProps) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+  } = useForm<SpeciesFormData>({
+    resolver: zodResolver(speciesSchema),
+    defaultValues: { species: '', commonName: '', confidence: 'probable' },
+    mode: 'onBlur',
+  })
 
-  // Reset state when modal opens/closes
+  // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSpecies('')
-      setCommonName('')
-      setConfidence('probable')
+      reset({ species: '', commonName: '', confidence: 'probable' })
     }
-  }, [isOpen])
+  }, [isOpen, reset])
 
   // Handle Escape key
   useEffect(() => {
     if (!isOpen) return
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleEscape)
@@ -51,27 +59,26 @@ export default function BulkSpeciesModal({
 
   if (!isOpen) return null
 
-  const handleApply = () => {
-    const trimmedSpecies = species.trim()
-    const trimmedCommonName = commonName.trim()
+  const onSubmit = (data: SpeciesFormData) => {
+    const trimmedSpecies = (data.species ?? '').trim()
+    const trimmedCommonName = (data.commonName ?? '').trim()
 
-    if (trimmedSpecies) {
-      // Use backend field names (snake_case) for sidecar schema compatibility
-      const data = {
-        species: trimmedSpecies,
-        species_confidence: confidence
-      }
+    if (!trimmedSpecies) return
 
-      // Only include species_common_name if it has content after trimming
-      if (trimmedCommonName) {
-        data.species_common_name = trimmedCommonName
-      }
-
-      onApply(data)
+    const payload: { species: string; species_common_name?: string; species_confidence: string } = {
+      species: trimmedSpecies,
+      species_confidence: data.confidence,
     }
+
+    if (trimmedCommonName) {
+      payload.species_common_name = trimmedCommonName
+    }
+
+    onApply(payload)
   }
 
-  const isApplyDisabled = !species.trim() || isLoading
+  const speciesValue = watch('species')
+  const isApplyDisabled = !(speciesValue ?? '').trim() || isLoading
 
   const modal = (
     <div className={`fixed inset-0 ${Z_INDEX.MODAL} flex items-center justify-center`}>
@@ -99,13 +106,14 @@ export default function BulkSpeciesModal({
             onClick={onClose}
             aria-label="Close modal"
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            type="button"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form */}
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Species Name Input (Required) */}
           <div>
             <label
@@ -117,10 +125,8 @@ export default function BulkSpeciesModal({
             <input
               id="species-name"
               type="text"
-              value={species}
-              onChange={(e) => setSpecies(e.target.value)}
+              {...register('species')}
               placeholder="e.g., Danaus plexippus"
-              required
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600
                          rounded-md bg-white dark:bg-gray-700
                          text-gray-900 dark:text-gray-100
@@ -139,8 +145,7 @@ export default function BulkSpeciesModal({
             <input
               id="common-name"
               type="text"
-              value={commonName}
-              onChange={(e) => setCommonName(e.target.value)}
+              {...register('commonName')}
               placeholder="e.g., Monarch Butterfly"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600
                          rounded-md bg-white dark:bg-gray-700
@@ -159,67 +164,52 @@ export default function BulkSpeciesModal({
             </label>
             <select
               id="confidence"
-              value={confidence}
-              onChange={(e) => setConfidence(e.target.value)}
+              {...register('confidence')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600
                          rounded-md bg-white dark:bg-gray-700
                          text-gray-900 dark:text-gray-100
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map(option => (
+              {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((option: { value: string; label: string }) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
           </div>
-        </div>
 
-        {/* Error message */}
-        {error && (
-          <p role="alert" className="text-red-600 dark:text-red-400 text-sm mt-4">
-            {error}
-          </p>
-        )}
+          {/* Error message */}
+          {error && (
+            <p role="alert" className="text-red-600 dark:text-red-400 text-sm">
+              {error}
+            </p>
+          )}
 
-        {/* Action buttons */}
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
-                       hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isLoading}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleApply}
-            disabled={isApplyDisabled}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md
-                       hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Applying...' : 'Apply'}
-          </button>
-        </div>
+          {/* Action buttons */}
+          <div className="flex gap-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md
+                         hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isApplyDisabled}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md
+                         hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Applying...' : 'Apply'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
 
   return createPortal(modal, document.body)
-}
-
-BulkSpeciesModal.propTypes = {
-  /** Whether the modal is open */
-  isOpen: PropTypes.bool.isRequired,
-  /** Close handler */
-  onClose: PropTypes.func.isRequired,
-  /** Apply handler - receives { species: string, commonName?: string, confidence: 'certain' | 'probable' | 'possible' | 'unknown' } */
-  onApply: PropTypes.func.isRequired,
-  /** Number of selected photos */
-  selectedCount: PropTypes.number.isRequired,
-  /** Loading state */
-  isLoading: PropTypes.bool,
-  /** Error message */
-  error: PropTypes.string
 }

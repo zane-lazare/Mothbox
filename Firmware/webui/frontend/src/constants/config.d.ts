@@ -17,3 +17,15 @@ export declare const Z_INDEX: {
   MAP_CONTROLS: string
   MAP_POPUP: number
 }
+
+export declare const METADATA_VALIDATION: {
+  MAX_TAG_LENGTH: number
+  MAX_SPECIES_LENGTH: number
+  MAX_COMMON_NAME_LENGTH: number
+  MAX_NOTES_LENGTH: number
+  MAX_REFERENCE_URL_LENGTH: number
+}
+
+export declare const SPECIES_CONFIG: {
+  CONFIDENCE_OPTIONS: ReadonlyArray<{ value: string; label: string }>
+}
