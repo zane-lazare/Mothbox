@@ -22,7 +22,7 @@ export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
 /**
  * Camera preset name schema.
  *
- * Used by the camera SavePresetModal at src/components/SavePresetModal.jsx
+ * Used by the camera SavePresetModal at src/components/SavePresetModal.tsx
  * (distinct from the filters SavePresetModal at src/components/filters/).
  * Only letters, numbers, and underscores are allowed.
  */
