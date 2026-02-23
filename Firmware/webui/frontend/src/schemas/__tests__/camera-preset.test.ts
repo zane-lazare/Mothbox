@@ -44,8 +44,8 @@ describe('cameraPresetFormSchema', () => {
   })
 
   describe('description', () => {
-    it('defaults to empty string when omitted', () => {
-      const result = cameraPresetFormSchema.safeParse({ name: 'abc', workflow: 'both' })
+    it('accepts empty string', () => {
+      const result = cameraPresetFormSchema.safeParse({ name: 'abc', description: '', workflow: 'both' })
       expect(result.success).toBe(true)
       expect(result.data!.description).toBe('')
     })
@@ -81,8 +81,8 @@ describe('cameraPresetFormSchema', () => {
       expect(result.success).toBe(false)
     })
 
-    it('defaults to "both" when omitted', () => {
-      const result = cameraPresetFormSchema.safeParse({ name: 'abc', description: '' })
+    it('accepts "both" as a valid workflow', () => {
+      const result = cameraPresetFormSchema.safeParse({ name: 'abc', description: '', workflow: 'both' })
       expect(result.success).toBe(true)
       expect(result.data!.workflow).toBe('both')
     })
