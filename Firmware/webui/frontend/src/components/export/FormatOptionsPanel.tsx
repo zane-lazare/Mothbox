@@ -103,7 +103,7 @@ function FormatOptionsPanelInner({
               id="gps-precision"
               name={field.name}
               ref={field.ref}
-              value={String(field.value ?? defaults.gps_precision)}
+              value={String(field.value ?? cachedGpsPrecision)}
               onChange={(e) => field.onChange(Number(e.target.value))}
               onBlur={field.onBlur}
               disabled={disabled}
