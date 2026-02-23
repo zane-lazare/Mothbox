@@ -175,6 +175,25 @@ describe('SavePresetModal', () => {
       expect(screen.getByText(/and 2 more/)).toBeInTheDocument()
       expect(screen.queryByText('setting_5')).not.toBeInTheDocument()
     })
+
+    it('clears settings errors when workflow changes to photo', async () => {
+      const user = userEvent.setup()
+      mockedValidate.mockReturnValue([
+        { key: 'sharpness', value: 99, message: 'Sharpness must be between 0.0 and 4.0' },
+      ])
+      renderModal({ currentSettings: { sharpness: 99 } })
+      const input = screen.getByPlaceholderText('e.g., my_field_setup')
+      await user.type(input, 'workflow_test')
+      await user.click(screen.getByText('Save Preset'))
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+
+      // Switch to photo workflow — settings errors should clear
+      const photoRadio = screen.getByRole('radio', { name: /Photo.*Capture only/i })
+      await user.click(photoRadio)
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      })
+    })
   })
 
   describe('Save flow', () => {

@@ -46,6 +46,12 @@ export function SavePresetModal({
 
   const nameValue = watch('name', '')
   const descriptionValue = watch('description', '')
+  const workflowValue = watch('workflow', defaultWorkflow)
+
+  // Clear stale settings errors when workflow changes
+  useEffect(() => {
+    setSettingsErrors([])
+  }, [workflowValue])
 
   const onSubmit = async (data: CameraPresetFormData) => {
     // Validate liveview settings when workflow includes liveview
