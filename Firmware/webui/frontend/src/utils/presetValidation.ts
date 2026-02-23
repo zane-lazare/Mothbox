@@ -33,6 +33,20 @@
 
 import { toBackendKey } from './cameraControlMapping'
 
+/** Result from validating a single setting. */
+export interface SettingsValidationError {
+  key: string
+  value: unknown
+  message: string
+}
+
+type Validator = (value: unknown) => boolean
+
+interface ValidationRule {
+  validator: Validator
+  errorMessage: string
+}
+
 /**
  * Validation rule types for different control categories
  */
@@ -42,8 +56,8 @@ import { toBackendKey } from './cameraControlMapping'
  * Note: Actual boolean values (true/false) are NOT allowed - backend expects string literals
  * @returns {Function} Validator function
  */
-const createBooleanValidator = () => {
-  return (value) => {
+const createBooleanValidator = (): Validator => {
+  return (value: unknown): boolean => {
     // Accept actual booleans (from form state) and string "true"/"false" (from backend)
     if (typeof value === 'boolean') {
       return true
@@ -58,10 +72,10 @@ const createBooleanValidator = () => {
  * @param {Array<number>} allowedValues - Array of valid integer values
  * @returns {Function} Validator function
  */
-const createEnumValidator = (allowedValues) => {
-  return (value) => {
+const createEnumValidator = (allowedValues: number[]): Validator => {
+  return (value: unknown): boolean => {
     try {
-      const intValue = parseInt(value, 10)
+      const intValue = parseInt(String(value), 10)
       if (isNaN(intValue)) return false
       return allowedValues.includes(intValue)
     } catch {
@@ -77,10 +91,10 @@ const createEnumValidator = (allowedValues) => {
  * @param {boolean} isInteger - Whether value must be an integer
  * @returns {Function} Validator function
  */
-const createRangeValidator = (min, max, isInteger = false) => {
-  return (value) => {
+const createRangeValidator = (min: number, max: number, isInteger = false): Validator => {
+  return (value: unknown): boolean => {
     try {
-      const numValue = isInteger ? parseInt(value, 10) : parseFloat(value)
+      const numValue = isInteger ? parseInt(String(value), 10) : parseFloat(String(value))
       if (isNaN(numValue)) return false
       return numValue >= min && numValue <= max
     } catch {
@@ -94,8 +108,8 @@ const createRangeValidator = (min, max, isInteger = false) => {
  * @param {Array<string>} allowedValues - Array of valid string values (case-insensitive)
  * @returns {Function} Validator function
  */
-const createStringEnumValidator = (allowedValues) => {
-  return (value) => {
+const createStringEnumValidator = (allowedValues: string[]): Validator => {
+  return (value: unknown): boolean => {
     const strValue = String(value).toLowerCase()
     return allowedValues.includes(strValue)
   }
@@ -136,7 +150,7 @@ const createStringEnumValidator = (allowedValues) => {
  * @property {Object} focus_peaking_color - String: green, red, yellow, cyan, magenta (US spelling)
  * @property {Object} focus_peaking_algorithm - String: laplacian, sobel, canny
  */
-export const LIVEVIEW_VALIDATION_RULES = {
+export const LIVEVIEW_VALIDATION_RULES: Record<string, ValidationRule> = {
   // Boolean controls - Enable/disable features
   focus_peaking_enabled: {
     validator: createBooleanValidator(),
@@ -231,9 +245,9 @@ export const LIVEVIEW_VALIDATION_RULES = {
 
   // Integer controls - Timing and discrete values
   exposure_time: {
-    validator: (value) => {
+    validator: (value: unknown): boolean => {
       try {
-        const intValue = parseInt(value, 10)
+        const intValue = parseInt(String(value), 10)
         if (isNaN(intValue)) return false
         return intValue > 0 && intValue < 1000000 // 1µs to just under 1 second
       } catch {
@@ -274,7 +288,7 @@ export const LIVEVIEW_VALIDATION_RULES = {
  * validateSetting('sharpness', 5.0)  // {key: 'sharpness', value: 5.0, message: '...'}
  * validateSetting('colourGainRed', 2.0)  // null (auto-converts to colour_gains_red)
  */
-export const validateSetting = (key, value) => {
+export const validateSetting = (key: string, value: unknown): SettingsValidationError | null => {
   // Convert camelCase to snake_case if needed
   const backendKey = toBackendKey(key)
 
@@ -318,8 +332,8 @@ export const validateSetting = (key, value) => {
  * //   {key: 'colour_gains_red', value: 0.5, message: 'Red colour gain must be between 1.0 and 4.0'}
  * // ]
  */
-export const validatePresetSettings = (settings) => {
-  const errors = []
+export const validatePresetSettings = (settings: Record<string, unknown>): SettingsValidationError[] => {
+  const errors: SettingsValidationError[] = []
 
   // Validate each setting
   Object.entries(settings).forEach(([key, value]) => {
@@ -345,7 +359,7 @@ export const validatePresetSettings = (settings) => {
  *   toast.error(formatValidationErrors(errors))
  * }
  */
-export const formatValidationErrors = (errors, maxErrors = 5) => {
+export const formatValidationErrors = (errors: SettingsValidationError[], maxErrors = 5): string => {
   if (errors.length === 0) {
     return ''
   }
