@@ -12,7 +12,7 @@
 | Settings validation | Standalone runtime function | Settings are read-only context, not form fields |
 | presetValidation.js | Port to TypeScript | Last consumer; typed validation catches bugs during migration |
 | Schema location | New `camera-preset.ts` | Keeps camera-specific schema separate from filter preset schema |
-| Validation mode | `onBlur` | Consistent with all other migrated forms |
+| Validation mode | `onChange` | Instant feedback for regex-constrained name input |
 
 ## Architecture
 
@@ -79,7 +79,7 @@ interface SavePresetModalProps {
 
 ### Form setup
 
-`useForm<CameraPresetFormData>` with `zodResolver(cameraPresetFormSchema)`, `mode: 'onBlur'`.
+`useForm<CameraPresetFormData>` with `zodResolver(cameraPresetFormSchema)`, `mode: 'onChange'`.
 
 ### Submit flow
 

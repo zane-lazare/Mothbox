@@ -56,9 +56,9 @@ export function SavePresetModal({
   const onSubmit = async (data: CameraPresetFormData) => {
     // Validate liveview settings when workflow includes liveview
     if (data.workflow !== 'photo') {
-      const errors = validatePresetSettings(currentSettings)
-      if (errors.length > 0) {
-        setSettingsErrors(errors)
+      const settingsValidationErrors = validatePresetSettings(currentSettings)
+      if (settingsValidationErrors.length > 0) {
+        setSettingsErrors(settingsValidationErrors)
         return
       }
     }
@@ -267,7 +267,7 @@ export function SavePresetModal({
             </button>
             <button
               type="submit"
-              disabled={isSaving || !isValid || !nameValue}
+              disabled={isSaving || !isValid}
               className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed font-medium transition-colors"
             >
               {isSaving ? (
