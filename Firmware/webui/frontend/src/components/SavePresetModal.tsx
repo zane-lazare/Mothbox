@@ -14,7 +14,7 @@ interface SavePresetModalProps {
   onSave: (data: {
     name: string
     description: string
-    workflow: string
+    workflow: typeof WORKFLOW_VALUES[number]
     from_current: boolean
   }) => void | Promise<void>
   isSaving?: boolean
@@ -44,9 +44,9 @@ export function SavePresetModal({
     mode: 'onChange',
   })
 
-  const nameValue = watch('name', '')
-  const descriptionValue = watch('description', '')
-  const workflowValue = watch('workflow', defaultWorkflow)
+  const nameValue = watch('name')
+  const descriptionValue = watch('description')
+  const workflowValue = watch('workflow')
 
   // Clear stale settings errors when workflow changes
   useEffect(() => {
@@ -282,7 +282,8 @@ export function SavePresetModal({
           </div>
         </form>
 
-        {/* Settings Validation Errors */}
+        {/* Settings errors render outside <form> — these are read-only context
+            validation results, not user-editable field errors */}
         {settingsErrors.length > 0 && (
           <div
             role="alert"
@@ -293,8 +294,8 @@ export function SavePresetModal({
               Invalid Settings ({settingsErrors.length} error{settingsErrors.length > 1 ? 's' : ''})
             </p>
             <div className="space-y-1">
-              {settingsErrors.slice(0, 5).map((error, index) => (
-                <div key={index} className="text-xs text-red-700 dark:text-red-400">
+              {settingsErrors.slice(0, 5).map((error) => (
+                <div key={error.key} className="text-xs text-red-700 dark:text-red-400">
                   <span className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">{error.key}</span>
                   {' = '}
                   <span className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">{String(error.value)}</span>
