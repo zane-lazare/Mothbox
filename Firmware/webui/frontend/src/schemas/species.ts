@@ -18,7 +18,19 @@ export const speciesSchema = z.object({
   species: z.string().trim().max(METADATA_VALIDATION.MAX_SPECIES_LENGTH, 'Species name is too long').optional().or(z.literal('')),
   commonName: z.string().trim().max(METADATA_VALIDATION.MAX_COMMON_NAME_LENGTH, 'Common name is too long').optional().or(z.literal('')),
   confidence: z.enum(CONFIDENCE_VALUES),
-  referenceUrl: z.string().url('Invalid URL').max(METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH, 'URL is too long').optional().or(z.literal('')),
+  referenceUrl: z.string()
+    .max(METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH, 'URL is too long')
+    .refine((val) => {
+      if (!val) return true
+      try {
+        const parsed = new URL(val)
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      } catch {
+        return false
+      }
+    }, { message: 'URL must start with http:// or https://' })
+    .optional()
+    .or(z.literal('')),
 })
 
 export type SpeciesFormData = z.infer<typeof speciesSchema>

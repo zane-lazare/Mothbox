@@ -131,7 +131,33 @@ describe('speciesSchema', () => {
         referenceUrl: 'not-a-url',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid URL')
+      expect(firstError(result)).toBe('URL must start with http:// or https://')
+    })
+
+    it('rejects ftp:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'ftp://example.com/file',
+      })
+      expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('URL must start with http:// or https://')
+    })
+
+    it('rejects file:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'file:///etc/passwd',
+      })
+      expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('URL must start with http:// or https://')
+    })
+
+    it('accepts http:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'http://example.com/species',
+      })
+      expect(result.success).toBe(true)
     })
 
     it('rejects URL exceeding max length', () => {
