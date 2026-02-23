@@ -287,7 +287,6 @@ export function SavePresetModal({
         {settingsErrors.length > 0 && (
           <div
             role="alert"
-            aria-live="polite"
             className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg max-h-48 overflow-y-auto"
           >
             <p className="text-sm font-semibold text-red-800 dark:text-red-300 mb-2">

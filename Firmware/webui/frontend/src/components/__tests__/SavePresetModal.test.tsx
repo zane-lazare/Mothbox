@@ -1,3 +1,4 @@
+import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -23,13 +24,13 @@ describe('SavePresetModal', () => {
     mockedValidate.mockReturnValue([])
   })
 
-  const renderModal = (props = {}) =>
+  const renderModal = (props: Partial<React.ComponentProps<typeof SavePresetModal>> = {}) =>
     render(<SavePresetModal {...defaultProps} {...props} />)
 
   describe('Rendering', () => {
-    it('returns null when isOpen is false', () => {
-      const { container } = renderModal({ isOpen: false })
-      expect(container.innerHTML).toBe('')
+    it('renders nothing when isOpen is false', () => {
+      renderModal({ isOpen: false })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('renders modal when open with title, inputs, and buttons', () => {
