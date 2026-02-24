@@ -108,9 +108,9 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
     onSave: async (data) => {
       const result = metadataFormSchema.safeParse(data)
       if (!result.success) {
-        // Surface inline validation errors so the user sees why the save was skipped
+        // Surface inline validation errors and throw so useAutoSave reports error status
         trigger()
-        return
+        throw new Error('Validation failed — fix errors before saving')
       }
       const valid = result.data
       await updateMetadata({
@@ -291,6 +291,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
             <MetadataCustomFields
               control={control}
               register={register}
+              errors={errors}
             />
           </AccordionSection>
         </div>

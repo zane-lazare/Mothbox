@@ -31,13 +31,13 @@ function renderCustomFields(
       metadataFormSchema as unknown as Parameters<typeof zodResolver>[0],
     ) as unknown as Resolver<MetadataFormData>
 
-    const { control, register } = useForm<MetadataFormData>({
+    const { control, register, formState: { errors } } = useForm<MetadataFormData>({
       resolver,
       defaultValues: { ...DEFAULT_VALUES, ...overrides },
       mode: 'onBlur',
     })
 
-    return <MetadataCustomFields control={control} register={register} disabled={opts.disabled} />
+    return <MetadataCustomFields control={control} register={register} errors={errors} disabled={opts.disabled} />
   }
 
   return render(<Wrapper />)

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useFieldArray, useWatch } from 'react-hook-form'
-import type { Control, UseFormRegister } from 'react-hook-form'
+import type { Control, UseFormRegister, FieldErrors } from 'react-hook-form'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { METADATA_VALIDATION } from '../../constants/config'
 import type { MetadataFormData } from '../../schemas/metadata'
@@ -8,12 +8,14 @@ import type { MetadataFormData } from '../../schemas/metadata'
 interface MetadataCustomFieldsProps {
   control: Control<MetadataFormData>
   register: UseFormRegister<MetadataFormData>
+  errors?: FieldErrors<MetadataFormData>
   disabled?: boolean
 }
 
 export default function MetadataCustomFields({
   control,
   register,
+  errors,
   disabled = false,
 }: MetadataCustomFieldsProps) {
   const [keyError, setKeyError] = useState<string | null>(null)
@@ -90,6 +92,9 @@ export default function MetadataCustomFields({
               >
                 <TrashIcon className="w-4 h-4" />
               </button>
+              {errors?.custom?.[index]?.key?.message && (
+                <p className="w-full text-xs text-red-500">{errors.custom[index].key.message}</p>
+              )}
             </div>
           ))}
         </div>
