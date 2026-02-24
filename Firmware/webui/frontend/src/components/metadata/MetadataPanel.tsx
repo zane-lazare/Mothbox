@@ -93,7 +93,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
   // Auto-save hook with 2-second debounce
   const { status: saveStatus, error: saveError, saveNow } = useAutoSave({
     data: watchedData,
-    onSave: async (data: Partial<MetadataFormData>) => {
+    onSave: async (data) => {
       await updateMetadata({
         tags: data.tags,
         species: data.species,
@@ -101,7 +101,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
         species_common_name: data.commonName,
         species_reference_url: data.referenceUrl,
         notes: data.notes,
-        custom: Object.fromEntries((data.custom || []).map(({ key, value }) => [key, value])),
+        custom: Object.fromEntries((data.custom || []).map((entry) => [entry?.key ?? '', entry?.value ?? ''])),
       })
     },
     delay: 2000,

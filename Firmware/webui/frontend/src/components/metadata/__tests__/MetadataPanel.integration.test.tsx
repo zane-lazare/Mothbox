@@ -16,9 +16,16 @@ vi.mock('../../../utils/api', () => ({
   getAllSpecies: vi.fn(),
 }))
 
-// Import mocked API after vi.mock
+// Import mocked API after vi.mock — cast to mocked types for .mockResolvedValue etc.
 import * as apiModule from '../../../utils/api'
-const api = apiModule
+type MockFn = ReturnType<typeof vi.fn>
+const api = apiModule as unknown as {
+  api: { get: MockFn }
+  getPhotoSidecarMetadata: MockFn
+  updatePhotoSidecarMetadata: MockFn
+  getAllTags: MockFn
+  getAllSpecies: MockFn
+}
 
 /**
  * Real Integration Tests for MetadataPanel

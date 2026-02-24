@@ -163,8 +163,7 @@ describe('MetadataNotes', () => {
     expect(textarea).toHaveValue('')
   })
 
-  it('test_max_length_indicator', async () => {
-    const user = userEvent.setup()
+  it('test_max_length_indicator', () => {
     // Use a small maxLength by typing close to the HTML maxlength.
     // Since maxLength is fixed at METADATA_VALIDATION.MAX_NOTES_LENGTH (10000),
     // we test the color logic by providing values at specific thresholds.
@@ -173,7 +172,7 @@ describe('MetadataNotes', () => {
     const nearLimitValue = 'x'.repeat(9001)
     renderNotes({ notes: nearLimitValue })
 
-    let charCountElement = screen.getByText(
+    const charCountElement = screen.getByText(
       new RegExp(`9,001.*${METADATA_VALIDATION.MAX_NOTES_LENGTH.toLocaleString()} characters`, 'i'),
     )
     expect(charCountElement).toHaveClass('text-yellow-500')
@@ -209,8 +208,7 @@ describe('MetadataNotes', () => {
     })
   })
 
-  it('test_prevents_exceeding_max_length', async () => {
-    const user = userEvent.setup()
+  it('test_prevents_exceeding_max_length', () => {
     // With react-hook-form + HTML maxLength attribute, the browser enforces the limit.
     // We verify maxLength attribute is set on the textarea.
     renderNotes({ notes: '' })

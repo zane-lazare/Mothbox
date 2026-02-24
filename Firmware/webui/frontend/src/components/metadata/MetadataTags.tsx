@@ -23,7 +23,8 @@ export default function MetadataTags({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const tags = useWatch({ control, name: 'tags' }) ?? []
+  const watchedTags = useWatch({ control, name: 'tags' })
+  const tags = useMemo(() => watchedTags ?? [], [watchedTags])
 
   // Fetch available tags for autocomplete
   const { data: tagsData } = useTags({ sort: 'count', order: 'desc', limit: 20 })

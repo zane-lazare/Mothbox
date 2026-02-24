@@ -71,7 +71,7 @@ vi.mock('../SaveStatusIndicator', () => ({
 // Mock the section components with react-hook-form awareness
 // These mocks use useWatch (hoisted) to read values from the form and setValue to write values
 vi.mock('../MetadataTags', () => ({
-  default: ({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) => {
+  default: function MockMetadataTags({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
     const tags = useWatchHoisted({ control, name: 'tags' }) ?? []
     return (
       <div data-testid="metadata-tags">
@@ -90,7 +90,7 @@ vi.mock('../MetadataTags', () => ({
 }))
 
 vi.mock('../MetadataSpecies', () => ({
-  default: ({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) => {
+  default: function MockMetadataSpecies({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
     const species = useWatchHoisted({ control, name: 'species' }) ?? ''
     const confidence = useWatchHoisted({ control, name: 'confidence' }) ?? 'unknown'
     const commonName = useWatchHoisted({ control, name: 'commonName' }) ?? ''
@@ -128,7 +128,7 @@ vi.mock('../MetadataSpecies', () => ({
 }))
 
 vi.mock('../MetadataNotes', () => ({
-  default: ({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) => {
+  default: function MockMetadataNotes({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
     const notes = useWatchHoisted({ control, name: 'notes' }) ?? ''
     return (
       <div data-testid="metadata-notes">
@@ -143,7 +143,7 @@ vi.mock('../MetadataNotes', () => ({
 }))
 
 vi.mock('../MetadataCustomFields', () => ({
-  default: ({ control }: { control: any }) => {
+  default: function MockMetadataCustomFields({ control }: { control: any }) {
     const custom = useWatchHoisted({ control, name: 'custom' }) ?? []
     return (
       <div data-testid="metadata-custom-fields">
