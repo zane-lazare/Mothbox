@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useFieldArray } from 'react-hook-form'
+import { useState, useCallback } from 'react'
+import { useFieldArray, useWatch } from 'react-hook-form'
 import type { Control, UseFormRegister } from 'react-hook-form'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { METADATA_VALIDATION } from '../../constants/config'
@@ -17,26 +17,27 @@ export default function MetadataCustomFields({
   disabled = false,
 }: MetadataCustomFieldsProps) {
   const [keyError, setKeyError] = useState<string | null>(null)
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: 'custom',
   })
 
+  // Watch all custom field keys for duplicate detection
+  const watchedCustom = useWatch({ control, name: 'custom' })
+
   const canAddMore = fields.length < METADATA_VALIDATION.MAX_CUSTOM_FIELDS
 
-  const handleKeyChange = (index: number, newKey: string) => {
-    const currentKey = fields[index].key
-    if (
-      newKey &&
-      newKey !== currentKey &&
-      fields.some((f, i) => i !== index && f.key === newKey)
-    ) {
-      setKeyError(`Key "${newKey}" already exists`)
+  // Check for duplicate keys on change (runs alongside register's onChange)
+  const checkDuplicateKey = useCallback((index: number, newKey: string) => {
+    if (!newKey) {
+      setKeyError(null)
       return
     }
-    setKeyError(null)
-    update(index, { key: newKey, value: fields[index].value })
-  }
+    const isDuplicate = (watchedCustom || []).some(
+      (f, i) => i !== index && f?.key === newKey
+    )
+    setKeyError(isDuplicate ? `Key "${newKey}" already exists` : null)
+  }, [watchedCustom])
 
   const handleAdd = () => {
     if (!canAddMore) return
@@ -64,8 +65,9 @@ export default function MetadataCustomFields({
             <div key={field.id} className="flex gap-2 items-start">
               <input
                 type="text"
-                value={field.key}
-                onChange={(e) => handleKeyChange(index, e.target.value)}
+                {...register(`custom.${index}.key` as const, {
+                  onChange: (e) => checkDuplicateKey(index, e.target.value),
+                })}
                 placeholder="Field name"
                 disabled={disabled}
                 className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
