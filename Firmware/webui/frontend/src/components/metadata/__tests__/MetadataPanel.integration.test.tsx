@@ -31,7 +31,7 @@ const api = apiModule
  * - Optimistic updates work correctly
  */
 describe('MetadataPanel Integration Tests', () => {
-  let queryClient
+  let queryClient: QueryClient
 
   const createWrapper = () => {
     queryClient = new QueryClient({
@@ -40,7 +40,7 @@ describe('MetadataPanel Integration Tests', () => {
         mutations: { retry: false },
       },
     })
-    return function Wrapper({ children }) {
+    return function Wrapper({ children }: { children: React.ReactNode }) {
       return (
         <QueryClientProvider client={queryClient}>
           {children}

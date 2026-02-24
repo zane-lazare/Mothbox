@@ -20,7 +20,7 @@ const mockGetPhotoSidecarMetadata = vi.mocked(apiModule.getPhotoSidecarMetadata)
 
 // Mock child components
 vi.mock('../AccordionSection', () => ({
-  default: ({ title, children }) => (
+  default: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div data-testid={`accordion-section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <div data-testid="accordion-content">{children}</div>
     </div>
@@ -81,7 +81,7 @@ function createTestQueryClient() {
   })
 }
 
-function TestWrapper({ children }) {
+function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = createTestQueryClient()
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
@@ -255,7 +255,7 @@ describe('MetadataPanel - Mobile Drawer Behavior', () => {
       expect(drawer).toHaveClass('inset-x-0')
       expect(drawer).toHaveClass('bottom-0')
       expect(drawer).toHaveClass('z-[1200]')
-      expect(drawer.className).toContain('max-h-')
+      expect(drawer!.className).toContain('max-h-')
       expect(drawer).toHaveClass('rounded-t-2xl')
     })
 
