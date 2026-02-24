@@ -66,34 +66,36 @@ export default function MetadataCustomFields({
       ) : (
         <div className="space-y-2">
           {fields.map((field, index) => (
-            <div key={field.id} className="flex gap-2 items-start">
-              <input
-                type="text"
-                {...register(`custom.${index}.key` as const, {
-                  onChange: (e) => checkDuplicateKey(index, e.target.value),
-                })}
-                placeholder="Field name"
-                disabled={disabled}
-                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
-              />
-              <input
-                type="text"
-                {...register(`custom.${index}.value` as const)}
-                placeholder="Value"
-                disabled={disabled}
-                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
-              />
-              <button
-                type="button"
-                onClick={() => handleDelete(index)}
-                disabled={disabled}
-                className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
-                aria-label={`Delete field ${field.key}`}
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+            <div key={field.id} className="space-y-1">
+              <div className="flex gap-2 items-start">
+                <input
+                  type="text"
+                  {...register(`custom.${index}.key` as const, {
+                    onChange: (e) => checkDuplicateKey(index, e.target.value),
+                  })}
+                  placeholder="Field name"
+                  disabled={disabled}
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
+                />
+                <input
+                  type="text"
+                  {...register(`custom.${index}.value` as const)}
+                  placeholder="Value"
+                  disabled={disabled}
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDelete(index)}
+                  disabled={disabled}
+                  className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
+                  aria-label={`Delete field ${field.key}`}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
               {errors?.custom?.[index]?.key?.message && (
-                <p className="w-full text-xs text-red-500">{errors.custom[index].key.message}</p>
+                <p className="text-xs text-red-500">{errors.custom[index].key.message}</p>
               )}
             </div>
           ))}
