@@ -75,13 +75,18 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
   // Track previous filename to detect photo switches
   const prevFilenameRef = useRef(filename)
 
+  // Store isDirty in a ref so the sync effect can read it without re-running
+  // when dirty state changes (avoids a redundant double-reset on photo switch)
+  const isDirtyRef = useRef(isDirty)
+  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+
   // Sync form state with fetched sidecar data
   // Reset unconditionally on photo switch; only guard with !isDirty for background re-fetches
   useEffect(() => {
     if (!sidecarData) return
     const photoChanged = prevFilenameRef.current !== filename
     prevFilenameRef.current = filename
-    if (photoChanged || !isDirty) {
+    if (photoChanged || !isDirtyRef.current) {
       reset({
         tags: sidecarData.tags || [],
         species: sidecarData.species || '',
@@ -92,9 +97,10 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
         custom: Object.entries(sidecarData.custom || {}).map(([key, value]) => ({ key, value: String(value) })),
       })
     }
-  }, [sidecarData, filename, isDirty, reset])
+  }, [sidecarData, filename, reset])
 
-  // Watch all form fields for auto-save
+  // Watches all fields — intentional for auto-save (re-renders on every keystroke,
+  // but the save callback is debounced so the cost is only the shallow comparison)
   const watchedData = useWatch({ control })
 
   // Auto-save hook with 2-second debounce
@@ -104,14 +110,15 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
     onSave: async (data) => {
       const result = metadataFormSchema.safeParse(data)
       if (!result.success) return
+      const valid = result.data
       await updateMetadata({
-        tags: data.tags,
-        species: data.species,
-        species_confidence: data.confidence,
-        species_common_name: data.commonName,
-        species_reference_url: data.referenceUrl,
-        notes: data.notes,
-        custom: Object.fromEntries((data.custom || []).map((entry) => [entry?.key ?? '', entry?.value ?? ''])),
+        tags: valid.tags,
+        species: valid.species,
+        species_confidence: valid.confidence,
+        species_common_name: valid.commonName,
+        species_reference_url: valid.referenceUrl,
+        notes: valid.notes,
+        custom: Object.fromEntries(valid.custom.map((entry) => [entry.key, entry.value])),
       })
     },
     delay: 2000,
