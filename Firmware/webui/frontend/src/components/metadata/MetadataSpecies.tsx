@@ -23,8 +23,7 @@ export default function MetadataSpecies({
 }: MetadataSpeciesProps) {
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  const speciesValue = useWatch({ control, name: 'species' }) ?? ''
-  const referenceUrlValue = useWatch({ control, name: 'referenceUrl' }) ?? ''
+  const [speciesValue = '', referenceUrlValue = ''] = useWatch({ control, name: ['species', 'referenceUrl'] })
 
   const { species: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })
 
@@ -38,8 +37,8 @@ export default function MetadataSpecies({
   // Check if referenceUrl has a Zod validation error
   const urlError = errors.referenceUrl?.message ?? ''
 
-  // Determine if URL is valid for the external link icon
-  const isValidUrl = referenceUrlValue && !urlError
+  // Local URL check for external link icon — doesn't depend on onBlur error state
+  const isValidUrl = !!referenceUrlValue && /^https?:\/\/.+/.test(referenceUrlValue)
 
   return (
     <div className="space-y-3">
