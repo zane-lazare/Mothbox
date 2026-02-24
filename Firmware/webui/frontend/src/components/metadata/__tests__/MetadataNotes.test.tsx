@@ -135,9 +135,8 @@ describe('MetadataNotes', () => {
     const textarea = screen.getByPlaceholderText(/add notes about this photo/i)
     expect(textarea).toHaveValue(testValue)
 
-    // Check that textarea has whitespace-pre-wrap styling
-    const styles = window.getComputedStyle(textarea)
-    expect(styles.whiteSpace).toMatch(/pre-wrap/)
+    // Check that textarea has the Tailwind whitespace-pre-wrap class
+    expect(textarea.className).toContain('whitespace-pre-wrap')
   })
 
   it('test_placeholder_when_empty', () => {

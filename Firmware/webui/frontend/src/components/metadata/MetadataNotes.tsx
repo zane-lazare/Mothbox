@@ -39,18 +39,19 @@ export default function MetadataNotes({
     adjustHeight()
   }, [notesValue, adjustHeight])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Ctrl+Enter blurs textarea (triggers auto-save)
     if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault()
       textareaRef.current?.blur()
     }
-  }
+  }, [])
 
   const insertTimestamp = () => {
     const now = new Date()
-    // Format: YYYY-MM-DD HH:mm -
-    const timestamp = now.toISOString().slice(0, 16).replace('T', ' ') + ' - '
+    // Format: YYYY-MM-DD HH:mm - (local time)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())} - `
     const cursorPos = textareaRef.current?.selectionStart || notesValue.length
     const newValue = notesValue.slice(0, cursorPos) + timestamp + notesValue.slice(cursorPos)
     setValue('notes', newValue, { shouldDirty: true })
@@ -98,7 +99,6 @@ export default function MetadataNotes({
         disabled={disabled}
         maxLength={maxLength}
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 resize-none overflow-hidden whitespace-pre-wrap dark:bg-gray-800 dark:border-gray-600 min-h-[80px]"
-        style={{ whiteSpace: 'pre-wrap' }}
       />
 
       <p className="text-xs text-gray-400">
