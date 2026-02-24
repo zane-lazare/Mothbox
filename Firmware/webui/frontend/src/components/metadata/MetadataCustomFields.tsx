@@ -52,7 +52,11 @@ export default function MetadataCustomFields({
 
   const handleDelete = (index: number) => {
     remove(index)
-    setKeyError(null)
+    // Re-check for duplicates among remaining fields instead of blanket clearing
+    const remaining = (watchedCustom || []).filter((_, i) => i !== index)
+    const keys = remaining.map((f) => f?.key).filter(Boolean)
+    const hasDuplicates = keys.length !== new Set(keys).size
+    if (!hasDuplicates) setKeyError(null)
   }
 
   return (
