@@ -98,9 +98,12 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
   const watchedData = useWatch({ control })
 
   // Auto-save hook with 2-second debounce
+  // Validates with safeParse before saving to prevent persisting invalid form state
   const { status: saveStatus, error: saveError, saveNow } = useAutoSave({
     data: watchedData,
     onSave: async (data) => {
+      const result = metadataFormSchema.safeParse(data)
+      if (!result.success) return
       await updateMetadata({
         tags: data.tags,
         species: data.species,
