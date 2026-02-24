@@ -281,6 +281,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
           <AccordionSection title="Custom Fields" icon={<AdjustmentsHorizontalIcon className="w-5 h-5" />}>
             <MetadataCustomFields
               control={control}
+              register={register}
             />
           </AccordionSection>
         </div>

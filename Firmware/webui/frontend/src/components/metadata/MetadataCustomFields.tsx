@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
-import type { Control } from 'react-hook-form'
+import type { Control, UseFormRegister } from 'react-hook-form'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { METADATA_VALIDATION } from '../../constants/config'
 import type { MetadataFormData } from '../../schemas/metadata'
 
 interface MetadataCustomFieldsProps {
   control: Control<MetadataFormData>
+  register: UseFormRegister<MetadataFormData>
   disabled?: boolean
 }
 
 export default function MetadataCustomFields({
   control,
+  register,
   disabled = false,
 }: MetadataCustomFieldsProps) {
   const [keyError, setKeyError] = useState<string | null>(null)
@@ -34,10 +36,6 @@ export default function MetadataCustomFields({
     }
     setKeyError(null)
     update(index, { key: newKey, value: fields[index].value })
-  }
-
-  const handleValueChange = (index: number, newValue: string) => {
-    update(index, { key: fields[index].key, value: newValue })
   }
 
   const handleAdd = () => {
@@ -74,8 +72,7 @@ export default function MetadataCustomFields({
               />
               <input
                 type="text"
-                value={field.value}
-                onChange={(e) => handleValueChange(index, e.target.value)}
+                {...register(`custom.${index}.value` as const)}
                 placeholder="Value"
                 disabled={disabled}
                 className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
