@@ -47,7 +47,7 @@ export default function MetadataNotes({
     }
   }, [])
 
-  const insertTimestamp = () => {
+  const insertTimestamp = useCallback(() => {
     const now = new Date()
     // Format: YYYY-MM-DD HH:mm - (local time)
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -64,7 +64,7 @@ export default function MetadataNotes({
         textareaRef.current.setSelectionRange(newPos, newPos)
       }
     }, 0)
-  }
+  }, [notesValue, setValue])
 
   const charCount = notesValue.length
   const isNearLimit = charCount >= maxLength * 0.9
