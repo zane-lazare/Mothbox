@@ -75,18 +75,16 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
   // Track previous filename to detect photo switches
   const prevFilenameRef = useRef(filename)
 
-  // Store isDirty in a ref so the sync effect can read it without re-running
-  // when dirty state changes (avoids a redundant double-reset on photo switch)
-  const isDirtyRef = useRef(isDirty)
-  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
-
-  // Sync form state with fetched sidecar data
-  // Reset unconditionally on photo switch; only guard with !isDirty for background re-fetches
+  // Sync form state with fetched sidecar data.
+  // Reset unconditionally on photo switch; only guard with !isDirty for background re-fetches.
+  // isDirty is in the dep array intentionally — using a ref would create a race condition
+  // where a stale ref value could cause reset() to discard unsaved edits during a
+  // background re-fetch that lands in the same render cycle as a dirty-state change.
   useEffect(() => {
     if (!sidecarData) return
     const photoChanged = prevFilenameRef.current !== filename
     prevFilenameRef.current = filename
-    if (photoChanged || !isDirtyRef.current) {
+    if (photoChanged || !isDirty) {
       reset({
         tags: sidecarData.tags || [],
         species: sidecarData.species || '',
@@ -97,7 +95,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
         custom: Object.entries(sidecarData.custom || {}).map(([key, value]) => ({ key, value: String(value) })),
       })
     }
-  }, [sidecarData, filename, reset])
+  }, [sidecarData, filename, isDirty, reset])
 
   // Watches all fields — intentional for auto-save (re-renders on every keystroke,
   // but the save callback is debounced so the cost is only the shallow comparison)
