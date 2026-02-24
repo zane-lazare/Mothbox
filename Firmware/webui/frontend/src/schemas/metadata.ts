@@ -19,7 +19,21 @@ export const metadataFormSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(METADATA_VALIDATION.MAX_TAG_LENGTH)),
   ...speciesSchema.shape,
   notes: z.string().max(METADATA_VALIDATION.MAX_NOTES_LENGTH).optional().or(z.literal('')),
-  custom: z.array(customFieldEntrySchema).max(METADATA_VALIDATION.MAX_CUSTOM_FIELDS),
+  custom: z.array(customFieldEntrySchema)
+    .max(METADATA_VALIDATION.MAX_CUSTOM_FIELDS)
+    .superRefine((entries, ctx) => {
+      const seen = new Set<string>()
+      entries.forEach((entry, i) => {
+        if (seen.has(entry.key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate key: "${entry.key}"`,
+            path: [i, 'key'],
+          })
+        }
+        seen.add(entry.key)
+      })
+    }),
 })
 
 export type MetadataFormData = z.infer<typeof metadataFormSchema>
