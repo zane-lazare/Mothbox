@@ -1,15 +1,30 @@
 import { useRef, useEffect, useCallback } from 'react'
-import PropTypes from 'prop-types'
+import { useWatch } from 'react-hook-form'
+import type { Control, UseFormRegister, UseFormSetValue } from 'react-hook-form'
 import { ClockIcon } from '@heroicons/react/24/outline'
 import { METADATA_VALIDATION } from '../../constants/config'
+import type { MetadataFormData } from '../../schemas/metadata'
+
+interface MetadataNotesProps {
+  control: Control<MetadataFormData>
+  register: UseFormRegister<MetadataFormData>
+  setValue: UseFormSetValue<MetadataFormData>
+  disabled?: boolean
+}
 
 export default function MetadataNotes({
-  value = '',
-  onChange,
-  maxLength = METADATA_VALIDATION.MAX_NOTES_LENGTH,
-  disabled = false
-}) {
-  const textareaRef = useRef(null)
+  control,
+  register,
+  setValue,
+  disabled = false,
+}: MetadataNotesProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const maxLength = METADATA_VALIDATION.MAX_NOTES_LENGTH
+
+  const notesValue = useWatch({ control, name: 'notes' }) ?? ''
+
+  // Destructure register to get ref separately for merging
+  const { ref: registerRef, ...registerRest } = register('notes')
 
   // Auto-expand textarea based on content
   const adjustHeight = useCallback(() => {
@@ -22,17 +37,9 @@ export default function MetadataNotes({
 
   useEffect(() => {
     adjustHeight()
-  }, [value, adjustHeight])
+  }, [notesValue, adjustHeight])
 
-  const handleChange = (e) => {
-    const newValue = e.target.value
-    // Only allow changes if under max length
-    if (newValue.length <= maxLength) {
-      onChange(newValue)
-    }
-  }
-
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     // Ctrl+Enter blurs textarea (triggers auto-save)
     if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault()
@@ -44,9 +51,9 @@ export default function MetadataNotes({
     const now = new Date()
     // Format: YYYY-MM-DD HH:mm -
     const timestamp = now.toISOString().slice(0, 16).replace('T', ' ') + ' - '
-    const cursorPos = textareaRef.current?.selectionStart || value.length
-    const newValue = value.slice(0, cursorPos) + timestamp + value.slice(cursorPos)
-    onChange(newValue)
+    const cursorPos = textareaRef.current?.selectionStart || notesValue.length
+    const newValue = notesValue.slice(0, cursorPos) + timestamp + notesValue.slice(cursorPos)
+    setValue('notes', newValue, { shouldDirty: true })
 
     // Set cursor after timestamp
     setTimeout(() => {
@@ -58,7 +65,7 @@ export default function MetadataNotes({
     }, 0)
   }
 
-  const charCount = value.length
+  const charCount = notesValue.length
   const isNearLimit = charCount >= maxLength * 0.9
   const isAtLimit = charCount >= maxLength
 
@@ -81,12 +88,15 @@ export default function MetadataNotes({
       </div>
 
       <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={handleChange}
+        ref={(el) => {
+          registerRef(el)
+          textareaRef.current = el
+        }}
+        {...registerRest}
         onKeyDown={handleKeyDown}
         placeholder="Add notes about this photo..."
         disabled={disabled}
+        maxLength={maxLength}
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 resize-none overflow-hidden whitespace-pre-wrap dark:bg-gray-800 dark:border-gray-600 min-h-[80px]"
         style={{ whiteSpace: 'pre-wrap' }}
       />
@@ -96,11 +106,4 @@ export default function MetadataNotes({
       </p>
     </div>
   )
-}
-
-MetadataNotes.propTypes = {
-  value: PropTypes.string,
-  onChange: PropTypes.func.isRequired,
-  maxLength: PropTypes.number,
-  disabled: PropTypes.bool,
 }
