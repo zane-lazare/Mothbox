@@ -8,18 +8,22 @@ import type { AxiosInstance } from 'axios'
 
 export declare const api: AxiosInstance
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export declare function getPhotoSidecarMetadata(filename: string): Promise<any>
+export declare function getPhotoSidecarMetadata(
+  filename: string
+): Promise<{ data: Record<string, unknown> }>
 
 export declare function updatePhotoSidecarMetadata(
   filename: string,
   updates: Record<string, unknown>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<any>
+): Promise<{ data: Record<string, unknown> }>
 
-export declare function getAllTags(params?: Record<string, unknown>): Promise<any>
+export declare function getAllTags(
+  params?: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> }>
 
-export declare function getAllSpecies(params?: Record<string, unknown>): Promise<any>
+export declare function getAllSpecies(
+  params?: Record<string, unknown>
+): Promise<{ data: Record<string, unknown> }>
 
 export declare function searchPhotos(
   query: string,
