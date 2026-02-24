@@ -58,7 +58,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
   } = useSidecarMetadata(filename)
 
   // react-hook-form for centralized form state
-  const { control, register, reset, setValue, formState: { isDirty, errors } } = useForm<MetadataFormData>({
+  const { control, register, reset, setValue, trigger, formState: { isDirty, errors } } = useForm<MetadataFormData>({
     resolver: zodResolver(metadataFormSchema),
     defaultValues: {
       tags: [],
@@ -107,7 +107,11 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
     data: watchedData,
     onSave: async (data) => {
       const result = metadataFormSchema.safeParse(data)
-      if (!result.success) return
+      if (!result.success) {
+        // Surface inline validation errors so the user sees why the save was skipped
+        trigger()
+        return
+      }
       const valid = result.data
       await updateMetadata({
         tags: valid.tags,
