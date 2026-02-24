@@ -645,6 +645,51 @@ describe('MetadataPanel (Accordion Refactor)', () => {
       expect(screen.getByTestId('metadata-notes')).toBeInTheDocument()
     })
 
+    it('resets form when switching photos even if dirty', async () => {
+      // Photo A sidecar data
+      const photoAData = { ...mockSidecarMetadata, species: 'Actias luna' }
+      mockApiGet.mockResolvedValue({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValue({ data: photoAData })
+
+      // Use a stable QueryClient across rerenders (avoid recreation on rerender)
+      const stableQueryClient = createTestQueryClient()
+      function StableWrapper({ children }: { children: React.ReactNode }) {
+        return <QueryClientProvider client={stableQueryClient}>{children}</QueryClientProvider>
+      }
+
+      const { rerender } = render(
+        <StableWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/photoA.jpg" />
+        </StableWrapper>
+      )
+
+      // Wait for photo A to load
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-species')).toBeInTheDocument()
+      })
+
+      // Make an edit to dirty the form
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      await userEvent.type(notesTextarea, ' extra')
+
+      // Photo B sidecar data with different species
+      const photoBData = { ...mockSidecarMetadata, species: 'Manduca sexta' }
+      mockGetPhotoSidecarMetadata.mockResolvedValue({ data: photoBData })
+
+      // Switch to photo B
+      rerender(
+        <StableWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/photoB.jpg" />
+        </StableWrapper>
+      )
+
+      // Should display photo B's species, not photo A's
+      await waitFor(() => {
+        const speciesInput = screen.getByTestId('species-input') as HTMLInputElement
+        expect(speciesInput.value).toBe('Manduca sexta')
+      })
+    })
+
     it('applies custom className prop', async () => {
       mockApiGet.mockResolvedValueOnce({ data: mockExifMetadata })
       mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })

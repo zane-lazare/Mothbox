@@ -72,9 +72,16 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
     mode: 'onBlur',
   })
 
+  // Track previous filename to detect photo switches
+  const prevFilenameRef = useRef(filename)
+
   // Sync form state with fetched sidecar data
+  // Reset unconditionally on photo switch; only guard with !isDirty for background re-fetches
   useEffect(() => {
-    if (sidecarData && !isDirty) {
+    if (!sidecarData) return
+    const photoChanged = prevFilenameRef.current !== filename
+    prevFilenameRef.current = filename
+    if (photoChanged || !isDirty) {
       reset({
         tags: sidecarData.tags || [],
         species: sidecarData.species || '',
@@ -85,7 +92,7 @@ export default function MetadataPanel({ photoPath, className = '', onClose }: Me
         custom: Object.entries(sidecarData.custom || {}).map(([key, value]) => ({ key, value: String(value) })),
       })
     }
-  }, [sidecarData, isDirty, reset])
+  }, [sidecarData, filename, isDirty, reset])
 
   // Watch all form fields for auto-save
   const watchedData = useWatch({ control })
