@@ -28,7 +28,7 @@ export const speciesSchema = z.object({
       } catch {
         return false
       }
-    }, { message: 'URL must start with http:// or https://' })
+    }, { message: 'Please enter a valid URL (e.g., https://example.com)' })
     .optional()
     .or(z.literal('')),
 })

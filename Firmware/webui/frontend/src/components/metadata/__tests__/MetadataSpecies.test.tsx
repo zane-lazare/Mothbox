@@ -207,7 +207,7 @@ describe('MetadataSpecies', () => {
     fireEvent.blur(referenceInput)
 
     await waitFor(() => {
-      expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+      expect(screen.getByText('Please enter a valid URL (e.g., https://example.com)')).toBeInTheDocument()
     })
   })
 
@@ -225,7 +225,7 @@ describe('MetadataSpecies', () => {
     fireEvent.blur(referenceInput)
 
     await waitFor(() => {
-      expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+      expect(screen.getByText('Please enter a valid URL (e.g., https://example.com)')).toBeInTheDocument()
     })
 
     // Valid URL should clear error
@@ -233,7 +233,7 @@ describe('MetadataSpecies', () => {
     fireEvent.blur(referenceInput)
 
     await waitFor(() => {
-      expect(screen.queryByText('URL must start with http:// or https://')).not.toBeInTheDocument()
+      expect(screen.queryByText('Please enter a valid URL (e.g., https://example.com)')).not.toBeInTheDocument()
     })
   })
 
@@ -307,7 +307,7 @@ describe('MetadataSpecies', () => {
     fireEvent.blur(referenceInput)
 
     await waitFor(() => {
-      expect(screen.getByText('URL must start with http:// or https://')).toBeInTheDocument()
+      expect(screen.getByText('Please enter a valid URL (e.g., https://example.com)')).toBeInTheDocument()
     })
 
     // Empty URL should clear error
@@ -315,7 +315,7 @@ describe('MetadataSpecies', () => {
     fireEvent.blur(referenceInput)
 
     await waitFor(() => {
-      expect(screen.queryByText('URL must start with http:// or https://')).not.toBeInTheDocument()
+      expect(screen.queryByText('Please enter a valid URL (e.g., https://example.com)')).not.toBeInTheDocument()
     })
   })
 })

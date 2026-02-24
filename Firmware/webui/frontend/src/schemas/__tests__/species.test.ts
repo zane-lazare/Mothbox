@@ -131,7 +131,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'not-a-url',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('URL must start with http:// or https://')
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
     })
 
     it('rejects ftp:// URL', () => {
@@ -140,7 +140,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'ftp://example.com/file',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('URL must start with http:// or https://')
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
     })
 
     it('rejects file:// URL', () => {
@@ -149,7 +149,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'file:///etc/passwd',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('URL must start with http:// or https://')
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
     })
 
     it('accepts http:// URL', () => {
