@@ -1,88 +1,92 @@
 import { useState } from 'react'
-import PropTypes from 'prop-types'
+import { useFieldArray } from 'react-hook-form'
+import type { Control } from 'react-hook-form'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import type { MetadataFormData } from '../../schemas/metadata'
+
+interface MetadataCustomFieldsProps {
+  control: Control<MetadataFormData>
+  disabled?: boolean
+}
+
+const MAX_FIELDS = 100
 
 export default function MetadataCustomFields({
-  fields = {},
-  onChange,
-  maxFields = 100,
-  disabled = false
-}) {
-  const [keyError, setKeyError] = useState(null)
+  control,
+  disabled = false,
+}: MetadataCustomFieldsProps) {
+  const [keyError, setKeyError] = useState<string | null>(null)
+  const { fields, append, remove, update } = useFieldArray({
+    control,
+    name: 'custom',
+  })
 
-  const entries = Object.entries(fields)
-  const canAddMore = entries.length < maxFields
+  const canAddMore = fields.length < MAX_FIELDS
 
-  const handleKeyChange = (oldKey, newKey) => {
-    // Check for duplicate keys
-    if (newKey && newKey !== oldKey && Object.prototype.hasOwnProperty.call(fields, newKey)) {
+  const handleKeyChange = (index: number, newKey: string) => {
+    const currentKey = fields[index].key
+    if (
+      newKey &&
+      newKey !== currentKey &&
+      fields.some((f, i) => i !== index && f.key === newKey)
+    ) {
       setKeyError(`Key "${newKey}" already exists`)
       return
     }
     setKeyError(null)
-
-    const newFields = { ...fields }
-    const value = newFields[oldKey]
-    delete newFields[oldKey]
-    if (newKey) {
-      newFields[newKey] = value
-    }
-    onChange(newFields)
+    update(index, { key: newKey, value: fields[index].value })
   }
 
-  const handleValueChange = (key, value) => {
-    onChange({ ...fields, [key]: value })
+  const handleValueChange = (index: number, newValue: string) => {
+    update(index, { key: fields[index].key, value: newValue })
   }
 
   const handleAdd = () => {
     if (!canAddMore) return
-    // Generate unique temp key
     let tempKey = 'field_1'
     let i = 1
-    while (Object.prototype.hasOwnProperty.call(fields, tempKey)) {
+    while (fields.some((f) => f.key === tempKey)) {
       i++
       tempKey = `field_${i}`
     }
-    onChange({ ...fields, [tempKey]: '' })
+    append({ key: tempKey, value: '' })
   }
 
-  const handleDelete = (key) => {
-    const newFields = { ...fields }
-    delete newFields[key]
-    onChange(newFields)
+  const handleDelete = (index: number) => {
+    remove(index)
     setKeyError(null)
   }
 
   return (
     <div className="space-y-2">
-      {entries.length === 0 ? (
+      {fields.length === 0 ? (
         <p className="text-sm text-gray-500">No custom fields</p>
       ) : (
         <div className="space-y-2">
-          {entries.map(([key, value], index) => (
-            <div key={index} className="flex gap-2 items-start">
+          {fields.map((field, index) => (
+            <div key={field.id} className="flex gap-2 items-start">
               <input
                 type="text"
-                value={key}
-                onChange={(e) => handleKeyChange(key, e.target.value)}
+                value={field.key}
+                onChange={(e) => handleKeyChange(index, e.target.value)}
                 placeholder="Field name"
                 disabled={disabled}
                 className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
               />
               <input
                 type="text"
-                value={value}
-                onChange={(e) => handleValueChange(key, e.target.value)}
+                value={field.value}
+                onChange={(e) => handleValueChange(index, e.target.value)}
                 placeholder="Value"
                 disabled={disabled}
                 className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
               />
               <button
                 type="button"
-                onClick={() => handleDelete(key)}
+                onClick={() => handleDelete(index)}
                 disabled={disabled}
                 className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-50"
-                aria-label={`Delete field ${key}`}
+                aria-label={`Delete field ${field.key}`}
               >
                 <TrashIcon className="w-4 h-4" />
               </button>
@@ -91,9 +95,7 @@ export default function MetadataCustomFields({
         </div>
       )}
 
-      {keyError && (
-        <p className="text-xs text-red-500">{keyError}</p>
-      )}
+      {keyError && <p className="text-xs text-red-500">{keyError}</p>}
 
       <button
         type="button"
@@ -103,15 +105,10 @@ export default function MetadataCustomFields({
       >
         <PlusIcon className="w-4 h-4" />
         Add custom field
-        {!canAddMore && <span className="text-gray-400">(max {maxFields})</span>}
+        {!canAddMore && (
+          <span className="text-gray-400">(max {MAX_FIELDS})</span>
+        )}
       </button>
     </div>
   )
-}
-
-MetadataCustomFields.propTypes = {
-  fields: PropTypes.object,
-  onChange: PropTypes.func.isRequired,
-  maxFields: PropTypes.number,
-  disabled: PropTypes.bool,
 }
