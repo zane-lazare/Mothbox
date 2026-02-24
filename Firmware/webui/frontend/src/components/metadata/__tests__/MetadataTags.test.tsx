@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useForm, type Resolver } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import MetadataTags from '../MetadataTags'
+import { metadataFormSchema, type MetadataFormData } from '../../../schemas/metadata'
 
 // Mock useTags hook
 vi.mock('../../../hooks/useTags', () => ({
@@ -19,45 +22,78 @@ vi.mock('../../../hooks/useTags', () => ({
   })),
 }))
 
-// Test wrapper with QueryClient
-function TestWrapper({ children }) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  })
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+const DEFAULT_VALUES: MetadataFormData = {
+  tags: [],
+  species: '',
+  commonName: '',
+  confidence: 'unknown',
+  referenceUrl: '',
+  notes: '',
+  custom: [],
+}
+
+function renderTags(
+  overrides: Partial<MetadataFormData> = {},
+  opts: { onCopyToNext?: () => void; disabled?: boolean } = {},
+) {
+  function Wrapper() {
+    // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
+    // Zod 4's public ZodType uses `unknown` for its input parameter. The cast
+    // through `unknown` is safe because the schema validates the same shape at
+    // runtime. TODO: Remove when @hookform/resolvers aligns with Zod 4 generics.
+    const resolver = zodResolver(
+      metadataFormSchema as unknown as Parameters<typeof zodResolver>[0],
+    ) as unknown as Resolver<MetadataFormData>
+
+    const { control, setValue } = useForm<MetadataFormData>({
+      resolver,
+      defaultValues: { ...DEFAULT_VALUES, ...overrides },
+      mode: 'onBlur',
+    })
+
+    return (
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          })
+        }
+      >
+        <MetadataTags
+          control={control}
+          setValue={setValue}
+          onCopyToNext={opts.onCopyToNext}
+          disabled={opts.disabled}
+        />
+      </QueryClientProvider>
+    )
+  }
+
+  return render(<Wrapper />)
 }
 
 describe('MetadataTags', () => {
-  const defaultProps = {
-    tags: ['existing-tag', 'another-tag'],
-    onAddTag: vi.fn(),
-    onRemoveTag: vi.fn(),
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   describe('Rendering', () => {
     it('renders existing tags as chips', () => {
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] })
 
       expect(screen.getByText('existing-tag')).toBeInTheDocument()
       expect(screen.getByText('another-tag')).toBeInTheDocument()
     })
 
     it('displays tag chips with remove button', () => {
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] })
 
       const removeButtons = screen.getAllByRole('button', { name: /Remove tag/i })
       expect(removeButtons).toHaveLength(2)
     })
 
     it('renders autocomplete input field', () => {
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] })
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       expect(input).toBeInTheDocument()
@@ -65,39 +101,42 @@ describe('MetadataTags', () => {
     })
 
     it('shows placeholder when no tags exist', () => {
-      render(<MetadataTags {...defaultProps} tags={[]} />, { wrapper: TestWrapper })
+      renderTags({ tags: [] })
 
       expect(screen.getByText('Add tags...')).toBeInTheDocument()
     })
   })
 
   describe('Tag Removal', () => {
-    it('calls onRemoveTag when clicking remove button', async () => {
+    it('removes tag chip when clicking remove button', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] })
 
       const removeButton = screen.getByRole('button', { name: 'Remove tag existing-tag' })
       await user.click(removeButton)
 
-      expect(defaultProps.onRemoveTag).toHaveBeenCalledWith('existing-tag')
-      expect(defaultProps.onRemoveTag).toHaveBeenCalledTimes(1)
+      await waitFor(() => {
+        expect(screen.queryByText('existing-tag')).not.toBeInTheDocument()
+      })
+      expect(screen.getByText('another-tag')).toBeInTheDocument()
     })
 
-    it('does not call onRemoveTag when disabled', async () => {
+    it('does not remove tag when disabled', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} disabled />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] }, { disabled: true })
 
       const removeButton = screen.getByRole('button', { name: 'Remove tag existing-tag' })
       await user.click(removeButton)
 
-      expect(defaultProps.onRemoveTag).not.toHaveBeenCalled()
+      // Tag should still be present because button is disabled
+      expect(screen.getByText('existing-tag')).toBeInTheDocument()
     })
   })
 
   describe('Autocomplete', () => {
     it('shows suggestions dropdown when typing', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'moth')
@@ -109,7 +148,7 @@ describe('MetadataTags', () => {
 
     it('displays suggestion counts', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'moth')
@@ -121,7 +160,7 @@ describe('MetadataTags', () => {
 
     it('filters suggestions based on input', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'bee')
@@ -134,25 +173,22 @@ describe('MetadataTags', () => {
 
     it('excludes already selected tags from suggestions', async () => {
       const user = userEvent.setup()
-      render(
-        <MetadataTags {...defaultProps} tags={['moth']} />,
-        { wrapper: TestWrapper }
-      )
+      renderTags({ tags: ['moth'] })
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'moth')
 
       await waitFor(() => {
         // Should not show moth in suggestions since it's already selected
-        const suggestions = screen.queryAllByText('moth')
+        const moths = screen.queryAllByText('moth')
         // Only one instance: the existing chip, not in suggestions
-        expect(suggestions).toHaveLength(1)
+        expect(moths).toHaveLength(1)
       })
     })
 
     it('adds tag when clicking suggestion', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'moth')
@@ -164,107 +200,120 @@ describe('MetadataTags', () => {
       const suggestion = screen.getByText('moth')
       await user.click(suggestion)
 
-      expect(defaultProps.onAddTag).toHaveBeenCalledWith('moth')
+      // Tag should now appear as a chip
+      await waitFor(() => {
+        expect(screen.getByText('moth')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Remove tag moth' })).toBeInTheDocument()
+      })
     })
   })
 
   describe('Keyboard Interaction', () => {
     it('adds tag when pressing Enter', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'new-tag{Enter}')
 
-      expect(defaultProps.onAddTag).toHaveBeenCalledWith('new-tag')
+      await waitFor(() => {
+        expect(screen.getByText('new-tag')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Remove tag new-tag' })).toBeInTheDocument()
+      })
     })
 
     it('adds tag when typing comma', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'new-tag,')
 
-      expect(defaultProps.onAddTag).toHaveBeenCalledWith('new-tag')
+      await waitFor(() => {
+        expect(screen.getByText('new-tag')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Remove tag new-tag' })).toBeInTheDocument()
+      })
     })
 
     it('clears input after adding tag with Enter', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'new-tag{Enter}')
 
-      expect(input.value).toBe('')
+      expect(input).toHaveValue('')
     })
 
     it('clears input after adding tag with comma', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'new-tag,')
 
-      expect(input.value).toBe('')
+      expect(input).toHaveValue('')
     })
   })
 
   describe('Duplicate Prevention', () => {
     it('prevents adding duplicate tags (case-insensitive)', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag'] })
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, 'EXISTING-TAG{Enter}')
 
-      expect(defaultProps.onAddTag).not.toHaveBeenCalled()
+      // Should still only have one tag chip for existing-tag
+      const chips = screen.getAllByText('existing-tag')
+      expect(chips).toHaveLength(1)
     })
 
     it('prevents adding empty tags', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, '{Enter}')
 
-      expect(defaultProps.onAddTag).not.toHaveBeenCalled()
+      // No new tags should appear; placeholder should still be visible
+      expect(screen.getByText('Add tags...')).toBeInTheDocument()
     })
 
     it('trims whitespace before adding', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, '  trimmed-tag  {Enter}')
 
-      expect(defaultProps.onAddTag).toHaveBeenCalledWith('trimmed-tag')
+      await waitFor(() => {
+        expect(screen.getByText('trimmed-tag')).toBeInTheDocument()
+      })
     })
 
     it('prevents adding whitespace-only tags', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags()
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       await user.type(input, '   {Enter}')
 
-      expect(defaultProps.onAddTag).not.toHaveBeenCalled()
+      // No new tags should appear; placeholder should still be visible
+      expect(screen.getByText('Add tags...')).toBeInTheDocument()
     })
   })
 
   describe('Copy to Next Photo', () => {
     it('renders copy button when onCopyToNext provided', () => {
       const onCopyToNext = vi.fn()
-      render(
-        <MetadataTags {...defaultProps} onCopyToNext={onCopyToNext} />,
-        { wrapper: TestWrapper }
-      )
+      renderTags({ tags: ['existing-tag'] }, { onCopyToNext })
 
       expect(screen.getByText(/Copy tags to next photo/i)).toBeInTheDocument()
     })
 
     it('does not render copy button when onCopyToNext not provided', () => {
-      render(<MetadataTags {...defaultProps} />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag'] })
 
       expect(screen.queryByText(/Copy tags to next photo/i)).not.toBeInTheDocument()
     })
@@ -272,10 +321,7 @@ describe('MetadataTags', () => {
     it('calls onCopyToNext when clicking copy button', async () => {
       const user = userEvent.setup()
       const onCopyToNext = vi.fn()
-      render(
-        <MetadataTags {...defaultProps} onCopyToNext={onCopyToNext} />,
-        { wrapper: TestWrapper }
-      )
+      renderTags({ tags: ['existing-tag'] }, { onCopyToNext })
 
       const copyButton = screen.getByText(/Copy tags to next photo/i)
       await user.click(copyButton)
@@ -285,10 +331,7 @@ describe('MetadataTags', () => {
 
     it('disables copy button when no tags exist', () => {
       const onCopyToNext = vi.fn()
-      render(
-        <MetadataTags {...defaultProps} tags={[]} onCopyToNext={onCopyToNext} />,
-        { wrapper: TestWrapper }
-      )
+      renderTags({ tags: [] }, { onCopyToNext })
 
       const copyButton = screen.getByText(/Copy tags to next photo/i)
       expect(copyButton.closest('button')).toBeDisabled()
@@ -296,10 +339,7 @@ describe('MetadataTags', () => {
 
     it('disables copy button when component is disabled', () => {
       const onCopyToNext = vi.fn()
-      render(
-        <MetadataTags {...defaultProps} onCopyToNext={onCopyToNext} disabled />,
-        { wrapper: TestWrapper }
-      )
+      renderTags({ tags: ['existing-tag'] }, { onCopyToNext, disabled: true })
 
       const copyButton = screen.getByText(/Copy tags to next photo/i)
       expect(copyButton.closest('button')).toBeDisabled()
@@ -308,14 +348,14 @@ describe('MetadataTags', () => {
 
   describe('Disabled State', () => {
     it('disables input when disabled prop is true', () => {
-      render(<MetadataTags {...defaultProps} disabled />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag'] }, { disabled: true })
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
       expect(input).toBeDisabled()
     })
 
     it('disables remove buttons when disabled', () => {
-      render(<MetadataTags {...defaultProps} disabled />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag', 'another-tag'] }, { disabled: true })
 
       const removeButtons = screen.getAllByRole('button', { name: /Remove tag/i })
       removeButtons.forEach(button => {
@@ -325,7 +365,7 @@ describe('MetadataTags', () => {
 
     it('does not show suggestions when disabled', async () => {
       const user = userEvent.setup()
-      render(<MetadataTags {...defaultProps} disabled />, { wrapper: TestWrapper })
+      renderTags({ tags: ['existing-tag'] }, { disabled: true })
 
       const input = screen.getByPlaceholderText(/Type to add tags/i)
 

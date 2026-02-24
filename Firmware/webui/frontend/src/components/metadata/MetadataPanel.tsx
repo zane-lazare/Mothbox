@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import PropTypes from 'prop-types'
+import { useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { TagIcon, BugAntIcon, DocumentTextIcon, CameraIcon, AdjustmentsHorizontalIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import usePhotoMetadata from '../../hooks/usePhotoMetadata'
 import useSidecarMetadata from '../../hooks/useSidecarMetadata'
@@ -13,33 +14,33 @@ import MetadataCustomFields from './MetadataCustomFields'
 import MetadataEXIF from './MetadataEXIF'
 import MetadataSkeleton from './MetadataSkeleton'
 import { Z_INDEX } from '../../constants/config'
+import { metadataFormSchema } from '../../schemas/metadata'
+import type { MetadataFormData } from '../../schemas/metadata'
+
+interface MetadataPanelProps {
+  photoPath: string
+  className?: string
+  onClose?: () => void
+}
 
 /**
  * MetadataPanel - Container component for photo metadata display and editing
  *
  * Orchestrates all metadata sections using accordion UI with auto-save functionality.
- * Fetches both EXIF metadata (read-only) and sidecar metadata (editable) and provides
- * seamless editing experience with debounced auto-save.
+ * Uses react-hook-form for centralized form state management with Zod validation.
  *
  * Features:
  * - Accordion-based UI with collapsible sections
- * - Auto-save with 2-second debounce
+ * - Auto-save with 2-second debounce (via useAutoSave + useWatch)
  * - Optimistic updates for instant feedback
  * - Real-time save status indicator
  * - Loading skeleton during data fetch
  * - Error handling with retry capability
  * - Full keyboard navigation support
- *
- * @param {string} photoPath - Full path to the photo file
- * @param {string} [className] - Optional additional CSS classes
- * @param {Function} [onClose] - Optional callback when panel is closed (for Escape or Ctrl+Enter shortcuts)
- *
- * @example
- * <MetadataPanel photoPath="/var/lib/mothbox/photos/photo.jpg" />
  */
-export default function MetadataPanel({ photoPath, className = '', onClose }) {
+export default function MetadataPanel({ photoPath, className = '', onClose }: MetadataPanelProps) {
   // Ref for panel container to check focus
-  const panelRef = useRef(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   // Use full relative path for sidecar operations (supports subdirectories)
   const filename = photoPath || null
 
@@ -56,52 +57,78 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
     updateMetadata
   } = useSidecarMetadata(filename)
 
-  // Local state for editable fields
-  const [editableData, setEditableData] = useState({
-    tags: [],
-    species: '',
-    species_confidence: 'unknown',
-    species_common_name: '',
-    species_reference_url: '',
-    notes: '',
-    custom: {}
+  // react-hook-form for centralized form state
+  const { control, register, reset, setValue, trigger, formState: { isDirty, errors } } = useForm<MetadataFormData>({
+    resolver: zodResolver(metadataFormSchema),
+    defaultValues: {
+      tags: [],
+      species: '',
+      commonName: '',
+      confidence: 'unknown',
+      referenceUrl: '',
+      notes: '',
+      custom: [],
+    },
+    mode: 'onBlur',
   })
 
-  // Sync local state with fetched sidecar data
+  // Track previous filename to detect photo switches
+  const prevFilenameRef = useRef(filename)
+
+  // Sync form state with fetched sidecar data.
+  // Reset unconditionally on photo switch; only guard with !isDirty for background re-fetches.
+  // isDirty is in the dep array intentionally — using a ref would create a race condition
+  // where a stale ref value could cause reset() to discard unsaved edits during a
+  // background re-fetch that lands in the same render cycle as a dirty-state change.
   useEffect(() => {
-    if (sidecarData) {
-      setEditableData({
+    if (!sidecarData) return
+    const photoChanged = prevFilenameRef.current !== filename
+    prevFilenameRef.current = filename
+    if (photoChanged || !isDirty) {
+      reset({
         tags: sidecarData.tags || [],
         species: sidecarData.species || '',
-        species_confidence: sidecarData.species_confidence || 'unknown',
-        species_common_name: sidecarData.species_common_name || '',
-        species_reference_url: sidecarData.species_reference_url || '',
+        commonName: sidecarData.species_common_name || '',
+        confidence: (sidecarData.species_confidence as MetadataFormData['confidence']) || 'unknown',
+        referenceUrl: sidecarData.species_reference_url || '',
         notes: sidecarData.notes || '',
-        custom: sidecarData.custom || {}
+        custom: Object.entries(sidecarData.custom || {}).map(([key, value]) => ({ key, value: String(value) })),
       })
     }
-  }, [sidecarData])
+  }, [sidecarData, filename, isDirty, reset])
+
+  // Watches all fields — intentional for auto-save (re-renders on every keystroke,
+  // but the save callback is debounced so the cost is only the shallow comparison)
+  const watchedData = useWatch({ control })
 
   // Auto-save hook with 2-second debounce
+  // Validates with safeParse before saving to prevent persisting invalid form state
   const { status: saveStatus, error: saveError, saveNow } = useAutoSave({
-    data: editableData,
+    data: watchedData,
     onSave: async (data) => {
+      const result = metadataFormSchema.safeParse(data)
+      if (!result.success) {
+        // Surface inline validation errors and throw so useAutoSave reports error status
+        trigger()
+        throw new Error('Validation failed — fix errors before saving')
+      }
+      const valid = result.data
       await updateMetadata({
-        tags: data.tags,
-        species: data.species,
-        species_confidence: data.species_confidence,
-        species_common_name: data.species_common_name,
-        species_reference_url: data.species_reference_url,
-        notes: data.notes,
-        custom: data.custom
+        tags: valid.tags,
+        species: valid.species,
+        species_confidence: valid.confidence,
+        species_common_name: valid.commonName,
+        species_reference_url: valid.referenceUrl,
+        notes: valid.notes,
+        custom: Object.fromEntries(valid.custom.map((entry) => [entry.key, entry.value])),
       })
     },
     delay: 2000,
-    enabled: !!filename
+    enabled: !!filename,
   })
 
   // Keyboard shortcut handler
-  const handleKeyDown = useCallback((e) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Focus check required: This handler is attached to document (not panel element)
     // because we need to intercept Ctrl+S before browser's save dialog. Without this
     // check, shortcuts would trigger even when focus is outside the panel (e.g., gallery).
@@ -133,43 +160,6 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
-
-  // Update handlers for each section - memoized to prevent child re-renders
-  const handleTagAdd = useCallback((tag) => {
-    setEditableData(prev => ({
-      ...prev,
-      tags: [...prev.tags, tag]
-    }))
-  }, [])
-
-  const handleTagRemove = useCallback((tag) => {
-    setEditableData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(t => t !== tag)
-    }))
-  }, [])
-
-  const handleSpeciesChange = useCallback((field, value) => {
-    setEditableData(prev => {
-      // Map field names to state keys
-      const fieldMap = {
-        'species': 'species',
-        'confidence': 'species_confidence',
-        'commonName': 'species_common_name',
-        'referenceUrl': 'species_reference_url'
-      }
-      const stateKey = fieldMap[field] || field
-      return { ...prev, [stateKey]: value }
-    })
-  }, [])
-
-  const handleNotesChange = useCallback((value) => {
-    setEditableData(prev => ({ ...prev, notes: value }))
-  }, [])
-
-  const handleCustomFieldsChange = useCallback((fields) => {
-    setEditableData(prev => ({ ...prev, custom: fields }))
-  }, [])
 
   const isLoading = exifLoading || sidecarLoading
 
@@ -271,26 +261,25 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
         <div className="flex-1 overflow-y-auto">
           <AccordionSection title="Tags" icon={<TagIcon className="w-5 h-5" />} defaultExpanded>
             <MetadataTags
-              tags={editableData.tags}
-              onAddTag={handleTagAdd}
-              onRemoveTag={handleTagRemove}
+              control={control}
+              setValue={setValue}
             />
           </AccordionSection>
 
           <AccordionSection title="Species" icon={<BugAntIcon className="w-5 h-5" />}>
             <MetadataSpecies
-              species={editableData.species}
-              confidence={editableData.species_confidence}
-              commonName={editableData.species_common_name}
-              referenceUrl={editableData.species_reference_url}
-              onChange={handleSpeciesChange}
+              control={control}
+              register={register}
+              setValue={setValue}
+              errors={errors}
             />
           </AccordionSection>
 
           <AccordionSection title="Notes" icon={<DocumentTextIcon className="w-5 h-5" />}>
             <MetadataNotes
-              value={editableData.notes}
-              onChange={handleNotesChange}
+              control={control}
+              register={register}
+              setValue={setValue}
             />
           </AccordionSection>
 
@@ -300,18 +289,13 @@ export default function MetadataPanel({ photoPath, className = '', onClose }) {
 
           <AccordionSection title="Custom Fields" icon={<AdjustmentsHorizontalIcon className="w-5 h-5" />}>
             <MetadataCustomFields
-              fields={editableData.custom}
-              onChange={handleCustomFieldsChange}
+              control={control}
+              register={register}
+              errors={errors}
             />
           </AccordionSection>
         </div>
       </div>
     </>
   )
-}
-
-MetadataPanel.propTypes = {
-  photoPath: PropTypes.string.isRequired,
-  className: PropTypes.string,
-  onClose: PropTypes.func,
 }

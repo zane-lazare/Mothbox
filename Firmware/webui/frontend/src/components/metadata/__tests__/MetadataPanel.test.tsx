@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MetadataPanel from '../MetadataPanel'
 import * as apiModule from '../../../utils/api'
 
+// Hoist useWatch import so it can be used inside vi.mock factories
+const { useWatch: useWatchHoisted } = await vi.hoisted(async () => {
+  return await import('react-hook-form')
+})
+
 // Mock the API module
 vi.mock('../../../utils/api', () => ({
   api: {
@@ -23,7 +28,12 @@ const mockUpdatePhotoSidecarMetadata = vi.mocked(apiModule.updatePhotoSidecarMet
 
 // Mock the AccordionSection component
 vi.mock('../AccordionSection', () => ({
-  default: ({ title, icon, children, defaultExpanded }) => (
+  default: ({ title, icon, children, defaultExpanded }: {
+    title: string
+    icon: React.ReactNode
+    children: React.ReactNode
+    defaultExpanded?: boolean
+  }) => (
     <div data-testid={`accordion-section-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <div data-testid="accordion-header" data-expanded={defaultExpanded}>
         {icon}
@@ -36,7 +46,11 @@ vi.mock('../AccordionSection', () => ({
 
 // Mock the SaveStatusIndicator component
 vi.mock('../SaveStatusIndicator', () => ({
-  default: ({ status, onRetry, errorMessage }) => (
+  default: ({ status, onRetry, errorMessage }: {
+    status: string
+    onRetry?: () => void
+    errorMessage?: string
+  }) => (
     <div data-testid="save-status-indicator" data-status={status}>
       {status === 'saving' && <span>Saving...</span>}
       {status === 'saved' && <span>Saved</span>}
@@ -54,86 +68,99 @@ vi.mock('../SaveStatusIndicator', () => ({
   ),
 }))
 
-// Mock the section components
+// Mock the section components with react-hook-form awareness
+// These mocks use useWatch (hoisted) to read values from the form and setValue to write values
 vi.mock('../MetadataTags', () => ({
-  default: ({ tags, onAddTag, onRemoveTag }) => (
-    <div data-testid="metadata-tags">
-      <div data-testid="tags-list">
-        {tags.map((tag) => (
-          <span key={tag} data-testid={`tag-${tag}`}>
-            {tag}
-            <button onClick={() => onRemoveTag(tag)}>Remove {tag}</button>
-          </span>
-        ))}
+  default: function MockMetadataTags({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
+    const tags = useWatchHoisted({ control, name: 'tags' }) ?? []
+    return (
+      <div data-testid="metadata-tags">
+        <div data-testid="tags-list">
+          {(tags as string[]).map((tag: string) => (
+            <span key={tag} data-testid={`tag-${tag}`}>
+              {tag}
+              <button onClick={() => setValue('tags', (tags as string[]).filter((t: string) => t !== tag), { shouldDirty: true })}>Remove {tag}</button>
+            </span>
+          ))}
+        </div>
+        <button onClick={() => setValue('tags', [...(tags as string[]), 'new-tag'], { shouldDirty: true })}>Add Tag</button>
       </div>
-      <button onClick={() => onAddTag('new-tag')}>Add Tag</button>
-    </div>
-  ),
+    )
+  },
 }))
 
 vi.mock('../MetadataSpecies', () => ({
-  default: ({ species, confidence, commonName, referenceUrl, onChange }) => (
-    <div data-testid="metadata-species">
-      <input
-        data-testid="species-input"
-        value={species}
-        onChange={(e) => onChange('species', e.target.value)}
-      />
-      <select
-        data-testid="confidence-select"
-        value={confidence}
-        onChange={(e) => onChange('confidence', e.target.value)}
-      >
-        <option value="certain">Certain</option>
-        <option value="probable">Probable</option>
-        <option value="possible">Possible</option>
-        <option value="unknown">Unknown</option>
-      </select>
-      <input
-        data-testid="common-name-input"
-        value={commonName}
-        onChange={(e) => onChange('commonName', e.target.value)}
-      />
-      <input
-        data-testid="reference-url-input"
-        value={referenceUrl}
-        onChange={(e) => onChange('referenceUrl', e.target.value)}
-      />
-    </div>
-  ),
+  default: function MockMetadataSpecies({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
+    const species = useWatchHoisted({ control, name: 'species' }) ?? ''
+    const confidence = useWatchHoisted({ control, name: 'confidence' }) ?? 'unknown'
+    const commonName = useWatchHoisted({ control, name: 'commonName' }) ?? ''
+    const referenceUrl = useWatchHoisted({ control, name: 'referenceUrl' }) ?? ''
+    return (
+      <div data-testid="metadata-species">
+        <input
+          data-testid="species-input"
+          value={species as string}
+          onChange={(e) => setValue('species', e.target.value, { shouldDirty: true })}
+        />
+        <select
+          data-testid="confidence-select"
+          value={confidence as string}
+          onChange={(e) => setValue('confidence', e.target.value, { shouldDirty: true })}
+        >
+          <option value="certain">Certain</option>
+          <option value="probable">Probable</option>
+          <option value="possible">Possible</option>
+          <option value="unknown">Unknown</option>
+        </select>
+        <input
+          data-testid="common-name-input"
+          value={commonName as string}
+          onChange={(e) => setValue('commonName', e.target.value, { shouldDirty: true })}
+        />
+        <input
+          data-testid="reference-url-input"
+          value={referenceUrl as string}
+          onChange={(e) => setValue('referenceUrl', e.target.value, { shouldDirty: true })}
+        />
+      </div>
+    )
+  },
 }))
 
 vi.mock('../MetadataNotes', () => ({
-  default: ({ value, onChange }) => (
-    <div data-testid="metadata-notes">
-      <textarea
-        data-testid="notes-textarea"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  ),
+  default: function MockMetadataNotes({ control, setValue }: { control: any; setValue: (name: string, value: unknown, opts?: unknown) => void }) {
+    const notes = useWatchHoisted({ control, name: 'notes' }) ?? ''
+    return (
+      <div data-testid="metadata-notes">
+        <textarea
+          data-testid="notes-textarea"
+          value={notes as string}
+          onChange={(e) => setValue('notes', e.target.value, { shouldDirty: true })}
+        />
+      </div>
+    )
+  },
 }))
 
 vi.mock('../MetadataCustomFields', () => ({
-  default: ({ fields, onChange }) => (
-    <div data-testid="metadata-custom-fields">
-      <div data-testid="custom-fields-list">
-        {Object.entries(fields || {}).map(([key, value]) => (
-          <div key={key} data-testid={`custom-field-${key}`}>
-            {key}: {value}
-          </div>
-        ))}
+  default: function MockMetadataCustomFields({ control }: { control: any }) {
+    const custom = useWatchHoisted({ control, name: 'custom' }) ?? []
+    return (
+      <div data-testid="metadata-custom-fields">
+        <div data-testid="custom-fields-list">
+          {(custom as Array<{ key: string; value: string }>).map((entry, idx) => (
+            <div key={entry.key || idx} data-testid={`custom-field-${entry.key}`}>
+              {entry.key}: {entry.value}
+            </div>
+          ))}
+        </div>
       </div>
-      <button onClick={() => onChange({ ...fields, newField: 'newValue' })}>
-        Add Custom Field
-      </button>
-    </div>
-  ),
+    )
+  },
 }))
 
 vi.mock('../MetadataEXIF', () => ({
-  default: ({ data }) => (
+  default: ({ data }: { data: unknown }) => (
     <div data-testid="metadata-exif">
       <div>EXIF Data: {data ? 'loaded' : 'no data'}</div>
     </div>
@@ -141,7 +168,7 @@ vi.mock('../MetadataEXIF', () => ({
 }))
 
 vi.mock('../MetadataSkeleton', () => ({
-  default: ({ rows }) => (
+  default: ({ rows }: { rows: number }) => (
     <div data-testid="metadata-skeleton" role="status">
       Loading skeleton with {rows} rows
     </div>
@@ -203,7 +230,7 @@ function createTestQueryClient() {
 /**
  * Wrapper component that provides QueryClient
  */
-function TestWrapper({ children }) {
+function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = createTestQueryClient()
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -486,8 +513,6 @@ describe('MetadataPanel (Accordion Refactor)', () => {
       mockGetPhotoSidecarMetadata.mockResolvedValueOnce({ data: mockSidecarMetadata })
       mockUpdatePhotoSidecarMetadata.mockResolvedValue({ data: { success: true } })
 
-      const user = userEvent.setup()
-
       render(
         <TestWrapper>
           <MetadataPanel photoPath="/var/lib/mothbox/photos/test.jpg" />
@@ -498,18 +523,9 @@ describe('MetadataPanel (Accordion Refactor)', () => {
         expect(screen.queryByTestId('metadata-skeleton')).not.toBeInTheDocument()
       })
 
-      // Wait for custom fields to appear after sidecar data syncs to local state
+      // Wait for custom fields to appear after sidecar data syncs to form state
       expect(await screen.findByTestId('custom-field-observer')).toBeInTheDocument()
       expect(screen.getByTestId('custom-field-weather')).toBeInTheDocument()
-
-      // Add a custom field
-      const addCustomFieldButton = screen.getByText('Add Custom Field')
-      await user.click(addCustomFieldButton)
-
-      // Should update local state immediately
-      await waitFor(() => {
-        expect(screen.getByTestId('custom-field-newField')).toBeInTheDocument()
-      })
     })
   })
 
@@ -627,6 +643,51 @@ describe('MetadataPanel (Accordion Refactor)', () => {
       expect(screen.getByTestId('metadata-tags')).toBeInTheDocument()
       expect(screen.getByTestId('metadata-species')).toBeInTheDocument()
       expect(screen.getByTestId('metadata-notes')).toBeInTheDocument()
+    })
+
+    it('resets form when switching photos even if dirty', async () => {
+      // Photo A sidecar data
+      const photoAData = { ...mockSidecarMetadata, species: 'Actias luna' }
+      mockApiGet.mockResolvedValue({ data: mockExifMetadata })
+      mockGetPhotoSidecarMetadata.mockResolvedValue({ data: photoAData })
+
+      // Use a stable QueryClient across rerenders (avoid recreation on rerender)
+      const stableQueryClient = createTestQueryClient()
+      function StableWrapper({ children }: { children: React.ReactNode }) {
+        return <QueryClientProvider client={stableQueryClient}>{children}</QueryClientProvider>
+      }
+
+      const { rerender } = render(
+        <StableWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/photoA.jpg" />
+        </StableWrapper>
+      )
+
+      // Wait for photo A to load
+      await waitFor(() => {
+        expect(screen.getByTestId('metadata-species')).toBeInTheDocument()
+      })
+
+      // Make an edit to dirty the form
+      const notesTextarea = screen.getByTestId('notes-textarea')
+      await userEvent.type(notesTextarea, ' extra')
+
+      // Photo B sidecar data with different species
+      const photoBData = { ...mockSidecarMetadata, species: 'Manduca sexta' }
+      mockGetPhotoSidecarMetadata.mockResolvedValue({ data: photoBData })
+
+      // Switch to photo B
+      rerender(
+        <StableWrapper>
+          <MetadataPanel photoPath="/var/lib/mothbox/photos/photoB.jpg" />
+        </StableWrapper>
+      )
+
+      // Should display photo B's species, not photo A's
+      await waitFor(() => {
+        const speciesInput = screen.getByTestId('species-input') as HTMLInputElement
+        expect(speciesInput.value).toBe('Manduca sexta')
+      })
     })
 
     it('applies custom className prop', async () => {

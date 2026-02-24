@@ -16,9 +16,16 @@ vi.mock('../../../utils/api', () => ({
   getAllSpecies: vi.fn(),
 }))
 
-// Import mocked API after vi.mock
+// Import mocked API after vi.mock — cast to mocked types for .mockResolvedValue etc.
 import * as apiModule from '../../../utils/api'
-const api = apiModule
+type MockFn = ReturnType<typeof vi.fn>
+const api = apiModule as unknown as {
+  api: { get: MockFn }
+  getPhotoSidecarMetadata: MockFn
+  updatePhotoSidecarMetadata: MockFn
+  getAllTags: MockFn
+  getAllSpecies: MockFn
+}
 
 /**
  * Real Integration Tests for MetadataPanel
@@ -31,7 +38,7 @@ const api = apiModule
  * - Optimistic updates work correctly
  */
 describe('MetadataPanel Integration Tests', () => {
-  let queryClient
+  let queryClient: QueryClient
 
   const createWrapper = () => {
     queryClient = new QueryClient({
@@ -40,7 +47,7 @@ describe('MetadataPanel Integration Tests', () => {
         mutations: { retry: false },
       },
     })
-    return function Wrapper({ children }) {
+    return function Wrapper({ children }: { children: React.ReactNode }) {
       return (
         <QueryClientProvider client={queryClient}>
           {children}

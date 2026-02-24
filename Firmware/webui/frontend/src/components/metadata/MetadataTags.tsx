@@ -1,19 +1,30 @@
 import { useState, useRef, useMemo, useCallback } from 'react'
-import PropTypes from 'prop-types'
+import { useWatch } from 'react-hook-form'
+import type { Control, UseFormSetValue } from 'react-hook-form'
 import { XMarkIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline'
 import useTags from '../../hooks/useTags'
 import { METADATA_VALIDATION, Z_INDEX } from '../../constants/config'
+import type { MetadataFormData } from '../../schemas/metadata'
+
+interface MetadataTagsProps {
+  control: Control<MetadataFormData>
+  setValue: UseFormSetValue<MetadataFormData>
+  onCopyToNext?: () => void
+  disabled?: boolean
+}
 
 export default function MetadataTags({
-  tags = [],
-  onAddTag,
-  onRemoveTag,
+  control,
+  setValue,
   onCopyToNext,
   disabled = false,
-}) {
+}: MetadataTagsProps) {
   const [inputValue, setInputValue] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const watchedTags = useWatch({ control, name: 'tags' })
+  const tags = useMemo(() => watchedTags ?? [], [watchedTags])
 
   // Fetch available tags for autocomplete
   const { data: tagsData } = useTags({ sort: 'count', order: 'desc', limit: 20 })
@@ -21,35 +32,39 @@ export default function MetadataTags({
   // Memoize filtered suggestions to avoid expensive filtering on every render
   const suggestions = useMemo(() =>
     tagsData?.tags
-      ?.filter((t) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
-      ?.filter((t) => !tags.some((existing) => existing.toLowerCase() === t.name.toLowerCase()))
+      ?.filter((t: { name: string }) => t.name.toLowerCase().includes(inputValue.toLowerCase()))
+      ?.filter((t: { name: string }) => !tags.some((existing: string) => existing.toLowerCase() === t.name.toLowerCase()))
       ?.slice(0, 5) || []
   , [tagsData, inputValue, tags])
 
-  const handleAddTag = useCallback((tag) => {
+  const addTag = useCallback((tag: string) => {
     const trimmed = tag.trim()
     // Reject empty/whitespace tags
     if (!trimmed) return
     // Prevent duplicates (case-insensitive)
-    if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) return
+    if (tags.some((t: string) => t.toLowerCase() === trimmed.toLowerCase())) return
 
-    onAddTag(trimmed)
+    setValue('tags', [...tags, trimmed], { shouldDirty: true })
     setInputValue('')
     setShowSuggestions(false)
-  }, [tags, onAddTag])
+  }, [tags, setValue])
 
-  const handleKeyDown = useCallback((e) => {
+  const removeTag = useCallback((index: number) => {
+    setValue('tags', tags.filter((_: string, i: number) => i !== index), { shouldDirty: true })
+  }, [tags, setValue])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === ',' || e.key === 'Enter') {
       e.preventDefault()
-      handleAddTag(inputValue)
+      addTag(inputValue)
     }
-  }, [handleAddTag, inputValue])
+  }, [addTag, inputValue])
 
   return (
     <div className="space-y-2">
       {/* Tag Chips */}
       <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
+        {tags.map((tag: string, index: number) => (
           <span
             key={tag}
             className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full dark:bg-blue-900 dark:text-blue-200"
@@ -57,7 +72,7 @@ export default function MetadataTags({
             {tag}
             <button
               type="button"
-              onClick={() => onRemoveTag(tag)}
+              onClick={() => removeTag(index)}
               disabled={disabled}
               className="hover:text-blue-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={`Remove tag ${tag}`}
@@ -93,12 +108,12 @@ export default function MetadataTags({
         {/* Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && inputValue && !disabled && (
           <ul className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-60 overflow-auto`}>
-            {suggestions.map((suggestion) => (
+            {suggestions.map((suggestion: { name: string; count: number }) => (
               <li
                 key={suggestion.name}
                 onMouseDown={(e) => {
                   e.preventDefault() // Prevents blur before selection
-                  handleAddTag(suggestion.name)
+                  addTag(suggestion.name)
                 }}
                 className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center"
               >
@@ -124,12 +139,4 @@ export default function MetadataTags({
       )}
     </div>
   )
-}
-
-MetadataTags.propTypes = {
-  tags: PropTypes.arrayOf(PropTypes.string),
-  onAddTag: PropTypes.func.isRequired,
-  onRemoveTag: PropTypes.func.isRequired,
-  onCopyToNext: PropTypes.func,
-  disabled: PropTypes.bool,
 }

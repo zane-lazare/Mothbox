@@ -14,3 +14,5 @@ export {
 export type { ExportOptionsFormData } from './export-options';
 export { cameraPresetFormSchema, WORKFLOW_VALUES } from './camera-preset';
 export type { CameraPresetFormData } from './camera-preset';
+export { metadataFormSchema, customFieldEntrySchema } from './metadata';
+export type { MetadataFormData, CustomFieldEntry } from './metadata';

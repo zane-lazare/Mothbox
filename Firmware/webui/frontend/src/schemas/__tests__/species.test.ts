@@ -131,7 +131,33 @@ describe('speciesSchema', () => {
         referenceUrl: 'not-a-url',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid URL')
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+    })
+
+    it('rejects ftp:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'ftp://example.com/file',
+      })
+      expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+    })
+
+    it('rejects file:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'file:///etc/passwd',
+      })
+      expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+    })
+
+    it('accepts http:// URL', () => {
+      const result = speciesSchema.safeParse({
+        confidence: 'probable',
+        referenceUrl: 'http://example.com/species',
+      })
+      expect(result.success).toBe(true)
     })
 
     it('rejects URL exceeding max length', () => {

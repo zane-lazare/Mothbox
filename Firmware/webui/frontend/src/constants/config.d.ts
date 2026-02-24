@@ -24,6 +24,7 @@ export declare const METADATA_VALIDATION: {
   MAX_COMMON_NAME_LENGTH: number
   MAX_NOTES_LENGTH: number
   MAX_REFERENCE_URL_LENGTH: number
+  MAX_CUSTOM_FIELDS: number
 }
 
 export declare const SPECIES_CONFIG: {

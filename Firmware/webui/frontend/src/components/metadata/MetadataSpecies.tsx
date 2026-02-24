@@ -1,86 +1,44 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import PropTypes from 'prop-types'
+import { useState, useMemo } from 'react'
+import { Controller, useWatch } from 'react-hook-form'
+import type { Control, UseFormRegister, UseFormSetValue, FieldErrors } from 'react-hook-form'
 import { MagnifyingGlassIcon, LinkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import useSpecies from '../../hooks/useSpecies'
 import { METADATA_VALIDATION, SPECIES_CONFIG, Z_INDEX } from '../../constants/config'
+import type { MetadataFormData } from '../../schemas/metadata'
+
+interface MetadataSpeciesProps {
+  control: Control<MetadataFormData>
+  register: UseFormRegister<MetadataFormData>
+  setValue: UseFormSetValue<MetadataFormData>
+  errors: FieldErrors<MetadataFormData>
+  disabled?: boolean
+}
 
 export default function MetadataSpecies({
-  species = '',
-  confidence = 'unknown',
-  commonName = '',
-  referenceUrl = '',
-  onChange,
-  disabled = false
-}) {
-  const [inputValue, setInputValue] = useState(species)
-  const [urlInputValue, setUrlInputValue] = useState(referenceUrl)
+  control,
+  register,
+  setValue,
+  errors,
+  disabled = false,
+}: MetadataSpeciesProps) {
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [urlError, setUrlError] = useState('')
-  const isMountedRef = useRef(true)
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
-
-  // Sync local state with prop changes (e.g., when sidecar data loads async)
-  useEffect(() => {
-    if (isMountedRef.current) {
-      setInputValue(species)
-      setUrlInputValue(referenceUrl)
-    }
-  }, [species, referenceUrl])
+  const [speciesValue = '', referenceUrlValue = ''] = useWatch({ control, name: ['species', 'referenceUrl'] })
 
   const { species: speciesData } = useSpecies({ sort: 'count', order: 'desc', limit: 20 })
 
   // Memoize filtered suggestions to avoid recalculation on every render
   const suggestions = useMemo(() =>
     speciesData
-      ?.filter(s => s.name.toLowerCase().includes(inputValue.toLowerCase()))
+      ?.filter((s: { name: string }) => s.name.toLowerCase().includes(speciesValue.toLowerCase()))
       ?.slice(0, 5) || []
-  , [speciesData, inputValue])
+  , [speciesData, speciesValue])
 
-  const handleSpeciesChange = useCallback((value) => {
-    setInputValue(value)
-    onChange('species', value)
-  }, [onChange])
+  // Check if referenceUrl has a Zod validation error
+  const urlError = errors.referenceUrl?.message ?? ''
 
-  const handleSelectSuggestion = useCallback((name) => {
-    setInputValue(name)
-    onChange('species', name)
-    setShowSuggestions(false)
-  }, [onChange])
-
-  const validateUrl = useCallback((url) => {
-    if (!url) {
-      setUrlError('')
-      return true
-    }
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        setUrlError('URL must start with http:// or https://')
-        return false
-      }
-      if (!parsed.hostname) {
-        setUrlError('URL must include a hostname')
-        return false
-      }
-      setUrlError('')
-      return true
-    } catch {
-      setUrlError('Invalid URL format')
-      return false
-    }
-  }, [])
-
-  const handleUrlChange = useCallback((value) => {
-    setUrlInputValue(value)
-    validateUrl(value)
-    onChange('referenceUrl', value)
-  }, [onChange, validateUrl])
+  // Local URL check for external link icon — doesn't depend on onBlur error state
+  const isValidUrl = !!referenceUrlValue && /^https?:\/\/.+/.test(referenceUrlValue)
 
   return (
     <div className="space-y-3">
@@ -93,44 +51,51 @@ export default function MetadataSpecies({
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
           </div>
-          <input
-            type="text"
-            role="combobox"
-            aria-expanded={showSuggestions && suggestions.length > 0 && !!inputValue}
-            aria-controls="species-suggestions"
-            aria-autocomplete="list"
-            aria-haspopup="listbox"
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value)
-              setShowSuggestions(true)
-            }}
-            onBlur={() => {
-              setShowSuggestions(false)
-              handleSpeciesChange(inputValue)
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            placeholder="e.g., Actias luna"
-            disabled={disabled}
-            maxLength={METADATA_VALIDATION.MAX_SPECIES_LENGTH}
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
+          <Controller
+            name="species"
+            control={control}
+            render={({ field }) => (
+              <input
+                type="text"
+                role="combobox"
+                aria-expanded={showSuggestions && suggestions.length > 0 && !!field.value}
+                aria-controls="species-suggestions"
+                aria-autocomplete="list"
+                aria-haspopup="listbox"
+                value={field.value ?? ''}
+                onChange={(e) => {
+                  field.onChange(e.target.value)
+                  setShowSuggestions(true)
+                }}
+                onBlur={() => {
+                  setShowSuggestions(false)
+                  field.onBlur()
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="e.g., Actias luna"
+                disabled={disabled}
+                maxLength={METADATA_VALIDATION.MAX_SPECIES_LENGTH}
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
+              />
+            )}
           />
 
-          {showSuggestions && suggestions.length > 0 && inputValue && (
+          {showSuggestions && suggestions.length > 0 && speciesValue && (
             <ul
               id="species-suggestions"
               role="listbox"
               aria-label="Species suggestions"
               className={`absolute ${Z_INDEX.DROPDOWN} w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-600 max-h-48 overflow-auto`}
             >
-              {suggestions.map((s) => (
+              {suggestions.map((s: { name: string; count: number }) => (
                 <li
                   key={s.name}
                   role="option"
                   aria-selected={false}
                   onMouseDown={(e) => {
-                    e.preventDefault() // Prevents blur before selection
-                    handleSelectSuggestion(s.name)
+                    e.preventDefault()
+                    setValue('species', s.name, { shouldDirty: true, shouldValidate: true })
+                    setShowSuggestions(false)
                   }}
                   className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
@@ -149,8 +114,7 @@ export default function MetadataSpecies({
         </label>
         <input
           type="text"
-          value={commonName}
-          onChange={(e) => onChange('commonName', e.target.value)}
+          {...register('commonName')}
           placeholder="e.g., Luna Moth"
           disabled={disabled}
           maxLength={METADATA_VALIDATION.MAX_COMMON_NAME_LENGTH}
@@ -164,12 +128,11 @@ export default function MetadataSpecies({
           Confidence
         </label>
         <select
-          value={confidence}
-          onChange={(e) => onChange('confidence', e.target.value)}
+          {...register('confidence')}
           disabled={disabled}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
         >
-          {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((opt) => (
+          {SPECIES_CONFIG.CONFIDENCE_OPTIONS.map((opt: { value: string; label: string }) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -188,18 +151,17 @@ export default function MetadataSpecies({
           </div>
           <input
             type="url"
-            value={urlInputValue}
-            onChange={(e) => handleUrlChange(e.target.value)}
+            {...register('referenceUrl')}
             placeholder="https://inaturalist.org/..."
             disabled={disabled}
             maxLength={METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH}
-            className={`w-full pl-9 ${urlInputValue && !urlError ? 'pr-10' : 'pr-3'} py-2 border rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 ${
+            className={`w-full pl-9 ${isValidUrl ? 'pr-10' : 'pr-3'} py-2 border rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 ${
               urlError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
           />
-          {urlInputValue && !urlError && (
+          {isValidUrl && (
             <a
-              href={urlInputValue}
+              href={referenceUrlValue}
               target="_blank"
               rel="noopener noreferrer"
               className="absolute inset-y-0 right-0 pr-3 flex items-center text-blue-500 hover:text-blue-700"
@@ -215,13 +177,4 @@ export default function MetadataSpecies({
       </div>
     </div>
   )
-}
-
-MetadataSpecies.propTypes = {
-  species: PropTypes.string,
-  confidence: PropTypes.oneOf(['certain', 'probable', 'possible', 'unknown']),
-  commonName: PropTypes.string,
-  referenceUrl: PropTypes.string,
-  onChange: PropTypes.func.isRequired,
-  disabled: PropTypes.bool,
 }
