@@ -54,6 +54,8 @@ export default function MetadataNotes({
     const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())} - `
     const cursorPos = textareaRef.current?.selectionStart || notesValue.length
     const newValue = notesValue.slice(0, cursorPos) + timestamp + notesValue.slice(cursorPos)
+    // Guard against exceeding maxLength (setValue bypasses the HTML attribute)
+    if (newValue.length > maxLength) return
     setValue('notes', newValue, { shouldDirty: true })
 
     // Set cursor after timestamp
