@@ -66,7 +66,7 @@ export default function MetadataTags({
       <div className="flex flex-wrap gap-2">
         {tags.map((tag: string, index: number) => (
           <span
-            key={tag}
+            key={`${index}-${tag}`}
             className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full dark:bg-blue-900 dark:text-blue-200"
           >
             {tag}
