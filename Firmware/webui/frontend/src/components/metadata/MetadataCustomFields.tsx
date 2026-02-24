@@ -2,14 +2,13 @@ import { useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { METADATA_VALIDATION } from '../../constants/config'
 import type { MetadataFormData } from '../../schemas/metadata'
 
 interface MetadataCustomFieldsProps {
   control: Control<MetadataFormData>
   disabled?: boolean
 }
-
-const MAX_FIELDS = 100
 
 export default function MetadataCustomFields({
   control,
@@ -21,7 +20,7 @@ export default function MetadataCustomFields({
     name: 'custom',
   })
 
-  const canAddMore = fields.length < MAX_FIELDS
+  const canAddMore = fields.length < METADATA_VALIDATION.MAX_CUSTOM_FIELDS
 
   const handleKeyChange = (index: number, newKey: string) => {
     const currentKey = fields[index].key
@@ -106,7 +105,7 @@ export default function MetadataCustomFields({
         <PlusIcon className="w-4 h-4" />
         Add custom field
         {!canAddMore && (
-          <span className="text-gray-400">(max {MAX_FIELDS})</span>
+          <span className="text-gray-400">(max {METADATA_VALIDATION.MAX_CUSTOM_FIELDS})</span>
         )}
       </button>
     </div>
