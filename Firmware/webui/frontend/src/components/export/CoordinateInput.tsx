@@ -30,7 +30,12 @@ export default function CoordinateInput({
     longitude: longitude ?? null,
   })
 
+  // Stable callback ref — prevents effect re-runs when parent passes inline arrow
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
   // Zod 4 + @hookform/resolvers type workaround
+  // TODO: remove cast when resolvers#800 is fixed
   // Upstream: https://github.com/react-hook-form/resolvers/issues/800
   const resolver = zodResolver(
     coordinatesSchema as unknown as Parameters<typeof zodResolver>[0],
@@ -71,8 +76,8 @@ export default function CoordinateInput({
     const result = coordinatesSchema.safeParse({ latitude: lat, longitude: lon })
     if (!result.success) return
     lastPropagatedRef.current = { latitude: lat, longitude: lon }
-    onChange({ latitude: lat, longitude: lon })
-  }, [watched.latitude, watched.longitude, latitude, longitude, onChange])
+    onChangeRef.current({ latitude: lat, longitude: lon })
+  }, [watched.latitude, watched.longitude, latitude, longitude])
 
   return (
     <div className="space-y-3">

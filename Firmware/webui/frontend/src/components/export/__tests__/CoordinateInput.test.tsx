@@ -256,6 +256,13 @@ describe('CoordinateInput', () => {
     })
   })
 
+  it('disables DMS toggle button when disabled prop is set', () => {
+    render(<CoordinateInput latitude={37.7749} longitude={-122.4194} onChange={onChange} disabled />)
+
+    const toggleButton = screen.getByRole('button', { name: /toggle format/i })
+    expect(toggleButton).toBeDisabled()
+  })
+
   it('displays DMS format when toggle is clicked', async () => {
     const user = userEvent.setup()
     render(<CoordinateInput latitude={37.7749} longitude={-122.4194} onChange={onChange} />)
