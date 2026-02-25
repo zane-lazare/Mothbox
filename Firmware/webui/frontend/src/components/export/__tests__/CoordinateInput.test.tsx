@@ -147,7 +147,7 @@ describe('CoordinateInput', () => {
     expect(screen.getByLabelText(/longitude/i)).toBeDisabled()
   })
 
-  it('displays external error prop', () => {
+  it('displays external error prop with role="alert"', () => {
     render(
       <CoordinateInput
         latitude={null}
@@ -157,7 +157,9 @@ describe('CoordinateInput', () => {
       />,
     )
 
-    expect(screen.getByText('GPS coordinates are required')).toBeInTheDocument()
+    const errorEl = screen.getByText('GPS coordinates are required')
+    expect(errorEl).toBeInTheDocument()
+    expect(errorEl).toHaveAttribute('role', 'alert')
   })
 
   it('calls onChange with null when field cleared', async () => {
@@ -198,6 +200,59 @@ describe('CoordinateInput', () => {
 
     await waitFor(() => {
       expect(latInput).toHaveAttribute('aria-invalid', 'true')
+    })
+  })
+
+  it('does not call onChange with out-of-range values', async () => {
+    const user = userEvent.setup()
+    render(<CoordinateInput latitude={null} longitude={null} onChange={onChange} />)
+
+    const latInput = screen.getByLabelText(/latitude/i)
+    await user.clear(latInput)
+    await user.type(latInput, '91')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(screen.getByText('Latitude must be between -90 and 90')).toBeInTheDocument()
+    })
+
+    // onChange should not have been called with the invalid value
+    const calls = onChange.mock.calls
+    for (const call of calls) {
+      const lat = call[0].latitude
+      if (lat !== null) {
+        expect(lat).toBeGreaterThanOrEqual(-90)
+        expect(lat).toBeLessThanOrEqual(90)
+      }
+    }
+  })
+
+  it('accepts external prop updates after user edit', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <CoordinateInput latitude={10} longitude={20} onChange={onChange} />,
+    )
+
+    // User edits latitude
+    const latInput = screen.getByLabelText(/latitude/i)
+    await user.clear(latInput)
+    await user.type(latInput, '30')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: 30 }),
+      )
+    })
+
+    // External update (e.g., GPS auto-fill) passes new props
+    onChange.mockClear()
+    rerender(<CoordinateInput latitude={45} longitude={50} onChange={onChange} />)
+
+    // Form should accept the external update
+    await waitFor(() => {
+      expect(screen.getByLabelText(/latitude/i)).toHaveValue(45)
+      expect(screen.getByLabelText(/longitude/i)).toHaveValue(50)
     })
   })
 

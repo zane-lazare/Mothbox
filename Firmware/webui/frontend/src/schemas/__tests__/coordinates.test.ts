@@ -69,5 +69,25 @@ describe('coordinatesSchema', () => {
       const result = coordinatesSchema.safeParse({})
       expect(result.success).toBe(false)
     })
+
+    it('rejects NaN latitude', () => {
+      const result = coordinatesSchema.safeParse({ latitude: NaN, longitude: 0 })
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects NaN longitude', () => {
+      const result = coordinatesSchema.safeParse({ latitude: 0, longitude: NaN })
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects Infinity latitude', () => {
+      const result = coordinatesSchema.safeParse({ latitude: Infinity, longitude: 0 })
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects -Infinity longitude', () => {
+      const result = coordinatesSchema.safeParse({ latitude: 0, longitude: -Infinity })
+      expect(result.success).toBe(false)
+    })
   })
 })

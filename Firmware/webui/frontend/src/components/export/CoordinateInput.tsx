@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId, useRef } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
@@ -21,8 +21,17 @@ export default function CoordinateInput({
   disabled = false,
 }: CoordinateInputProps) {
   const [showDMS, setShowDMS] = useState(false)
+  const uid = useId()
 
-  // Zod 4 + @hookform/resolvers type workaround (see MetadataSpecies.tsx)
+  // Track last values propagated to parent, so prop-sync can distinguish
+  // "our own updates echoing back" from "external updates" (e.g., GPS auto-fill)
+  const lastPropagatedRef = useRef({
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+  })
+
+  // Zod 4 + @hookform/resolvers type workaround
+  // Upstream: https://github.com/react-hook-form/resolvers/issues/800
   const resolver = zodResolver(
     coordinatesSchema as unknown as Parameters<typeof zodResolver>[0],
   ) as unknown as Resolver<CoordinatesFormData>
@@ -30,7 +39,7 @@ export default function CoordinateInput({
   const {
     control,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<CoordinatesFormData>({
     resolver,
     defaultValues: {
@@ -40,23 +49,28 @@ export default function CoordinateInput({
     mode: 'onBlur',
   })
 
-  // Sync parent props → form (only when user hasn't made edits)
+  // Sync parent props → form (only for external updates, not our own echoes)
   useEffect(() => {
-    if (!isDirty) {
-      reset({
-        latitude: latitude ?? null,
-        longitude: longitude ?? null,
-      })
+    const incomingLat = latitude ?? null
+    const incomingLon = longitude ?? null
+    const { latitude: lastLat, longitude: lastLon } = lastPropagatedRef.current
+    if (incomingLat !== lastLat || incomingLon !== lastLon) {
+      lastPropagatedRef.current = { latitude: incomingLat, longitude: incomingLon }
+      reset({ latitude: incomingLat, longitude: incomingLon })
     }
-  }, [latitude, longitude, isDirty, reset])
+  }, [latitude, longitude, reset])
 
-  // Propagate form changes → parent
+  // Propagate valid form changes → parent (only valid values, matching pre-migration behavior)
   const watched = useWatch({ control })
   useEffect(() => {
     const lat = watched.latitude ?? null
     const lon = watched.longitude ?? null
     // Skip if values match props (avoids cycle from prop sync)
     if (lat === (latitude ?? null) && lon === (longitude ?? null)) return
+    // Only propagate values that pass schema validation
+    const result = coordinatesSchema.safeParse({ latitude: lat, longitude: lon })
+    if (!result.success) return
+    lastPropagatedRef.current = { latitude: lat, longitude: lon }
     onChange({ latitude: lat, longitude: lon })
   }, [watched.latitude, watched.longitude, latitude, longitude, onChange])
 
@@ -83,7 +97,7 @@ export default function CoordinateInput({
       {!showDMS && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="latitude" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+            <label htmlFor={`${uid}-latitude`} className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
               Latitude
             </label>
             <Controller
@@ -91,7 +105,7 @@ export default function CoordinateInput({
               control={control}
               render={({ field }) => (
                 <input
-                  id="latitude"
+                  id={`${uid}-latitude`}
                   type="number"
                   step="0.000001"
                   min="-90"
@@ -106,7 +120,7 @@ export default function CoordinateInput({
                   disabled={disabled}
                   placeholder="e.g., 37.7749"
                   aria-invalid={!!errors.latitude}
-                  aria-describedby={errors.latitude ? 'latitude-error' : undefined}
+                  aria-describedby={errors.latitude ? `${uid}-latitude-error` : undefined}
                   className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent
                     dark:bg-gray-700 dark:text-gray-100
                     ${errors.latitude ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
@@ -115,14 +129,14 @@ export default function CoordinateInput({
               )}
             />
             {errors.latitude?.message && (
-              <p id="latitude-error" role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p id={`${uid}-latitude-error`} role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {errors.latitude.message}
               </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="longitude" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+            <label htmlFor={`${uid}-longitude`} className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
               Longitude
             </label>
             <Controller
@@ -130,7 +144,7 @@ export default function CoordinateInput({
               control={control}
               render={({ field }) => (
                 <input
-                  id="longitude"
+                  id={`${uid}-longitude`}
                   type="number"
                   step="0.000001"
                   min="-180"
@@ -145,7 +159,7 @@ export default function CoordinateInput({
                   disabled={disabled}
                   placeholder="e.g., -122.4194"
                   aria-invalid={!!errors.longitude}
-                  aria-describedby={errors.longitude ? 'longitude-error' : undefined}
+                  aria-describedby={errors.longitude ? `${uid}-longitude-error` : undefined}
                   className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent
                     dark:bg-gray-700 dark:text-gray-100
                     ${errors.longitude ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
@@ -154,7 +168,7 @@ export default function CoordinateInput({
               )}
             />
             {errors.longitude?.message && (
-              <p id="longitude-error" role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p id={`${uid}-longitude-error`} role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {errors.longitude.message}
               </p>
             )}
@@ -189,7 +203,7 @@ export default function CoordinateInput({
 
       {/* External error message */}
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
