@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import CoordinateInput from '../CoordinateInput'
 
 describe('CoordinateInput', () => {
-  let onChange: ReturnType<typeof vi.fn>
+  let onChange: ReturnType<typeof vi.fn<(coords: { latitude: number | null; longitude: number | null }) => void>>
 
   beforeEach(() => {
     onChange = vi.fn()
