@@ -61,6 +61,7 @@ export default function CoordinateInput({
     const { latitude: lastLat, longitude: lastLon } = lastPropagatedRef.current
     if (incomingLat !== lastLat || incomingLon !== lastLon) {
       lastPropagatedRef.current = { latitude: incomingLat, longitude: incomingLon }
+      // Parent value wins (e.g., GPS auto-fill). reset() also clears any user error state — intentional.
       reset({ latitude: incomingLat, longitude: incomingLon })
     }
   }, [latitude, longitude, reset])
@@ -72,7 +73,8 @@ export default function CoordinateInput({
     const lon = watched.longitude ?? null
     // Skip if values match props (avoids cycle from prop sync)
     if (lat === (latitude ?? null) && lon === (longitude ?? null)) return
-    // Only propagate values that pass schema validation
+    // Second validation gate (separate from zodResolver's onBlur validation):
+    // ensures parent never receives NaN or out-of-range values while user is mid-edit.
     const result = coordinatesSchema.safeParse({ latitude: lat, longitude: lon })
     if (!result.success) return
     lastPropagatedRef.current = { latitude: lat, longitude: lon }

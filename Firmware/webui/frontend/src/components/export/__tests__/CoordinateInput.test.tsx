@@ -256,6 +256,26 @@ describe('CoordinateInput', () => {
     })
   })
 
+  it('handles rapid successive external prop updates without loops', async () => {
+    const { rerender } = render(
+      <CoordinateInput latitude={10} longitude={20} onChange={onChange} />,
+    )
+
+    // Simulate rapid GPS updates
+    rerender(<CoordinateInput latitude={11} longitude={21} onChange={onChange} />)
+    rerender(<CoordinateInput latitude={12} longitude={22} onChange={onChange} />)
+    rerender(<CoordinateInput latitude={13} longitude={23} onChange={onChange} />)
+
+    // Form should settle on the last values
+    await waitFor(() => {
+      expect(screen.getByLabelText(/latitude/i)).toHaveValue(13)
+      expect(screen.getByLabelText(/longitude/i)).toHaveValue(23)
+    })
+
+    // Should not have triggered an infinite loop — onChange calls should be bounded
+    expect(onChange.mock.calls.length).toBeLessThan(10)
+  })
+
   it('disables DMS toggle button when disabled prop is set', () => {
     render(<CoordinateInput latitude={37.7749} longitude={-122.4194} onChange={onChange} disabled />)
 
