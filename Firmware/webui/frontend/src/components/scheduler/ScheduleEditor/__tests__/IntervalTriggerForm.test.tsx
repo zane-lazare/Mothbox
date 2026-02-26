@@ -223,11 +223,9 @@ describe('IntervalTriggerForm', () => {
 
       // onChange should not be called with an invalid value
       await waitFor(() => {
-        const calls = mockOnChange.mock.calls
-        const invalidCall = calls.find(
-          (c: [{ interval_minutes: number }]) => c[0].interval_minutes === 0,
+        expect(mockOnChange).not.toHaveBeenCalledWith(
+          expect.objectContaining({ interval_minutes: 0 }),
         )
-        expect(invalidCall).toBeUndefined()
       })
     })
 
@@ -283,6 +281,27 @@ describe('IntervalTriggerForm', () => {
         expect(mockOnChange).toHaveBeenCalledWith(
           expect.objectContaining({
             interval_minutes: SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES,
+          }),
+        )
+      })
+    })
+
+    it('does not propagate above-MAX boundary value', async () => {
+      const user = userEvent.setup()
+      const value = { ...defaultValue, interval_minutes: 60 }
+
+      render(
+        <IntervalTriggerForm value={value} onChange={mockOnChange} />,
+      )
+
+      const input = screen.getByLabelText('Interval in minutes')
+      await user.clear(input)
+      await user.type(input, String(SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES + 1))
+
+      await waitFor(() => {
+        expect(mockOnChange).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            interval_minutes: SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES + 1,
           }),
         )
       })
