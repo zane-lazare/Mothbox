@@ -68,11 +68,13 @@ describe('intervalTriggerSchema', () => {
     it('rejects string values', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: '60' })
       expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('Interval must be a number')
     })
 
     it('rejects NaN', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: NaN })
       expect(result.success).toBe(false)
+      expect(firstError(result)).toBe('Interval must be a number')
     })
 
     it('rejects undefined', () => {

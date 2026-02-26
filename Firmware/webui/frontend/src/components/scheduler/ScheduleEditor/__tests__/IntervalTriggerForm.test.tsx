@@ -766,5 +766,30 @@ describe('IntervalTriggerForm', () => {
       const input = screen.getByLabelText('Interval in minutes')
       expect(input).toHaveValue(120)
     })
+
+    it('does not reset form when value prop interval_minutes is unchanged', async () => {
+      const user = userEvent.setup()
+      const value = { ...defaultValue, interval_minutes: 60 }
+
+      const { rerender } = render(
+        <IntervalTriggerForm value={value} onChange={mockOnChange} />,
+      )
+
+      // User starts typing a new value
+      const input = screen.getByLabelText('Interval in minutes')
+      await user.clear(input)
+      await user.type(input, '9')
+
+      // Parent re-renders with same interval_minutes (e.g. time_window changed)
+      rerender(
+        <IntervalTriggerForm
+          value={{ ...value, interval_minutes: 60 }}
+          onChange={mockOnChange}
+        />,
+      )
+
+      // User's in-progress edit should NOT be overwritten
+      expect(input).toHaveValue(9)
+    })
   })
 })

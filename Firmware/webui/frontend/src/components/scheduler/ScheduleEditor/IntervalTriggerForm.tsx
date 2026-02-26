@@ -50,7 +50,7 @@ const QUICK_PRESETS = [
 // ── Formatting helpers (pure functions, no React state) ────────────────
 
 function formatInterval(minutes: number): string {
-  if (!minutes) return '—' // unreachable: schema enforces min 1
+  if (!minutes) return '—' // defensive: schema enforces min 1, but prop may be 0
   if (minutes < 60) {
     return `Every ${minutes} minute${minutes !== 1 ? 's' : ''}`
   } else if (minutes % 60 === 0) {
@@ -103,7 +103,7 @@ function formatDays(days: number[] | null | undefined): string {
 
 // ── Component ──────────────────────────────────────────────────────────
 
-// Zod 4 + @hookform/resolvers type workaround
+// Zod 4 + @hookform/resolvers type workaround (@hookform/resolvers@3.x + zod@4.x)
 // TODO(#446): remove cast when resolvers#800 is fixed
 // Upstream: https://github.com/react-hook-form/resolvers/issues/800
 const resolver = zodResolver(
@@ -211,10 +211,10 @@ export default function IntervalTriggerForm({
                 type="number"
                 min={SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES}
                 max={SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES}
-                value={field.value}
+                value={Number.isNaN(field.value) ? '' : field.value}
                 onChange={(e) => {
                   const raw = e.target.value
-                  field.onChange(raw === '' ? '' : Number(raw))
+                  field.onChange(raw === '' ? NaN : Number(raw))
                 }}
                 onBlur={field.onBlur}
                 ref={field.ref}
