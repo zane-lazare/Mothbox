@@ -539,6 +539,13 @@ describe('SolarTriggerForm', () => {
       await user.clear(offsetInput)
       await user.type(offsetInput, '90')
 
+      // Wait for propagation to settle so lastPropagatedRef is updated
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalledWith(
+          expect.objectContaining({ offset_minutes: 90 }),
+        )
+      })
+
       // Re-render with same value (e.g., parent re-renders for unrelated reason)
       rerender(
         <SolarTriggerForm value={value} onChange={mockOnChange} />,
