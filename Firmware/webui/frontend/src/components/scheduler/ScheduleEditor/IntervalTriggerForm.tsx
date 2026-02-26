@@ -211,6 +211,7 @@ export default function IntervalTriggerForm({
                 type="number"
                 min={SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES}
                 max={SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES}
+                step={1}
                 value={Number.isNaN(field.value) ? '' : field.value}
                 onChange={(e) => {
                   const raw = e.target.value
