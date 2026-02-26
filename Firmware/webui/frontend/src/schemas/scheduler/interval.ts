@@ -9,7 +9,7 @@ import { SCHEDULE_LIMITS } from '../../components/scheduler/ScheduleEditor/const
  */
 export const intervalTriggerSchema = z.object({
   interval_minutes: z
-    .number({ invalid_type_error: 'Interval must be a number' })
+    .number({ error: 'Interval must be a number' })
     .int('Interval must be a whole number')
     .min(
       SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
