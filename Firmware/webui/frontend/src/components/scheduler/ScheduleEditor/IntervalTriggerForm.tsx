@@ -164,15 +164,15 @@ export default function IntervalTriggerForm({
 
   // Preset buttons bypass the form — call onChange directly
   const handlePresetClick = (presetValue: number) => {
-    onChangeRef.current({ ...value, interval_minutes: presetValue })
+    onChangeRef.current({ ...valueRef.current, interval_minutes: presetValue })
   }
 
   const handleTimeWindowChange = (newTimeWindow: TimeWindow) => {
-    onChangeRef.current({ ...value, time_window: newTimeWindow })
+    onChangeRef.current({ ...valueRef.current, time_window: newTimeWindow })
   }
 
   const handleDaysChange = (newDays: number[] | null) => {
-    onChangeRef.current({ ...value, days_of_week: newDays })
+    onChangeRef.current({ ...valueRef.current, days_of_week: newDays })
   }
 
   const previewText = useMemo(() => {

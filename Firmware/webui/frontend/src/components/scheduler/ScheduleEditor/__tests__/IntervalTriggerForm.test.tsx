@@ -221,12 +221,15 @@ describe('IntervalTriggerForm', () => {
       await user.clear(input)
       await user.type(input, '0')
 
-      // onChange should not be called with an invalid value
+      // Wait for validation to process (error message appears)
       await waitFor(() => {
-        expect(mockOnChange).not.toHaveBeenCalledWith(
-          expect.objectContaining({ interval_minutes: 0 }),
-        )
+        expect(screen.getByRole('alert')).toBeInTheDocument()
       })
+
+      // Then assert no invalid call was made (outside waitFor to avoid false positive)
+      expect(mockOnChange).not.toHaveBeenCalledWith(
+        expect.objectContaining({ interval_minutes: 0 }),
+      )
     })
 
     it('shows parent-provided error message', () => {
@@ -629,6 +632,20 @@ describe('IntervalTriggerForm', () => {
       expect(
         screen.getByText('Every 1h 30m from 21:00 to 05:00'),
       ).toBeInTheDocument()
+    })
+
+    it('shows dash for zero interval (defensive edge case)', () => {
+      const value = {
+        interval_minutes: 0,
+        time_window: { start_time: '', end_time: '' },
+        days_of_week: null,
+      }
+
+      render(
+        <IntervalTriggerForm value={value} onChange={mockOnChange} />,
+      )
+
+      expect(screen.getByText('—')).toBeInTheDocument()
     })
   })
 
