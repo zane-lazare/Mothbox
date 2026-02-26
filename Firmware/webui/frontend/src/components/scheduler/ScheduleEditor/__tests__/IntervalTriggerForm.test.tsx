@@ -232,6 +232,25 @@ describe('IntervalTriggerForm', () => {
       )
     })
 
+    it('shows error and does not propagate when input is cleared', async () => {
+      const user = userEvent.setup()
+
+      render(
+        <IntervalTriggerForm value={defaultValue} onChange={mockOnChange} />,
+      )
+
+      const input = screen.getByLabelText('Interval in minutes')
+      await user.clear(input)
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+      })
+
+      expect(mockOnChange).not.toHaveBeenCalledWith(
+        expect.objectContaining({ interval_minutes: NaN }),
+      )
+    })
+
     it('shows parent-provided error message', () => {
       const errors = {
         interval_minutes: 'Server validation failed',
