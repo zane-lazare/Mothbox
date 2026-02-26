@@ -13,7 +13,7 @@ export const intervalTriggerSchema = z.object({
     .int('Interval must be a whole number')
     .min(
       SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
-      `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute`,
+      `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`,
     )
     .max(
       SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES,

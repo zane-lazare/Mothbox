@@ -7,7 +7,7 @@
 
 import { ComponentType } from 'react'
 
-interface TimeWindowValue {
+export interface TimeWindowValue {
   start_time: string
   end_time: string
   start_offset_minutes?: number

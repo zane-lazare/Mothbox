@@ -8,16 +8,10 @@ import {
 } from '../../../schemas/scheduler/interval'
 import { SCHEDULE_LIMITS, DAYS_OF_WEEK } from './constants'
 import TimeWindowInput from './TimeWindowInput'
+import type { TimeWindowValue as TimeWindow } from './TimeWindowInput'
 import DaysOfWeekSelector from './DaysOfWeekSelector'
 
 // ── Types ──────────────────────────────────────────────────────────────
-
-interface TimeWindow {
-  start_time: string
-  end_time: string
-  start_offset_minutes?: number
-  end_offset_minutes?: number
-}
 
 interface IntervalTriggerValue {
   interval_minutes: number
@@ -56,7 +50,7 @@ const QUICK_PRESETS = [
 // ── Formatting helpers (pure functions, no React state) ────────────────
 
 function formatInterval(minutes: number): string {
-  if (!minutes) return 'Every'
+  if (!minutes) return '—' // unreachable: schema enforces min 1
   if (minutes < 60) {
     return `Every ${minutes} minute${minutes !== 1 ? 's' : ''}`
   } else if (minutes % 60 === 0) {
@@ -76,7 +70,7 @@ function formatTimeWindow(
   const formatTime = (time: string, offset?: number): string => {
     if (!/^\d{2}:\d{2}$/.test(time)) {
       const formattedEvent = time.replace(/_/g, ' ')
-      if (offset && offset !== 0) {
+      if (offset) {
         const sign = offset > 0 ? '+' : ''
         return `${formattedEvent}${sign}${offset}`
       }
@@ -162,7 +156,7 @@ export default function IntervalTriggerForm({
     if (!result.success) return
     lastPropagatedRef.current = current
     onChangeRef.current({ ...value, interval_minutes: current })
-  }, [watched.interval_minutes, value])
+  }, [watched.interval_minutes, value.interval_minutes])
 
   // Preset buttons bypass the form — call onChange directly
   const handlePresetClick = (presetValue: number) => {

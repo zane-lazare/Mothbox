@@ -40,7 +40,7 @@ describe('intervalTriggerSchema', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: 0 })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute`,
+        `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`,
       )
     })
 
