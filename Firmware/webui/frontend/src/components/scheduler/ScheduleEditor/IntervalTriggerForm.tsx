@@ -104,7 +104,7 @@ function formatDays(days: number[] | null | undefined): string {
 // ── Component ──────────────────────────────────────────────────────────
 
 // Zod 4 + @hookform/resolvers type workaround
-// TODO: remove cast when resolvers#800 is fixed
+// TODO(#446): remove cast when resolvers#800 is fixed
 // Upstream: https://github.com/react-hook-form/resolvers/issues/800
 const resolver = zodResolver(
   intervalTriggerSchema as unknown as Parameters<typeof zodResolver>[0],
@@ -121,8 +121,13 @@ export default function IntervalTriggerForm({
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
-  // Track last interval propagated to parent, so prop-sync can distinguish
-  // "our own update echoing back" from "external update" (e.g., preset click).
+  // Stable ref for the full value prop — lets the propagation effect read
+  // current time_window/days_of_week without adding `value` to its deps.
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  // Initialized to current prop so prop-sync skips the first render
+  // (no external change to detect yet).
   const lastPropagatedRef = useRef(value.interval_minutes)
 
   const {
@@ -145,18 +150,17 @@ export default function IntervalTriggerForm({
   }, [value.interval_minutes, reset])
 
   // Propagate validated form changes → parent
-  const watched = useWatch({ control })
+  const intervalMinutes = useWatch({ control, name: 'interval_minutes' })
   useEffect(() => {
-    const current = watched.interval_minutes
-    if (current === undefined) return
+    if (intervalMinutes === undefined) return
     // Skip if value matches props (avoids cycle from prop sync)
-    if (current === value.interval_minutes) return
+    if (intervalMinutes === valueRef.current.interval_minutes) return
     // Only propagate valid values
-    const result = intervalTriggerSchema.safeParse({ interval_minutes: current })
+    const result = intervalTriggerSchema.safeParse({ interval_minutes: intervalMinutes })
     if (!result.success) return
-    lastPropagatedRef.current = current
-    onChangeRef.current({ ...value, interval_minutes: current })
-  }, [watched.interval_minutes, value.interval_minutes])
+    lastPropagatedRef.current = intervalMinutes
+    onChangeRef.current({ ...valueRef.current, interval_minutes: intervalMinutes })
+  }, [intervalMinutes])
 
   // Preset buttons bypass the form — call onChange directly
   const handlePresetClick = (presetValue: number) => {
