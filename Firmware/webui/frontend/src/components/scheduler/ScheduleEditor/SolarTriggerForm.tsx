@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
@@ -176,24 +176,9 @@ export default function SolarTriggerForm({
     onChangeRef.current({ ...valueRef.current, days_of_week: newDays })
   }
 
-  /**
-   * Get description for the selected solar event
-   */
-  const getEventDescription = (): string => {
-    const event = SOLAR_EVENTS.find((e) => e.value === value.solar_event)
-    return event ? event.description : ''
-  }
-
-  /**
-   * Get label for the selected solar event
-   */
-  const getEventLabel = useCallback((): string => {
-    const event = SOLAR_EVENTS.find((e) => e.value === value.solar_event)
-    return event ? event.label.toLowerCase() : value.solar_event
-  }, [value.solar_event])
-
   const previewText = useMemo(() => {
-    const eventLabel = getEventLabel()
+    const event = SOLAR_EVENTS.find((e) => e.value === value.solar_event)
+    const eventLabel = event ? event.label.toLowerCase() : value.solar_event
     const offsetText = formatOffset(value.offset_minutes)
     const daysText = formatDays(value.days_of_week)
 
@@ -211,7 +196,7 @@ export default function SolarTriggerForm({
     }
 
     return preview
-  }, [getEventLabel, value.offset_minutes, value.days_of_week])
+  }, [value.solar_event, value.offset_minutes, value.days_of_week])
 
   return (
     <div className="space-y-6">
@@ -268,7 +253,7 @@ export default function SolarTriggerForm({
         )}
         {/* Event Description */}
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
-          {getEventDescription()}
+          {SOLAR_EVENTS.find((e) => e.value === value.solar_event)?.description ?? ''}
         </p>
       </div>
 
