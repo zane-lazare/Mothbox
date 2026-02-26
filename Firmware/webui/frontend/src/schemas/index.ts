@@ -18,3 +18,5 @@ export { metadataFormSchema, customFieldEntrySchema } from './metadata';
 export type { MetadataFormData, CustomFieldEntry } from './metadata';
 export { coordinatesSchema } from './coordinates';
 export type { CoordinatesFormData } from './coordinates';
+export { intervalTriggerSchema } from './scheduler/interval';
+export type { IntervalTriggerFormData } from './scheduler/interval';

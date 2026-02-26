@@ -90,10 +90,16 @@ const defaultValue = {
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe('IntervalTriggerForm', () => {
-  let mockOnChange: ReturnType<typeof vi.fn>
+  type IntervalTriggerValue = {
+    interval_minutes: number
+    time_window: { start_time: string; end_time: string; start_offset_minutes?: number; end_offset_minutes?: number }
+    days_of_week: number[] | null
+  }
+
+  let mockOnChange: ReturnType<typeof vi.fn<(value: IntervalTriggerValue) => void>>
 
   beforeEach(() => {
-    mockOnChange = vi.fn()
+    mockOnChange = vi.fn<(value: IntervalTriggerValue) => void>()
   })
 
   describe('Rendering', () => {
