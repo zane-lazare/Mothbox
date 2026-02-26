@@ -13,7 +13,7 @@ import DaysOfWeekSelector from './DaysOfWeekSelector'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-interface IntervalTriggerValue {
+export interface IntervalTriggerValue {
   interval_minutes: number
   time_window: TimeWindow
   days_of_week: number[] | null

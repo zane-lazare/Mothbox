@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import IntervalTriggerForm from '../IntervalTriggerForm'
+import type { IntervalTriggerValue } from '../IntervalTriggerForm'
 import { SCHEDULE_LIMITS } from '../constants'
 
 // ── Mock child components ──────────────────────────────────────────────
@@ -90,12 +91,6 @@ const defaultValue = {
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe('IntervalTriggerForm', () => {
-  type IntervalTriggerValue = {
-    interval_minutes: number
-    time_window: { start_time: string; end_time: string; start_offset_minutes?: number; end_offset_minutes?: number }
-    days_of_week: number[] | null
-  }
-
   let mockOnChange: ReturnType<typeof vi.fn<(value: IntervalTriggerValue) => void>>
 
   beforeEach(() => {
