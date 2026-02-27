@@ -201,9 +201,11 @@ export default function MoonPhaseTriggerForm({
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
                        disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Moon phase"
-              aria-invalid={!!errors.moon_phase}
+              aria-invalid={!!(errors.moon_phase || parentErrors.moon_phase)}
               aria-describedby={
-                errors.moon_phase ? 'moon_phase-error' : undefined
+                (errors.moon_phase || parentErrors.moon_phase)
+                  ? 'moon_phase-error'
+                  : undefined
               }
             >
               {MOON_PHASES.map((phase) => (
@@ -214,13 +216,13 @@ export default function MoonPhaseTriggerForm({
             </select>
           )}
         />
-        {errors.moon_phase?.message && (
+        {(errors.moon_phase?.message || parentErrors.moon_phase) && (
           <p
             id="moon_phase-error"
             role="alert"
             className="mt-1 text-sm text-red-600 dark:text-red-400"
           >
-            {errors.moon_phase.message}
+            {errors.moon_phase?.message || parentErrors.moon_phase}
           </p>
         )}
       </div>

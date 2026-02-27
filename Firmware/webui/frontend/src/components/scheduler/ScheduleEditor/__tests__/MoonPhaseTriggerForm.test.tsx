@@ -534,6 +534,21 @@ describe('MoonPhaseTriggerForm', () => {
       )
     })
 
+    it('links parent error to moon phase select via aria-describedby', () => {
+      const errors = { moon_phase: 'Server error: invalid phase' }
+
+      render(
+        <MoonPhaseTriggerForm onChange={mockOnChange} errors={errors} />,
+      )
+
+      const select = screen.getByLabelText(/moon phase/i)
+      expect(select).toHaveAttribute('aria-invalid', 'true')
+      expect(select).toHaveAttribute(
+        'aria-describedby',
+        'moon_phase-error',
+      )
+    })
+
     it('links error message to offset input via aria-describedby', async () => {
       const user = userEvent.setup()
       render(
