@@ -4,6 +4,9 @@ import {
   TIME_FORMAT_REGEX,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
+/** Cross-field error when start and end times match */
+export const TIME_WINDOW_SAME_ERROR = 'Start and end times cannot be the same'
+
 /**
  * Schema for the optional time window nested inside a pre-condition.
  * Simple HH:MM-only times (no solar events, no offsets).
@@ -19,7 +22,7 @@ export const preConditionTimeWindowSchema = z
       .regex(TIME_FORMAT_REGEX, 'Time must be in HH:MM format'),
   })
   .refine((data) => data.start_time !== data.end_time, {
-    message: 'Start and end times cannot be the same',
+    message: TIME_WINDOW_SAME_ERROR,
     path: ['end_time'],
   })
 

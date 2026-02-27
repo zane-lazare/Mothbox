@@ -909,7 +909,7 @@ describe('PreConditionForm', () => {
 
       const input = screen.getByTestId('pre-condition-threshold')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'threshold-error')
+      expect(input).toHaveAttribute('aria-describedby', 'threshold-error-0')
       expect(screen.getByText('Bad value')).toBeInTheDocument()
     })
 
@@ -925,7 +925,7 @@ describe('PreConditionForm', () => {
 
       const input = screen.getByTestId('pre-condition-cooldown')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'cooldown_minutes-error')
+      expect(input).toHaveAttribute('aria-describedby', 'cooldown_minutes-error-0')
       expect(screen.getByText('Bad cooldown')).toBeInTheDocument()
     })
 
@@ -941,7 +941,7 @@ describe('PreConditionForm', () => {
 
       const input = screen.getByTestId('pre-condition-sensor')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'sensor_type-error')
+      expect(input).toHaveAttribute('aria-describedby', 'sensor_type-error-0')
     })
 
     it('wires parentErrors.comparison to comparison select via aria', () => {
@@ -956,7 +956,7 @@ describe('PreConditionForm', () => {
 
       const input = screen.getByTestId('pre-condition-op')
       expect(input).toHaveAttribute('aria-invalid', 'true')
-      expect(input).toHaveAttribute('aria-describedby', 'comparison-error')
+      expect(input).toHaveAttribute('aria-describedby', 'comparison-error-0')
     })
   })
 

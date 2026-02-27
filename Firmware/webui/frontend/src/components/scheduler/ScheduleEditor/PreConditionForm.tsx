@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
 import {
   preConditionSchema,
+  TIME_WINDOW_SAME_ERROR,
   type PreConditionFormData,
 } from '../../../schemas/scheduler/pre-condition'
 import { SENSOR_TYPES, SCHEDULE_LIMITS } from './constants'
@@ -47,7 +48,7 @@ const SENSOR_UNITS: Record<string, string> = {
 // -- Resolver ----------------------------------------------------------------
 
 // Zod 4 + @hookform/resolvers type workaround (@hookform/resolvers@3.x + zod@4.x)
-// TODO(#450): remove cast when resolvers#800 is fixed
+// TODO: remove cast when react-hook-form/resolvers#800 is fixed
 // Upstream: https://github.com/react-hook-form/resolvers/issues/800
 const resolver = zodResolver(
   preConditionSchema as unknown as Parameters<typeof zodResolver>[0],
@@ -237,7 +238,7 @@ export default function PreConditionForm({
     watchedTimeWindow?.start_time &&
     watchedTimeWindow?.end_time &&
     watchedTimeWindow.start_time === watchedTimeWindow.end_time
-      ? 'Start and end times cannot be the same'
+      ? TIME_WINDOW_SAME_ERROR
       : null
 
   return (
@@ -280,7 +281,7 @@ export default function PreConditionForm({
                   aria-invalid={!!(errors.sensor_type || parentErrors.sensor_type)}
                   aria-describedby={
                     (errors.sensor_type || parentErrors.sensor_type)
-                      ? 'sensor_type-error'
+                      ? `sensor_type-error-${routineIndex}`
                       : undefined
                   }
                   className="rounded-md border border-gray-300 dark:border-gray-600
@@ -301,7 +302,7 @@ export default function PreConditionForm({
             />
             {(errors.sensor_type?.message || parentErrors.sensor_type) && (
               <p
-                id="sensor_type-error"
+                id={`sensor_type-error-${routineIndex}`}
                 role="alert"
                 className="text-sm text-red-600 dark:text-red-400"
               >
@@ -328,7 +329,7 @@ export default function PreConditionForm({
                   aria-invalid={!!(errors.comparison || parentErrors.comparison)}
                   aria-describedby={
                     (errors.comparison || parentErrors.comparison)
-                      ? 'comparison-error'
+                      ? `comparison-error-${routineIndex}`
                       : undefined
                   }
                   className="rounded-md border border-gray-300 dark:border-gray-600
@@ -345,7 +346,7 @@ export default function PreConditionForm({
             />
             {(errors.comparison?.message || parentErrors.comparison) && (
               <p
-                id="comparison-error"
+                id={`comparison-error-${routineIndex}`}
                 role="alert"
                 className="text-sm text-red-600 dark:text-red-400"
               >
@@ -374,7 +375,7 @@ export default function PreConditionForm({
                   aria-invalid={!!(errors.threshold || parentErrors.threshold)}
                   aria-describedby={
                     (errors.threshold || parentErrors.threshold)
-                      ? 'threshold-error'
+                      ? `threshold-error-${routineIndex}`
                       : undefined
                   }
                   className="w-20 rounded-md border border-gray-300 dark:border-gray-600
@@ -395,7 +396,7 @@ export default function PreConditionForm({
           {/* Threshold validation error */}
           {(errors.threshold?.message || parentErrors.threshold) && (
             <p
-              id="threshold-error"
+              id={`threshold-error-${routineIndex}`}
               role="alert"
               className="text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-error"
@@ -428,7 +429,7 @@ export default function PreConditionForm({
                   aria-invalid={!!(errors.cooldown_minutes || parentErrors.cooldown_minutes)}
                   aria-describedby={
                     (errors.cooldown_minutes || parentErrors.cooldown_minutes)
-                      ? 'cooldown_minutes-error'
+                      ? `cooldown_minutes-error-${routineIndex}`
                       : undefined
                   }
                   className="w-16 rounded-md border border-gray-300 dark:border-gray-600
@@ -443,7 +444,7 @@ export default function PreConditionForm({
           </div>
           {(errors.cooldown_minutes?.message || parentErrors.cooldown_minutes) && (
             <p
-              id="cooldown_minutes-error"
+              id={`cooldown_minutes-error-${routineIndex}`}
               role="alert"
               className="text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-cooldown-error"
