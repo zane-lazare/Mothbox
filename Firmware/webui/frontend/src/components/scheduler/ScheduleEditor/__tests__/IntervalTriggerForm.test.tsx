@@ -14,8 +14,8 @@ vi.mock('../TimeWindowInput', () => ({
     disabled,
     errors,
   }: {
-    value: { start_time: string; end_time: string }
-    onChange: (v: Record<string, string>) => void
+    value: { start_time: string; end_time: string; start_offset_minutes: number; end_offset_minutes: number }
+    onChange: (v: Record<string, string | number>) => void
     disabled: boolean
     errors: Record<string, string>
   }) => (
@@ -437,7 +437,7 @@ describe('IntervalTriggerForm', () => {
     it('calls onChange when TimeWindowInput changes', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -489,7 +489,7 @@ describe('IntervalTriggerForm', () => {
     it('passes days_of_week value to DaysOfWeekSelector', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: [0, 2, 4],
       }
 
@@ -503,7 +503,7 @@ describe('IntervalTriggerForm', () => {
     it('calls onChange when DaysOfWeekSelector changes', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -532,7 +532,7 @@ describe('IntervalTriggerForm', () => {
     it('generates preview for minutes interval with fixed time window', () => {
       const value = {
         interval_minutes: 30,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -548,7 +548,7 @@ describe('IntervalTriggerForm', () => {
     it('generates preview for hour interval', () => {
       const value = {
         interval_minutes: 120,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -585,7 +585,7 @@ describe('IntervalTriggerForm', () => {
     it('generates preview with specific days', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: [0, 2, 4],
       }
 
@@ -603,7 +603,7 @@ describe('IntervalTriggerForm', () => {
     it('generates preview without days when all days selected', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -619,7 +619,7 @@ describe('IntervalTriggerForm', () => {
     it('handles singular "minute" in preview', () => {
       const value = {
         interval_minutes: 1,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -635,7 +635,7 @@ describe('IntervalTriggerForm', () => {
     it('formats mixed hours and minutes in preview', () => {
       const value = {
         interval_minutes: 90,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -651,7 +651,7 @@ describe('IntervalTriggerForm', () => {
     it('shows dash for zero interval (defensive edge case)', () => {
       const value = {
         interval_minutes: 0,
-        time_window: { start_time: '', end_time: '' },
+        time_window: { start_time: '', end_time: '', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -720,7 +720,7 @@ describe('IntervalTriggerForm', () => {
     it('applies dark mode classes to preview text', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -739,7 +739,7 @@ describe('IntervalTriggerForm', () => {
     it('calls onChange with complete trigger object when time window changes', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -753,7 +753,7 @@ describe('IntervalTriggerForm', () => {
 
       expect(mockOnChange).toHaveBeenCalledWith({
         interval_minutes: 60,
-        time_window: { start_time: '20:00', end_time: '05:00' },
+        time_window: { start_time: '20:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       })
     })
@@ -761,7 +761,7 @@ describe('IntervalTriggerForm', () => {
     it('calls onChange with complete trigger object when days change', () => {
       const value = {
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       }
 
@@ -773,7 +773,7 @@ describe('IntervalTriggerForm', () => {
 
       expect(mockOnChange).toHaveBeenCalledWith({
         interval_minutes: 60,
-        time_window: { start_time: '21:00', end_time: '05:00' },
+        time_window: { start_time: '21:00', end_time: '05:00', start_offset_minutes: 0, end_offset_minutes: 0 },
         days_of_week: null,
       })
     })
