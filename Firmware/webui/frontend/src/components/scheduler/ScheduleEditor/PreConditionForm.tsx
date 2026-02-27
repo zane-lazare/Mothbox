@@ -378,6 +378,7 @@ export default function PreConditionForm({
           {(errors.threshold?.message || parentErrors.threshold) && (
             <p
               id="threshold-error"
+              role="alert"
               className="text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-error"
             >
@@ -424,6 +425,7 @@ export default function PreConditionForm({
           {(errors.cooldown_minutes?.message || parentErrors.cooldown_minutes) && (
             <p
               id="cooldown_minutes-error"
+              role="alert"
               className="text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-cooldown-error"
             >
