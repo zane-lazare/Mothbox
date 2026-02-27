@@ -597,6 +597,23 @@ describe('SolarTriggerForm', () => {
   })
 
   describe('Accessibility', () => {
+    it('links parent error to offset input via aria-describedby', () => {
+      const errors = {
+        offset_minutes: 'Server error: offset out of range',
+      }
+
+      render(
+        <SolarTriggerForm onChange={mockOnChange} errors={errors} />,
+      )
+
+      const offsetInput = screen.getByLabelText('Offset in minutes')
+      expect(offsetInput).toHaveAttribute('aria-invalid', 'true')
+      expect(offsetInput).toHaveAttribute(
+        'aria-describedby',
+        'offset_minutes-error',
+      )
+    })
+
     it('links error message to offset input via aria-describedby', async () => {
       const user = userEvent.setup()
       render(

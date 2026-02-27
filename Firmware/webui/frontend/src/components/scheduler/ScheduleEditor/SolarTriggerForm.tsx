@@ -289,9 +289,11 @@ export default function SolarTriggerForm({
                          focus:ring-2 focus:ring-blue-500 focus:border-transparent
                          disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Offset in minutes"
-                aria-invalid={!!errors.offset_minutes}
+                aria-invalid={!!(errors.offset_minutes || parentErrors.offset_minutes)}
                 aria-describedby={
-                  errors.offset_minutes ? 'offset_minutes-error' : undefined
+                  (errors.offset_minutes || parentErrors.offset_minutes)
+                    ? 'offset_minutes-error'
+                    : undefined
                 }
               />
             )}
