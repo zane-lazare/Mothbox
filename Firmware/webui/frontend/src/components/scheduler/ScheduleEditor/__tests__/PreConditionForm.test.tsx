@@ -17,7 +17,7 @@ describe('PreConditionForm', () => {
   function props(
     overrides: Partial<{
       preCondition: PreConditionValue | null
-      onChange: ReturnType<typeof vi.fn>
+      onChange: (value: PreConditionValue | null) => void
       routineIndex: number
       disabled: boolean
       errors: Record<string, string>
@@ -25,7 +25,7 @@ describe('PreConditionForm', () => {
   ) {
     return {
       preCondition: null as PreConditionValue | null,
-      onChange: mockOnChange,
+      onChange: mockOnChange as (value: PreConditionValue | null) => void,
       routineIndex: 0,
       ...overrides,
     }

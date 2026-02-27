@@ -108,23 +108,24 @@ export default function PreConditionForm({
   // Prop sync: reset form when fields change externally
   // (e.g., preset button click, parent state change, toggle on/off)
   useEffect(() => {
-    if (!preCondition) return
+    const pc = preConditionRef.current
+    if (!pc) return
     const last = lastPropagatedRef.current
     if (
-      preCondition.sensor_type !== last.sensor_type ||
-      preCondition.comparison !== last.comparison ||
-      preCondition.threshold !== last.threshold ||
-      preCondition.cooldown_minutes !== last.cooldown_minutes ||
-      preCondition.time_window?.start_time !== last.time_window?.start_time ||
-      preCondition.time_window?.end_time !== last.time_window?.end_time ||
-      (preCondition.time_window === null) !== (last.time_window === null)
+      pc.sensor_type !== last.sensor_type ||
+      pc.comparison !== last.comparison ||
+      pc.threshold !== last.threshold ||
+      pc.cooldown_minutes !== last.cooldown_minutes ||
+      pc.time_window?.start_time !== last.time_window?.start_time ||
+      pc.time_window?.end_time !== last.time_window?.end_time ||
+      (pc.time_window === null) !== (last.time_window === null)
     ) {
       const next: PreConditionFormData = {
-        sensor_type: preCondition.sensor_type as PreConditionFormData['sensor_type'],
-        comparison: preCondition.comparison as PreConditionFormData['comparison'],
-        threshold: preCondition.threshold,
-        cooldown_minutes: preCondition.cooldown_minutes,
-        time_window: preCondition.time_window ?? null,
+        sensor_type: pc.sensor_type as PreConditionFormData['sensor_type'],
+        comparison: pc.comparison as PreConditionFormData['comparison'],
+        threshold: pc.threshold,
+        cooldown_minutes: pc.cooldown_minutes,
+        time_window: pc.time_window ?? null,
       }
       lastPropagatedRef.current = next
       reset(next)
