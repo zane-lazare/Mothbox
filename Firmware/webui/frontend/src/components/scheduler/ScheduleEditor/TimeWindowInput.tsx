@@ -245,6 +245,7 @@ export default function TimeWindowInput({
             <label className="flex items-center">
               <input
                 type="radio"
+                name="start-time-type"
                 checked={startIsFixedTime}
                 onChange={() => handleStartTypeChange(true)}
                 disabled={disabled}
@@ -257,6 +258,7 @@ export default function TimeWindowInput({
             <label className="flex items-center">
               <input
                 type="radio"
+                name="start-time-type"
                 checked={!startIsFixedTime}
                 onChange={() => handleStartTypeChange(false)}
                 disabled={disabled}
@@ -404,6 +406,7 @@ export default function TimeWindowInput({
             <label className="flex items-center">
               <input
                 type="radio"
+                name="end-time-type"
                 checked={endIsFixedTime}
                 onChange={() => handleEndTypeChange(true)}
                 disabled={disabled}
@@ -416,6 +419,7 @@ export default function TimeWindowInput({
             <label className="flex items-center">
               <input
                 type="radio"
+                name="end-time-type"
                 checked={!endIsFixedTime}
                 onChange={() => handleEndTypeChange(false)}
                 disabled={disabled}
