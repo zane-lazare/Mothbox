@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import IntervalTriggerForm from '../IntervalTriggerForm'
 
@@ -41,7 +41,7 @@ describe('IntervalTriggerForm', () => {
         <IntervalTriggerForm
           trigger={{
             ...defaultTrigger,
-            time_window: { start_time: '18:00', end_time: '06:00' },
+            time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
           }}
           onChange={mockOnChange}
         />
@@ -115,7 +115,7 @@ describe('IntervalTriggerForm', () => {
         <IntervalTriggerForm
           trigger={{
             ...defaultTrigger,
-            time_window: { start_time: '18:00', end_time: '06:00' },
+            time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
           }}
           onChange={mockOnChange}
         />
@@ -133,7 +133,7 @@ describe('IntervalTriggerForm', () => {
       const user = userEvent.setup()
       const trigger = {
         ...defaultTrigger,
-        time_window: { start_time: '18:00', end_time: '06:00' },
+        time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
       }
       render(<IntervalTriggerForm trigger={trigger} onChange={mockOnChange} />)
 
@@ -142,8 +142,10 @@ describe('IntervalTriggerForm', () => {
       await user.clear(startInput)
       await user.type(startInput, '20:00')
 
-      // Verify onChange was called (time inputs trigger onChange on each change)
-      expect(mockOnChange).toHaveBeenCalled()
+      // Verify onChange was called (RHF validates async before propagating)
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalled()
+      })
       // Check that time_window structure is preserved
       const lastCall = mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0]
       expect(lastCall).toHaveProperty('time_window')
@@ -154,7 +156,7 @@ describe('IntervalTriggerForm', () => {
       const user = userEvent.setup()
       const trigger = {
         ...defaultTrigger,
-        time_window: { start_time: '18:00', end_time: '06:00' },
+        time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
       }
       render(<IntervalTriggerForm trigger={trigger} onChange={mockOnChange} />)
 
@@ -163,8 +165,10 @@ describe('IntervalTriggerForm', () => {
       await user.clear(endInput)
       await user.type(endInput, '05:00')
 
-      // Verify onChange was called (time inputs trigger onChange on each change)
-      expect(mockOnChange).toHaveBeenCalled()
+      // Verify onChange was called (RHF validates async before propagating)
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalled()
+      })
       // Check that time_window structure is preserved
       const lastCall = mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0]
       expect(lastCall).toHaveProperty('time_window')
@@ -178,7 +182,7 @@ describe('IntervalTriggerForm', () => {
         <IntervalTriggerForm
           trigger={{
             ...defaultTrigger,
-            time_window: { start_time: '18:00', end_time: '06:00' },
+            time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
           }}
           onChange={mockOnChange}
           disabled
@@ -205,7 +209,7 @@ describe('IntervalTriggerForm', () => {
         <IntervalTriggerForm
           trigger={{
             ...defaultTrigger,
-            time_window: { start_time: '18:00', end_time: '06:00' },
+            time_window: { start_time: '18:00', end_time: '06:00', start_offset_minutes: 0, end_offset_minutes: 0 },
           }}
           onChange={mockOnChange}
         />
