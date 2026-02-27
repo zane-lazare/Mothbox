@@ -229,9 +229,11 @@ export default function SolarTriggerForm({
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
                        disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Solar event"
-              aria-invalid={!!errors.solar_event}
+              aria-invalid={!!(errors.solar_event || parentErrors.solar_event)}
               aria-describedby={
-                errors.solar_event ? 'solar_event-error' : undefined
+                (errors.solar_event || parentErrors.solar_event)
+                  ? 'solar_event-error'
+                  : undefined
               }
             >
               {SOLAR_EVENTS.map((event) => (
@@ -242,13 +244,13 @@ export default function SolarTriggerForm({
             </select>
           )}
         />
-        {errors.solar_event?.message && (
+        {(errors.solar_event?.message || parentErrors.solar_event) && (
           <p
             id="solar_event-error"
             role="alert"
             className="mt-1 text-sm text-red-600 dark:text-red-400"
           >
-            {errors.solar_event.message}
+            {errors.solar_event?.message || parentErrors.solar_event}
           </p>
         )}
         {/* Event Description */}

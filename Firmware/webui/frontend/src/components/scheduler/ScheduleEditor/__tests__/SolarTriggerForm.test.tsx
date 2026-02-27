@@ -614,6 +614,23 @@ describe('SolarTriggerForm', () => {
       )
     })
 
+    it('links parent error to solar event select via aria-describedby', () => {
+      const errors = {
+        solar_event: 'Server error: invalid event',
+      }
+
+      render(
+        <SolarTriggerForm onChange={mockOnChange} errors={errors} />,
+      )
+
+      const select = screen.getByLabelText(/solar event/i)
+      expect(select).toHaveAttribute('aria-invalid', 'true')
+      expect(select).toHaveAttribute(
+        'aria-describedby',
+        'solar_event-error',
+      )
+    })
+
     it('links error message to offset input via aria-describedby', async () => {
       const user = userEvent.setup()
       render(
