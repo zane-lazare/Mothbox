@@ -137,7 +137,6 @@ export default function PreConditionForm({
     preCondition?.cooldown_minutes,
     preCondition?.time_window?.start_time,
     preCondition?.time_window?.end_time,
-    preCondition?.time_window,
     reset,
   ])
 
@@ -169,7 +168,7 @@ export default function PreConditionForm({
       watchedCooldown === current.cooldown_minutes &&
       watchedTimeWindow?.start_time === current.time_window?.start_time &&
       watchedTimeWindow?.end_time === current.time_window?.end_time &&
-      (watchedTimeWindow === null) === (current.time_window == null)
+      (watchedTimeWindow === null) === ((current.time_window ?? null) === null)
     ) return
 
     // Only propagate valid values
@@ -300,6 +299,15 @@ export default function PreConditionForm({
                 </select>
               )}
             />
+            {(errors.sensor_type?.message || parentErrors.sensor_type) && (
+              <p
+                id="sensor_type-error"
+                role="alert"
+                className="text-sm text-red-600 dark:text-red-400"
+              >
+                {errors.sensor_type?.message || parentErrors.sensor_type}
+              </p>
+            )}
 
             {/*
              * Comparison operator - only lt/gt/eq per issue #325 spec.
@@ -335,6 +343,15 @@ export default function PreConditionForm({
                 </select>
               )}
             />
+            {(errors.comparison?.message || parentErrors.comparison) && (
+              <p
+                id="comparison-error"
+                role="alert"
+                className="text-sm text-red-600 dark:text-red-400"
+              >
+                {errors.comparison?.message || parentErrors.comparison}
+              </p>
+            )}
 
             {/* Threshold */}
             <Controller
@@ -344,6 +361,7 @@ export default function PreConditionForm({
                 <input
                   type="number"
                   min={0}
+                  step="any"
                   value={Number.isNaN(field.value) ? '' : field.value}
                   onChange={(e) => {
                     const raw = e.target.value
@@ -397,6 +415,7 @@ export default function PreConditionForm({
                   type="number"
                   min={SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES}
                   max={SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES}
+                  step="any"
                   value={Number.isNaN(field.value) ? '' : field.value}
                   onChange={(e) => {
                     const raw = e.target.value
@@ -501,6 +520,7 @@ export default function PreConditionForm({
           {/* Time window validation error */}
           {timeWindowError && (
             <p
+              role="alert"
               className="pl-6 text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-tw-error"
             >
