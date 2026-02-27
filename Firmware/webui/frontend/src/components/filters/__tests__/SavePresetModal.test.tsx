@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SavePresetModal } from '../SavePresetModal'
@@ -345,10 +345,11 @@ describe('SavePresetModal', () => {
       const onSave = vi.fn()
       renderModal({ defaultName: 'Default Preset', onSave })
 
-      // Wait for eager trigger() validation to resolve
-      const saveButton = await screen.findByRole('button', { name: 'Save Preset' })
-      expect(saveButton).not.toBeDisabled()
-      await user.click(saveButton)
+      // Wait for async trigger() validation to complete before asserting
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Save Preset' })).not.toBeDisabled()
+      })
+      await user.click(screen.getByRole('button', { name: 'Save Preset' }))
 
       expect(onSave).toHaveBeenCalledWith('Default Preset')
     })
