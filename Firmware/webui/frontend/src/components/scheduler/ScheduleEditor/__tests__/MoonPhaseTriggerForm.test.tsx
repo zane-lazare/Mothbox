@@ -237,9 +237,9 @@ describe('MoonPhaseTriggerForm', () => {
     it('renders quick offset preset buttons', () => {
       render(<MoonPhaseTriggerForm onChange={mockOnChange} />)
 
-      expect(screen.getByLabelText('Set offset to -1 days')).toBeInTheDocument()
+      expect(screen.getByLabelText('Set offset to -1 day')).toBeInTheDocument()
       expect(screen.getByLabelText('Set offset to 0 days')).toBeInTheDocument()
-      expect(screen.getByLabelText('Set offset to 1 days')).toBeInTheDocument()
+      expect(screen.getByLabelText('Set offset to 1 day')).toBeInTheDocument()
     })
 
     it('sets offset to -1 when -1 day preset clicked', () => {
@@ -247,7 +247,7 @@ describe('MoonPhaseTriggerForm', () => {
         <MoonPhaseTriggerForm value={defaultValue} onChange={mockOnChange} />,
       )
 
-      fireEvent.click(screen.getByLabelText('Set offset to -1 days'))
+      fireEvent.click(screen.getByLabelText('Set offset to -1 day'))
 
       expect(mockOnChange).toHaveBeenCalledWith({
         ...defaultValue,
@@ -275,7 +275,7 @@ describe('MoonPhaseTriggerForm', () => {
         <MoonPhaseTriggerForm value={defaultValue} onChange={mockOnChange} />,
       )
 
-      fireEvent.click(screen.getByLabelText('Set offset to 1 days'))
+      fireEvent.click(screen.getByLabelText('Set offset to 1 day'))
 
       expect(mockOnChange).toHaveBeenCalledWith({
         ...defaultValue,
@@ -290,7 +290,7 @@ describe('MoonPhaseTriggerForm', () => {
         <MoonPhaseTriggerForm value={value} onChange={mockOnChange} />,
       )
 
-      expect(screen.getByLabelText('Set offset to 1 days')).toHaveClass(
+      expect(screen.getByLabelText('Set offset to 1 day')).toHaveClass(
         'bg-blue-500',
       )
     })

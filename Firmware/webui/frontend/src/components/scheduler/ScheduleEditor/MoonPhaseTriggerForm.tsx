@@ -350,7 +350,7 @@ export default function MoonPhaseTriggerForm({
                 }
                 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
               `}
-              aria-label={`Set offset to ${preset.value} days`}
+              aria-label={`Set offset to ${preset.value} day${Math.abs(preset.value) !== 1 ? 's' : ''}`}
             >
               {preset.label}
             </button>
