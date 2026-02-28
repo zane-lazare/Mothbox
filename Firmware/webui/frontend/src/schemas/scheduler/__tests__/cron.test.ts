@@ -42,6 +42,15 @@ describe('CRON_FORMAT_REGEX', () => {
   it.each(invalid)('rejects "%s"', (expr) => {
     expect(CRON_FORMAT_REGEX.test(expr)).toBe(false)
   })
+
+  // Intentional permissiveness — format check only, server validates semantics
+  it('accepts */0 step value (server rejects semantically)', () => {
+    expect(CRON_FORMAT_REGEX.test('*/0 * * * *')).toBe(true)
+  })
+
+  it('accepts multi-space separators (\\s+ not single space)', () => {
+    expect(CRON_FORMAT_REGEX.test('0  21  *  *  *')).toBe(true)
+  })
 })
 
 describe('cronExpressionSchema', () => {
