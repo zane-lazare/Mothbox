@@ -1,4 +1,4 @@
-import React from 'react'
+import type { ChangeEvent } from 'react'
 import { useCronValidation } from '../../../hooks/useCronValidation'
 import { CRON_PRESETS, CRON_HELP } from './constants'
 
@@ -42,7 +42,7 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }: CronExp
   /**
    * Handle input change
    */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value)
   }
 
