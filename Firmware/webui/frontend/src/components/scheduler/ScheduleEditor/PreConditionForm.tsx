@@ -40,7 +40,7 @@ const DEFAULT_PRE_CONDITION: PreConditionValue = {
   cooldown_minutes: 5,
 }
 
-/** Unit labels for sensor types */
+/** Unit labels for sensor types. Keep in sync with SENSOR_TYPES in constants.js. */
 const SENSOR_UNITS: Record<string, string> = {
   light: 'lux',
   temperature: '\u00B0C',
@@ -248,6 +248,12 @@ export default function PreConditionForm({
     watchedTimeWindow.start_time === watchedTimeWindow.end_time
       ? TIME_WINDOW_SAME_ERROR
       : null
+
+  // RHF field-level errors for individual time inputs (e.g., format regex).
+  // Unlikely with <input type="time"> but wired for accessibility completeness.
+  const twStartError = errors.time_window?.start_time?.message
+  const twEndError = errors.time_window?.end_time?.message
+  const twAnyError = timeWindowError ?? twStartError ?? twEndError ?? null
 
   return (
     <div className="space-y-3">
@@ -499,9 +505,9 @@ export default function PreConditionForm({
                     ref={field.ref}
                     disabled={disabled}
                     aria-label="Time window start"
-                    aria-invalid={!!timeWindowError}
+                    aria-invalid={!!(twStartError || timeWindowError)}
                     aria-describedby={
-                      timeWindowError
+                      twAnyError
                         ? `tw-error-${routineIndex}`
                         : undefined
                     }
@@ -526,9 +532,9 @@ export default function PreConditionForm({
                     ref={field.ref}
                     disabled={disabled}
                     aria-label="Time window end"
-                    aria-invalid={!!timeWindowError}
+                    aria-invalid={!!(twEndError || timeWindowError)}
                     aria-describedby={
-                      timeWindowError
+                      twAnyError
                         ? `tw-error-${routineIndex}`
                         : undefined
                     }
@@ -542,15 +548,15 @@ export default function PreConditionForm({
               />
             </div>
           )}
-          {/* Time window validation error */}
-          {timeWindowError && (
+          {/* Time window validation error (cross-field or field-level) */}
+          {twAnyError && (
             <p
               id={`tw-error-${routineIndex}`}
               role="alert"
               className="pl-6 text-sm text-red-600 dark:text-red-400"
               data-testid={`pre-condition-tw-error-${routineIndex}`}
             >
-              {timeWindowError}
+              {twAnyError}
             </p>
           )}
         </div>

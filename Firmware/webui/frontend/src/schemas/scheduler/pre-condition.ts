@@ -4,7 +4,12 @@ import {
   TIME_FORMAT_REGEX,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
-/** Cross-field error when start and end times match */
+/**
+ * Cross-field error when start and end times match.
+ * Duplicates TIME_ERRORS.SAME_START_END in errorMessages.js — kept separate
+ * because schemas should not import from component directories.
+ * If the message changes, update both locations.
+ */
 export const TIME_WINDOW_SAME_ERROR = 'Start and end times cannot be the same'
 
 /** Sensor types allowed in pre-conditions (excludes motion per issue #325) */

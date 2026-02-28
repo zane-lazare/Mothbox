@@ -272,6 +272,24 @@ describe('PreConditionForm', () => {
       expect(screen.getByTestId('pre-condition-sensor-0')).toBeDisabled()
       expect(screen.getByTestId('pre-condition-op-0')).toBeDisabled()
       expect(screen.getByTestId('pre-condition-threshold-0')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-cooldown-0')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-time-window-toggle-0')).toBeDisabled()
+    })
+
+    it('prevents time window input interaction when disabled', () => {
+      const preCondition: PreConditionValue = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+        cooldown_minutes: 5,
+        time_window: { start_time: '21:00', end_time: '06:00' },
+      }
+
+      render(<PreConditionForm {...props({ preCondition, disabled: true })} />)
+
+      expect(screen.getByTestId('pre-condition-tw-start-0')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-tw-end-0')).toBeDisabled()
     })
   })
 
