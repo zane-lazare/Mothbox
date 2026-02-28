@@ -2,17 +2,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import CronExpressionInput from '../CronExpressionInput'
+import type { CronExpressionInputProps } from '../CronExpressionInput'
+import type { CronValidationResult } from '../../../../hooks/useCronValidation'
+// @ts-expect-error — cronApi.js has no type declarations (pre-migration)
 import * as cronApi from '../../../../utils/cronApi'
 
 // Mock the cronApi module
 vi.mock('../../../../utils/cronApi')
 
+const mockValidate = cronApi.validateCronExpression as ReturnType<typeof vi.fn>
+
 describe('CronExpressionInput', () => {
-  let mockOnChange
-  let queryClient
+  let mockOnChange: ReturnType<typeof vi.fn<(value: string) => void>>
+  let queryClient: QueryClient
 
   beforeEach(() => {
-    mockOnChange = vi.fn()
+    mockOnChange = vi.fn<(value: string) => void>()
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -26,11 +31,11 @@ describe('CronExpressionInput', () => {
   /**
    * Helper to render component with QueryClient wrapper
    */
-  const renderComponent = (props = {}) => {
-    const defaultProps = {
+  const renderComponent = (overrides: Partial<CronExpressionInputProps> = {}) => {
+    const defaultProps: CronExpressionInputProps = {
       value: '',
       onChange: mockOnChange,
-      ...props,
+      ...overrides,
     }
 
     return render(
@@ -56,7 +61,7 @@ describe('CronExpressionInput', () => {
         next_executions: ['2024-12-26T14:00:00'],
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: '0 * * * *' })
 
@@ -74,7 +79,7 @@ describe('CronExpressionInput', () => {
         error: 'Invalid cron expression',
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: 'invalid' })
 
@@ -87,12 +92,12 @@ describe('CronExpressionInput', () => {
 
     it('shows loading state during validation', async () => {
       // Create a promise that never resolves to keep loading state
-      let resolvePromise
-      const pendingPromise = new Promise((resolve) => {
+      let resolvePromise!: (value: CronValidationResult) => void
+      const pendingPromise = new Promise<CronValidationResult>((resolve) => {
         resolvePromise = resolve
       })
 
-      cronApi.validateCronExpression.mockReturnValue(pendingPromise)
+      mockValidate.mockReturnValue(pendingPromise)
 
       renderComponent({ value: '0 * * * *' })
 
@@ -121,7 +126,7 @@ describe('CronExpressionInput', () => {
         ],
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: '0 21 * * *' })
 
@@ -186,7 +191,7 @@ describe('CronExpressionInput', () => {
         next_executions: ['2024-12-26T14:00:00'],
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: '*/5 * * * *' })
 
@@ -221,7 +226,7 @@ describe('CronExpressionInput', () => {
         next_executions: ['2024-12-26T14:00:00'],
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: '0 * * * *' })
 
@@ -238,7 +243,7 @@ describe('CronExpressionInput', () => {
         error: 'Invalid cron expression',
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: 'invalid' })
 
@@ -317,7 +322,7 @@ describe('CronExpressionInput', () => {
         error: 'Invalid cron expression',
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: 'invalid' })
 
@@ -344,7 +349,7 @@ describe('CronExpressionInput', () => {
         next_executions: ['2024-12-26T21:00:00'],
       }
 
-      cronApi.validateCronExpression.mockResolvedValue(mockResponse)
+      mockValidate.mockResolvedValue(mockResponse)
 
       renderComponent({ value: '0 21 * * *' })
 

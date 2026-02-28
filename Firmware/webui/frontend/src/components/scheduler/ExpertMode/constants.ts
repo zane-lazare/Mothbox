@@ -1,16 +1,25 @@
 /**
  * Constants for Expert Mode Cron Expression Editor (Issue #233)
- *
- * Provides cron presets and help text for the cron expression input component.
  */
 
-/**
- * Quick preset cron expressions for common scheduling patterns
- *
- * These presets help users quickly set up common scheduling scenarios
- * without needing to understand cron syntax.
- */
-export const CRON_PRESETS = [
+export interface CronPreset {
+  readonly label: string
+  readonly expression: string
+}
+
+export interface CronFieldHelp {
+  readonly name: string
+  readonly range: string
+}
+
+export interface CronHelp {
+  readonly format: string
+  readonly fields: readonly CronFieldHelp[]
+  readonly special: string
+}
+
+/** Quick preset cron expressions for common scheduling patterns */
+export const CRON_PRESETS: readonly CronPreset[] = [
   { label: 'Every hour', expression: '0 * * * *' },
   { label: 'Every 5 min', expression: '*/5 * * * *' },
   { label: 'Every 15 min', expression: '*/15 * * * *' },
@@ -19,13 +28,8 @@ export const CRON_PRESETS = [
   { label: 'Weekdays 9 PM', expression: '0 21 * * 1-5' },
 ]
 
-/**
- * Help text for cron expression format
- *
- * Provides format documentation and special character explanations
- * to assist users in writing their own cron expressions.
- */
-export const CRON_HELP = {
+/** Help text for cron expression format */
+export const CRON_HELP: CronHelp = {
   format: 'minute hour day month weekday',
   fields: [
     { name: 'minute', range: '0-59' },
