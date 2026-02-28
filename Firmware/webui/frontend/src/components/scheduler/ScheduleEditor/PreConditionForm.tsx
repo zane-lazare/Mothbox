@@ -292,10 +292,11 @@ export default function PreConditionForm({
                              bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
                              disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="pre-condition-sensor"
+                  data-testid={`pre-condition-sensor-${routineIndex}`}
                 >
                   {SENSOR_TYPES.filter(
-                    (s: { value: string; label: string }) => s.value !== 'motion',
+                    (s: { value: string; label: string }) =>
+                      (['light', 'temperature'] as string[]).includes(s.value),
                   ).map((sensor: { value: string; label: string }) => (
                     <option key={sensor.value} value={sensor.value}>
                       {sensor.label}
@@ -340,7 +341,7 @@ export default function PreConditionForm({
                              bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
                              disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="pre-condition-op"
+                  data-testid={`pre-condition-op-${routineIndex}`}
                 >
                   <option value="lt">is below</option>
                   <option value="gt">is above</option>
@@ -386,13 +387,13 @@ export default function PreConditionForm({
                              bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white text-center
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
                              disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="pre-condition-threshold"
+                  data-testid={`pre-condition-threshold-${routineIndex}`}
                 />
               )}
             />
             <span
               className="text-xs text-gray-500 dark:text-gray-400"
-              data-testid="pre-condition-unit"
+              data-testid={`pre-condition-unit-${routineIndex}`}
             >
               {SENSOR_UNITS[watchedSensorType] || ''}
             </span>
@@ -403,7 +404,7 @@ export default function PreConditionForm({
               id={`threshold-error-${routineIndex}`}
               role="alert"
               className="text-sm text-red-600 dark:text-red-400"
-              data-testid="pre-condition-error"
+              data-testid={`pre-condition-error-${routineIndex}`}
             >
               {errors.threshold?.message || parentErrors.threshold}
             </p>
@@ -440,7 +441,7 @@ export default function PreConditionForm({
                              bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white text-center
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent
                              disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="pre-condition-cooldown"
+                  data-testid={`pre-condition-cooldown-${routineIndex}`}
                 />
               )}
             />
@@ -451,7 +452,7 @@ export default function PreConditionForm({
               id={`cooldown_minutes-error-${routineIndex}`}
               role="alert"
               className="text-sm text-red-600 dark:text-red-400"
-              data-testid="pre-condition-cooldown-error"
+              data-testid={`pre-condition-cooldown-error-${routineIndex}`}
             >
               {errors.cooldown_minutes?.message || parentErrors.cooldown_minutes}
             </p>
@@ -486,7 +487,7 @@ export default function PreConditionForm({
                 render={({ field }) => (
                   <input
                     type="time"
-                    value={field.value || '21:00'}
+                    value={field.value ?? '21:00'}
                     onChange={(e) => field.onChange(e.target.value)}
                     onBlur={field.onBlur}
                     ref={field.ref}
@@ -502,7 +503,7 @@ export default function PreConditionForm({
                                bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                                focus:ring-2 focus:ring-blue-500 focus:border-transparent
                                disabled:opacity-50 disabled:cursor-not-allowed"
-                    data-testid="pre-condition-tw-start"
+                    data-testid={`pre-condition-tw-start-${routineIndex}`}
                   />
                 )}
               />
@@ -513,7 +514,7 @@ export default function PreConditionForm({
                 render={({ field }) => (
                   <input
                     type="time"
-                    value={field.value || '06:00'}
+                    value={field.value ?? '06:00'}
                     onChange={(e) => field.onChange(e.target.value)}
                     onBlur={field.onBlur}
                     ref={field.ref}
@@ -529,7 +530,7 @@ export default function PreConditionForm({
                                bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                                focus:ring-2 focus:ring-blue-500 focus:border-transparent
                                disabled:opacity-50 disabled:cursor-not-allowed"
-                    data-testid="pre-condition-tw-end"
+                    data-testid={`pre-condition-tw-end-${routineIndex}`}
                   />
                 )}
               />
@@ -541,7 +542,7 @@ export default function PreConditionForm({
               id={`tw-error-${routineIndex}`}
               role="alert"
               className="pl-6 text-sm text-red-600 dark:text-red-400"
-              data-testid="pre-condition-tw-error"
+              data-testid={`pre-condition-tw-error-${routineIndex}`}
             >
               {timeWindowError}
             </p>

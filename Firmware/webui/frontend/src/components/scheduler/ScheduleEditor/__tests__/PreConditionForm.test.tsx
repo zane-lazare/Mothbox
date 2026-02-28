@@ -58,9 +58,9 @@ describe('PreConditionForm', () => {
       const { rerender } = render(<PreConditionForm {...props()} />)
 
       // Fields should not be visible when disabled
-      expect(screen.queryByTestId('pre-condition-sensor')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('pre-condition-op')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('pre-condition-threshold')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-sensor-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-op-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-threshold-0')).not.toBeInTheDocument()
 
       // Re-render with preCondition enabled
       const preCondition: PreConditionValue = {
@@ -74,9 +74,9 @@ describe('PreConditionForm', () => {
 
       // Fields should be visible when enabled
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-sensor')).toBeInTheDocument()
-        expect(screen.getByTestId('pre-condition-op')).toBeInTheDocument()
-        expect(screen.getByTestId('pre-condition-threshold')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-sensor-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-op-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-0')).toBeInTheDocument()
       })
     })
 
@@ -130,7 +130,7 @@ describe('PreConditionForm', () => {
     it('updates sensor type correctly', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const sensorSelect = screen.getByTestId('pre-condition-sensor')
+      const sensorSelect = screen.getByTestId('pre-condition-sensor-0')
       fireEvent.change(sensorSelect, { target: { value: 'temperature' } })
 
       await waitFor(() => {
@@ -144,7 +144,7 @@ describe('PreConditionForm', () => {
     it('updates condition operator correctly', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const opSelect = screen.getByTestId('pre-condition-op')
+      const opSelect = screen.getByTestId('pre-condition-op-0')
       fireEvent.change(opSelect, { target: { value: 'gt' } })
 
       await waitFor(() => {
@@ -158,7 +158,7 @@ describe('PreConditionForm', () => {
     it('updates threshold value correctly', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '50' } })
 
       await waitFor(() => {
@@ -172,12 +172,12 @@ describe('PreConditionForm', () => {
     it('shows validation error for empty threshold input', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '' } })
 
       // Wait for RHF async validation to show error
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
       // onChange should NOT have been called with invalid value
       expect(mockOnChange).not.toHaveBeenCalled()
@@ -186,11 +186,11 @@ describe('PreConditionForm', () => {
     it('shows validation error for negative threshold', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '-10' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -198,18 +198,18 @@ describe('PreConditionForm', () => {
     it('clears validation error when valid value entered', async () => {
       render(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
 
       // First enter invalid value
       fireEvent.change(thresholdInput, { target: { value: '' } })
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
 
       // Then enter valid value
       fireEvent.change(thresholdInput, { target: { value: '50' } })
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
       })
     })
 
@@ -219,10 +219,10 @@ describe('PreConditionForm', () => {
       )
 
       // 1. Enter invalid value -> error shows
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '' } })
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
 
       // 2. Toggle off -> parent sets preCondition to null
@@ -233,7 +233,7 @@ describe('PreConditionForm', () => {
 
       // Fields are hidden when null
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
       })
 
       // 4. Toggle on -> parent gets default preCondition callback
@@ -244,7 +244,7 @@ describe('PreConditionForm', () => {
 
       // 6. Verify error is gone after re-enabling with fresh defaults
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
       })
     })
   })
@@ -268,9 +268,9 @@ describe('PreConditionForm', () => {
 
       render(<PreConditionForm {...props({ preCondition, disabled: true })} />)
 
-      expect(screen.getByTestId('pre-condition-sensor')).toBeDisabled()
-      expect(screen.getByTestId('pre-condition-op')).toBeDisabled()
-      expect(screen.getByTestId('pre-condition-threshold')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-sensor-0')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-op-0')).toBeDisabled()
+      expect(screen.getByTestId('pre-condition-threshold-0')).toBeDisabled()
     })
   })
 
@@ -293,9 +293,9 @@ describe('PreConditionForm', () => {
       render(<PreConditionForm {...props({ preCondition })} />)
 
       expect(screen.getByTestId('pre-condition-toggle-0')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-sensor')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-op')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-threshold')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-sensor-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-op-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-threshold-0')).toBeInTheDocument()
     })
   })
 
@@ -311,7 +311,7 @@ describe('PreConditionForm', () => {
 
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const sensorSelect = screen.getByTestId('pre-condition-sensor') as HTMLSelectElement
+      const sensorSelect = screen.getByTestId('pre-condition-sensor-0') as HTMLSelectElement
       const options = sensorSelect.querySelectorAll('option')
       const optionValues = Array.from(options).map((o) => (o as HTMLOptionElement).value)
 
@@ -333,7 +333,7 @@ describe('PreConditionForm', () => {
 
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const opSelect = screen.getByTestId('pre-condition-op') as HTMLSelectElement
+      const opSelect = screen.getByTestId('pre-condition-op-0') as HTMLSelectElement
       const options = opSelect.querySelectorAll('option')
       const optionValues = Array.from(options).map((o) => (o as HTMLOptionElement).value)
 
@@ -355,7 +355,7 @@ describe('PreConditionForm', () => {
 
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const opSelect = screen.getByTestId('pre-condition-op')
+      const opSelect = screen.getByTestId('pre-condition-op-0')
 
       expect(opSelect).toHaveTextContent('is below')
       expect(opSelect).toHaveTextContent('is above')
@@ -472,7 +472,7 @@ describe('PreConditionForm', () => {
       render(<PreConditionForm {...props({ preCondition })} />)
 
       // HTML select falls back to first valid option when value doesn't match
-      const sensorSelect = screen.getByTestId('pre-condition-sensor') as HTMLSelectElement
+      const sensorSelect = screen.getByTestId('pre-condition-sensor-0') as HTMLSelectElement
       expect(sensorSelect).toBeInTheDocument()
       expect(sensorSelect.value).toBe('light')
     })
@@ -486,7 +486,7 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '50.5' } })
 
       await waitFor(() => {
@@ -495,7 +495,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 50.5)
-      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
     })
 
     it('accepts zero as valid threshold value', async () => {
@@ -507,7 +507,7 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '0' } })
 
       await waitFor(() => {
@@ -516,7 +516,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 0)
-      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
     })
 
     it('handles very large threshold values', async () => {
@@ -528,7 +528,7 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '999999' } })
 
       await waitFor(() => {
@@ -537,7 +537,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 999999)
-      expect(screen.queryByTestId('pre-condition-error')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
     })
 
     it('shows validation error for whitespace-only threshold input', async () => {
@@ -549,12 +549,12 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '   ' } })
 
       // Wait for RHF async validation
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -568,11 +568,11 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
-      const thresholdInput = screen.getByTestId('pre-condition-threshold')
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: 'abc' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -589,18 +589,18 @@ describe('PreConditionForm', () => {
 
     it('renders cooldown input when enabled', () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      expect(screen.getByTestId('pre-condition-cooldown')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-cooldown')).toHaveValue(5)
+      expect(screen.getByTestId('pre-condition-cooldown-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-cooldown-0')).toHaveValue(5)
     })
 
     it('does not render cooldown when disabled', () => {
       render(<PreConditionForm {...props()} />)
-      expect(screen.queryByTestId('pre-condition-cooldown')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-cooldown-0')).not.toBeInTheDocument()
     })
 
     it('updates cooldown value', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: '15' } })
 
       await waitFor(() => {
@@ -613,22 +613,22 @@ describe('PreConditionForm', () => {
 
     it('shows error for cooldown below 1', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: '0' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-cooldown-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
 
     it('shows error for cooldown above 60', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: '61' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-cooldown-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -647,29 +647,29 @@ describe('PreConditionForm', () => {
 
     it('shows error for non-numeric cooldown input', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: 'abc' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-cooldown-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
 
     it('shows error for empty cooldown input', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: '' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-cooldown-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-cooldown-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
 
     it('accepts decimal cooldown values within range', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionWithCooldown })} />)
-      const cooldownInput = screen.getByTestId('pre-condition-cooldown')
+      const cooldownInput = screen.getByTestId('pre-condition-cooldown-0')
       fireEvent.change(cooldownInput, { target: { value: '5.5' } })
 
       await waitFor(() => {
@@ -678,7 +678,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('cooldown_minutes', 5.5)
-      expect(screen.queryByTestId('pre-condition-cooldown-error')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-cooldown-error-0')).not.toBeInTheDocument()
     })
   })
 
@@ -704,14 +704,14 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
       expect(screen.getByTestId('pre-condition-time-window-toggle-0')).toBeChecked()
-      expect(screen.getByTestId('pre-condition-tw-start')).toHaveValue('21:00')
-      expect(screen.getByTestId('pre-condition-tw-end')).toHaveValue('06:00')
+      expect(screen.getByTestId('pre-condition-tw-start-0')).toHaveValue('21:00')
+      expect(screen.getByTestId('pre-condition-tw-end-0')).toHaveValue('06:00')
     })
 
     it('hides time inputs when time window is null', () => {
       render(<PreConditionForm {...props({ preCondition: preConditionBase })} />)
-      expect(screen.queryByTestId('pre-condition-tw-start')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('pre-condition-tw-end')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-start-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-tw-end-0')).not.toBeInTheDocument()
     })
 
     it('enables time window with defaults when toggle checked', async () => {
@@ -751,7 +751,7 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '21:00', end_time: '06:00' },
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
-      const startInput = screen.getByTestId('pre-condition-tw-start')
+      const startInput = screen.getByTestId('pre-condition-tw-start-0')
       fireEvent.change(startInput, { target: { value: '22:30' } })
 
       await waitFor(() => {
@@ -770,7 +770,7 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '21:00', end_time: '06:00' },
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
-      const endInput = screen.getByTestId('pre-condition-tw-end')
+      const endInput = screen.getByTestId('pre-condition-tw-end-0')
       fireEvent.change(endInput, { target: { value: '07:00' } })
 
       await waitFor(() => {
@@ -790,7 +790,7 @@ describe('PreConditionForm', () => {
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-tw-error')).toHaveTextContent(
+        expect(screen.getByTestId('pre-condition-tw-error-0')).toHaveTextContent(
           'Start and end times cannot be the same',
         )
       })
@@ -805,7 +805,7 @@ describe('PreConditionForm', () => {
         <PreConditionForm {...props({ preCondition: withSameTime })} />,
       )
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-tw-error')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-tw-error-0')).toBeInTheDocument()
       })
 
       rerender(
@@ -819,7 +819,7 @@ describe('PreConditionForm', () => {
         />,
       )
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-tw-error-0')).not.toBeInTheDocument()
       })
     })
 
@@ -829,11 +829,11 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '', end_time: '' },
       }
       render(<PreConditionForm {...props({ preCondition: withEmptyTimes })} />)
-      expect(screen.getByTestId('pre-condition-tw-start')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-tw-end')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-tw-start-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-tw-end-0')).toBeInTheDocument()
       // Cross-field error only triggers when both are non-empty and equal
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-tw-error')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-tw-error-0')).not.toBeInTheDocument()
       })
     })
   })
@@ -907,7 +907,7 @@ describe('PreConditionForm', () => {
         />,
       )
 
-      const input = screen.getByTestId('pre-condition-threshold')
+      const input = screen.getByTestId('pre-condition-threshold-0')
       expect(input).toHaveAttribute('aria-invalid', 'true')
       expect(input).toHaveAttribute('aria-describedby', 'threshold-error-0')
       expect(screen.getByText('Bad value')).toBeInTheDocument()
@@ -923,7 +923,7 @@ describe('PreConditionForm', () => {
         />,
       )
 
-      const input = screen.getByTestId('pre-condition-cooldown')
+      const input = screen.getByTestId('pre-condition-cooldown-0')
       expect(input).toHaveAttribute('aria-invalid', 'true')
       expect(input).toHaveAttribute('aria-describedby', 'cooldown_minutes-error-0')
       expect(screen.getByText('Bad cooldown')).toBeInTheDocument()
@@ -939,7 +939,7 @@ describe('PreConditionForm', () => {
         />,
       )
 
-      const input = screen.getByTestId('pre-condition-sensor')
+      const input = screen.getByTestId('pre-condition-sensor-0')
       expect(input).toHaveAttribute('aria-invalid', 'true')
       expect(input).toHaveAttribute('aria-describedby', 'sensor_type-error-0')
     })
@@ -954,7 +954,7 @@ describe('PreConditionForm', () => {
         />,
       )
 
-      const input = screen.getByTestId('pre-condition-op')
+      const input = screen.getByTestId('pre-condition-op-0')
       expect(input).toHaveAttribute('aria-invalid', 'true')
       expect(input).toHaveAttribute('aria-describedby', 'comparison-error-0')
     })
@@ -973,7 +973,7 @@ describe('PreConditionForm', () => {
         <PreConditionForm {...props({ preCondition: initial })} />,
       )
 
-      expect(screen.getByTestId('pre-condition-threshold')).toHaveValue(100)
+      expect(screen.getByTestId('pre-condition-threshold-0')).toHaveValue(100)
 
       const updated: PreConditionValue = {
         ...initial,
@@ -983,9 +983,9 @@ describe('PreConditionForm', () => {
       rerender(<PreConditionForm {...props({ preCondition: updated })} />)
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-threshold')).toHaveValue(25)
+        expect(screen.getByTestId('pre-condition-threshold-0')).toHaveValue(25)
         expect(
-          (screen.getByTestId('pre-condition-sensor') as HTMLSelectElement).value,
+          (screen.getByTestId('pre-condition-sensor-0') as HTMLSelectElement).value,
         ).toBe('temperature')
       })
     })
