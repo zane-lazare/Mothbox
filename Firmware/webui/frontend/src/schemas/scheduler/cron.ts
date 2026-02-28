@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Regex matching a single cron field token.
- * Allows: *, N, N-M, N,M,... , *​/N, N-M/N, and combinations.
+ * Allows: *, N, N-M, N,M, step (N/S), range-step (N-M/S), and combinations.
  * Does NOT validate numeric ranges (server handles that).
  */
 const CRON_FIELD = String.raw`(?:\*|[0-9]+(?:-[0-9]+)?)(?:/[0-9]+)?(?:,(?:\*|[0-9]+(?:-[0-9]+)?)(?:/[0-9]+)?)*`
