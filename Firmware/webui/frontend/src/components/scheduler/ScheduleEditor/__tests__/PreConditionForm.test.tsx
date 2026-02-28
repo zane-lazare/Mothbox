@@ -823,6 +823,8 @@ describe('PreConditionForm', () => {
       })
     })
 
+    // Empty times are a transient editing state (user toggled time window on
+    // but hasn't typed values yet). This should not show a cross-field error.
     it('renders time window with empty times without error', async () => {
       const withEmptyTimes: PreConditionValue = {
         ...preConditionBase,
@@ -831,7 +833,6 @@ describe('PreConditionForm', () => {
       render(<PreConditionForm {...props({ preCondition: withEmptyTimes })} />)
       expect(screen.getByTestId('pre-condition-tw-start-0')).toBeInTheDocument()
       expect(screen.getByTestId('pre-condition-tw-end-0')).toBeInTheDocument()
-      // Cross-field error only triggers when both are non-empty and equal
       await waitFor(() => {
         expect(screen.queryByTestId('pre-condition-tw-error-0')).not.toBeInTheDocument()
       })

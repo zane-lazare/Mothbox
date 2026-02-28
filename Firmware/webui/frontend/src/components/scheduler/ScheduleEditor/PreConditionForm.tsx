@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ChangeEvent } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
@@ -77,8 +77,9 @@ export default function PreConditionForm({
   const preConditionRef = useRef(preCondition)
   preConditionRef.current = preCondition
 
-  // Build default values for the form. When preCondition is null, use our
-  // defaults so the form always has valid data for internal rendering.
+  // Build default values for the form. Only consumed by useForm on mount —
+  // subsequent prop changes are handled by the prop-sync effect via reset().
+  // When preCondition is null, use our defaults so the form always has valid data.
   const defaults: PreConditionFormData = {
     sensor_type: (preCondition?.sensor_type ?? 'light') as PreConditionFormData['sensor_type'],
     comparison: (preCondition?.comparison ?? 'lt') as PreConditionFormData['comparison'],
@@ -207,7 +208,7 @@ export default function PreConditionForm({
   // -- Toggle handlers (bypass RHF) ------------------------------------------
 
   /** Enable/disable pre-condition toggle */
-  const handleToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleToggle = (e: ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked
     if (!isEnabled) {
       onChangeRef.current(null)
@@ -217,7 +218,7 @@ export default function PreConditionForm({
   }
 
   /** Enable/disable time window toggle */
-  const handleTimeWindowToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTimeWindowToggle = (e: ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked
     const current = preConditionRef.current
     if (!current) return
@@ -235,9 +236,11 @@ export default function PreConditionForm({
   }
 
   // -- Cross-field derived error ----------------------------------------------
-  // The Zod schema also validates this via .refine(), but we derive it here
-  // for immediate UI feedback — the schema error at errors.time_window.end_time
-  // is not surfaced because the inline layout uses a single error paragraph.
+  // Duplicates the .refine() in preConditionTimeWindowSchema
+  // (see schemas/scheduler/pre-condition.ts). We derive it here for immediate
+  // UI feedback — RHF puts the schema error at errors.time_window.end_time,
+  // which isn't surfaced because the inline layout uses a single error paragraph.
+  // If the condition changes, update both this check and the schema refine.
 
   const timeWindowError =
     watchedTimeWindow?.start_time &&
