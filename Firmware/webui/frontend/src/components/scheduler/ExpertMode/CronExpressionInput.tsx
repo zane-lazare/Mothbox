@@ -1,6 +1,15 @@
-import PropTypes from 'prop-types'
+import React from 'react'
 import { useCronValidation } from '../../../hooks/useCronValidation'
 import { CRON_PRESETS, CRON_HELP } from './constants'
+
+export interface CronExpressionInputProps {
+  /** Current cron expression value */
+  value?: string
+  /** Callback when expression changes */
+  onChange: (value: string) => void
+  /** Whether the input is disabled */
+  disabled?: boolean
+}
 
 /**
  * CronExpressionInput Component (Issue #233)
@@ -26,21 +35,21 @@ import { CRON_PRESETS, CRON_HELP } from './constants'
  *   disabled={false}
  * />
  */
-const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
+const CronExpressionInput = ({ value = '', onChange, disabled = false }: CronExpressionInputProps) => {
   // Validate the expression with debouncing
   const { data: validation, isLoading, errorMessage } = useCronValidation(value)
 
   /**
    * Handle input change
    */
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value)
   }
 
   /**
    * Handle preset button click
    */
-  const handlePresetClick = (expression) => {
+  const handlePresetClick = (expression: string) => {
     onChange(expression)
   }
 
@@ -49,7 +58,7 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
    * @param {string} isoTime - ISO 8601 timestamp
    * @returns {string} Formatted time
    */
-  const formatExecutionTime = (isoTime) => {
+  const formatExecutionTime = (isoTime: string): string => {
     try {
       const date = new Date(isoTime)
       return date.toLocaleString(undefined, {
@@ -267,15 +276,6 @@ const CronExpressionInput = ({ value = '', onChange, disabled = false }) => {
       </div>
     </div>
   )
-}
-
-CronExpressionInput.propTypes = {
-  /** Current cron expression value */
-  value: PropTypes.string,
-  /** Callback when expression changes */
-  onChange: PropTypes.func.isRequired,
-  /** Whether the input is disabled */
-  disabled: PropTypes.bool,
 }
 
 export default CronExpressionInput
