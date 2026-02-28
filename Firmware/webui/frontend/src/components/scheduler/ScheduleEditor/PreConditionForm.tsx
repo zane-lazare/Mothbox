@@ -14,11 +14,11 @@ import { SENSOR_TYPES, SCHEDULE_LIMITS } from './constants'
 
 export interface PreConditionValue {
   trigger_type?: string
-  sensor_type: string
-  comparison: string
+  sensor_type: PreConditionFormData['sensor_type']
+  comparison: PreConditionFormData['comparison']
   threshold: number
   cooldown_minutes: number
-  time_window?: { start_time: string; end_time: string } | null
+  time_window: { start_time: string; end_time: string } | null
 }
 
 interface PreConditionFormProps {
@@ -38,6 +38,7 @@ const DEFAULT_PRE_CONDITION: PreConditionValue = {
   comparison: 'lt',
   threshold: 100,
   cooldown_minutes: 5,
+  time_window: null,
 }
 
 /** Unit labels for sensor types. Keep in sync with SENSOR_TYPES in constants.js. */
@@ -81,8 +82,8 @@ export default function PreConditionForm({
   // subsequent prop changes are handled by the prop-sync effect via reset().
   // When preCondition is null, use our defaults so the form always has valid data.
   const defaults: PreConditionFormData = {
-    sensor_type: (preCondition?.sensor_type ?? 'light') as PreConditionFormData['sensor_type'],
-    comparison: (preCondition?.comparison ?? 'lt') as PreConditionFormData['comparison'],
+    sensor_type: preCondition?.sensor_type ?? 'light',
+    comparison: preCondition?.comparison ?? 'lt',
     threshold: preCondition?.threshold ?? 100,
     cooldown_minutes: preCondition?.cooldown_minutes ?? 5,
     time_window: preCondition?.time_window ?? null,
@@ -124,10 +125,11 @@ export default function PreConditionForm({
       (pc.time_window === null) !== (last.time_window === null)
     ) {
       const next: PreConditionFormData = {
-        sensor_type: pc.sensor_type as PreConditionFormData['sensor_type'],
-        comparison: pc.comparison as PreConditionFormData['comparison'],
+        sensor_type: pc.sensor_type,
+        comparison: pc.comparison,
         threshold: pc.threshold,
         cooldown_minutes: pc.cooldown_minutes,
+        // Defensive ?? null for .jsx callers that may omit time_window
         time_window: pc.time_window ?? null,
       }
       lastPropagatedRef.current = next
@@ -172,6 +174,7 @@ export default function PreConditionForm({
       watchedCooldown === current.cooldown_minutes &&
       watchedTimeWindow?.start_time === current.time_window?.start_time &&
       watchedTimeWindow?.end_time === current.time_window?.end_time &&
+      // Defensive ?? null for .jsx callers that may pass undefined
       (watchedTimeWindow === null) === ((current.time_window ?? null) === null)
     ) return
 
@@ -416,7 +419,7 @@ export default function PreConditionForm({
               id={`threshold-error-${routineIndex}`}
               role="alert"
               className="text-sm text-red-600 dark:text-red-400"
-              data-testid={`pre-condition-error-${routineIndex}`}
+              data-testid={`pre-condition-threshold-error-${routineIndex}`}
             >
               {errors.threshold?.message || parentErrors.threshold}
             </p>

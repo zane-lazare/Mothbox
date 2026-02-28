@@ -20,7 +20,7 @@ const VALID_INPUT = {
   threshold: 100,
   cooldown_minutes: 5,
   time_window: null,
-}
+} as const
 
 describe('preConditionSchema', () => {
   // ── sensor_type ─────────────────────────────────────────────────────

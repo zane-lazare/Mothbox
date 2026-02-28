@@ -47,6 +47,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -70,6 +71,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       rerender(<PreConditionForm {...props({ preCondition })} />)
 
@@ -95,6 +97,7 @@ describe('PreConditionForm', () => {
           comparison: 'lt',
           threshold: 100,
           cooldown_minutes: 5,
+          time_window: null,
         })
       })
     })
@@ -106,6 +109,7 @@ describe('PreConditionForm', () => {
         comparison: 'gt',
         threshold: 25,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -126,6 +130,7 @@ describe('PreConditionForm', () => {
       comparison: 'lt',
       threshold: 100,
       cooldown_minutes: 5,
+      time_window: null,
     }
 
     it('updates sensor type correctly', async () => {
@@ -178,7 +183,7 @@ describe('PreConditionForm', () => {
 
       // Wait for RHF async validation to show error
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
       // onChange should NOT have been called with invalid value
       expect(mockOnChange).not.toHaveBeenCalled()
@@ -191,7 +196,7 @@ describe('PreConditionForm', () => {
       fireEvent.change(thresholdInput, { target: { value: '-10' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -204,13 +209,13 @@ describe('PreConditionForm', () => {
       // First enter invalid value
       fireEvent.change(thresholdInput, { target: { value: '' } })
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
 
       // Then enter valid value
       fireEvent.change(thresholdInput, { target: { value: '50' } })
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
       })
     })
 
@@ -223,7 +228,7 @@ describe('PreConditionForm', () => {
       const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
       fireEvent.change(thresholdInput, { target: { value: '' } })
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
 
       // 2. Toggle off -> parent sets preCondition to null
@@ -234,18 +239,23 @@ describe('PreConditionForm', () => {
 
       // Fields are hidden when null
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
       })
 
       // 4. Toggle on -> parent gets default preCondition callback
       fireEvent.click(screen.getByTestId('pre-condition-toggle-0'))
 
-      // 5. Simulate parent setting preCondition to default (as it would after onChange(default))
-      rerender(<PreConditionForm {...props({ preCondition: defaultPreCondition })} />)
+      // 5. Simulate parent setting preCondition to default (as it would after onChange(default)).
+      // Use a fresh object with a different threshold so that the prop-sync effect
+      // detects a change and resets the internal RHF form state (the internal
+      // lastPropagatedRef still holds step-1 values because the null→non-null
+      // transition alone does not reset it).
+      const freshDefault: PreConditionValue = { ...defaultPreCondition, threshold: 200 }
+      rerender(<PreConditionForm {...props({ preCondition: freshDefault })} />)
 
       // 6. Verify error is gone after re-enabling with fresh defaults
       await waitFor(() => {
-        expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
       })
     })
   })
@@ -265,6 +275,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition, disabled: true })} />)
@@ -307,6 +318,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -326,6 +338,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -348,6 +361,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -370,6 +384,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -416,6 +431,7 @@ describe('PreConditionForm', () => {
               comparison: 'lt',
               threshold: 50,
               cooldown_minutes: 5,
+              time_window: null,
             },
           })}
         />,
@@ -439,12 +455,14 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       const preCondition2: PreConditionValue = {
         sensor_type: 'temperature',
         comparison: 'gt',
         threshold: 25,
         cooldown_minutes: 5,
+        time_window: null,
       }
       const onChange1 = vi.fn()
       const onChange2 = vi.fn()
@@ -486,7 +504,8 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
-      } as PreConditionValue
+        time_window: null,
+      } as unknown as PreConditionValue
 
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -502,6 +521,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -514,7 +534,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 50.5)
-      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
     })
 
     it('accepts zero as valid threshold value', async () => {
@@ -523,6 +543,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -535,7 +556,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 0)
-      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
     })
 
     it('handles very large threshold values', async () => {
@@ -544,6 +565,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -556,7 +578,7 @@ describe('PreConditionForm', () => {
       const lastCall =
         mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
       expect(lastCall).toHaveProperty('threshold', 999999)
-      expect(screen.queryByTestId('pre-condition-error-0')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('pre-condition-threshold-error-0')).not.toBeInTheDocument()
     })
 
     it('shows validation error for whitespace-only threshold input', async () => {
@@ -565,6 +587,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -573,7 +596,7 @@ describe('PreConditionForm', () => {
 
       // Wait for RHF async validation
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -584,6 +607,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
 
@@ -591,7 +615,7 @@ describe('PreConditionForm', () => {
       fireEvent.change(thresholdInput, { target: { value: 'abc' } })
 
       await waitFor(() => {
-        expect(screen.getByTestId('pre-condition-error-0')).toBeInTheDocument()
+        expect(screen.getByTestId('pre-condition-threshold-error-0')).toBeInTheDocument()
       })
       expect(mockOnChange).not.toHaveBeenCalled()
     })
@@ -604,6 +628,7 @@ describe('PreConditionForm', () => {
       comparison: 'lt',
       threshold: 100,
       cooldown_minutes: 5,
+      time_window: null,
     }
 
     it('renders cooldown input when enabled', () => {
@@ -708,6 +733,7 @@ describe('PreConditionForm', () => {
       comparison: 'lt',
       threshold: 100,
       cooldown_minutes: 5,
+      time_window: null,
     }
 
     it('renders time window toggle when pre-condition is enabled', () => {
@@ -866,6 +892,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
       expect(screen.getByText('lux')).toBeInTheDocument()
@@ -878,6 +905,7 @@ describe('PreConditionForm', () => {
         comparison: 'gt',
         threshold: 25,
         cooldown_minutes: 5,
+        time_window: null,
       }
       render(<PreConditionForm {...props({ preCondition })} />)
       expect(screen.getByText('\u00B0C')).toBeInTheDocument()
@@ -890,6 +918,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       const { rerender } = render(
         <PreConditionForm {...props({ preCondition })} />,
@@ -915,6 +944,7 @@ describe('PreConditionForm', () => {
       comparison: 'lt',
       threshold: 100,
       cooldown_minutes: 5,
+      time_window: null,
     }
 
     it('wires parentErrors.threshold to threshold input via aria', () => {
@@ -988,6 +1018,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -1011,6 +1042,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
 
       render(<PreConditionForm {...props({ preCondition })} />)
@@ -1036,6 +1068,7 @@ describe('PreConditionForm', () => {
         comparison: 'lt',
         threshold: 100,
         cooldown_minutes: 5,
+        time_window: null,
       }
       const { rerender } = render(
         <PreConditionForm {...props({ preCondition: initial })} />,
