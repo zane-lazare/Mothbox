@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import PreConditionForm from '../PreConditionForm'
 import type { PreConditionValue } from '../PreConditionForm'
+import { TIME_WINDOW_SAME_ERROR } from '../../../../schemas/scheduler/pre-condition'
 
 describe('PreConditionForm', () => {
   let mockOnChange: ReturnType<typeof vi.fn<(value: PreConditionValue | null) => void>>
@@ -791,7 +792,7 @@ describe('PreConditionForm', () => {
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
       await waitFor(() => {
         expect(screen.getByTestId('pre-condition-tw-error-0')).toHaveTextContent(
-          'Start and end times cannot be the same',
+          TIME_WINDOW_SAME_ERROR,
         )
       })
     })

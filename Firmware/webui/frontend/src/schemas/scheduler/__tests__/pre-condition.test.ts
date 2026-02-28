@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   preConditionSchema,
   preConditionTimeWindowSchema,
+  TIME_WINDOW_SAME_ERROR,
 } from '../pre-condition'
 import { SCHEDULE_LIMITS } from '../../../components/scheduler/ScheduleEditor/constants'
 
@@ -244,9 +245,7 @@ describe('preConditionSchema', () => {
         time_window: { start_time: '12:00', end_time: '12:00' },
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe(
-        'Start and end times cannot be the same',
-      )
+      expect(firstError(result)).toBe(TIME_WINDOW_SAME_ERROR)
     })
   })
 })
@@ -311,8 +310,6 @@ describe('preConditionTimeWindowSchema', () => {
       end_time: '14:00',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe(
-      'Start and end times cannot be the same',
-    )
+    expect(firstError(result)).toBe(TIME_WINDOW_SAME_ERROR)
   })
 })
