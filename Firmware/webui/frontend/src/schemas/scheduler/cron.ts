@@ -11,6 +11,9 @@ const CRON_FIELD = String.raw`(?:\*|[0-9]+(?:-[0-9]+)?)(?:/[0-9]+)?(?:,(?:\*|[0-
  * Regex matching a 5-field cron expression (minute hour day month weekday).
  * Exported for direct use in tests and parent schemas.
  */
+// Note: \s+ intentionally allows any whitespace (tabs, multiple spaces).
+// */0 is accepted by the regex (semantically invalid step value).
+// Both are by design — this is a format check only; the server validates semantics.
 export const CRON_FORMAT_REGEX = new RegExp(
   `^${CRON_FIELD}(?:\\s+${CRON_FIELD}){4}$`,
 )

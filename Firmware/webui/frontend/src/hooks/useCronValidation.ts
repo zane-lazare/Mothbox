@@ -102,6 +102,10 @@ export function useCronValidation(
     return null
   }
 
+  // The full UseQueryResult is spread for backward compatibility with existing
+  // .jsx consumers (e.g., isFetching, isSuccess). The declared return type
+  // UseCronValidationReturn intentionally narrows the TS contract so new typed
+  // consumers use only the stable API surface.
   return {
     ...query,
     errorMessage: getErrorMessage(),

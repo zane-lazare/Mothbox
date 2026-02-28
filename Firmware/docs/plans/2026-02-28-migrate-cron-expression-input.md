@@ -1,7 +1,5 @@
 # CronExpressionInput Migration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Migrate CronExpressionInput, useCronValidation, and ExpertMode constants from .jsx/.js to .tsx/.ts with Zod schema and full TypeScript typing.
 
 **Architecture:** Thin typed wrapper — no internal RHF form. Component stays pure controlled (`value`/`onChange`/`disabled`). A Zod schema provides sync format validation for composability. The existing `useCronValidation` hook is typed with explicit interfaces for the API response.

@@ -26,7 +26,7 @@ export const CRON_PRESETS: readonly CronPreset[] = [
   { label: 'Daily midnight', expression: '0 0 * * *' },
   { label: 'Daily 9 PM', expression: '0 21 * * *' },
   { label: 'Weekdays 9 PM', expression: '0 21 * * 1-5' },
-] as const
+]
 
 /** Help text for cron expression format */
 export const CRON_HELP: CronHelp = {
@@ -39,4 +39,4 @@ export const CRON_HELP: CronHelp = {
     { name: 'weekday', range: '0-6 (Sun-Sat)' },
   ],
   special: '* = any, */N = every N, N-M = range, N,M = list',
-} as const
+}
