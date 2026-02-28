@@ -154,7 +154,8 @@ export default function PreConditionForm({
       watchedSensorType === undefined ||
       watchedComparison === undefined ||
       watchedThreshold === undefined ||
-      watchedCooldown === undefined
+      watchedCooldown === undefined ||
+      watchedTimeWindow === undefined
     ) return
 
     // Only propagate when enabled
@@ -233,6 +234,9 @@ export default function PreConditionForm({
   }
 
   // -- Cross-field derived error ----------------------------------------------
+  // The Zod schema also validates this via .refine(), but we derive it here
+  // for immediate UI feedback — the schema error at errors.time_window.end_time
+  // is not surfaced because the inline layout uses a single error paragraph.
 
   const timeWindowError =
     watchedTimeWindow?.start_time &&
@@ -462,7 +466,7 @@ export default function PreConditionForm({
               onChange={handleTimeWindowToggle}
               disabled={disabled}
               className="rounded border-gray-600 disabled:opacity-50"
-              data-testid="pre-condition-time-window-toggle"
+              data-testid={`pre-condition-time-window-toggle-${routineIndex}`}
             />
             <label
               htmlFor={`pre-condition-tw-toggle-${routineIndex}`}
@@ -475,6 +479,7 @@ export default function PreConditionForm({
           {/* Time window fields */}
           {preCondition?.time_window && (
             <div className="pl-6 flex items-center gap-2 text-sm">
+              {/* Fallback value covers the tick before prop-sync resets the form */}
               <Controller
                 name="time_window.start_time"
                 control={control}
@@ -487,6 +492,12 @@ export default function PreConditionForm({
                     ref={field.ref}
                     disabled={disabled}
                     aria-label="Time window start"
+                    aria-invalid={!!timeWindowError}
+                    aria-describedby={
+                      timeWindowError
+                        ? `tw-error-${routineIndex}`
+                        : undefined
+                    }
                     className="rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                                focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -508,6 +519,12 @@ export default function PreConditionForm({
                     ref={field.ref}
                     disabled={disabled}
                     aria-label="Time window end"
+                    aria-invalid={!!timeWindowError}
+                    aria-describedby={
+                      timeWindowError
+                        ? `tw-error-${routineIndex}`
+                        : undefined
+                    }
                     className="rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-800 px-2 py-1 text-gray-900 dark:text-white
                                focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -521,6 +538,7 @@ export default function PreConditionForm({
           {/* Time window validation error */}
           {timeWindowError && (
             <p
+              id={`tw-error-${routineIndex}`}
               role="alert"
               className="pl-6 text-sm text-red-600 dark:text-red-400"
               data-testid="pre-condition-tw-error"

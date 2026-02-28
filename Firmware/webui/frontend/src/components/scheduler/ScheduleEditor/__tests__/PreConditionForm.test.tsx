@@ -693,8 +693,8 @@ describe('PreConditionForm', () => {
 
     it('renders time window toggle when pre-condition is enabled', () => {
       render(<PreConditionForm {...props({ preCondition: preConditionBase })} />)
-      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeInTheDocument()
-      expect(screen.getByTestId('pre-condition-time-window-toggle')).not.toBeChecked()
+      expect(screen.getByTestId('pre-condition-time-window-toggle-0')).toBeInTheDocument()
+      expect(screen.getByTestId('pre-condition-time-window-toggle-0')).not.toBeChecked()
     })
 
     it('shows time inputs when time window toggle is checked', () => {
@@ -703,7 +703,7 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '21:00', end_time: '06:00' },
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
-      expect(screen.getByTestId('pre-condition-time-window-toggle')).toBeChecked()
+      expect(screen.getByTestId('pre-condition-time-window-toggle-0')).toBeChecked()
       expect(screen.getByTestId('pre-condition-tw-start')).toHaveValue('21:00')
       expect(screen.getByTestId('pre-condition-tw-end')).toHaveValue('06:00')
     })
@@ -716,7 +716,7 @@ describe('PreConditionForm', () => {
 
     it('enables time window with defaults when toggle checked', async () => {
       render(<PreConditionForm {...props({ preCondition: preConditionBase })} />)
-      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle-0')
       fireEvent.click(toggle)
 
       // Time window toggle bypasses RHF - synchronous
@@ -734,7 +734,7 @@ describe('PreConditionForm', () => {
         time_window: { start_time: '21:00', end_time: '06:00' },
       }
       render(<PreConditionForm {...props({ preCondition: withTimeWindow })} />)
-      const toggle = screen.getByTestId('pre-condition-time-window-toggle')
+      const toggle = screen.getByTestId('pre-condition-time-window-toggle-0')
       fireEvent.click(toggle)
 
       await waitFor(() => {
