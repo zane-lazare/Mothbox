@@ -26,5 +26,5 @@ export {
   SEARCH_FIELDS,
   SEARCH_OPERATORS,
   BOOLEAN_OPERATORS,
-} from './search'
-export type { AdvancedSearchFormData, SearchCondition } from './search'
+} from './search';
+export type { AdvancedSearchFormData, SearchCondition } from './search';
