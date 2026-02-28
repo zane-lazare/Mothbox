@@ -154,6 +154,8 @@ export default function PreConditionForm({
 
   // Propagate validated form changes -> parent
   useEffect(() => {
+    // useWatch returns undefined before RHF initialises; time_window can
+    // legitimately be null (disabled) — only skip when truly uninitialised.
     if (
       watchedSensorType === undefined ||
       watchedComparison === undefined ||

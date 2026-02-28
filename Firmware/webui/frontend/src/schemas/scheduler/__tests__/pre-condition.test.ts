@@ -5,6 +5,8 @@ import {
   TIME_WINDOW_SAME_ERROR,
 } from '../pre-condition'
 import { SCHEDULE_LIMITS } from '../../../components/scheduler/ScheduleEditor/constants'
+// @ts-expect-error — errorMessages.js has no type declarations (pre-migration)
+import { TIME_ERRORS } from '../../../components/scheduler/ScheduleEditor/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -311,5 +313,26 @@ describe('preConditionTimeWindowSchema', () => {
     })
     expect(result.success).toBe(false)
     expect(firstError(result)).toBe(TIME_WINDOW_SAME_ERROR)
+  })
+
+  it('rejects empty object (both fields missing)', () => {
+    const result = preConditionTimeWindowSchema.safeParse({})
+    expect(result.success).toBe(false)
+    expect(firstError(result)).toBe('Start time is required')
+  })
+
+  it('rejects missing end_time', () => {
+    const result = preConditionTimeWindowSchema.safeParse({
+      start_time: '06:00',
+    })
+    expect(result.success).toBe(false)
+    expect(firstError(result)).toBe('End time is required')
+  })
+})
+
+// ── Drift guard ──────────────────────────────────────────────────────────
+describe('error message consistency', () => {
+  it('TIME_WINDOW_SAME_ERROR matches TIME_ERRORS.SAME_START_END', () => {
+    expect(TIME_WINDOW_SAME_ERROR).toBe(TIME_ERRORS.SAME_START_END)
   })
 })

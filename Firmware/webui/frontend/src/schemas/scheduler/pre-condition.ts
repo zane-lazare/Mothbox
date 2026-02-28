@@ -29,6 +29,9 @@ export const preConditionTimeWindowSchema = z
       .string({ error: 'End time is required' })
       .regex(TIME_FORMAT_REGEX, 'Time must be in HH:MM format'),
   })
+  // This condition is also derived inline in PreConditionForm.tsx (timeWindowError)
+  // because RHF mode:'onChange' does not run the resolver on mount.
+  // If this condition changes, update both locations.
   .refine((data) => data.start_time !== data.end_time, {
     message: TIME_WINDOW_SAME_ERROR,
     path: ['end_time'],
