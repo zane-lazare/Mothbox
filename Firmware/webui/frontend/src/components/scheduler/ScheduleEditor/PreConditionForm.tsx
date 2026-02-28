@@ -238,13 +238,13 @@ export default function PreConditionForm({
     }
   }
 
-  // -- Cross-field derived error ----------------------------------------------
-  // Duplicates the .refine() in preConditionTimeWindowSchema
-  // (see schemas/scheduler/pre-condition.ts). We derive it here for immediate
-  // UI feedback — RHF puts the schema error at errors.time_window.end_time,
-  // which isn't surfaced because the inline layout uses a single error paragraph.
-  // If the condition changes, update both this check and the schema refine.
-
+  // -- Time window errors -------------------------------------------------------
+  // Cross-field check: must be derived inline because RHF mode:'onChange' only
+  // runs the Zod resolver on field changes, not on mount. When the component
+  // renders with same start/end already set (e.g., from parent props), the
+  // resolver hasn't fired yet and errors.time_window.end_time is empty.
+  // Mirrors the .refine() in preConditionTimeWindowSchema (see
+  // schemas/scheduler/pre-condition.ts). If the condition changes, update both.
   const timeWindowError =
     watchedTimeWindow?.start_time &&
     watchedTimeWindow?.end_time &&
@@ -252,11 +252,10 @@ export default function PreConditionForm({
       ? TIME_WINDOW_SAME_ERROR
       : null
 
-  // RHF field-level errors for individual time inputs (e.g., format regex).
-  // Unlikely with <input type="time"> but wired for accessibility completeness.
-  const twStartError = errors.time_window?.start_time?.message
-  const twEndError = errors.time_window?.end_time?.message
-  const twAnyError = timeWindowError ?? twStartError ?? twEndError ?? null
+  // Field-level errors from RHF (e.g., format regex failures on time inputs).
+  const twStartError = errors.time_window?.start_time?.message ?? null
+  const twEndError = errors.time_window?.end_time?.message ?? null
+  const twAnyError = timeWindowError ?? twStartError ?? twEndError
 
   return (
     <div className="space-y-3">
