@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react'
-import PropTypes from 'prop-types'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { Z_INDEX } from '../../constants/config'
+import {
+  advancedSearchSchema,
+  type AdvancedSearchFormData,
+  type SearchCondition,
+} from '../../schemas/search'
 
-// Field options for the dropdown
-const FIELD_OPTIONS = [
+// -- Constants (component-local, single consumer) ----------------------------
+
+interface FieldOption {
+  readonly value: SearchCondition['field']
+  readonly label: string
+  readonly queryPrefix: string
+}
+
+const FIELD_OPTIONS: readonly FieldOption[] = [
   { value: 'tags', label: 'Tags', queryPrefix: 'tag' },
   { value: 'species', label: 'Species', queryPrefix: 'species' },
   { value: 'name', label: 'Common Name', queryPrefix: 'name' },
@@ -13,199 +25,170 @@ const FIELD_OPTIONS = [
   { value: 'any', label: 'Any Field', queryPrefix: '' },
 ]
 
-// Operator options
 const OPERATOR_OPTIONS = [
   { value: 'contains', label: 'contains' },
   { value: 'equals', label: 'equals' },
   { value: 'starts_with', label: 'starts with' },
   { value: 'excludes', label: 'excludes' },
-]
+] as const
 
-// Boolean operator options
 const BOOLEAN_OPTIONS = [
   { value: 'AND', label: 'AND' },
   { value: 'OR', label: 'OR' },
-]
+] as const
 
-/**
- * Advanced Search Builder component
- *
- * Visual query builder that generates search syntax
- *
- * @param {Object} props
- * @param {function} props.onQueryChange - Called when query changes
- * @param {function} props.onClose - Called when builder is closed
- * @param {string} [props.initialQuery] - Initial query to parse
- */
+// -- Default values ----------------------------------------------------------
+
+const DEFAULT_VALUES: AdvancedSearchFormData = {
+  conditions: [{ field: 'tags', operator: 'contains', value: '' }],
+  booleanOperator: 'AND',
+  dateFrom: '',
+  dateTo: '',
+}
+
+// -- Pure functions ----------------------------------------------------------
+
+/** Transform form data into an FTS5 query string. */
+function generateQuery(data: AdvancedSearchFormData): string {
+  const conditionQueries = data.conditions
+    .filter((c) => c.value.trim())
+    .map((condition) => {
+      const field = FIELD_OPTIONS.find((f) => f.value === condition.field)
+      const prefix = field?.queryPrefix || ''
+      let queryValue = condition.value.trim()
+
+      switch (condition.operator) {
+        case 'equals':
+          queryValue = `"${queryValue}"`
+          break
+        case 'starts_with':
+          queryValue = `${queryValue}*`
+          break
+        case 'excludes':
+          return prefix ? `NOT ${prefix}:${queryValue}` : `NOT ${queryValue}`
+        case 'contains':
+        default:
+          break
+      }
+
+      return prefix ? `${prefix}:${queryValue}` : queryValue
+    })
+
+  let query = conditionQueries.join(` ${data.booleanOperator} `)
+
+  if (data.dateFrom && data.dateTo) {
+    const dateQuery = `date:${data.dateFrom}..${data.dateTo}`
+    query = query ? `${query} AND ${dateQuery}` : dateQuery
+  }
+
+  return query
+}
+
+/** Parse an FTS5 query string into form default values. */
+function parseInitialQuery(query: string): AdvancedSearchFormData {
+  const result: AdvancedSearchFormData = { ...DEFAULT_VALUES, conditions: [] }
+  let remainingQuery = query
+
+  // Extract date range filter (date:YYYY-MM-DD..YYYY-MM-DD)
+  const dateRangePattern = /date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})/
+  const dateRangeMatch = remainingQuery.match(dateRangePattern)
+  if (dateRangeMatch) {
+    result.dateFrom = dateRangeMatch[1]
+    result.dateTo = dateRangeMatch[2]
+    remainingQuery = remainingQuery.replace(dateRangePattern, '').trim()
+  }
+
+  // Handle comparison operators (date:>=YYYY-MM-DD, date:<=YYYY-MM-DD)
+  const dateComparePattern = /date:([<>]=?)(\d{4}-\d{2}-\d{2})/
+  const dateCompareMatch = remainingQuery.match(dateComparePattern)
+  if (dateCompareMatch) {
+    const [, operator, dateValue] = dateCompareMatch
+    if (operator === '>=' || operator === '>') {
+      result.dateFrom = dateValue
+    } else if (operator === '<=' || operator === '<') {
+      result.dateTo = dateValue
+    }
+    remainingQuery = remainingQuery.replace(dateComparePattern, '').trim()
+  }
+
+  // Remove trailing/leading AND/OR
+  remainingQuery = remainingQuery.replace(/\s+(AND|OR)\s*$/i, '').trim()
+  remainingQuery = remainingQuery.replace(/^\s*(AND|OR)\s+/i, '').trim()
+
+  // Parse field:value patterns
+  const fieldPattern = /(\w+):([^\s]+)/g
+  const matches = [...remainingQuery.matchAll(fieldPattern)]
+
+  const fieldMapping: Record<string, SearchCondition['field']> = {
+    tag: 'tags',
+    tags: 'tags',
+    species: 'species',
+    name: 'name',
+    filename: 'filename',
+    notes: 'notes',
+  }
+
+  if (matches.length > 0) {
+    const parsedConditions: SearchCondition[] = matches
+      .filter((match) => match[1] !== 'date')
+      .map((match) => {
+        const [, field, value] = match
+        const mappedField = fieldMapping[field] || 'any'
+        return { field: mappedField, operator: 'contains' as const, value }
+      })
+
+    if (parsedConditions.length > 0) {
+      result.conditions = parsedConditions
+    }
+  } else if (!dateRangeMatch && !dateCompareMatch) {
+    if (remainingQuery.trim()) {
+      result.conditions = [{ field: 'any', operator: 'contains', value: remainingQuery.trim() }]
+    }
+  }
+
+  // Ensure at least one condition
+  if (result.conditions.length === 0) {
+    result.conditions = [{ field: 'tags', operator: 'contains', value: '' }]
+  }
+
+  return result
+}
+
+// -- Component ---------------------------------------------------------------
+
+export interface AdvancedSearchBuilderProps {
+  onQueryChange: (query: string) => void
+  onClose: () => void
+  initialQuery?: string
+}
+
 export function AdvancedSearchBuilder({
   onQueryChange,
   onClose,
-  initialQuery = ''
-}) {
-  // State for search conditions
-  const [conditions, setConditions] = useState([
-    { field: 'tags', operator: 'contains', value: '' }
-  ])
+  initialQuery = '',
+}: AdvancedSearchBuilderProps) {
+  const defaultValues = initialQuery ? parseInitialQuery(initialQuery) : DEFAULT_VALUES
 
-  // State for boolean operator between conditions
-  const [booleanOperator, setBooleanOperator] = useState('AND')
+  const { register, control, reset } = useForm<AdvancedSearchFormData>({
+    resolver: zodResolver(advancedSearchSchema),
+    defaultValues,
+    mode: 'onBlur',
+  })
 
-  // State for date range
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const { fields, append, remove } = useFieldArray({ control, name: 'conditions' })
 
-  // Parse initial query if provided
-  useEffect(() => {
-    if (initialQuery) {
-      parseInitialQuery(initialQuery)
-    }
-  }, [initialQuery])
+  // Watch all form values for query preview and apply
+  const watchedValues = useWatch({ control }) as AdvancedSearchFormData
 
-  // Parse initial query into conditions
-  const parseInitialQuery = (query) => {
-    let remainingQuery = query
+  const queryPreview = generateQuery(watchedValues)
 
-    // First, extract and handle date range filter (date:YYYY-MM-DD..YYYY-MM-DD)
-    const dateRangePattern = /date:(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})/
-    const dateRangeMatch = remainingQuery.match(dateRangePattern)
-    if (dateRangeMatch) {
-      setDateFrom(dateRangeMatch[1])
-      setDateTo(dateRangeMatch[2])
-      remainingQuery = remainingQuery.replace(dateRangePattern, '').trim()
-    }
-
-    // Handle comparison operators (date:>=YYYY-MM-DD, date:<=YYYY-MM-DD, etc.)
-    const dateComparePattern = /date:([<>]=?)(\d{4}-\d{2}-\d{2})/
-    const dateCompareMatch = remainingQuery.match(dateComparePattern)
-    if (dateCompareMatch) {
-      const [, operator, dateValue] = dateCompareMatch
-      // For comparison operators, set as single boundary
-      if (operator === '>=' || operator === '>') {
-        setDateFrom(dateValue)
-      } else if (operator === '<=' || operator === '<') {
-        setDateTo(dateValue)
-      }
-      remainingQuery = remainingQuery.replace(dateComparePattern, '').trim()
-    }
-
-    // Remove any trailing AND/OR from query after removing date filter
-    remainingQuery = remainingQuery.replace(/\s+(AND|OR)\s*$/i, '').trim()
-    remainingQuery = remainingQuery.replace(/^\s*(AND|OR)\s+/i, '').trim()
-
-    // Now parse remaining field:value patterns
-    const fieldPattern = /(\w+):([^\s]+)/g
-    const matches = [...remainingQuery.matchAll(fieldPattern)]
-
-    // Map field to our internal field names
-    const fieldMapping = {
-      tag: 'tags',
-      tags: 'tags',
-      species: 'species',
-      name: 'name',
-      filename: 'filename',
-      notes: 'notes',
-    }
-
-    if (matches.length > 0) {
-      const parsedConditions = matches
-        .filter(match => match[1] !== 'date') // Skip any remaining date: patterns
-        .map(match => {
-          const [, field, value] = match
-          const mappedField = fieldMapping[field] || 'any'
-          return { field: mappedField, operator: 'contains', value }
-        })
-
-      if (parsedConditions.length > 0) {
-        setConditions(parsedConditions)
-      }
-    } else if (!dateRangeMatch && !dateCompareMatch) {
-      // No field:value patterns and no date filter - might be plain text search
-      if (remainingQuery.trim()) {
-        setConditions([{ field: 'any', operator: 'contains', value: remainingQuery.trim() }])
-      }
-    }
-  }
-
-  // Generate query from current conditions
-  const generateQuery = () => {
-    // Build query from conditions
-    const conditionQueries = conditions
-      .filter(c => c.value.trim())
-      .map(condition => {
-        const field = FIELD_OPTIONS.find(f => f.value === condition.field)
-        const prefix = field?.queryPrefix || ''
-        let queryValue = condition.value.trim()
-
-        // Apply operator transformations
-        switch (condition.operator) {
-          case 'equals':
-            // Wrap in quotes for exact match
-            queryValue = `"${queryValue}"`
-            break
-          case 'starts_with':
-            // Add asterisk for prefix match
-            queryValue = `${queryValue}*`
-            break
-          case 'excludes':
-            // Add NOT operator
-            return prefix ? `NOT ${prefix}:${queryValue}` : `NOT ${queryValue}`
-          case 'contains':
-          default:
-            // Default behavior
-            break
-        }
-
-        return prefix ? `${prefix}:${queryValue}` : queryValue
-      })
-
-    // Join conditions with boolean operator
-    let query = conditionQueries.join(` ${booleanOperator} `)
-
-    // Add date range if provided
-    if (dateFrom && dateTo) {
-      const dateQuery = `date:${dateFrom}..${dateTo}`
-      query = query ? `${query} AND ${dateQuery}` : dateQuery
-    }
-
-    return query
-  }
-
-  // Add a new condition
-  const addCondition = () => {
-    setConditions([...conditions, { field: 'tags', operator: 'contains', value: '' }])
-  }
-
-  // Remove a condition
-  const removeCondition = (index) => {
-    if (conditions.length > 1) {
-      const newConditions = conditions.filter((_, i) => i !== index)
-      setConditions(newConditions)
-    }
-  }
-
-  // Update a condition
-  const updateCondition = (index, updates) => {
-    const newConditions = [...conditions]
-    newConditions[index] = { ...newConditions[index], ...updates }
-    setConditions(newConditions)
-  }
-
-  // Clear all conditions
-  const clearAll = () => {
-    setConditions([{ field: 'tags', operator: 'contains', value: '' }])
-    setBooleanOperator('AND')
-    setDateFrom('')
-    setDateTo('')
-  }
-
-  // Apply search
   const handleApply = () => {
-    const query = generateQuery()
-    onQueryChange?.(query)
+    onQueryChange?.(queryPreview)
   }
 
-  // Get current query preview
-  const queryPreview = generateQuery()
+  const clearAll = () => {
+    reset(DEFAULT_VALUES)
+  }
 
   return (
     <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center ${Z_INDEX.MODAL}`}>
@@ -230,20 +213,19 @@ export function AdvancedSearchBuilder({
         <div className="p-6 space-y-6">
           {/* Conditions */}
           <div className="space-y-4">
-            {conditions.map((condition, index) => (
-              <div key={index}>
+            {fields.map((item, index) => (
+              <div key={item.id}>
                 {/* Condition row */}
                 <div className="flex items-center gap-2">
                   {/* Field select */}
                   <select
                     aria-label="Field"
-                    value={condition.field}
-                    onChange={(e) => updateCondition(index, { field: e.target.value })}
+                    {...register(`conditions.${index}.field`)}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                                focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                                bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
-                    {FIELD_OPTIONS.map(option => (
+                    {FIELD_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -253,13 +235,12 @@ export function AdvancedSearchBuilder({
                   {/* Operator select */}
                   <select
                     aria-label="Operator"
-                    value={condition.operator}
-                    onChange={(e) => updateCondition(index, { operator: e.target.value })}
+                    {...register(`conditions.${index}.operator`)}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                                focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                                bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
-                    {OPERATOR_OPTIONS.map(option => (
+                    {OPERATOR_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -270,8 +251,7 @@ export function AdvancedSearchBuilder({
                   <input
                     type="text"
                     aria-label="Value"
-                    value={condition.value}
-                    onChange={(e) => updateCondition(index, { value: e.target.value })}
+                    {...register(`conditions.${index}.value`)}
                     placeholder="Enter value..."
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                                focus:ring-2 focus:ring-blue-500 focus:border-blue-500
@@ -280,10 +260,10 @@ export function AdvancedSearchBuilder({
                   />
 
                   {/* Remove button (only show if more than one condition) */}
-                  {conditions.length > 1 && (
+                  {fields.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => removeCondition(index)}
+                      onClick={() => remove(index)}
                       aria-label="Remove"
                       className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20
                                  rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -294,18 +274,17 @@ export function AdvancedSearchBuilder({
                 </div>
 
                 {/* Boolean operator (show between conditions) */}
-                {index < conditions.length - 1 && (
+                {index < fields.length - 1 && (
                   <div className="flex items-center justify-center my-2">
                     <select
                       aria-label="Combine with"
-                      value={booleanOperator}
-                      onChange={(e) => setBooleanOperator(e.target.value)}
+                      {...register('booleanOperator')}
                       className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md
                                  focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                                  text-sm font-medium"
                     >
-                      {BOOLEAN_OPTIONS.map(option => (
+                      {BOOLEAN_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -321,7 +300,7 @@ export function AdvancedSearchBuilder({
           <div>
             <button
               type="button"
-              onClick={addCondition}
+              onClick={() => append({ field: 'tags', operator: 'contains', value: '' })}
               className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400
                          hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md
                          focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -347,8 +326,7 @@ export function AdvancedSearchBuilder({
                   type="date"
                   id="date-from"
                   aria-label="From Date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  {...register('dateFrom')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                              focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                              bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -365,8 +343,7 @@ export function AdvancedSearchBuilder({
                   type="date"
                   id="date-to"
                   aria-label="To Date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  {...register('dateTo')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                              focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                              bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -415,10 +392,4 @@ export function AdvancedSearchBuilder({
       </div>
     </div>
   )
-}
-
-AdvancedSearchBuilder.propTypes = {
-  onQueryChange: PropTypes.func.isRequired,
-  onClose: PropTypes.func.isRequired,
-  initialQuery: PropTypes.string,
 }
