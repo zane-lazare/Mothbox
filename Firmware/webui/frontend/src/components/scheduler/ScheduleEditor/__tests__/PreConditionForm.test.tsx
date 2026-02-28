@@ -960,6 +960,54 @@ describe('PreConditionForm', () => {
     })
   })
 
+  describe('trigger_type preservation', () => {
+    it('preserves trigger_type when form fields change', async () => {
+      const preCondition: PreConditionValue = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+        cooldown_minutes: 5,
+      }
+
+      render(<PreConditionForm {...props({ preCondition })} />)
+
+      const thresholdInput = screen.getByTestId('pre-condition-threshold-0')
+      fireEvent.change(thresholdInput, { target: { value: '50' } })
+
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalled()
+      })
+      const lastCall =
+        mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
+      expect(lastCall).toHaveProperty('trigger_type', 'sensor')
+      expect(lastCall).toHaveProperty('threshold', 50)
+    })
+
+    it('preserves trigger_type when sensor_type changes', async () => {
+      const preCondition: PreConditionValue = {
+        trigger_type: 'sensor',
+        sensor_type: 'light',
+        comparison: 'lt',
+        threshold: 100,
+        cooldown_minutes: 5,
+      }
+
+      render(<PreConditionForm {...props({ preCondition })} />)
+
+      const sensorSelect = screen.getByTestId('pre-condition-sensor-0')
+      fireEvent.change(sensorSelect, { target: { value: 'temperature' } })
+
+      await waitFor(() => {
+        expect(mockOnChange).toHaveBeenCalled()
+      })
+      const lastCall =
+        mockOnChange.mock.calls[mockOnChange.mock.calls.length - 1][0] as PreConditionValue
+      expect(lastCall).toHaveProperty('trigger_type', 'sensor')
+      expect(lastCall).toHaveProperty('sensor_type', 'temperature')
+    })
+  })
+
   describe('Prop sync', () => {
     it('updates form when preCondition prop changes externally', async () => {
       const initial: PreConditionValue = {

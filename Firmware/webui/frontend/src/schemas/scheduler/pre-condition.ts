@@ -7,6 +7,9 @@ import {
 /** Cross-field error when start and end times match */
 export const TIME_WINDOW_SAME_ERROR = 'Start and end times cannot be the same'
 
+/** Sensor types allowed in pre-conditions (excludes motion per issue #325) */
+export const ALLOWED_SENSOR_TYPES = ['light', 'temperature'] as const
+
 /**
  * Schema for the optional time window nested inside a pre-condition.
  * Simple HH:MM-only times (no solar events, no offsets).
@@ -31,7 +34,7 @@ export const preConditionTimeWindowSchema = z
  * The enable/disable toggle is component-level state, not validated here.
  */
 export const preConditionSchema = z.object({
-  sensor_type: z.enum(['light', 'temperature'], {
+  sensor_type: z.enum(ALLOWED_SENSOR_TYPES, {
     error: 'Invalid sensor type',
   }),
   comparison: z.enum(['lt', 'gt', 'eq'], {

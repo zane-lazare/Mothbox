@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
 import {
   preConditionSchema,
+  ALLOWED_SENSOR_TYPES,
   TIME_WINDOW_SAME_ERROR,
   type PreConditionFormData,
 } from '../../../schemas/scheduler/pre-condition'
@@ -296,7 +297,7 @@ export default function PreConditionForm({
                 >
                   {SENSOR_TYPES.filter(
                     (s: { value: string; label: string }) =>
-                      (['light', 'temperature'] as string[]).includes(s.value),
+                      (ALLOWED_SENSOR_TYPES as readonly string[]).includes(s.value),
                   ).map((sensor: { value: string; label: string }) => (
                     <option key={sensor.value} value={sensor.value}>
                       {sensor.label}
@@ -310,6 +311,7 @@ export default function PreConditionForm({
                 id={`sensor_type-error-${routineIndex}`}
                 role="alert"
                 className="text-sm text-red-600 dark:text-red-400"
+                data-testid={`pre-condition-sensor-error-${routineIndex}`}
               >
                 {errors.sensor_type?.message || parentErrors.sensor_type}
               </p>
@@ -354,6 +356,7 @@ export default function PreConditionForm({
                 id={`comparison-error-${routineIndex}`}
                 role="alert"
                 className="text-sm text-red-600 dark:text-red-400"
+                data-testid={`pre-condition-op-error-${routineIndex}`}
               >
                 {errors.comparison?.message || parentErrors.comparison}
               </p>
