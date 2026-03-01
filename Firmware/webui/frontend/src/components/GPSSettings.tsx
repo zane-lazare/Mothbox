@@ -8,6 +8,7 @@ import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../util
 // @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useEffect, useMemo, useRef, useState } from 'react'
+// Resolver type import is only needed for the zodResolver cast workaround — remove with TODO(#485)
 import { Controller, useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -33,7 +34,7 @@ export default function GPSSettings() {
   const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
     resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
     defaultValues: GPS_SETTINGS_DEFAULTS,
-    mode: 'onBlur',
+    mode: 'onTouched',
   })
 
   const pendingValues = useRef<GpsSettingsFormData | null>(null)
@@ -240,7 +241,7 @@ export default function GPSSettings() {
       const isTimeout = message.includes('timeout') || error.response?.status === 408
 
       if (isTimeout) {
-        const timeoutValue = values.timeout || 60
+        const timeoutValue = gpsConfig?.timeout ?? 60
         toast.error(
           `⏱️ GPS sync timeout (${timeoutValue}s)\n\n` +
           `Troubleshooting:\n` +
