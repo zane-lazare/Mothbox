@@ -195,7 +195,9 @@ describe('GPSSettings', () => {
       data: { ...mockGPSConfig, device: '/dev/ttyS0' },
     })
 
-    // Trigger a re-render by invalidating (simulate TanStack Query refetch)
+    // Actually trigger the refetch via TanStack Query invalidation
+    await queryClient.invalidateQueries({ queryKey: ['gps-config'] })
+
     // The form should keep the user's typed value, not reset to /dev/ttyS0
     await waitFor(() => {
       expect(input).toHaveValue('/dev/ttyUSB1')

@@ -29,7 +29,7 @@ export default function GPSSettings() {
   // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
   // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
   // The cast through `unknown` is safe because the schema validates the same
-  // shape at runtime. TODO: Remove when @hookform/resolvers aligns with Zod 4.
+  // shape at runtime. TODO(#485): Remove when @hookform/resolvers aligns with Zod 4.
   const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
     resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
     defaultValues: GPS_SETTINGS_DEFAULTS,
@@ -72,7 +72,7 @@ export default function GPSSettings() {
       const result = gpsSettingsSchema.safeParse(res.data)
       if (!result.success) {
         console.warn('GPS config from server failed validation:', result.error)
-        return res.data as GpsSettingsFormData
+        return { ...GPS_SETTINGS_DEFAULTS, ...(res.data as Partial<GpsSettingsFormData>) }
       }
       return result.data
     }),
@@ -117,6 +117,7 @@ export default function GPSSettings() {
     return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
   }, [gpsStatus?.last_known_lon, gpsPrecision])
 
+  // TODO(#197): Type mutation generics once api.js is migrated to TypeScript
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateConfigMutation = useMutation<any, any, Record<string, unknown>>({
     mutationFn: updateGpsConfig,
@@ -760,7 +761,7 @@ export default function GPSSettings() {
       {/* GPS Service Restart Confirmation */}
       <ConfirmDialog
         isOpen={showRestartConfirm}
-        onClose={() => setShowRestartConfirm(false)}
+        onClose={() => { setShowRestartConfirm(false); pendingValues.current = null }}
         onConfirm={doSaveConfig}
         title="Restart GPS Service?"
         message="Changing device or baud rate will restart the GPS service. Any GPS sync in progress will be interrupted."
