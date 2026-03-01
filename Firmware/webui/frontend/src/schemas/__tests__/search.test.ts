@@ -63,19 +63,19 @@ describe('searchConditionSchema', () => {
   })
 
   it('rejects missing field', () => {
-    const { field, ...rest } = validCondition
+    const { field: _field, ...rest } = validCondition
     const result = searchConditionSchema.safeParse(rest)
     expect(result.success).toBe(false)
   })
 
   it('rejects missing operator', () => {
-    const { operator, ...rest } = validCondition
+    const { operator: _operator, ...rest } = validCondition
     const result = searchConditionSchema.safeParse(rest)
     expect(result.success).toBe(false)
   })
 
   it('rejects missing value', () => {
-    const { value, ...rest } = validCondition
+    const { value: _value, ...rest } = validCondition
     const result = searchConditionSchema.safeParse(rest)
     expect(result.success).toBe(false)
   })
@@ -136,13 +136,13 @@ describe('advancedSearchSchema', () => {
   })
 
   it('rejects missing conditions', () => {
-    const { conditions, ...rest } = validData
+    const { conditions: _conditions, ...rest } = validData
     const result = advancedSearchSchema.safeParse(rest)
     expect(result.success).toBe(false)
   })
 
   it('rejects missing booleanOperator', () => {
-    const { booleanOperator, ...rest } = validData
+    const { booleanOperator: _booleanOperator, ...rest } = validData
     const result = advancedSearchSchema.safeParse(rest)
     expect(result.success).toBe(false)
   })
