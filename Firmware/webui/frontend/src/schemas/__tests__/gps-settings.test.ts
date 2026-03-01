@@ -219,25 +219,10 @@ describe('gpsSettingsSchema', () => {
     })
   })
 
-  describe('timeout (base) validation', () => {
-    it('accepts value at minimum (5)', () => {
-      const result = gpsSettingsSchema.safeParse(validConfig({ timeout: 5 }))
-      expect(result.success).toBe(true)
-    })
-
-    it('accepts value at maximum (60)', () => {
-      const result = gpsSettingsSchema.safeParse(validConfig({ timeout: 60 }))
-      expect(result.success).toBe(true)
-    })
-
-    it('rejects value below minimum', () => {
-      const result = gpsSettingsSchema.safeParse(validConfig({ timeout: 4 }))
-      expect(result.success).toBe(false)
-    })
-
-    it('rejects value above maximum', () => {
-      const result = gpsSettingsSchema.safeParse(validConfig({ timeout: 61 }))
-      expect(result.success).toBe(false)
+  describe('timeout (base, legacy pass-through)', () => {
+    it('accepts any numeric value (no UI constraints — backend-only field)', () => {
+      expect(gpsSettingsSchema.safeParse(validConfig({ timeout: 1 })).success).toBe(true)
+      expect(gpsSettingsSchema.safeParse(validConfig({ timeout: 300 })).success).toBe(true)
     })
 
     it('coerces string to number', () => {

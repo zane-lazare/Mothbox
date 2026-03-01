@@ -287,9 +287,9 @@ export default function GPSSettings() {
 
   const doSaveConfig = () => {
     setShowRestartConfirm(false)
-    const values = pendingValues.current ?? getValues()
+    // pendingValues is always set by handleSaveConfig before the dialog opens
+    submitConfig(pendingValues.current!)
     pendingValues.current = null
-    submitConfig(values)
   }
 
   if (configLoading) {
@@ -457,6 +457,9 @@ export default function GPSSettings() {
                     <span className="ml-2 text-green-600 text-xs">✓</span>
                   )}
                 </label>
+                {/* Controller keeps RHF's ref attached to the DOM element.
+                    Manual Number() cast is needed because <select> produces
+                    strings; z.coerce.number() only runs at validation time. */}
                 <Controller
                   name="baudrate"
                   control={control}
@@ -681,6 +684,7 @@ export default function GPSSettings() {
 
                     {/* Reset to Defaults Button */}
                     <button
+                      type="button"
                       onClick={() => {
                         setValue('timeout_hot', GPS_SETTINGS_DEFAULTS.timeout_hot, { shouldDirty: true })
                         setValue('timeout_warm', GPS_SETTINGS_DEFAULTS.timeout_warm, { shouldDirty: true })
