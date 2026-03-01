@@ -220,9 +220,14 @@ describe('gpsSettingsSchema', () => {
   })
 
   describe('timeout (base, legacy pass-through)', () => {
-    it('accepts any numeric value (no UI constraints — backend-only field)', () => {
+    it('accepts positive values (no upper bound — backend-only field)', () => {
       expect(gpsSettingsSchema.safeParse(validConfig({ timeout: 1 })).success).toBe(true)
       expect(gpsSettingsSchema.safeParse(validConfig({ timeout: 300 })).success).toBe(true)
+    })
+
+    it('rejects zero and negative values', () => {
+      expect(gpsSettingsSchema.safeParse(validConfig({ timeout: 0 })).success).toBe(false)
+      expect(gpsSettingsSchema.safeParse(validConfig({ timeout: -1 })).success).toBe(false)
     })
 
     it('coerces string to number', () => {

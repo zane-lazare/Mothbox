@@ -15,7 +15,7 @@ export const gpsSettingsSchema = z.object({
   ),
   // Legacy field: no UI control, replaced by adaptive timeouts. Kept because
   // the backend still expects gps_timeout in the mutation payload.
-  timeout: z.coerce.number(),
+  timeout: z.coerce.number().min(1),
   timeout_hot: z.coerce.number().min(5, 'Must be at least 5s').max(60, 'Cannot exceed 60s'),
   timeout_warm: z.coerce.number().min(30, 'Must be at least 30s').max(180, 'Cannot exceed 180s'),
   timeout_cold: z.coerce.number().min(60, 'Must be at least 60s').max(300, 'Cannot exceed 300s'),

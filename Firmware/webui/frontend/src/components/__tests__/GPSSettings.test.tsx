@@ -220,6 +220,39 @@ describe('GPSSettings', () => {
     })
   })
 
+  it('shows restart dialog when device path changes, then submits on confirm', async () => {
+    const user = userEvent.setup()
+    mockUpdateGpsConfig.mockResolvedValue({ data: { success: true } })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
+    })
+
+    // Change the device path to trigger restart confirmation
+    const input = screen.getByRole('textbox', { name: /GPS Device Path/i })
+    await user.clear(input)
+    await user.type(input, '/dev/ttyUSB0')
+
+    // Click save — should show restart confirmation dialog
+    const saveButton = screen.getByText(/💾 Save Configuration/i)
+    await user.click(saveButton)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Restart GPS Service/i)).toBeInTheDocument()
+    })
+
+    // Confirm the dialog
+    const confirmButton = screen.getByText(/Continue/i)
+    await user.click(confirmButton)
+
+    await waitFor(() => {
+      expect(mockUpdateGpsConfig).toHaveBeenCalled()
+      expect(mockUpdateGpsConfig.mock.calls[0][0].gps_device).toBe('/dev/ttyUSB0')
+    })
+  })
+
   it('syncs GPS when sync button clicked', async () => {
     const user = userEvent.setup()
 

@@ -273,8 +273,10 @@ export default function GPSSettings() {
   }
 
   const handleSaveConfig = (values: GpsSettingsFormData) => {
-    const deviceChanged = values.device !== gpsConfig?.device
-    const baudrateChanged = values.baudrate !== gpsConfig?.baudrate
+    if (!gpsConfig) { submitConfig(values); return }
+
+    const deviceChanged = values.device !== gpsConfig.device
+    const baudrateChanged = values.baudrate !== gpsConfig.baudrate
 
     if (deviceChanged || baudrateChanged) {
       pendingValues.current = values
@@ -287,10 +289,12 @@ export default function GPSSettings() {
 
   const doSaveConfig = () => {
     setShowRestartConfirm(false)
-    // pendingValues is always set by handleSaveConfig before the dialog opens
-    submitConfig(pendingValues.current!)
+    if (!pendingValues.current) return
+    submitConfig(pendingValues.current)
     pendingValues.current = null
   }
+
+  const { enabled, device, timeout_hot, timeout_warm, timeout_cold, timeout_almanac } = watch()
 
   if (configLoading) {
     return <div className="text-gray-500">Loading GPS configuration...</div>
@@ -321,7 +325,7 @@ export default function GPSSettings() {
           </label>
         </div>
 
-        {watch('enabled') && (
+        {enabled && (
           <>
             {/* Current GPS Status */}
             {gpsStatus && (
@@ -421,7 +425,7 @@ export default function GPSSettings() {
                   {errors.device && (
                     <span className="ml-2 text-red-600 text-xs">✗</span>
                   )}
-                  {!errors.device && watch('device') && (
+                  {!errors.device && device && (
                     <span className="ml-2 text-green-600 text-xs">✓</span>
                   )}
                 </label>
@@ -433,7 +437,7 @@ export default function GPSSettings() {
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
                     errors.device
                       ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                      : watch('device')
+                      : device
                       ? 'border-green-300 focus:ring-green-500 bg-green-50'
                       : 'border-gray-300 focus:ring-blue-500'
                   }`}
@@ -605,7 +609,7 @@ export default function GPSSettings() {
                     {/* Hot Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟢 Hot Start (&lt;4 hours): {watch('timeout_hot')}s
+                        🟢 Hot Start (&lt;4 hours): {timeout_hot}s
                       </label>
                       <input
                         type="range"
@@ -625,7 +629,7 @@ export default function GPSSettings() {
                     {/* Warm Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟡 Warm Start (4h-6d): {watch('timeout_warm')}s
+                        🟡 Warm Start (4h-6d): {timeout_warm}s
                       </label>
                       <input
                         type="range"
@@ -645,7 +649,7 @@ export default function GPSSettings() {
                     {/* Cold Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟠 Cold Start (6-28d): {watch('timeout_cold')}s
+                        🟠 Cold Start (6-28d): {timeout_cold}s
                       </label>
                       <input
                         type="range"
@@ -665,7 +669,7 @@ export default function GPSSettings() {
                     {/* Almanac Expired Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🔴 Almanac Expired (&gt;28d): {Math.floor(watch('timeout_almanac') / 60)}m
+                        🔴 Almanac Expired (&gt;28d): {Math.floor(timeout_almanac / 60)}m
                       </label>
                       <input
                         type="range"
