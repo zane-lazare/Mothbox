@@ -3,14 +3,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import GPSSettings from '../GPSSettings'
-import * as api from '../../utils/api'
+
+// Create typed mock functions (hoisted so vi.mock can reference them)
+const { mockGetGpsConfig, mockGetGpsStatus, mockUpdateGpsConfig, mockSyncGps } = vi.hoisted(() => ({
+  mockGetGpsConfig: vi.fn(),
+  mockGetGpsStatus: vi.fn(),
+  mockUpdateGpsConfig: vi.fn(),
+  mockSyncGps: vi.fn(),
+}))
 
 // Mock the API module
 vi.mock('../../utils/api', () => ({
-  getGpsConfig: vi.fn(),
-  updateGpsConfig: vi.fn(),
-  getGpsStatus: vi.fn(),
-  syncGps: vi.fn(),
+  getGpsConfig: mockGetGpsConfig,
+  updateGpsConfig: mockUpdateGpsConfig,
+  getGpsStatus: mockGetGpsStatus,
+  syncGps: mockSyncGps,
 }))
 
 // Mock toast
@@ -24,7 +31,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 describe('GPSSettings', () => {
-  let queryClient
+  let queryClient: QueryClient
 
   const mockGPSConfig = {
     enabled: true,
@@ -59,8 +66,8 @@ describe('GPSSettings', () => {
     vi.clearAllMocks()
 
     // Set default mock responses
-    api.getGpsConfig.mockResolvedValue({ data: mockGPSConfig })
-    api.getGpsStatus.mockResolvedValue({ data: mockGPSStatus })
+    mockGetGpsConfig.mockResolvedValue({ data: mockGPSConfig })
+    mockGetGpsStatus.mockResolvedValue({ data: mockGPSStatus })
   })
 
   const renderComponent = () => {
@@ -101,7 +108,7 @@ describe('GPSSettings', () => {
   })
 
   it('displays "No GPS Fix" when GPS has no fix', async () => {
-    api.getGpsStatus.mockResolvedValue({
+    mockGetGpsStatus.mockResolvedValue({
       data: { ...mockGPSStatus, has_fix: false },
     })
 
@@ -124,7 +131,7 @@ describe('GPSSettings', () => {
   })
 
   it('hides configuration fields when GPS is disabled', async () => {
-    api.getGpsConfig.mockResolvedValue({
+    mockGetGpsConfig.mockResolvedValue({
       data: { ...mockGPSConfig, enabled: false },
     })
 
@@ -186,7 +193,7 @@ describe('GPSSettings', () => {
 
   it('saves configuration when save button clicked', async () => {
     const user = userEvent.setup()
-    api.updateGpsConfig.mockResolvedValue({ data: { success: true } })
+    mockUpdateGpsConfig.mockResolvedValue({ data: { success: true } })
 
     renderComponent()
 
@@ -198,8 +205,8 @@ describe('GPSSettings', () => {
     await user.click(saveButton)
 
     await waitFor(() => {
-      expect(api.updateGpsConfig).toHaveBeenCalled()
-      const callArgs = api.updateGpsConfig.mock.calls[0][0]
+      expect(mockUpdateGpsConfig).toHaveBeenCalled()
+      const callArgs = mockUpdateGpsConfig.mock.calls[0][0]
       expect(callArgs).toEqual({
         gps_enabled: true,
         gps_device: '/dev/ttyAMA0',
@@ -217,8 +224,8 @@ describe('GPSSettings', () => {
     const user = userEvent.setup()
 
     // Create a promise that won't resolve immediately to allow us to see the "Syncing..." state
-    let resolveSyncGps
-    api.syncGps.mockImplementation(() => new Promise((resolve) => {
+    let resolveSyncGps: (() => void) | undefined
+    mockSyncGps.mockImplementation(() => new Promise((resolve) => {
       resolveSyncGps = () => resolve({
         data: {
           success: true,
@@ -242,10 +249,10 @@ describe('GPSSettings', () => {
       expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
     })
 
-    expect(api.syncGps).toHaveBeenCalled()
+    expect(mockSyncGps).toHaveBeenCalled()
 
     // Resolve the promise to complete the sync
-    resolveSyncGps()
+    resolveSyncGps!()
 
     // Wait for sync to complete and button to return to normal state
     await waitFor(() => {
