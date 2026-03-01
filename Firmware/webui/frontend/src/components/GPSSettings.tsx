@@ -7,8 +7,8 @@ import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
 import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
 // @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useEffect, useMemo, useState } from 'react'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Controller, useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   gpsSettingsSchema,
@@ -30,11 +30,13 @@ export default function GPSSettings() {
   // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
   // The cast through `unknown` is safe because the schema validates the same
   // shape at runtime. TODO: Remove when @hookform/resolvers aligns with Zod 4.
-  const { register, reset, handleSubmit, watch, getValues, setValue, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
+  const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
     resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
     defaultValues: GPS_SETTINGS_DEFAULTS,
     mode: 'onBlur',
   })
+
+  const pendingValues = useRef<GpsSettingsFormData | null>(null)
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [timeoutsCollapsed, setTimeoutsCollapsed] = useState(true)
@@ -66,10 +68,14 @@ export default function GPSSettings() {
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: QUERY_KEYS.GPS_CONFIG,
-    queryFn: () => getGpsConfig().then((res: { data: GpsSettingsFormData }) => res.data),
+    queryFn: () => getGpsConfig().then((res: { data: unknown }) =>
+      gpsSettingsSchema.parse(res.data)
+    ),
   })
 
-  // Sync form with query data (isDirty guard fixes polling overwrite bug)
+  // Sync form with query data. While the user is editing (isDirty), incoming
+  // polling updates are ignored to prevent overwriting keystrokes. Config changes
+  // made elsewhere will only take effect after the user saves or discards.
   useEffect(() => {
     if (gpsConfig && !isDirty) {
       reset(gpsConfig)
@@ -253,21 +259,7 @@ export default function GPSSettings() {
     }
   }
 
-  const handleSaveConfig = (values: GpsSettingsFormData) => {
-    const deviceChanged = values.device !== gpsConfig?.device
-    const baudrateChanged = values.baudrate !== gpsConfig?.baudrate
-
-    if (deviceChanged || baudrateChanged) {
-      setShowRestartConfirm(true)
-      return
-    }
-
-    doSaveConfig()
-  }
-
-  const doSaveConfig = () => {
-    const values = getValues()
-    setShowRestartConfirm(false)
+  const submitConfig = (values: GpsSettingsFormData) => {
     updateConfigMutation.mutate({
       gps_enabled: values.enabled,
       gps_device: values.device,
@@ -278,6 +270,26 @@ export default function GPSSettings() {
       gps_timeout_cold: values.timeout_cold,
       gps_timeout_almanac: values.timeout_almanac,
     })
+  }
+
+  const handleSaveConfig = (values: GpsSettingsFormData) => {
+    const deviceChanged = values.device !== gpsConfig?.device
+    const baudrateChanged = values.baudrate !== gpsConfig?.baudrate
+
+    if (deviceChanged || baudrateChanged) {
+      pendingValues.current = values
+      setShowRestartConfirm(true)
+      return
+    }
+
+    submitConfig(values)
+  }
+
+  const doSaveConfig = () => {
+    setShowRestartConfirm(false)
+    const values = pendingValues.current ?? getValues()
+    pendingValues.current = null
+    submitConfig(values)
   }
 
   if (configLoading) {
@@ -445,25 +457,30 @@ export default function GPSSettings() {
                     <span className="ml-2 text-green-600 text-xs">✓</span>
                   )}
                 </label>
-                <select
-                  value={String(watch('baudrate'))}
-                  onChange={(e) => setValue('baudrate', Number(e.target.value), { shouldDirty: true, shouldValidate: true })}
-                  onBlur={register('baudrate').onBlur}
+                <Controller
                   name="baudrate"
-                  aria-label="Baud Rate"
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    errors.baudrate
-                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                      : 'border-green-300 focus:ring-green-500 bg-green-50'
-                  }`}
-                >
-                  <option value="4800">4800</option>
-                  <option value="9600">9600 (Default)</option>
-                  <option value="19200">19200</option>
-                  <option value="38400">38400</option>
-                  <option value="57600">57600</option>
-                  <option value="115200">115200</option>
-                </select>
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      {...field}
+                      value={String(field.value)}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      aria-label="Baud Rate"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        errors.baudrate
+                          ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                          : 'border-green-300 focus:ring-green-500 bg-green-50'
+                      }`}
+                    >
+                      <option value="4800">4800</option>
+                      <option value="9600">9600 (Default)</option>
+                      <option value="19200">19200</option>
+                      <option value="38400">38400</option>
+                      <option value="57600">57600</option>
+                      <option value="115200">115200</option>
+                    </select>
+                  )}
+                />
                 {errors.baudrate ? (
                   <p className="text-xs text-red-600 mt-1">
                     ⚠️ {errors.baudrate.message}
