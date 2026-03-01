@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -177,13 +178,25 @@ export function AdvancedSearchBuilder({
 
   const { fields, append, remove } = useFieldArray({ control, name: 'conditions' })
 
+  // Re-populate form when initialQuery changes (maintains parity with original)
+  useEffect(() => {
+    if (initialQuery) {
+      reset(parseInitialQuery(initialQuery))
+    }
+  }, [initialQuery, reset])
+
   // Watch all form values for query preview and apply
-  const watchedValues = useWatch({ control }) as AdvancedSearchFormData
+  // defaultValue guarantees a complete object at runtime; the cast satisfies
+  // RHF's DeepPartialSkipArrayKey return type which cannot express that guarantee.
+  const watchedValues = useWatch({
+    control,
+    defaultValue: defaultValues,
+  }) as AdvancedSearchFormData
 
   const queryPreview = generateQuery(watchedValues)
 
   const handleApply = () => {
-    onQueryChange?.(queryPreview)
+    onQueryChange(queryPreview)
   }
 
   const clearAll = () => {
