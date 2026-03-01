@@ -20,3 +20,11 @@ export { coordinatesSchema } from './coordinates';
 export type { CoordinatesFormData } from './coordinates';
 export { intervalTriggerSchema } from './scheduler/interval';
 export type { IntervalTriggerFormData } from './scheduler/interval';
+export {
+  advancedSearchSchema,
+  searchConditionSchema,
+  SEARCH_FIELDS,
+  SEARCH_OPERATORS,
+  BOOLEAN_OPERATORS,
+} from './search';
+export type { AdvancedSearchFormData, SearchCondition } from './search';
