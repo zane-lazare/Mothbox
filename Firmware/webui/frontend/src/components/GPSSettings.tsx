@@ -157,11 +157,12 @@ export default function GPSSettings() {
   }
 
   const handleSyncGPS = async () => {
-    const values = getValues()
-    if (!values.enabled) {
+    // Check server state, not form state — user may have toggled enabled without saving
+    if (!gpsConfig?.enabled) {
       toast.error('GPS is disabled. Enable it first.')
       return
     }
+    const values = getValues()
 
     setSyncing(true)
 
@@ -295,7 +296,10 @@ export default function GPSSettings() {
 
   const doSaveConfig = () => {
     setShowRestartConfirm(false)
-    if (!pendingValues.current) return
+    if (!pendingValues.current) {
+      console.error('doSaveConfig called without pending values')
+      return
+    }
     submitConfig(pendingValues.current)
     pendingValues.current = null
   }

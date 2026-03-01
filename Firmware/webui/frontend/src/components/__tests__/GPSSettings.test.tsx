@@ -83,6 +83,27 @@ describe('GPSSettings', () => {
     expect(screen.getByText(/Loading GPS configuration/i)).toBeInTheDocument()
   })
 
+  it('falls back to defaults when server returns malformed config', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // Return config missing the required 'device' field
+    mockGetGpsConfig.mockResolvedValue({
+      data: { enabled: true, baudrate: 9600, timeout: 10, timeout_hot: 15, timeout_warm: 60, timeout_cold: 90, timeout_almanac: 1200 },
+    })
+
+    renderComponent()
+
+    // Should still render (fallback fills in defaults for missing fields)
+    await waitFor(() => {
+      expect(screen.getByText(/GPS Module Configuration/i)).toBeInTheDocument()
+    })
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'GPS config from server failed validation:',
+      expect.anything(),
+    )
+    warnSpy.mockRestore()
+  })
+
   it('renders GPS configuration when loaded', async () => {
     renderComponent()
 
