@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const BAUDRATE_VALUES = [4800, 9600, 19200, 38400, 57600, 115200] as const
 
-const DEVICE_PATH_PATTERN = /^\/dev\/(ttyAMA\d+|ttyS\d+|ttyUSB\d+|serial\d+)$/
+const DEVICE_PATH_PATTERN = /^\/dev\/(ttyAMA\d+|ttyACM\d+|ttyS\d+|ttyUSB\d+|ttyO\d+|serial\d+)$/
 
 export const gpsSettingsSchema = z.object({
   enabled: z.boolean(),

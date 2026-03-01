@@ -48,8 +48,10 @@ describe('gpsSettingsSchema', () => {
   describe('device path validation', () => {
     it.each([
       '/dev/ttyAMA0',
+      '/dev/ttyACM0',
       '/dev/ttyS0',
       '/dev/ttyUSB0',
+      '/dev/ttyO0',
       '/dev/serial0',
       '/dev/ttyAMA1',
       '/dev/ttyUSB2',

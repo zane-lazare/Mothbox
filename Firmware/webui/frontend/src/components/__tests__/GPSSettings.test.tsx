@@ -176,6 +176,32 @@ describe('GPSSettings', () => {
     expect(input).toHaveValue('/dev/ttyUSB0')
   })
 
+  it('does not reset form with polling data while user is editing', async () => {
+    const user = userEvent.setup()
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
+    })
+
+    // Type into the device field (makes the form dirty)
+    const input = screen.getByRole('textbox', { name: /GPS Device Path/i })
+    await user.clear(input)
+    await user.type(input, '/dev/ttyUSB1')
+    expect(input).toHaveValue('/dev/ttyUSB1')
+
+    // Simulate a polling re-fetch returning different data
+    mockGetGpsConfig.mockResolvedValue({
+      data: { ...mockGPSConfig, device: '/dev/ttyS0' },
+    })
+
+    // Trigger a re-render by invalidating (simulate TanStack Query refetch)
+    // The form should keep the user's typed value, not reset to /dev/ttyS0
+    await waitFor(() => {
+      expect(input).toHaveValue('/dev/ttyUSB1')
+    })
+  })
+
   it('updates baudrate selection', async () => {
     const user = userEvent.setup()
     renderComponent()

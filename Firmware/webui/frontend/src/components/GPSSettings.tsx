@@ -68,9 +68,14 @@ export default function GPSSettings() {
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: QUERY_KEYS.GPS_CONFIG,
-    queryFn: () => getGpsConfig().then((res: { data: unknown }) =>
-      gpsSettingsSchema.parse(res.data)
-    ),
+    queryFn: () => getGpsConfig().then((res: { data: unknown }) => {
+      const result = gpsSettingsSchema.safeParse(res.data)
+      if (!result.success) {
+        console.warn('GPS config from server failed validation:', result.error)
+        return res.data as GpsSettingsFormData
+      }
+      return result.data
+    }),
   })
 
   // Sync form with query data. While the user is editing (isDirty), incoming
@@ -294,7 +299,8 @@ export default function GPSSettings() {
     pendingValues.current = null
   }
 
-  const { enabled, device, timeout_hot, timeout_warm, timeout_cold, timeout_almanac } = watch()
+  const [enabled, device, timeout_hot, timeout_warm, timeout_cold, timeout_almanac] =
+    watch(['enabled', 'device', 'timeout_hot', 'timeout_warm', 'timeout_cold', 'timeout_almanac'])
 
   if (configLoading) {
     return <div className="text-gray-500">Loading GPS configuration...</div>
