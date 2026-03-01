@@ -30,7 +30,7 @@ export default function GPSSettings() {
   // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
   // The cast through `unknown` is safe because the schema validates the same
   // shape at runtime. TODO: Remove when @hookform/resolvers aligns with Zod 4.
-  const { register, reset, watch, getValues, setValue, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
+  const { register, reset, handleSubmit, watch, getValues, setValue, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
     resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
     defaultValues: GPS_SETTINGS_DEFAULTS,
     mode: 'onBlur',
@@ -253,9 +253,7 @@ export default function GPSSettings() {
     }
   }
 
-  const handleSaveConfig = () => {
-    const values = getValues()
-
+  const handleSaveConfig = (values: GpsSettingsFormData) => {
     const deviceChanged = values.device !== gpsConfig?.device
     const baudrateChanged = values.baudrate !== gpsConfig?.baudrate
 
@@ -667,14 +665,10 @@ export default function GPSSettings() {
                     {/* Reset to Defaults Button */}
                     <button
                       onClick={() => {
-                        const current = getValues()
-                        reset({
-                          ...current,
-                          timeout_hot: GPS_SETTINGS_DEFAULTS.timeout_hot,
-                          timeout_warm: GPS_SETTINGS_DEFAULTS.timeout_warm,
-                          timeout_cold: GPS_SETTINGS_DEFAULTS.timeout_cold,
-                          timeout_almanac: GPS_SETTINGS_DEFAULTS.timeout_almanac,
-                        })
+                        setValue('timeout_hot', GPS_SETTINGS_DEFAULTS.timeout_hot, { shouldDirty: true })
+                        setValue('timeout_warm', GPS_SETTINGS_DEFAULTS.timeout_warm, { shouldDirty: true })
+                        setValue('timeout_cold', GPS_SETTINGS_DEFAULTS.timeout_cold, { shouldDirty: true })
+                        setValue('timeout_almanac', GPS_SETTINGS_DEFAULTS.timeout_almanac, { shouldDirty: true })
                       }}
                       className="w-full px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                     >
@@ -695,7 +689,7 @@ export default function GPSSettings() {
                 {syncing ? 'Syncing...' : '🛰️ Sync GPS Now'}
               </button>
               <button
-                onClick={handleSaveConfig}
+                onClick={handleSubmit(handleSaveConfig)}
                 disabled={updateConfigMutation.isPending || Object.keys(errors).length > 0}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 title={Object.keys(errors).length > 0 ? 'Please fix validation errors' : ''}
