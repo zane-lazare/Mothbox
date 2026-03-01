@@ -28,3 +28,5 @@ export {
   BOOLEAN_OPERATORS,
 } from './search';
 export type { AdvancedSearchFormData, SearchCondition } from './search';
+export { gpsSettingsSchema, BAUDRATE_VALUES, GPS_SETTINGS_DEFAULTS } from './gps-settings';
+export type { GpsSettingsFormData } from './gps-settings';
