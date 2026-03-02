@@ -299,6 +299,7 @@ export default function GPSSettings() {
     setShowRestartConfirm(false)
     if (!pendingValues.current) {
       console.error('doSaveConfig called without pending values')
+      toast.error('Unable to save — please try again.')
       return
     }
     submitConfig(pendingValues.current)
