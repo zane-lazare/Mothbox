@@ -170,12 +170,15 @@ export default function GPSSettings() {
     // Get expected GPS state based on last sync
     const stateInfo = formatGpsStateInfo(gpsStatus?.gpstime || 0)
 
-    // Use actual configured timeout values based on GPS state
+    // Read timeout values from the form (not server state) so the progress
+    // timer reflects whatever the user currently sees in the UI sliders, even
+    // if those values haven't been saved yet. This keeps the displayed estimate
+    // consistent with the user's intent.
     const timeoutMap: Record<string, number> = {
-      'hot_start': values.timeout_hot || 15,
-      'warm_start': values.timeout_warm || 60,
-      'cold_start': values.timeout_cold || 90,
-      'almanac_expired': values.timeout_almanac || 1200
+      'hot_start': values.timeout_hot,
+      'warm_start': values.timeout_warm,
+      'cold_start': values.timeout_cold,
+      'almanac_expired': values.timeout_almanac,
     }
     const expectedSeconds = timeoutMap[stateInfo.state] || 60
 
