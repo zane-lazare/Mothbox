@@ -13,8 +13,9 @@ export const gpsSettingsSchema = z.object({
     (v) => (BAUDRATE_VALUES as readonly number[]).includes(v),
     'Invalid baudrate',
   ),
-  // Legacy field: no UI control, replaced by adaptive timeouts. Kept because
-  // the backend still expects gps_timeout in the mutation payload.
+  /** @deprecated Legacy field with no UI control — replaced by adaptive timeouts
+   *  (timeout_hot/warm/cold/almanac). Kept only because the backend still
+   *  expects gps_timeout in the mutation payload. Remove once backend drops it. */
   timeout: z.coerce.number().min(1),
   timeout_hot: z.coerce.number().min(5, 'Must be at least 5s').max(60, 'Cannot exceed 60s'),
   timeout_warm: z.coerce.number().min(30, 'Must be at least 30s').max(180, 'Cannot exceed 180s'),
