@@ -31,7 +31,7 @@ export default function GPSSettings() {
   // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
   // The cast through `unknown` is safe because the schema validates the same
   // shape at runtime. TODO(#485): Remove when @hookform/resolvers aligns with Zod 4.
-  const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
+  const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty, isValid } } = useForm<GpsSettingsFormData>({
     resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
     defaultValues: GPS_SETTINGS_DEFAULTS,
     mode: 'onTouched',
@@ -731,9 +731,9 @@ export default function GPSSettings() {
               </button>
               <button
                 onClick={handleSubmit(handleSaveConfig)}
-                disabled={updateConfigMutation.isPending || Object.keys(errors).length > 0}
+                disabled={updateConfigMutation.isPending || !isValid}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={Object.keys(errors).length > 0 ? 'Please fix validation errors' : ''}
+                title={!isValid ? 'Please fix validation errors' : ''}
               >
                 {updateConfigMutation.isPending ? 'Saving...' : '💾 Save Configuration'}
               </button>
