@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -140,6 +140,14 @@ export default function DeploymentEditor({
     }
   }, [deployment, reset])
 
+  const handleCancel = useCallback(() => {
+    if (isDirty) {
+      setShowCancelConfirm(true)
+      return
+    }
+    onCancel()
+  }, [isDirty, onCancel])
+
   // Handle Escape key to close editor
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -149,7 +157,7 @@ export default function DeploymentEditor({
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [showCancelConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showCancelConfirm, handleCancel])
 
   /**
    * Handle successful aggregation response.
@@ -236,14 +244,6 @@ export default function DeploymentEditor({
       firmware_version: (values.firmware_version || '').trim(),
       custom: customObj,
     })
-  }
-
-  const handleCancel = () => {
-    if (isDirty) {
-      setShowCancelConfirm(true)
-      return
-    }
-    onCancel()
   }
 
   const handleConfirmCancel = () => {
