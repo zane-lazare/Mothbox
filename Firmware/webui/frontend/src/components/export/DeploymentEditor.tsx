@@ -1,15 +1,47 @@
-import { useState, useEffect } from 'react'
-import PropTypes from 'prop-types'
+import { useEffect, useState } from 'react'
+import { useForm, useFieldArray } from 'react-hook-form'
+import type { Resolver } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import CoordinateInput from './CoordinateInput'
+// @ts-expect-error — ConfirmDialog.jsx has no type declarations (pre-migration)
 import ConfirmDialog from '../common/ConfirmDialog'
+// @ts-expect-error — usePhotoAggregation.js has no type declarations (pre-migration)
 import { usePhotoAggregation } from '../../hooks/usePhotoAggregation'
+import {
+  deploymentSchema,
+  DEPLOYMENT_DEFAULTS,
+  type DeploymentFormData,
+} from '../../schemas/deployment'
+
+interface DeploymentEditorProps {
+  deployment?: {
+    deployment_name?: string
+    location_name?: string
+    latitude?: number | null
+    longitude?: number | null
+    altitude?: number | null
+    start_date?: string | null
+    end_date?: string | null
+    environmental?: Record<string, string>
+    mothbox_id?: string
+    firmware_version?: string
+    custom?: Record<string, string>
+  } | null
+  directory: string
+  filter?: Record<string, unknown>
+  onSave: (data: Record<string, unknown>) => void
+  onCancel: () => void
+  isLoading?: boolean
+  error?: string | null
+}
 
 /**
  * DeploymentEditor Component
  *
  * Full deployment metadata form with collapsible sections.
+ * Migrated to react-hook-form + Zod for validation.
  *
  * @component
  * @example
@@ -27,33 +59,46 @@ export default function DeploymentEditor({
   onSave,
   onCancel,
   isLoading = false,
-  error = null
-}) {
-  // Form state
-  const [deploymentName, setDeploymentName] = useState('')
-  const [locationName, setLocationName] = useState('')
-  const [latitude, setLatitude] = useState(null)
-  const [longitude, setLongitude] = useState(null)
-  const [altitude, setAltitude] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [environmental, setEnvironmental] = useState([])
-  const [mothboxId, setMothboxId] = useState('')
-  const [firmwareVersion, setFirmwareVersion] = useState('')
-  const [customFields, setCustomFields] = useState([])
+  error = null,
+}: DeploymentEditorProps) {
+  // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
+  // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
+  // The cast through `unknown` is safe because the schema validates the same
+  // shape at runtime. TODO(#485): Remove when @hookform/resolvers aligns with Zod 4.
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    control,
+    formState: { errors, isDirty },
+  } = useForm<DeploymentFormData>({
+    resolver: zodResolver(
+      deploymentSchema as unknown as Parameters<typeof zodResolver>[0],
+    ) as unknown as Resolver<DeploymentFormData>,
+    defaultValues: DEPLOYMENT_DEFAULTS,
+    mode: 'onBlur',
+  })
 
-  // Validation errors
-  const [errors, setErrors] = useState({})
+  const {
+    fields: envFields,
+    append: appendEnv,
+    remove: removeEnv,
+  } = useFieldArray({ control, name: 'environmental' })
 
-  // Collapsible section state
+  const {
+    fields: customFields,
+    append: appendCustom,
+    remove: removeCustom,
+  } = useFieldArray({ control, name: 'custom' })
+
+  // Collapsible section state (not form state)
   const [sectionsExpanded, setSectionsExpanded] = useState({
     environmental: false,
     metadata: false,
-    custom: false
+    custom: false,
   })
-
-  // Track if form has been modified
-  const [hasChanges, setHasChanges] = useState(false)
 
   // Confirm dialog state for unsaved changes
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
@@ -61,70 +106,41 @@ export default function DeploymentEditor({
   // Photo aggregation for auto-fill
   const aggregateMutation = usePhotoAggregation()
 
+  // Watch fields for character counters and display
+  const deploymentName = watch('deployment_name')
+  const locationName = watch('location_name')
+
+  // Watch lat/lng for CoordinateInput sync
+  const [latitude, longitude] = watch(['latitude', 'longitude'])
+
   // Initialize form with existing deployment data
   useEffect(() => {
     if (deployment) {
-      setDeploymentName(deployment.deployment_name || '')
-      setLocationName(deployment.location_name || '')
-      setLatitude(deployment.latitude ?? null)
-      setLongitude(deployment.longitude ?? null)
-      setAltitude(deployment.altitude?.toString() || '')
-      setStartDate(deployment.start_date || '')
-      setEndDate(deployment.end_date || '')
-
-      // Convert environmental object to array
-      const envArray = Object.entries(deployment.environmental || {}).map(([key, value]) => ({
-        key,
-        value
-      }))
-      setEnvironmental(envArray)
-
-      setMothboxId(deployment.mothbox_id || '')
-      setFirmwareVersion(deployment.firmware_version || '')
-
-      // Convert custom object to array
-      const customArray = Object.entries(deployment.custom || {}).map(([key, value]) => ({
-        key,
-        value
-      }))
-      setCustomFields(customArray)
+      const envArray = Object.entries(deployment.environmental || {}).map(
+        ([key, value]) => ({ key, value }),
+      )
+      const customArray = Object.entries(deployment.custom || {}).map(
+        ([key, value]) => ({ key, value }),
+      )
+      reset({
+        deployment_name: deployment.deployment_name || '',
+        location_name: deployment.location_name || '',
+        latitude: deployment.latitude ?? null,
+        longitude: deployment.longitude ?? null,
+        altitude: deployment.altitude ?? null,
+        start_date: deployment.start_date || '',
+        end_date: deployment.end_date || '',
+        environmental: envArray,
+        custom: customArray,
+        mothbox_id: deployment.mothbox_id || '',
+        firmware_version: deployment.firmware_version || '',
+      })
     }
-  }, [deployment])
-
-  // Validate form
-  const validate = () => {
-    const newErrors = {}
-
-    // Required: deployment_name
-    if (!deploymentName.trim()) {
-      newErrors.deploymentName = 'Deployment name is required'
-    } else if (deploymentName.length > 200) {
-      newErrors.deploymentName = 'Deployment name must be 200 characters or less'
-    }
-
-    // Optional: location_name max length
-    if (locationName.length > 500) {
-      newErrors.locationName = 'Location name must be 500 characters or less'
-    }
-
-    // Date range validation
-    if (startDate && endDate && startDate > endDate) {
-      newErrors.dateRange = 'End date must be after start date'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  // Run validation on field changes
-  useEffect(() => {
-    validate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deploymentName, locationName, startDate, endDate])
+  }, [deployment, reset])
 
   // Handle Escape key to close editor
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !showCancelConfirm) {
         handleCancel()
       }
@@ -136,41 +152,39 @@ export default function DeploymentEditor({
   /**
    * Handle successful aggregation response.
    * Extracted for testability.
-   * @param {import('../../hooks/usePhotoAggregation').PhotoAggregationResult} data
    */
-  const handleAggregationSuccess = (data) => {
+  const handleAggregationSuccess = (data: Record<string, unknown>) => {
     // Always fill dates
     if (data.date_start) {
-      setStartDate(data.date_start)
+      setValue('start_date', data.date_start as string, { shouldDirty: true })
     }
     if (data.date_end) {
-      setEndDate(data.date_end)
+      setValue('end_date', data.date_end as string, { shouldDirty: true })
     }
 
     // Fill GPS if consistent
     if (data.gps_consistent) {
       if (data.latitude !== null && data.longitude !== null) {
-        setLatitude(data.latitude)
-        setLongitude(data.longitude)
+        setValue('latitude', data.latitude as number, { shouldDirty: true })
+        setValue('longitude', data.longitude as number, { shouldDirty: true })
       }
       if (data.altitude !== null) {
-        setAltitude(data.altitude.toString())
+        setValue('altitude', data.altitude as number, { shouldDirty: true })
       }
       toast.success(`Auto-filled from ${data.photo_count} photos`)
     } else {
       // GPS inconsistent - show warning but still fill dates
-      toast.error(data.gps_error || 'GPS coordinates are inconsistent', {
-        duration: 5000
-      })
+      toast.error(
+        (data.gps_error as string) || 'GPS coordinates are inconsistent',
+        { duration: 5000 },
+      )
       if (data.date_start || data.date_end) {
-        toast.success(`Filled dates from ${data.photo_count} photos (GPS skipped)`, {
-          duration: 3000
-        })
+        toast.success(
+          `Filled dates from ${data.photo_count} photos (GPS skipped)`,
+          { duration: 3000 },
+        )
       }
     }
-
-    // Mark form as changed
-    setHasChanges(true)
   }
 
   const handleAutoFill = () => {
@@ -181,51 +195,48 @@ export default function DeploymentEditor({
       { filter: aggregationFilter, tolerance_m: 50.0 },
       {
         onSuccess: handleAggregationSuccess,
-        onError: (error) => {
-          const message = error.response?.data?.error || 'Failed to aggregate photo data'
+        onError: (error: { response?: { data?: { error?: string } } }) => {
+          const message =
+            error.response?.data?.error || 'Failed to aggregate photo data'
           toast.error(message)
-        }
-      }
+        },
+      },
     )
   }
 
-  const handleSave = () => {
-    if (!validate()) return
-
-    // Convert arrays back to objects
-    const environmentalObj = {}
-    environmental.forEach(({ key, value }) => {
+  // Submit handler — convert arrays to objects, call onSave
+  const onValid = (values: DeploymentFormData) => {
+    const environmentalObj: Record<string, string> = {}
+    values.environmental.forEach(({ key, value }) => {
       if (key.trim()) {
         environmentalObj[key.trim()] = value
       }
     })
 
-    const customObj = {}
-    customFields.forEach(({ key, value }) => {
+    const customObj: Record<string, string> = {}
+    values.custom.forEach(({ key, value }) => {
       if (key.trim()) {
         customObj[key.trim()] = value
       }
     })
 
-    const data = {
-      deployment_name: deploymentName.trim(),
-      location_name: locationName.trim(),
-      latitude,
-      longitude,
-      altitude: altitude ? parseFloat(altitude) : null,
-      start_date: startDate || null,
-      end_date: endDate || null,
+    onSave({
+      deployment_name: values.deployment_name.trim(),
+      location_name: (values.location_name || '').trim(),
+      latitude: values.latitude,
+      longitude: values.longitude,
+      altitude: values.altitude,
+      start_date: values.start_date || null,
+      end_date: values.end_date || null,
       environmental: environmentalObj,
-      mothbox_id: mothboxId.trim(),
-      firmware_version: firmwareVersion.trim(),
-      custom: customObj
-    }
-
-    onSave(data)
+      mothbox_id: (values.mothbox_id || '').trim(),
+      firmware_version: (values.firmware_version || '').trim(),
+      custom: customObj,
+    })
   }
 
   const handleCancel = () => {
-    if (hasChanges) {
+    if (isDirty) {
       setShowCancelConfirm(true)
       return
     }
@@ -237,51 +248,23 @@ export default function DeploymentEditor({
     onCancel()
   }
 
-  const toggleSection = (section) => {
+  const toggleSection = (section: keyof typeof sectionsExpanded) => {
     setSectionsExpanded({
       ...sectionsExpanded,
-      [section]: !sectionsExpanded[section]
+      [section]: !sectionsExpanded[section],
     })
   }
 
   const addEnvironmentalField = () => {
-    setEnvironmental([...environmental, { key: '', value: '' }])
-    setSectionsExpanded({ ...sectionsExpanded, environmental: true })
-    setHasChanges(true)
-  }
-
-  const removeEnvironmentalField = (index) => {
-    setEnvironmental(environmental.filter((_, i) => i !== index))
-    setHasChanges(true)
-  }
-
-  const updateEnvironmentalField = (index, field, value) => {
-    const updated = [...environmental]
-    updated[index][field] = value
-    setEnvironmental(updated)
-    setHasChanges(true)
+    appendEnv({ key: '', value: '' })
+    setSectionsExpanded((prev) => ({ ...prev, environmental: true }))
   }
 
   const addCustomField = () => {
     if (customFields.length >= 50) return
-    setCustomFields([...customFields, { key: '', value: '' }])
-    setSectionsExpanded({ ...sectionsExpanded, custom: true })
-    setHasChanges(true)
+    appendCustom({ key: '', value: '' })
+    setSectionsExpanded((prev) => ({ ...prev, custom: true }))
   }
-
-  const removeCustomField = (index) => {
-    setCustomFields(customFields.filter((_, i) => i !== index))
-    setHasChanges(true)
-  }
-
-  const updateCustomField = (index, field, value) => {
-    const updated = [...customFields]
-    updated[index][field] = value
-    setCustomFields(updated)
-    setHasChanges(true)
-  }
-
-  const isFormValid = !errors.deploymentName && !errors.locationName && !errors.dateRange && deploymentName.trim()
 
   return (
     <div className="space-y-6">
@@ -311,25 +294,21 @@ export default function DeploymentEditor({
           <input
             id="deployment-name"
             type="text"
-            value={deploymentName}
-            onChange={(e) => {
-              setDeploymentName(e.target.value)
-              setHasChanges(true)
-            }}
+            {...register('deployment_name')}
             disabled={isLoading}
             maxLength={200}
             placeholder="e.g., Oak Ridge Forest Survey 2024"
             autoFocus
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent
                        dark:bg-gray-700 dark:text-gray-100
-                       ${errors.deploymentName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
+                       ${errors.deployment_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
                        disabled:opacity-50 disabled:cursor-not-allowed`}
           />
-          {errors.deploymentName && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.deploymentName}</p>
+          {errors.deployment_name && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.deployment_name.message}</p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {deploymentName.length}/200 characters
+            {(deploymentName || '').length}/200 characters
           </p>
         </div>
       </div>
@@ -345,31 +324,29 @@ export default function DeploymentEditor({
           <input
             id="location-name"
             type="text"
-            value={locationName}
-            onChange={(e) => { setLocationName(e.target.value); setHasChanges(true) }}
+            {...register('location_name')}
             disabled={isLoading}
             maxLength={500}
             placeholder="e.g., Oak Ridge, TN, USA"
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent
                        dark:bg-gray-700 dark:text-gray-100
-                       ${errors.locationName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
+                       ${errors.location_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}
                        disabled:opacity-50 disabled:cursor-not-allowed`}
           />
-          {errors.locationName && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.locationName}</p>
+          {errors.location_name && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.location_name.message}</p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {locationName.length}/500 characters
+            {(locationName || '').length}/500 characters
           </p>
         </div>
 
         <CoordinateInput
           latitude={latitude}
           longitude={longitude}
-          onChange={({ latitude, longitude }) => {
-            setLatitude(latitude)
-            setLongitude(longitude)
-            setHasChanges(true)
+          onChange={({ latitude: lat, longitude: lon }: { latitude: number | null; longitude: number | null }) => {
+            setValue('latitude', lat, { shouldDirty: true })
+            setValue('longitude', lon, { shouldDirty: true })
           }}
           disabled={isLoading}
         />
@@ -382,8 +359,7 @@ export default function DeploymentEditor({
             id="altitude"
             type="number"
             step="0.1"
-            value={altitude}
-            onChange={(e) => { setAltitude(e.target.value); setHasChanges(true) }}
+            {...register('altitude')}
             disabled={isLoading}
             placeholder="e.g., 350.5"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -426,8 +402,7 @@ export default function DeploymentEditor({
             <input
               id="start-date"
               type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setHasChanges(true) }}
+              {...register('start_date')}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -443,8 +418,7 @@ export default function DeploymentEditor({
             <input
               id="end-date"
               type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setHasChanges(true) }}
+              {...register('end_date')}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -454,8 +428,8 @@ export default function DeploymentEditor({
           </div>
         </div>
 
-        {errors.dateRange && (
-          <p className="text-xs text-red-600 dark:text-red-400">{errors.dateRange}</p>
+        {errors.end_date && (
+          <p className="text-xs text-red-600 dark:text-red-400">{errors.end_date.message}</p>
         )}
       </div>
 
@@ -472,19 +446,18 @@ export default function DeploymentEditor({
             <ChevronRightIcon className="h-4 w-4" />
           )}
           Environmental Conditions
-          {environmental.length > 0 && (
-            <span className="text-xs text-gray-500">({environmental.length})</span>
+          {envFields.length > 0 && (
+            <span className="text-xs text-gray-500">({envFields.length})</span>
           )}
         </button>
 
         {sectionsExpanded.environmental && (
           <div className="mt-4 space-y-3">
-            {environmental.map((field, index) => (
-              <div key={index} className="flex gap-2">
+            {envFields.map((field, index) => (
+              <div key={field.id} className="flex gap-2">
                 <input
                   type="text"
-                  value={field.key}
-                  onChange={(e) => updateEnvironmentalField(index, 'key', e.target.value)}
+                  {...register(`environmental.${index}.key`)}
                   disabled={isLoading}
                   placeholder="Key (e.g., temperature)"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -494,8 +467,7 @@ export default function DeploymentEditor({
                 />
                 <input
                   type="text"
-                  value={field.value}
-                  onChange={(e) => updateEnvironmentalField(index, 'value', e.target.value)}
+                  {...register(`environmental.${index}.value`)}
                   disabled={isLoading}
                   placeholder="Value (e.g., 18-28°C)"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -505,7 +477,7 @@ export default function DeploymentEditor({
                 />
                 <button
                   type="button"
-                  onClick={() => removeEnvironmentalField(index)}
+                  onClick={() => removeEnv(index)}
                   disabled={isLoading}
                   aria-label="Remove"
                   className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md
@@ -555,8 +527,7 @@ export default function DeploymentEditor({
               <input
                 id="mothbox-id"
                 type="text"
-                value={mothboxId}
-                onChange={(e) => { setMothboxId(e.target.value); setHasChanges(true) }}
+                {...register('mothbox_id')}
                 disabled={isLoading}
                 placeholder="e.g., mothbox-001"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -573,8 +544,7 @@ export default function DeploymentEditor({
               <input
                 id="firmware-version"
                 type="text"
-                value={firmwareVersion}
-                onChange={(e) => { setFirmwareVersion(e.target.value); setHasChanges(true) }}
+                {...register('firmware_version')}
                 disabled={isLoading}
                 placeholder="e.g., 5.2.1"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -608,11 +578,10 @@ export default function DeploymentEditor({
         {sectionsExpanded.custom && (
           <div className="mt-4 space-y-3">
             {customFields.map((field, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={field.id} className="flex gap-2">
                 <input
                   type="text"
-                  value={field.key}
-                  onChange={(e) => updateCustomField(index, 'key', e.target.value)}
+                  {...register(`custom.${index}.key`)}
                   disabled={isLoading}
                   placeholder="Key"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -622,8 +591,7 @@ export default function DeploymentEditor({
                 />
                 <input
                   type="text"
-                  value={field.value}
-                  onChange={(e) => updateCustomField(index, 'value', e.target.value)}
+                  {...register(`custom.${index}.value`)}
                   disabled={isLoading}
                   placeholder="Value"
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
@@ -633,7 +601,7 @@ export default function DeploymentEditor({
                 />
                 <button
                   type="button"
-                  onClick={() => removeCustomField(index)}
+                  onClick={() => removeCustom(index)}
                   disabled={isLoading}
                   aria-label="Remove"
                   className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md
@@ -688,8 +656,8 @@ export default function DeploymentEditor({
         </button>
         <button
           type="button"
-          onClick={handleSave}
-          disabled={!isFormValid || isLoading}
+          onClick={handleSubmit(onValid)}
+          disabled={isLoading}
           className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md
                    hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -710,33 +678,4 @@ export default function DeploymentEditor({
       />
     </div>
   )
-}
-
-DeploymentEditor.propTypes = {
-  /** Existing deployment data (null for new deployment) */
-  deployment: PropTypes.shape({
-    deployment_name: PropTypes.string,
-    location_name: PropTypes.string,
-    latitude: PropTypes.number,
-    longitude: PropTypes.number,
-    altitude: PropTypes.number,
-    start_date: PropTypes.string,
-    end_date: PropTypes.string,
-    environmental: PropTypes.object,
-    mothbox_id: PropTypes.string,
-    firmware_version: PropTypes.string,
-    custom: PropTypes.object
-  }),
-  /** Directory path for deployment */
-  directory: PropTypes.string.isRequired,
-  /** Filter criteria for auto-fill aggregation (optional) */
-  filter: PropTypes.object,
-  /** Save handler - receives deployment data object */
-  onSave: PropTypes.func.isRequired,
-  /** Cancel handler */
-  onCancel: PropTypes.func.isRequired,
-  /** Loading state */
-  isLoading: PropTypes.bool,
-  /** Error message */
-  error: PropTypes.string
 }
