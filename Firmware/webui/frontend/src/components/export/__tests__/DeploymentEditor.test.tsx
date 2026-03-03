@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import DeploymentEditor from '../DeploymentEditor';
 
 // Create a wrapper component with QueryClientProvider for tests
@@ -12,7 +13,7 @@ const createWrapper = () => {
       mutations: { retry: false }
     }
   });
-  return ({ children }) => (
+  return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
@@ -20,7 +21,7 @@ const createWrapper = () => {
 };
 
 // Helper to render with QueryClientProvider
-const renderWithQueryClient = (ui, options = {}) => {
+const renderWithQueryClient = (ui: React.ReactElement, options: Record<string, unknown> = {}) => {
   return render(ui, { wrapper: createWrapper(), ...options });
 };
 
@@ -58,13 +59,17 @@ describe('DeploymentEditor', () => {
       />
     );
 
+    // Save is enabled (RHF validates on submit, not upfront)
     const saveButton = screen.getByRole('button', { name: /save/i });
-    expect(saveButton).toBeDisabled(); // Disabled when no name
-
-    const nameInput = screen.getByLabelText(/deployment name/i);
-    await user.type(nameInput, 'Test Deployment');
-
     expect(saveButton).not.toBeDisabled();
+
+    // Click Save with empty name — triggers validation, shows error, does NOT call onSave
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/deployment name is required/i)).toBeInTheDocument();
+    });
+    expect(mockOnSave).not.toHaveBeenCalled();
   });
 
   it('enforces deployment_name max length (200 chars) with maxLength attribute', async () => {
@@ -114,14 +119,23 @@ describe('DeploymentEditor', () => {
       />
     );
 
+    // Fill name first so that only the date cross-field error blocks submit
+    const nameInput = screen.getByLabelText(/deployment name/i);
+    await user.type(nameInput, 'Test');
+
     const startDateInput = screen.getByLabelText(/start date/i);
     const endDateInput = screen.getByLabelText(/end date/i);
 
     await user.type(startDateInput, '2024-12-01');
     await user.type(endDateInput, '2024-11-01'); // End before start
-    await user.tab();
 
-    expect(screen.getByText(/end date must be after start date/i)).toBeInTheDocument();
+    // Cross-field .refine() runs on handleSubmit — click Save to trigger it
+    const saveButton = screen.getByRole('button', { name: /save/i });
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/end date must be/i)).toBeInTheDocument();
+    });
   });
 
   it('shows validation errors inline for date range', async () => {
@@ -144,14 +158,19 @@ describe('DeploymentEditor', () => {
     const endDateInput = screen.getByLabelText(/end date/i);
     await user.type(startDateInput, '2024-12-01');
     await user.type(endDateInput, '2024-11-01'); // End before start
-    await user.tab();
 
-    const errorMessage = screen.getByText(/end date must be after start date/i);
-    expect(errorMessage).toBeInTheDocument();
-    expect(errorMessage).toHaveClass('text-red-600'); // or similar error styling
+    // Cross-field .refine() runs on handleSubmit — click Save to trigger it
+    const saveButton = screen.getByRole('button', { name: /save/i });
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      const errorMessage = screen.getByText(/end date must be/i);
+      expect(errorMessage).toBeInTheDocument();
+      expect(errorMessage).toHaveClass('text-red-600');
+    });
   });
 
-  it('disables Save when form is invalid', async () => {
+  it('does not call onSave when form is invalid', async () => {
     const user = userEvent.setup();
     renderWithQueryClient(
       <DeploymentEditor
@@ -162,13 +181,13 @@ describe('DeploymentEditor', () => {
       />
     );
 
+    // Save button is always enabled (only disabled when isLoading=true)
     const saveButton = screen.getByRole('button', { name: /save/i });
-    expect(saveButton).toBeDisabled();
+    expect(saveButton).not.toBeDisabled();
 
     // Add valid name
     const nameInput = screen.getByLabelText(/deployment name/i);
     await user.type(nameInput, 'Test');
-    expect(saveButton).not.toBeDisabled();
 
     // Add invalid date range
     const startDateInput = screen.getByLabelText(/start date/i);
@@ -176,7 +195,10 @@ describe('DeploymentEditor', () => {
     await user.type(startDateInput, '2024-12-01');
     await user.type(endDateInput, '2024-11-01');
 
-    expect(saveButton).toBeDisabled();
+    // Click Save — handleSubmit validates and blocks onSave
+    await user.click(saveButton);
+
+    expect(mockOnSave).not.toHaveBeenCalled();
   });
 
   it('calls onSave with correct data structure', async () => {
@@ -199,18 +221,20 @@ describe('DeploymentEditor', () => {
     const saveButton = screen.getByRole('button', { name: /save/i });
     await user.click(saveButton);
 
-    expect(mockOnSave).toHaveBeenCalledWith({
-      deployment_name: 'Oak Ridge Survey',
-      location_name: 'Oak Ridge, TN',
-      latitude: null,
-      longitude: null,
-      altitude: null,
-      start_date: null,
-      end_date: null,
-      environmental: {},
-      mothbox_id: '',
-      firmware_version: '',
-      custom: {}
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith({
+        deployment_name: 'Oak Ridge Survey',
+        location_name: 'Oak Ridge, TN',
+        latitude: null,
+        longitude: null,
+        altitude: null,
+        start_date: null,
+        end_date: null,
+        environmental: {},
+        mothbox_id: '',
+        firmware_version: '',
+        custom: {}
+      });
     });
   });
 
@@ -327,13 +351,15 @@ describe('DeploymentEditor', () => {
     const saveButton = screen.getByRole('button', { name: /save/i });
     await user.click(saveButton);
 
-    expect(mockOnSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        environmental: {
-          temperature: '18-28°C'
-        }
-      })
-    );
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          environmental: {
+            temperature: '18-28°C'
+          }
+        })
+      );
+    });
   });
 
   it('allows removing environmental key-value pairs', async () => {
@@ -364,13 +390,15 @@ describe('DeploymentEditor', () => {
     const saveButton = screen.getByRole('button', { name: /save/i });
     await user.click(saveButton);
 
-    expect(mockOnSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        environmental: {
-          humidity: '60%'
-        }
-      })
-    );
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          environmental: {
+            humidity: '60%'
+          }
+        })
+      );
+    });
   });
 
   it('handles custom fields with max 50 keys', async () => {
@@ -404,18 +432,20 @@ describe('DeploymentEditor', () => {
     const saveButton = screen.getByRole('button', { name: /save/i });
     await user.click(saveButton);
 
-    expect(mockOnSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        custom: {
-          project_code: 'ORNL-2024-001'
-        }
-      })
-    );
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          custom: {
+            project_code: 'ORNL-2024-001'
+          }
+        })
+      );
+    });
   });
 
   it('disables add button when 50 custom keys reached', async () => {
     const user = userEvent.setup();
-    const customFields = {};
+    const customFields: Record<string, string> = {};
     for (let i = 0; i < 50; i++) {
       customFields[`key${i}`] = `value${i}`;
     }
@@ -442,7 +472,7 @@ describe('DeploymentEditor', () => {
 
   it('shows tooltip when custom fields limit reached', async () => {
     const user = userEvent.setup();
-    const customFields = {};
+    const customFields: Record<string, string> = {};
     for (let i = 0; i < 50; i++) {
       customFields[`key${i}`] = `value${i}`;
     }
