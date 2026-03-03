@@ -13,7 +13,11 @@ export const deploymentSchema = z.object({
   location_name: z.string().max(500, 'Must be 500 characters or less').optional().or(z.literal('')),
   latitude: z.number().min(-90, 'Must be between -90 and 90').max(90, 'Must be between -90 and 90').nullable(),
   longitude: z.number().min(-180, 'Must be between -180 and 180').max(180, 'Must be between -180 and 180').nullable(),
-  altitude: z.coerce.number().nullable(),
+  // z.coerce.number() converts "" to 0; preprocess intercepts empty input → null
+  altitude: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? null : v,
+    z.coerce.number().nullable(),
+  ),
   start_date: z.string().optional().or(z.literal('')),
   end_date: z.string().optional().or(z.literal('')),
   environmental: z.array(deploymentFieldEntrySchema),

@@ -83,6 +83,14 @@ describe('deploymentSchema', () => {
       expect(deploymentSchema.safeParse(validDeployment({ altitude: null })).success).toBe(true)
     })
 
+    it('coerces empty string to null (not 0)', () => {
+      const result = deploymentSchema.safeParse(validDeployment({ altitude: '' as unknown as number }))
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.altitude).toBeNull()
+      }
+    })
+
     it('accepts numeric altitude', () => {
       expect(deploymentSchema.safeParse(validDeployment({ altitude: 350.5 })).success).toBe(true)
     })
