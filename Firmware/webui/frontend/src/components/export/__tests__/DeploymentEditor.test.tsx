@@ -553,6 +553,29 @@ describe('DeploymentEditor', () => {
     expect(screen.getByLabelText(/end date/i)).toHaveValue('2024-08-31');
   });
 
+  it('does not call onSave when saving unmodified existing deployment', async () => {
+    const user = userEvent.setup();
+    renderWithQueryClient(
+      <DeploymentEditor
+        deployment={{
+          deployment_name: 'Existing',
+          location_name: 'Somewhere',
+        }}
+        directory="/photos/deployment1"
+        onSave={mockOnSave}
+        onCancel={mockOnCancel}
+      />
+    );
+
+    // Form is populated via reset() — isDirty is false
+    const saveButton = screen.getByRole('button', { name: /save/i });
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockOnSave).not.toHaveBeenCalled();
+    });
+  });
+
   it('displays loading state', () => {
     renderWithQueryClient(
       <DeploymentEditor
