@@ -15,20 +15,20 @@ import {
   type DeploymentFormData,
 } from '../../schemas/deployment'
 
+/**
+ * Backend deployment shape — derives scalar fields from the Zod schema,
+ * but keeps environmental/custom as Record<string, string> (backend format)
+ * instead of the useFieldArray { key, value }[] form format.
+ */
+type DeploymentPropData = Partial<
+  Omit<DeploymentFormData, 'environmental' | 'custom'>
+> & {
+  environmental?: Record<string, string>
+  custom?: Record<string, string>
+}
+
 interface DeploymentEditorProps {
-  deployment?: {
-    deployment_name?: string
-    location_name?: string
-    latitude?: number | null
-    longitude?: number | null
-    altitude?: number | null
-    start_date?: string | null
-    end_date?: string | null
-    environmental?: Record<string, string>
-    mothbox_id?: string
-    firmware_version?: string
-    custom?: Record<string, string>
-  } | null
+  deployment?: DeploymentPropData | null
   directory: string
   filter?: Record<string, unknown>
   onSave: (data: Record<string, unknown>) => void
