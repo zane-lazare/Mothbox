@@ -64,7 +64,9 @@ export default function DeploymentEditor({
   // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
   // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
   // The cast through `unknown` is safe because the schema validates the same
-  // shape at runtime. TODO(#485): Remove when @hookform/resolvers aligns with Zod 4.
+  // shape at runtime — DeploymentFormData is z.infer<typeof deploymentSchema>.
+  // Verified working with @hookform/resolvers ^5.2.2.
+  // TODO(#485): Remove cast when @hookform/resolvers aligns with Zod 4.
   const {
     register,
     handleSubmit,
