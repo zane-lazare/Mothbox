@@ -72,7 +72,7 @@ export default function DeploymentEditor({
     setValue,
     reset,
     control,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, submitCount, isValid },
   } = useForm<DeploymentFormData>({
     resolver: zodResolver(
       deploymentSchema as unknown as Parameters<typeof zodResolver>[0],
@@ -660,7 +660,7 @@ export default function DeploymentEditor({
         <button
           type="button"
           onClick={handleSubmit(onValid)}
-          disabled={isLoading}
+          disabled={isLoading || (submitCount > 0 && !isValid)}
           className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md
                    hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
