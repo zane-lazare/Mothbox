@@ -198,7 +198,9 @@ describe('DeploymentEditor', () => {
     // Click Save — handleSubmit validates and blocks onSave
     await user.click(saveButton);
 
-    expect(mockOnSave).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockOnSave).not.toHaveBeenCalled();
+    });
   });
 
   it('calls onSave with correct data structure', async () => {
