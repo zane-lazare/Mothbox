@@ -3,14 +3,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import GPSSettings from '../GPSSettings'
-import * as api from '../../utils/api'
+
+// Create typed mock functions (hoisted so vi.mock can reference them)
+const { mockGetGpsConfig, mockGetGpsStatus, mockUpdateGpsConfig, mockSyncGps } = vi.hoisted(() => ({
+  mockGetGpsConfig: vi.fn(),
+  mockGetGpsStatus: vi.fn(),
+  mockUpdateGpsConfig: vi.fn(),
+  mockSyncGps: vi.fn(),
+}))
 
 // Mock the API module
 vi.mock('../../utils/api', () => ({
-  getGpsConfig: vi.fn(),
-  updateGpsConfig: vi.fn(),
-  getGpsStatus: vi.fn(),
-  syncGps: vi.fn(),
+  getGpsConfig: mockGetGpsConfig,
+  updateGpsConfig: mockUpdateGpsConfig,
+  getGpsStatus: mockGetGpsStatus,
+  syncGps: mockSyncGps,
 }))
 
 // Mock toast
@@ -24,7 +31,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 describe('GPSSettings', () => {
-  let queryClient
+  let queryClient: QueryClient
 
   const mockGPSConfig = {
     enabled: true,
@@ -59,8 +66,8 @@ describe('GPSSettings', () => {
     vi.clearAllMocks()
 
     // Set default mock responses
-    api.getGpsConfig.mockResolvedValue({ data: mockGPSConfig })
-    api.getGpsStatus.mockResolvedValue({ data: mockGPSStatus })
+    mockGetGpsConfig.mockResolvedValue({ data: mockGPSConfig })
+    mockGetGpsStatus.mockResolvedValue({ data: mockGPSStatus })
   })
 
   const renderComponent = () => {
@@ -74,6 +81,27 @@ describe('GPSSettings', () => {
   it('renders loading state initially', () => {
     renderComponent()
     expect(screen.getByText(/Loading GPS configuration/i)).toBeInTheDocument()
+  })
+
+  it('falls back to defaults when server returns malformed config', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // Return config missing the required 'device' field
+    mockGetGpsConfig.mockResolvedValue({
+      data: { enabled: true, baudrate: 9600, timeout: 10, timeout_hot: 15, timeout_warm: 60, timeout_cold: 90, timeout_almanac: 1200 },
+    })
+
+    renderComponent()
+
+    // Should still render (fallback fills in defaults for missing fields)
+    await waitFor(() => {
+      expect(screen.getByText(/GPS Module Configuration/i)).toBeInTheDocument()
+    })
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'GPS config from server failed validation:',
+      expect.anything(),
+    )
+    warnSpy.mockRestore()
   })
 
   it('renders GPS configuration when loaded', async () => {
@@ -101,7 +129,7 @@ describe('GPSSettings', () => {
   })
 
   it('displays "No GPS Fix" when GPS has no fix', async () => {
-    api.getGpsStatus.mockResolvedValue({
+    mockGetGpsStatus.mockResolvedValue({
       data: { ...mockGPSStatus, has_fix: false },
     })
 
@@ -124,7 +152,7 @@ describe('GPSSettings', () => {
   })
 
   it('hides configuration fields when GPS is disabled', async () => {
-    api.getGpsConfig.mockResolvedValue({
+    mockGetGpsConfig.mockResolvedValue({
       data: { ...mockGPSConfig, enabled: false },
     })
 
@@ -169,6 +197,34 @@ describe('GPSSettings', () => {
     expect(input).toHaveValue('/dev/ttyUSB0')
   })
 
+  it('does not reset form with polling data while user is editing', async () => {
+    const user = userEvent.setup()
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
+    })
+
+    // Type into the device field (makes the form dirty)
+    const input = screen.getByRole('textbox', { name: /GPS Device Path/i })
+    await user.clear(input)
+    await user.type(input, '/dev/ttyUSB1')
+    expect(input).toHaveValue('/dev/ttyUSB1')
+
+    // Simulate a polling re-fetch returning different data
+    mockGetGpsConfig.mockResolvedValue({
+      data: { ...mockGPSConfig, device: '/dev/ttyS0' },
+    })
+
+    // Actually trigger the refetch via TanStack Query invalidation
+    await queryClient.invalidateQueries({ queryKey: ['gps-config'] })
+
+    // The form should keep the user's typed value, not reset to /dev/ttyS0
+    await waitFor(() => {
+      expect(input).toHaveValue('/dev/ttyUSB1')
+    })
+  })
+
   it('updates baudrate selection', async () => {
     const user = userEvent.setup()
     renderComponent()
@@ -186,7 +242,7 @@ describe('GPSSettings', () => {
 
   it('saves configuration when save button clicked', async () => {
     const user = userEvent.setup()
-    api.updateGpsConfig.mockResolvedValue({ data: { success: true } })
+    mockUpdateGpsConfig.mockResolvedValue({ data: { success: true } })
 
     renderComponent()
 
@@ -198,8 +254,8 @@ describe('GPSSettings', () => {
     await user.click(saveButton)
 
     await waitFor(() => {
-      expect(api.updateGpsConfig).toHaveBeenCalled()
-      const callArgs = api.updateGpsConfig.mock.calls[0][0]
+      expect(mockUpdateGpsConfig).toHaveBeenCalled()
+      const callArgs = mockUpdateGpsConfig.mock.calls[0][0]
       expect(callArgs).toEqual({
         gps_enabled: true,
         gps_device: '/dev/ttyAMA0',
@@ -213,12 +269,45 @@ describe('GPSSettings', () => {
     })
   })
 
+  it('shows restart dialog when device path changes, then submits on confirm', async () => {
+    const user = userEvent.setup()
+    mockUpdateGpsConfig.mockResolvedValue({ data: { success: true } })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /GPS Device Path/i })).toBeInTheDocument()
+    })
+
+    // Change the device path to trigger restart confirmation
+    const input = screen.getByRole('textbox', { name: /GPS Device Path/i })
+    await user.clear(input)
+    await user.type(input, '/dev/ttyUSB0')
+
+    // Click save — should show restart confirmation dialog
+    const saveButton = screen.getByText(/💾 Save Configuration/i)
+    await user.click(saveButton)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Restart GPS Service/i)).toBeInTheDocument()
+    })
+
+    // Confirm the dialog
+    const confirmButton = screen.getByText(/Continue/i)
+    await user.click(confirmButton)
+
+    await waitFor(() => {
+      expect(mockUpdateGpsConfig).toHaveBeenCalled()
+      expect(mockUpdateGpsConfig.mock.calls[0][0].gps_device).toBe('/dev/ttyUSB0')
+    })
+  })
+
   it('syncs GPS when sync button clicked', async () => {
     const user = userEvent.setup()
 
     // Create a promise that won't resolve immediately to allow us to see the "Syncing..." state
-    let resolveSyncGps
-    api.syncGps.mockImplementation(() => new Promise((resolve) => {
+    let resolveSyncGps: (() => void) | undefined
+    mockSyncGps.mockImplementation(() => new Promise((resolve) => {
       resolveSyncGps = () => resolve({
         data: {
           success: true,
@@ -242,10 +331,10 @@ describe('GPSSettings', () => {
       expect(screen.getByText(/Syncing.../i)).toBeInTheDocument()
     })
 
-    expect(api.syncGps).toHaveBeenCalled()
+    expect(mockSyncGps).toHaveBeenCalled()
 
     // Resolve the promise to complete the sync
-    resolveSyncGps()
+    resolveSyncGps!()
 
     // Wait for sync to complete and button to return to normal state
     await waitFor(() => {

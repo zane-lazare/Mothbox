@@ -1,23 +1,47 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+// @ts-expect-error — api.js has no type declarations (pre-migration)
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
+// @ts-expect-error — helpers.js has no type declarations (pre-migration)
 import { formatTimestamp } from '../utils/helpers'
-import { validateDevicePath, validateBaudrate } from '../utils/gpsValidation'
 import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
 import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
+// @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+// Resolver type import is only needed for the zodResolver cast workaround — remove with TODO(#485)
+import { Controller, useForm, type Resolver } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  gpsSettingsSchema,
+  GPS_SETTINGS_DEFAULTS,
+  type GpsSettingsFormData,
+} from '../schemas/gps-settings'
 import toast from 'react-hot-toast'
+// @ts-expect-error — CollapsibleCard.jsx has no type declarations (pre-migration)
 import CollapsibleCard from './CollapsibleCard'
+// @ts-expect-error — ConfirmDialog.jsx has no type declarations (pre-migration)
 import ConfirmDialog from './common/ConfirmDialog'
+// @ts-expect-error — useGpsExif.js has no type declarations (pre-migration)
 import { useGpsExifStatus, useGpsExifConfig, useUpdateGpsExifConfig } from '../hooks/useGpsExif'
 
 export default function GPSSettings() {
   const queryClient = useQueryClient()
+
+  // zodResolver's Zod 4 overload expects $ZodType<Output, FieldValues> but
+  // Zod 4's public ZodType uses `unknown` for its input parameter (z.coerce).
+  // The cast through `unknown` is safe because the schema validates the same
+  // shape at runtime. TODO(#485): Remove when @hookform/resolvers aligns with Zod 4.
+  const { register, reset, handleSubmit, watch, getValues, setValue, control, formState: { errors, isDirty } } = useForm<GpsSettingsFormData>({
+    resolver: zodResolver(gpsSettingsSchema as unknown as Parameters<typeof zodResolver>[0]) as unknown as Resolver<GpsSettingsFormData>,
+    defaultValues: GPS_SETTINGS_DEFAULTS,
+    mode: 'onTouched',
+  })
+
+  const pendingValues = useRef<GpsSettingsFormData | null>(null)
+
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [timeoutsCollapsed, setTimeoutsCollapsed] = useState(true)
   const [syncing, setSyncing] = useState(false)
-  const [localConfig, setLocalConfig] = useState(null)
-  const [validationErrors, setValidationErrors] = useState({})
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
   const [gpsPrecision, setGpsPrecisionState] = useState(() => getGpsPrecision())
   const [exifSectionOpen, setExifSectionOpen] = useState(false)
@@ -35,7 +59,7 @@ export default function GPSSettings() {
   }, [exifConfig])
 
   // Handle precision change
-  const handlePrecisionChange = (newPrecision) => {
+  const handlePrecisionChange = (newPrecision: string) => {
     const precision = parseInt(newPrecision, 10)
     setGpsPrecisionState(precision)
     if (!setGpsPrecision(precision)) {
@@ -45,19 +69,29 @@ export default function GPSSettings() {
 
   const { data: gpsConfig, isLoading: configLoading } = useQuery({
     queryKey: QUERY_KEYS.GPS_CONFIG,
-    queryFn: () => getGpsConfig().then(res => res.data),
+    queryFn: () => getGpsConfig().then((res: { data: unknown }) => {
+      const result = gpsSettingsSchema.safeParse(res.data)
+      if (!result.success) {
+        console.warn('GPS config from server failed validation:', result.error)
+        return { ...GPS_SETTINGS_DEFAULTS, ...(res.data as Partial<GpsSettingsFormData>) }
+      }
+      return result.data
+    }),
   })
 
-  // Sync local config with query data (replaces deprecated onSuccess)
+  // Sync form with query data. While the user is editing (isDirty), incoming
+  // polling updates are ignored to prevent overwriting keystrokes. Config changes
+  // made elsewhere will only take effect after the user saves or discards.
   useEffect(() => {
-    if (gpsConfig) {
-      setLocalConfig(gpsConfig)
+    if (gpsConfig && !isDirty) {
+      reset(gpsConfig)
     }
-  }, [gpsConfig])
+  }, [gpsConfig, isDirty, reset])
 
   const { data: gpsStatus } = useQuery({
     queryKey: QUERY_KEYS.GPS_STATUS,
-    queryFn: () => getGpsStatus().then(res => res.data),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    queryFn: () => getGpsStatus().then((res: { data: any }) => res.data),
     // Pause polling during sync to avoid spam, otherwise poll every 15s
     refetchInterval: () => syncing ? false : 15000,
   })
@@ -84,9 +118,12 @@ export default function GPSSettings() {
     return !Number.isNaN(val) ? formatCoordinateDisplay(val, false, 'dms', gpsPrecision) : null
   }, [gpsStatus?.last_known_lon, gpsPrecision])
 
-  const updateConfigMutation = useMutation({
+  // TODO(#197): Type mutation generics once api.js is migrated to TypeScript
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateConfigMutation = useMutation<any, any, Record<string, unknown>>({
     mutationFn: updateGpsConfig,
-    onSuccess: (response) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries(QUERY_KEYS.GPS_CONFIG)
       queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
 
@@ -96,14 +133,15 @@ export default function GPSSettings() {
         toast.success('GPS configuration updated successfully!')
       }
     },
-    onError: (error) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
       const message = error.response?.data?.message || error.response?.data?.error || 'Failed to update GPS config'
       toast.error(`Error: ${message}`, { duration: 6000 })
     },
   })
 
   // Helper to format GPS state description
-  const formatGpsStateInfo = (gpstime) => {
+  const formatGpsStateInfo = (gpstime: number) => {
     if (gpstime === 0) {
       return { state: 'almanac_expired', time: '5-20 min', description: 'First sync (almanac download)' }
     }
@@ -120,22 +158,27 @@ export default function GPSSettings() {
   }
 
   const handleSyncGPS = async () => {
+    // Check server state, not form state — user may have toggled enabled without saving
     if (!gpsConfig?.enabled) {
       toast.error('GPS is disabled. Enable it first.')
       return
     }
+    const values = getValues()
 
     setSyncing(true)
 
     // Get expected GPS state based on last sync
     const stateInfo = formatGpsStateInfo(gpsStatus?.gpstime || 0)
 
-    // Use actual configured timeout values based on GPS state
-    const timeoutMap = {
-      'hot_start': localConfig?.timeout_hot || 15,
-      'warm_start': localConfig?.timeout_warm || 60,
-      'cold_start': localConfig?.timeout_cold || 90,
-      'almanac_expired': localConfig?.timeout_almanac || 1200
+    // Read timeout values from the form (not server state) so the progress
+    // timer reflects whatever the user currently sees in the UI sliders, even
+    // if those values haven't been saved yet. This keeps the displayed estimate
+    // consistent with the user's intent.
+    const timeoutMap: Record<string, number> = {
+      'hot_start': values.timeout_hot,
+      'warm_start': values.timeout_warm,
+      'cold_start': values.timeout_cold,
+      'almanac_expired': values.timeout_almanac,
     }
     const expectedSeconds = timeoutMap[stateInfo.state] || 60
 
@@ -193,14 +236,15 @@ export default function GPSSettings() {
       }
       queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
       queryClient.invalidateQueries(QUERY_KEYS.SYSTEM_STATUS)
-    } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
       clearInterval(progressInterval)
       toast.dismiss(toastId)
       const message = error.response?.data?.message || error.message
       const isTimeout = message.includes('timeout') || error.response?.status === 408
 
       if (isTimeout) {
-        const timeoutValue = localConfig?.timeout || 60
+        const timeoutValue = gpsConfig?.timeout ?? 60
         toast.error(
           `⏱️ GPS sync timeout (${timeoutValue}s)\n\n` +
           `Troubleshooting:\n` +
@@ -226,65 +270,47 @@ export default function GPSSettings() {
     }
   }
 
-  // Validate config changes in real-time
-  const handleDeviceChange = (newDevice) => {
-    setLocalConfig({...localConfig, device: newDevice})
-    const validation = validateDevicePath(newDevice)
-    setValidationErrors(prev => ({
-      ...prev,
-      device: validation.valid ? null : validation.error
-    }))
+  const submitConfig = (values: GpsSettingsFormData) => {
+    updateConfigMutation.mutate({
+      gps_enabled: values.enabled,
+      gps_device: values.device,
+      gps_baudrate: values.baudrate,
+      gps_timeout: values.timeout,
+      gps_timeout_hot: values.timeout_hot,
+      gps_timeout_warm: values.timeout_warm,
+      gps_timeout_cold: values.timeout_cold,
+      gps_timeout_almanac: values.timeout_almanac,
+    })
   }
 
-  const handleBaudrateChange = (newBaudrate) => {
-    setLocalConfig({...localConfig, baudrate: newBaudrate})
-    const validation = validateBaudrate(newBaudrate)
-    setValidationErrors(prev => ({
-      ...prev,
-      baudrate: validation.valid ? null : validation.error
-    }))
-  }
+  const handleSaveConfig = (values: GpsSettingsFormData) => {
+    if (!gpsConfig) { submitConfig(values); return }
 
-  // Removed - timeout field no longer used (replaced by adaptive timeouts)
-
-  // Check if form is valid
-  const isFormValid = () => {
-    if (!localConfig) return false
-    return !validationErrors.device && !validationErrors.baudrate && !validationErrors.timeout
-  }
-
-  const handleSaveConfig = () => {
-    if (!isFormValid()) {
-      toast.error('Please fix validation errors before saving')
-      return
-    }
-
-    // Check if device or baudrate changed (requires gpsd restart)
-    const deviceChanged = localConfig.device !== gpsConfig.device
-    const baudrateChanged = localConfig.baudrate !== gpsConfig.baudrate
+    const deviceChanged = values.device !== gpsConfig.device
+    const baudrateChanged = values.baudrate !== gpsConfig.baudrate
 
     if (deviceChanged || baudrateChanged) {
-      // Show warning that gpsd will restart
+      pendingValues.current = values
       setShowRestartConfirm(true)
       return
     }
 
-    doSaveConfig()
+    submitConfig(values)
   }
 
   const doSaveConfig = () => {
     setShowRestartConfirm(false)
-    updateConfigMutation.mutate({
-      gps_enabled: localConfig.enabled,
-      gps_device: localConfig.device,
-      gps_baudrate: localConfig.baudrate,
-      gps_timeout: localConfig.timeout,
-      gps_timeout_hot: localConfig.timeout_hot,
-      gps_timeout_warm: localConfig.timeout_warm,
-      gps_timeout_cold: localConfig.timeout_cold,
-      gps_timeout_almanac: localConfig.timeout_almanac
-    })
+    if (!pendingValues.current) {
+      console.error('doSaveConfig called without pending values')
+      toast.error('Unable to save — please try again.')
+      return
+    }
+    submitConfig(pendingValues.current)
+    pendingValues.current = null
   }
+
+  const [enabled, device, timeout_hot, timeout_warm, timeout_cold, timeout_almanac] =
+    watch(['enabled', 'device', 'timeout_hot', 'timeout_warm', 'timeout_cold', 'timeout_almanac'])
 
   if (configLoading) {
     return <div className="text-gray-500">Loading GPS configuration...</div>
@@ -308,15 +334,14 @@ export default function GPSSettings() {
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={localConfig?.enabled || false}
-              onChange={(e) => setLocalConfig({...localConfig, enabled: e.target.checked})}
+              {...register('enabled')}
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
           </label>
         </div>
 
-        {localConfig?.enabled && (
+        {enabled && (
           <>
             {/* Current GPS Status */}
             {gpsStatus && (
@@ -413,30 +438,29 @@ export default function GPSSettings() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   GPS Device Path
-                  {validationErrors.device && (
+                  {errors.device && (
                     <span className="ml-2 text-red-600 text-xs">✗</span>
                   )}
-                  {!validationErrors.device && localConfig?.device && (
+                  {!errors.device && device && (
                     <span className="ml-2 text-green-600 text-xs">✓</span>
                   )}
                 </label>
                 <input
                   type="text"
-                  value={localConfig?.device || ''}
-                  onChange={(e) => handleDeviceChange(e.target.value)}
+                  {...register('device')}
                   placeholder="/dev/ttyAMA0"
                   aria-label="GPS Device Path"
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    validationErrors.device
+                    errors.device
                       ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                      : localConfig?.device
+                      : device
                       ? 'border-green-300 focus:ring-green-500 bg-green-50'
                       : 'border-gray-300 focus:ring-blue-500'
                   }`}
                 />
-                {validationErrors.device ? (
+                {errors.device ? (
                   <p className="text-xs text-red-600 mt-1">
-                    ⚠️ {validationErrors.device}
+                    ⚠️ {errors.device.message}
                   </p>
                 ) : (
                   <p className="text-xs text-gray-500 mt-1">
@@ -449,30 +473,40 @@ export default function GPSSettings() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Baud Rate
-                  {!validationErrors.baudrate && (
+                  {!errors.baudrate && (
                     <span className="ml-2 text-green-600 text-xs">✓</span>
                   )}
                 </label>
-                <select
-                  value={localConfig?.baudrate || 9600}
-                  onChange={(e) => handleBaudrateChange(parseInt(e.target.value))}
-                  aria-label="Baud Rate"
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    validationErrors.baudrate
-                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
-                      : 'border-green-300 focus:ring-green-500 bg-green-50'
-                  }`}
-                >
-                  <option value="4800">4800</option>
-                  <option value="9600">9600 (Default)</option>
-                  <option value="19200">19200</option>
-                  <option value="38400">38400</option>
-                  <option value="57600">57600</option>
-                  <option value="115200">115200</option>
-                </select>
-                {validationErrors.baudrate ? (
+                {/* Controller keeps RHF's ref attached to the DOM element.
+                    Manual Number() cast is needed because <select> produces
+                    strings; z.coerce.number() only runs at validation time. */}
+                <Controller
+                  name="baudrate"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      {...field}
+                      value={String(field.value)}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      aria-label="Baud Rate"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        errors.baudrate
+                          ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                          : 'border-green-300 focus:ring-green-500 bg-green-50'
+                      }`}
+                    >
+                      <option value="4800">4800</option>
+                      <option value="9600">9600 (Default)</option>
+                      <option value="19200">19200</option>
+                      <option value="38400">38400</option>
+                      <option value="57600">57600</option>
+                      <option value="115200">115200</option>
+                    </select>
+                  )}
+                />
+                {errors.baudrate ? (
                   <p className="text-xs text-red-600 mt-1">
-                    ⚠️ {validationErrors.baudrate}
+                    ⚠️ {errors.baudrate.message}
                   </p>
                 ) : (
                   <p className="text-xs text-gray-500 mt-1">
@@ -591,15 +625,14 @@ export default function GPSSettings() {
                     {/* Hot Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟢 Hot Start (&lt;4 hours): {localConfig?.timeout_hot || 15}s
+                        🟢 Hot Start (&lt;4 hours): {timeout_hot}s
                       </label>
                       <input
                         type="range"
                         min="5"
                         max="60"
                         step="5"
-                        value={localConfig?.timeout_hot || 15}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_hot: parseInt(e.target.value)})}
+                        {...register('timeout_hot', { valueAsNumber: true })}
                         className="w-full"
                       />
                       <div className="flex justify-between text-xs text-gray-500">
@@ -612,15 +645,14 @@ export default function GPSSettings() {
                     {/* Warm Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟡 Warm Start (4h-6d): {localConfig?.timeout_warm || 60}s
+                        🟡 Warm Start (4h-6d): {timeout_warm}s
                       </label>
                       <input
                         type="range"
                         min="30"
                         max="180"
                         step="10"
-                        value={localConfig?.timeout_warm || 60}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_warm: parseInt(e.target.value)})}
+                        {...register('timeout_warm', { valueAsNumber: true })}
                         className="w-full"
                       />
                       <div className="flex justify-between text-xs text-gray-500">
@@ -633,15 +665,14 @@ export default function GPSSettings() {
                     {/* Cold Start Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🟠 Cold Start (6-28d): {localConfig?.timeout_cold || 90}s
+                        🟠 Cold Start (6-28d): {timeout_cold}s
                       </label>
                       <input
                         type="range"
                         min="60"
                         max="300"
                         step="10"
-                        value={localConfig?.timeout_cold || 90}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_cold: parseInt(e.target.value)})}
+                        {...register('timeout_cold', { valueAsNumber: true })}
                         className="w-full"
                       />
                       <div className="flex justify-between text-xs text-gray-500">
@@ -654,15 +685,14 @@ export default function GPSSettings() {
                     {/* Almanac Expired Timeout */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        🔴 Almanac Expired (&gt;28d): {Math.floor((localConfig?.timeout_almanac || 1200) / 60)}m
+                        🔴 Almanac Expired (&gt;28d): {Math.floor(timeout_almanac / 60)}m
                       </label>
                       <input
                         type="range"
                         min="300"
                         max="1800"
                         step="60"
-                        value={localConfig?.timeout_almanac || 1200}
-                        onChange={(e) => setLocalConfig({...localConfig, timeout_almanac: parseInt(e.target.value)})}
+                        {...register('timeout_almanac', { valueAsNumber: true })}
                         className="w-full"
                       />
                       <div className="flex justify-between text-xs text-gray-500">
@@ -674,13 +704,13 @@ export default function GPSSettings() {
 
                     {/* Reset to Defaults Button */}
                     <button
-                      onClick={() => setLocalConfig({
-                        ...localConfig,
-                        timeout_hot: 15,
-                        timeout_warm: 60,
-                        timeout_cold: 90,
-                        timeout_almanac: 1200
-                      })}
+                      type="button"
+                      onClick={() => {
+                        setValue('timeout_hot', GPS_SETTINGS_DEFAULTS.timeout_hot, { shouldDirty: true })
+                        setValue('timeout_warm', GPS_SETTINGS_DEFAULTS.timeout_warm, { shouldDirty: true })
+                        setValue('timeout_cold', GPS_SETTINGS_DEFAULTS.timeout_cold, { shouldDirty: true })
+                        setValue('timeout_almanac', GPS_SETTINGS_DEFAULTS.timeout_almanac, { shouldDirty: true })
+                      }}
                       className="w-full px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                     >
                       Reset to Defaults
@@ -696,16 +726,16 @@ export default function GPSSettings() {
                 onClick={handleSyncGPS}
                 disabled={syncing}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                title="Progress estimate uses current slider values (even if unsaved)"
               >
                 {syncing ? 'Syncing...' : '🛰️ Sync GPS Now'}
               </button>
               <button
-                onClick={handleSaveConfig}
-                disabled={updateConfigMutation.isLoading || !isFormValid()}
+                onClick={handleSubmit(handleSaveConfig)}
+                disabled={updateConfigMutation.isPending}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                title={!isFormValid() ? 'Please fix validation errors' : ''}
               >
-                {updateConfigMutation.isLoading ? 'Saving...' : '💾 Save Configuration'}
+                {updateConfigMutation.isPending ? 'Saving...' : '💾 Save Configuration'}
               </button>
             </div>
 
@@ -740,7 +770,7 @@ export default function GPSSettings() {
       {/* GPS Service Restart Confirmation */}
       <ConfirmDialog
         isOpen={showRestartConfirm}
-        onClose={() => setShowRestartConfirm(false)}
+        onClose={() => { setShowRestartConfirm(false); pendingValues.current = null }}
         onConfirm={doSaveConfig}
         title="Restart GPS Service?"
         message="Changing device or baud rate will restart the GPS service. Any GPS sync in progress will be interrupted."
