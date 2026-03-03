@@ -206,6 +206,7 @@ export default function DeploymentEditor({
 
   // Submit handler — convert arrays to objects, call onSave
   const onValid = (values: DeploymentFormData) => {
+    if (!isDirty) return
     const environmentalObj: Record<string, string> = {}
     values.environmental.forEach(({ key, value }) => {
       if (key.trim()) {
