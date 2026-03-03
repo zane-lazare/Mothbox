@@ -359,7 +359,10 @@ export default function DeploymentEditor({
             id="altitude"
             type="number"
             step="0.1"
-            {...register('altitude')}
+            {...register('altitude', {
+              setValueAs: (v: string | number | null) =>
+                (v === '' || v === null || v === undefined) ? null : Number(v),
+            })}
             disabled={isLoading}
             placeholder="e.g., 350.5"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
