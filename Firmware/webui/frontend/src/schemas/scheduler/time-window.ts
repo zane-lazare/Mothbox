@@ -14,15 +14,18 @@ import {
 
 const TIME_WINDOW_MAX_OFFSET_MINUTES = 120
 
+type SolarEventValue = (typeof SOLAR_EVENTS)[number]['value']
 const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
-  string,
-  ...string[],
+  SolarEventValue,
+  ...SolarEventValue[],
 ]
 
 const timeValue = z
   .string({ error: 'Time is required' })
   .refine(
-    (v) => TIME_FORMAT_REGEX.test(v) || solarEventValues.includes(v),
+    (v) =>
+      TIME_FORMAT_REGEX.test(v) ||
+      solarEventValues.includes(v as SolarEventValue),
     'Must be valid HH:MM time or solar event',
   )
 

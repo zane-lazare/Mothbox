@@ -9,7 +9,11 @@ import {
  * moon_phase + time_of_day + offset_days.
  */
 
-const moonPhaseValues = MOON_PHASES.map((p) => p.value) as [string, ...string[]]
+type MoonPhaseValue = (typeof MOON_PHASES)[number]['value']
+const moonPhaseValues = MOON_PHASES.map((p) => p.value) as [
+  MoonPhaseValue,
+  ...MoonPhaseValue[],
+]
 
 export const moonPhaseTriggerSchema = z.object({
   moon_phase: z.enum(moonPhaseValues, {

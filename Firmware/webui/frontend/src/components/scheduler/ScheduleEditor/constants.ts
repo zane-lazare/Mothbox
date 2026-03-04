@@ -5,7 +5,6 @@
 
 /**
  * Validation limits for schedules and patterns
- * @constant {Object}
  */
 export const SCHEDULE_LIMITS = {
   /** Maximum length for pattern names */
@@ -28,11 +27,10 @@ export const SCHEDULE_LIMITS = {
   MIN_COOLDOWN_MINUTES: 1,
   /** Maximum offset days */
   MAX_OFFSET_DAYS: 7,
-}
+} as const
 
 /**
  * Trigger type definitions with UI metadata
- * @constant {Object}
  */
 export const TRIGGER_TYPES = {
   interval: {
@@ -71,11 +69,10 @@ export const TRIGGER_TYPES = {
     icon: 'CodeBracketIcon',
     description: 'Advanced cron expression for custom scheduling',
   },
-}
+} as const
 
 /**
  * Solar events with descriptions
- * @constant {Array<Object>}
  */
 export const SOLAR_EVENTS = [
   {
@@ -153,11 +150,10 @@ export const SOLAR_EVENTS = [
     label: 'Astronomical Dusk',
     description: 'Sun 18° below horizon (complete darkness)',
   },
-]
+] as const
 
 /**
  * Moon phases
- * @constant {Array<Object>}
  */
 export const MOON_PHASES = [
   { value: 'new', label: 'New Moon' },
@@ -168,11 +164,10 @@ export const MOON_PHASES = [
   { value: 'waning_gibbous', label: 'Waning Gibbous' },
   { value: 'last_quarter', label: 'Last Quarter' },
   { value: 'waning_crescent', label: 'Waning Crescent' },
-]
+] as const
 
 /**
  * Days of week (ISO 8601: 0=Monday, 6=Sunday)
- * @constant {Array<Object>}
  */
 export const DAYS_OF_WEEK = [
   { value: 0, label: 'Monday', shortLabel: 'Mon' },
@@ -182,11 +177,10 @@ export const DAYS_OF_WEEK = [
   { value: 4, label: 'Friday', shortLabel: 'Fri' },
   { value: 5, label: 'Saturday', shortLabel: 'Sat' },
   { value: 6, label: 'Sunday', shortLabel: 'Sun' },
-]
+] as const
 
 /**
  * Sensor types
- * @constant {Array<Object>}
  */
 export const SENSOR_TYPES = [
   {
@@ -204,11 +198,10 @@ export const SENSOR_TYPES = [
     label: 'Temperature',
     description: 'Measure temperature (°C)',
   },
-]
+] as const
 
 /**
  * Sensor comparison operators
- * @constant {Array<Object>}
  */
 export const SENSOR_COMPARISONS = [
   { value: 'gt', label: 'Greater Than', symbol: '>' },
@@ -216,11 +209,10 @@ export const SENSOR_COMPARISONS = [
   { value: 'eq', label: 'Equal To', symbol: '=' },
   { value: 'gte', label: 'Greater Than or Equal', symbol: '≥' },
   { value: 'lte', label: 'Less Than or Equal', symbol: '≤' },
-]
+] as const
 
 /**
  * Default trigger configurations for each trigger type
- * @constant {Object}
  */
 export const TRIGGER_DEFAULTS = {
   interval: {
@@ -258,35 +250,32 @@ export const TRIGGER_DEFAULTS = {
     trigger_type: 'cron',
     cron_expression: '0 21 * * *',
   },
-}
+} as const
 
 /**
  * Regular expression for HH:MM time format validation
- * @constant {RegExp}
  */
 export const TIME_FORMAT_REGEX = /^([0-1][0-9]|2[0-3]):([0-5][0-9])$/
 
 /**
  * Maximum date range in days (10 years)
- * @constant {number}
  */
-export const MAX_DATE_RANGE_DAYS = 3650
+export const MAX_DATE_RANGE_DAYS = 3650 as const
 
 /**
  * Validates a numeric input value against optional min/max constraints.
  * Returns the validated number or null if invalid.
- *
- * @param {string|number} value - The input value to validate
- * @param {number} [min] - Optional minimum value (inclusive)
- * @param {number} [max] - Optional maximum value (inclusive)
- * @returns {number|null} The validated number or null if invalid
  *
  * @example
  * validateNumericInput('42', 0, 100) // returns 42
  * validateNumericInput('abc') // returns null
  * validateNumericInput(150, 0, 100) // returns null (exceeds max)
  */
-export const validateNumericInput = (value, min, max) => {
+export const validateNumericInput = (
+  value: string | number | null | undefined,
+  min?: number,
+  max?: number,
+): number | null => {
   // Handle empty/whitespace strings (Number('') === 0, but we want null)
   if (typeof value === 'string' && value.trim() === '') return null
 
@@ -313,15 +302,14 @@ export const validateNumericInput = (value, min, max) => {
 /**
  * Checks if a value is a valid solar event name.
  *
- * @param {string} value - The value to check
- * @returns {boolean} True if the value is a valid solar event
- *
  * @example
  * isValidSolarEvent('sunset') // returns true
  * isValidSolarEvent('12:00') // returns false
  * isValidSolarEvent('invalid') // returns false
  */
-export const isValidSolarEvent = (value) => {
+export const isValidSolarEvent = (
+  value: unknown,
+): value is (typeof SOLAR_EVENTS)[number]['value'] => {
   if (typeof value !== 'string') return false
   return SOLAR_EVENTS.some((event) => event.value === value)
 }
