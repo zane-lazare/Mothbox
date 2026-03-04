@@ -164,29 +164,42 @@ export default function DeploymentEditor({
    * Handle successful aggregation response.
    * Extracted for testability.
    */
-  const handleAggregationSuccess = (data: Record<string, unknown>) => {
+  const handleAggregationSuccess = (raw: Record<string, unknown>) => {
+    // Local interface documents the usePhotoAggregation return shape.
+    // Remove when the hook is migrated to TypeScript.
+    const data = raw as unknown as {
+      date_start?: string
+      date_end?: string
+      gps_consistent: boolean
+      latitude?: number | null
+      longitude?: number | null
+      altitude?: number | null
+      photo_count: number
+      gps_error?: string
+    }
+
     // Always fill dates
     if (data.date_start) {
-      setValue('start_date', data.date_start as string, { shouldDirty: true })
+      setValue('start_date', data.date_start, { shouldDirty: true })
     }
     if (data.date_end) {
-      setValue('end_date', data.date_end as string, { shouldDirty: true })
+      setValue('end_date', data.date_end, { shouldDirty: true })
     }
 
     // Fill GPS if consistent
     if (data.gps_consistent) {
       if (data.latitude !== null && data.longitude !== null) {
-        setValue('latitude', data.latitude as number, { shouldDirty: true })
-        setValue('longitude', data.longitude as number, { shouldDirty: true })
+        setValue('latitude', data.latitude ?? null, { shouldDirty: true })
+        setValue('longitude', data.longitude ?? null, { shouldDirty: true })
       }
       if (data.altitude !== null) {
-        setValue('altitude', data.altitude as number, { shouldDirty: true })
+        setValue('altitude', data.altitude ?? null, { shouldDirty: true })
       }
       toast.success(`Auto-filled from ${data.photo_count} photos`)
     } else {
       // GPS inconsistent - show warning but still fill dates
       toast.error(
-        (data.gps_error as string) || 'GPS coordinates are inconsistent',
+        data.gps_error || 'GPS coordinates are inconsistent',
         { duration: 5000 },
       )
       if (data.date_start || data.date_end) {
