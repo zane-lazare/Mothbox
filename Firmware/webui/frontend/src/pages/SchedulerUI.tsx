@@ -10,13 +10,14 @@ import SchedulerLegend from '../components/scheduler/SchedulerLegend'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule, useCloneSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
+import type { Schedule } from '../components/scheduler/ScheduleEditor/scheduler-types'
 
-function SchedulerUIContent() {
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editingSchedule, setEditingSchedule] = useState(null)
+function SchedulerUIContent(): React.JSX.Element {
+  const [editorOpen, setEditorOpen] = useState<boolean>(false)
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null)
 
-  const { mutateAsync: createSchedule, isPending: isCreating } = useCreateSchedule()
-  const { mutateAsync: updateSchedule, isPending: isUpdating } = useUpdateSchedule()
+  const { mutateAsync: createSchedule } = useCreateSchedule()
+  const { mutateAsync: updateSchedule } = useUpdateSchedule()
   const { mutateAsync: deleteSchedule, isPending: isDeleting } = useDeleteSchedule()
   const { mutateAsync: cloneScheduleMutation, isPending: isCloning } = useCloneSchedule()
 
@@ -24,7 +25,7 @@ function SchedulerUIContent() {
    * Handle viewing an existing schedule
    * Opens ScheduleEditor in view mode with the schedule data
    */
-  const handleViewSchedule = useCallback((schedule) => {
+  const handleViewSchedule = useCallback((schedule: Schedule) => {
     setEditingSchedule(schedule)
     setEditorOpen(true)
   }, [])
@@ -41,7 +42,7 @@ function SchedulerUIContent() {
   /**
    * Handle saving a schedule (create or update)
    */
-  const handleSaveSchedule = useCallback(async (scheduleData) => {
+  const handleSaveSchedule = useCallback(async (scheduleData: Record<string, unknown>) => {
     try {
       if (editingSchedule?.schedule_id) {
         // Update existing schedule
@@ -57,10 +58,10 @@ function SchedulerUIContent() {
       }
       setEditorOpen(false)
       setEditingSchedule(null)
-    } catch (error) {
+    } catch (err) {
       // Error toast is handled by mutation's onError callback
       // Keep editor open so user can retry
-      console.error('Error saving schedule:', error)
+      console.error('Error saving schedule:', err)
     }
   }, [editingSchedule, createSchedule, updateSchedule])
 
@@ -75,14 +76,15 @@ function SchedulerUIContent() {
   /**
    * Handle deleting a schedule from the editor
    */
-  const handleDeleteSchedule = useCallback(async (scheduleId) => {
+  const handleDeleteSchedule = useCallback(async (scheduleId: string) => {
     try {
       await deleteSchedule(scheduleId)
       toast.success('Schedule deleted successfully')
       setEditorOpen(false)
       setEditingSchedule(null)
-    } catch (error) {
-      toast.error(`Failed to delete schedule: ${error.message}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to delete schedule: ${message}`)
       // Keep editor open so user can retry or cancel
     }
   }, [deleteSchedule])
@@ -91,7 +93,7 @@ function SchedulerUIContent() {
    * Handle cloning a schedule from the editor
    * Clones the schedule, then opens the clone in the editor
    */
-  const handleCloneSchedule = useCallback(async (scheduleId) => {
+  const handleCloneSchedule = useCallback(async (scheduleId: string) => {
     try {
       const response = await cloneScheduleMutation({ id: scheduleId })
       const clonedSchedule = response.data.schedule
@@ -99,8 +101,9 @@ function SchedulerUIContent() {
       // Open the clone in the editor (loads in view mode, user clicks Edit)
       setEditingSchedule(clonedSchedule)
       setEditorOpen(true)
-    } catch (error) {
-      toast.error(`Failed to clone schedule: ${error.message}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to clone schedule: ${message}`)
     }
   }, [cloneScheduleMutation])
 
@@ -143,7 +146,6 @@ function SchedulerUIContent() {
         onCancel={handleCancelEditor}
         onDelete={handleDeleteSchedule}
         onClone={handleCloneSchedule}
-        isSaving={isCreating || isUpdating}
         isDeleting={isDeleting}
         isCloning={isCloning}
       />
@@ -152,7 +154,7 @@ function SchedulerUIContent() {
 }
 
 // Wrap in SchedulerProvider to provide schedule state to all child components
-export default function SchedulerUI() {
+export default function SchedulerUI(): React.JSX.Element {
   return (
     <SchedulerProvider>
       <SchedulerUIContent />
