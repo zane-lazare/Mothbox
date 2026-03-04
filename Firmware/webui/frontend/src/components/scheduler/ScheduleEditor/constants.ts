@@ -152,6 +152,9 @@ export const SOLAR_EVENTS = [
   },
 ] as const
 
+/** Literal union of valid solar event values */
+export type SolarEventValue = (typeof SOLAR_EVENTS)[number]['value']
+
 /**
  * Moon phases
  */
@@ -165,6 +168,9 @@ export const MOON_PHASES = [
   { value: 'last_quarter', label: 'Last Quarter' },
   { value: 'waning_crescent', label: 'Waning Crescent' },
 ] as const
+
+/** Literal union of valid moon phase values */
+export type MoonPhaseValue = (typeof MOON_PHASES)[number]['value']
 
 /**
  * Days of week (ISO 8601: 0=Monday, 6=Sunday)

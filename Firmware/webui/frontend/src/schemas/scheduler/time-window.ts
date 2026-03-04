@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   SOLAR_EVENTS,
   TIME_FORMAT_REGEX,
+  type SolarEventValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
 /**
@@ -14,7 +15,6 @@ import {
 
 const TIME_WINDOW_MAX_OFFSET_MINUTES = 120
 
-type SolarEventValue = (typeof SOLAR_EVENTS)[number]['value']
 const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
   SolarEventValue,
   ...SolarEventValue[],

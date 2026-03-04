@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   SCHEDULE_LIMITS,
   SOLAR_EVENTS,
+  type SolarEventValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
 /**
@@ -11,7 +12,6 @@ import {
  * pass-through here.
  */
 
-type SolarEventValue = (typeof SOLAR_EVENTS)[number]['value']
 const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
   SolarEventValue,
   ...SolarEventValue[],
