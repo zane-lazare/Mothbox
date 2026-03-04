@@ -8,7 +8,6 @@
  */
 
 import { useState, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
 import {
   useActiveSchedule,
@@ -19,18 +18,25 @@ import {
 import ActivationProgress from '../ActivationProgress/ActivationProgress'
 
 // Coordinate source display config (Issue #382)
-const COORD_SOURCE_CONFIG = {
+const COORD_SOURCE_CONFIG: Record<string, { dot: string; label: string }> = {
   timezone: { dot: 'bg-amber-500', label: 'Approx. location' },
   gps: { dot: 'bg-green-500', label: 'GPS' },
   explicit: { dot: 'bg-blue-500', label: 'Manual' },
 }
 
+interface ActivationPanelProps {
+  /** ID of the schedule being edited (null for new schedules) */
+  scheduleId?: string | null;
+  /** Number of routines in the schedule */
+  routineCount: number;
+  /** Whether there are unsaved changes in the editor */
+  hasUnsavedChanges: boolean;
+}
+
 /**
  * Format time as HH:MM
- * @param {string} isoString - ISO date string
- * @returns {string} Formatted time
  */
-function formatTime(isoString) {
+function formatTime(isoString: string | null | undefined): string {
   if (!isoString) return '--:--'
   const date = new Date(isoString)
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -38,20 +44,14 @@ function formatTime(isoString) {
 
 /**
  * ActivationPanel component
- *
- * @param {Object} props - Component props
- * @param {string} props.scheduleId - ID of the schedule being edited
- * @param {number} props.routineCount - Number of routines in the schedule
- * @param {boolean} props.hasUnsavedChanges - Whether there are unsaved changes
- * @returns {JSX.Element} Activation panel
  */
-export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedChanges }) {
-  const [isActivating, setIsActivating] = useState(false)
+export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedChanges }: ActivationPanelProps) {
+  const [isActivating, setIsActivating] = useState<boolean>(false)
 
   // Check if this schedule is the active one
   const { data: activeData, refetch: refetchActive } = useActiveSchedule()
   const isActive = activeData?.active_schedule?.schedule_id === scheduleId
-  const coordinatesSource = isActive ? activeData?.coordinates_source : null
+  const coordinatesSource: string | null = isActive ? activeData?.coordinates_source : null
 
   // Get preview data for stats
   const { data: previewData } = useSchedulePreview(
@@ -84,7 +84,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
       activate(
         { id: scheduleId },
         {
-          onError: (error) => {
+          onError: (error: Error) => {
             setIsActivating(false)
             toast.error(`Activation failed: ${error.message}`)
           },
@@ -100,7 +100,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
       activate(
         { id: scheduleId },
         {
-          onError: (error) => {
+          onError: (error: Error) => {
             setIsActivating(false)
             toast.error(`Activation failed: ${error.message}`)
           },
@@ -112,7 +112,7 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
   // Handle deactivate click
   const handleDeactivate = () => {
     deactivate(undefined, {
-      onError: (error) => {
+      onError: (error: Error) => {
         toast.error(`Deactivation failed: ${error.message}`)
       },
     })
@@ -221,13 +221,4 @@ export default function ActivationPanel({ scheduleId, routineCount, hasUnsavedCh
       )}
     </div>
   )
-}
-
-ActivationPanel.propTypes = {
-  /** ID of the schedule being edited (null for new schedules) */
-  scheduleId: PropTypes.string,
-  /** Number of routines in the schedule */
-  routineCount: PropTypes.number.isRequired,
-  /** Whether there are unsaved changes in the editor */
-  hasUnsavedChanges: PropTypes.bool.isRequired,
 }

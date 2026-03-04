@@ -1,7 +1,6 @@
-import PropTypes from 'prop-types';
 import { useState, useEffect } from 'react';
 import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from './constants';
-import { TimeWindowPropType, TriggerErrorsPropType } from './propTypes';
+import type { Trigger, TriggerErrors, TriggerType } from './scheduler-types';
 import IntervalTriggerForm from './IntervalTriggerForm';
 import SolarTriggerForm from './SolarTriggerForm';
 import MoonPhaseTriggerForm from './MoonPhaseTriggerForm';
@@ -29,29 +28,40 @@ import CronExpressionInput from '../ExpertMode/CronExpressionInput';
  *   onChange={(newValue) => console.log(newValue)}
  * />
  */
+
+interface TriggerFormProps {
+  /** Trigger configuration with type-specific fields. Type determines which fields are active. */
+  value?: Trigger;
+  /** Callback when trigger configuration changes */
+  onChange: (value: Trigger) => void;
+  /** Whether the form is disabled */
+  disabled?: boolean;
+  /** Validation errors for trigger fields */
+  errors?: TriggerErrors;
+}
+
 const TriggerForm = ({
   value = {
-    trigger_type: 'interval',
     ...TRIGGER_DEFAULTS.interval,
-  },
+  } as unknown as Trigger,
   onChange,
   disabled = false,
   errors = {},
-}) => {
+}: TriggerFormProps) => {
   /**
    * Get current trigger type from value
    */
-  const triggerType = value.trigger_type || 'interval';
+  const triggerType: TriggerType = value.trigger_type || 'interval';
 
   /**
    * Expert mode state - true if trigger_type is 'cron'
    */
-  const [expertMode, setExpertMode] = useState(triggerType === 'cron' ? 'expert' : 'visual');
+  const [expertMode, setExpertMode] = useState<'visual' | 'expert'>(triggerType === 'cron' ? 'expert' : 'visual');
 
   /**
    * Store previous trigger type for switching back from expert mode
    */
-  const [previousTriggerType, setPreviousTriggerType] = useState(
+  const [previousTriggerType, setPreviousTriggerType] = useState<TriggerType>(
     triggerType === 'cron' ? 'interval' : triggerType
   );
 
@@ -70,7 +80,7 @@ const TriggerForm = ({
   /**
    * Handle expert mode toggle
    */
-  const handleExpertModeChange = (newMode) => {
+  const handleExpertModeChange = (newMode: 'visual' | 'expert') => {
     setExpertMode(newMode);
 
     if (newMode === 'expert') {
@@ -79,14 +89,14 @@ const TriggerForm = ({
       onChange({
         ...defaults,
         trigger_type: 'cron',
-      });
+      } as Trigger);
     } else {
       // Switch back to previous trigger type
-      const defaults = TRIGGER_DEFAULTS[previousTriggerType] || TRIGGER_DEFAULTS.interval;
+      const defaults = TRIGGER_DEFAULTS[previousTriggerType as keyof typeof TRIGGER_DEFAULTS] || TRIGGER_DEFAULTS.interval;
       onChange({
         ...defaults,
         trigger_type: previousTriggerType,
-      });
+      } as Trigger);
     }
   };
 
@@ -94,50 +104,54 @@ const TriggerForm = ({
    * Handle trigger type change
    * Resets the value to defaults for the new trigger type
    */
-  const handleTriggerTypeChange = (newType) => {
+  const handleTriggerTypeChange = (newType: string) => {
     // Get default values for the new trigger type
-    const defaults = TRIGGER_DEFAULTS[newType] || TRIGGER_DEFAULTS.interval;
+    const defaults = TRIGGER_DEFAULTS[newType as keyof typeof TRIGGER_DEFAULTS] || TRIGGER_DEFAULTS.interval;
     onChange({
       ...defaults,
       trigger_type: newType,
-    });
-    setPreviousTriggerType(newType);
+    } as Trigger);
+    setPreviousTriggerType(newType as TriggerType);
   };
 
   /**
    * Handle value change from the specific trigger form
    * Preserves the trigger_type when forwarding changes
    */
-  const handleTriggerValueChange = (newValue) => {
+  const handleTriggerValueChange = (newValue: Trigger) => {
     onChange({
       ...newValue,
       trigger_type: triggerType,
-    });
+    } as Trigger);
   };
 
   /**
    * Handle cron expression change
    */
-  const handleCronExpressionChange = (newExpression) => {
+  const handleCronExpressionChange = (newExpression: string) => {
     onChange({
       ...value,
       trigger_type: 'cron',
       cron_expression: newExpression,
-    });
+    } as Trigger);
   };
 
   /**
    * Get description for current trigger type
    */
-  const getDescription = () => {
-    return TRIGGER_TYPES[triggerType]?.description || '';
+  const getDescription = (): string => {
+    return TRIGGER_TYPES[triggerType as keyof typeof TRIGGER_TYPES]?.description || '';
   };
 
   /**
    * Render the appropriate trigger form based on type
    */
   const renderTriggerForm = () => {
-    const commonProps = {
+    // Each child form defines its own value/onChange types.
+    // The switch statement guarantees the correct trigger type is dispatched,
+    // so we use `as any` here to bridge the Trigger union to each specific type.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const commonProps: Record<string, any> = {
       value,
       onChange: handleTriggerValueChange,
       disabled,
@@ -191,7 +205,7 @@ const TriggerForm = ({
           <div className="border-t border-gray-200 dark:border-gray-700" />
 
           <CronExpressionInput
-            value={value.cron_expression || '0 21 * * *'}
+            value={(value as { cron_expression?: string }).cron_expression || '0 21 * * *'}
             onChange={handleCronExpressionChange}
             disabled={disabled}
           />
@@ -241,40 +255,6 @@ const TriggerForm = ({
       )}
     </div>
   );
-};
-
-TriggerForm.propTypes = {
-  /** Trigger configuration with type-specific fields. Type determines which fields are active. */
-  value: PropTypes.shape({
-    trigger_type: PropTypes.oneOf(['interval', 'solar', 'moon_phase', 'fixed_time', 'sensor', 'cron']).isRequired,
-    // Interval trigger fields
-    interval_minutes: PropTypes.number,
-    time_window: TimeWindowPropType,
-    // Solar trigger fields
-    solar_event: PropTypes.string,
-    offset_minutes: PropTypes.number,
-    // Moon phase trigger fields
-    moon_phase: PropTypes.string,
-    time_of_day: PropTypes.string,
-    offset_days: PropTypes.number,
-    // Fixed time trigger fields
-    // (time_of_day already declared)
-    // Sensor trigger fields
-    sensor_type: PropTypes.string,
-    comparison: PropTypes.string,
-    threshold: PropTypes.number,
-    cooldown_minutes: PropTypes.number,
-    // Cron trigger fields
-    cron_expression: PropTypes.string,
-    // Common fields
-    days_of_week: PropTypes.arrayOf(PropTypes.number),
-  }),
-  /** Callback when trigger configuration changes */
-  onChange: PropTypes.func.isRequired,
-  /** Whether the form is disabled */
-  disabled: PropTypes.bool,
-  /** Validation errors for trigger fields */
-  errors: TriggerErrorsPropType,
 };
 
 export default TriggerForm;
