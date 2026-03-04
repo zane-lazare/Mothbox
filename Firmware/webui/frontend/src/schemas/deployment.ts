@@ -3,7 +3,7 @@ import { z } from 'zod'
 /** Optional string that also accepts empty string (common for HTML inputs). */
 const optionalStr = (max?: number) => {
   const base = z.string()
-  return (max ? base.max(max) : base).optional().or(z.literal(''))
+  return (max ? base.max(max, `Must be ${max} characters or less`) : base).optional().or(z.literal(''))
 }
 
 /** A key-value pair for useFieldArray (environmental or custom fields). */

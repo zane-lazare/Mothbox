@@ -195,11 +195,11 @@ export default function DeploymentEditor({
 
     // Fill GPS if consistent
     if (data.gps_consistent) {
-      if (data.latitude !== null && data.longitude !== null) {
-        setValue('latitude', data.latitude ?? null, { shouldDirty: true })
-        setValue('longitude', data.longitude ?? null, { shouldDirty: true })
+      if (data.latitude != null && data.longitude != null) {
+        setValue('latitude', data.latitude, { shouldDirty: true })
+        setValue('longitude', data.longitude, { shouldDirty: true })
       }
-      if (data.altitude !== null) {
+      if (data.altitude != null) {
         setValue('altitude', data.altitude ?? null, { shouldDirty: true })
       }
       toast.success(`Auto-filled from ${data.photo_count} photos`)
