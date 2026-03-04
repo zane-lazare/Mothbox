@@ -518,7 +518,7 @@ describe('DeploymentEditor', () => {
     expect(screen.getByRole('button', { name: /add environmental field/i })).toBeInTheDocument();
   });
 
-  it('populates form with existing deployment data', () => {
+  it('populates form with existing deployment data', async () => {
     const existingDeployment = {
       deployment_name: 'Oak Ridge Survey',
       location_name: 'Oak Ridge, TN',
@@ -546,7 +546,10 @@ describe('DeploymentEditor', () => {
       />
     );
 
-    expect(screen.getByLabelText(/deployment name/i)).toHaveValue('Oak Ridge Survey');
+    // Wait for useEffect reset() to settle before asserting
+    await waitFor(() => {
+      expect(screen.getByLabelText(/deployment name/i)).toHaveValue('Oak Ridge Survey');
+    });
     expect(screen.getByLabelText(/location name/i)).toHaveValue('Oak Ridge, TN');
     expect(screen.getByLabelText(/altitude/i)).toHaveValue(350.5);
     expect(screen.getByLabelText(/start date/i)).toHaveValue('2024-06-01');
