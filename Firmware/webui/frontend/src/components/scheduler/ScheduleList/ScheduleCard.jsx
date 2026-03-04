@@ -18,7 +18,6 @@ import { memo, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import ActiveScheduleBadge from './ActiveScheduleBadge'
-import { SchedulePropType } from '../ScheduleEditor/propTypes'
 import {
   getActionColor,
   generateRoutineName,
@@ -172,7 +171,7 @@ function ScheduleCard({
 }
 
 ScheduleCard.propTypes = {
-  schedule: SchedulePropType.isRequired,
+  schedule: PropTypes.object.isRequired,
   isActive: PropTypes.bool,
   onView: PropTypes.func.isRequired,
   onToggleEnabled: PropTypes.func,
