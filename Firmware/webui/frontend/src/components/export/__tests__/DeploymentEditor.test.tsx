@@ -233,8 +233,8 @@ describe('DeploymentEditor', () => {
         start_date: null,
         end_date: null,
         environmental: {},
-        mothbox_id: '',
-        firmware_version: '',
+        mothbox_id: null,
+        firmware_version: null,
         custom: {}
       });
     });

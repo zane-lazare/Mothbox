@@ -200,7 +200,7 @@ export default function DeploymentEditor({
         setValue('longitude', data.longitude, { shouldDirty: true })
       }
       if (data.altitude != null) {
-        setValue('altitude', data.altitude ?? null, { shouldDirty: true })
+        setValue('altitude', data.altitude, { shouldDirty: true })
       }
       toast.success(`Auto-filled from ${data.photo_count} photos`)
     } else {
@@ -257,15 +257,15 @@ export default function DeploymentEditor({
 
     onSave({
       deployment_name: values.deployment_name.trim(),
-      location_name: (values.location_name || '').trim(),
+      location_name: (values.location_name || '').trim() || null,
       latitude: values.latitude,
       longitude: values.longitude,
       altitude: values.altitude,
       start_date: values.start_date || null,
       end_date: values.end_date || null,
       environmental: environmentalObj,
-      mothbox_id: (values.mothbox_id || '').trim(),
-      firmware_version: (values.firmware_version || '').trim(),
+      mothbox_id: (values.mothbox_id || '').trim() || null,
+      firmware_version: (values.firmware_version || '').trim() || null,
       custom: customObj,
     })
   }
