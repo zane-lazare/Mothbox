@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -116,9 +116,16 @@ export default function DeploymentEditor({
   // Watch lat/lng for CoordinateInput sync
   const [latitude, longitude] = watch(['latitude', 'longitude'])
 
-  // Initialize form with existing deployment data
+  // Initialize form with existing deployment data.
+  // Guard with a serialized ref so parent re-renders that produce a new
+  // object reference with identical data do not wipe in-progress edits.
+  const prevDeploymentRef = useRef<string | null>(null)
   useEffect(() => {
     if (deployment) {
+      const serialized = JSON.stringify(deployment)
+      if (serialized === prevDeploymentRef.current) return
+      prevDeploymentRef.current = serialized
+
       const envArray = Object.entries(deployment.environmental || {}).map(
         ([key, value]) => ({ key, value }),
       )
