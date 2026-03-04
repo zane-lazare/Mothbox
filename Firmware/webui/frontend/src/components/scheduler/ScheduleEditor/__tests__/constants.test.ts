@@ -46,8 +46,9 @@ describe('SCHEDULE_LIMITS', () => {
 
     requiredFields.forEach((field) => {
       expect(SCHEDULE_LIMITS).toHaveProperty(field)
-      expect(typeof SCHEDULE_LIMITS[field]).toBe('number')
-      expect(SCHEDULE_LIMITS[field]).toBeGreaterThan(0)
+      const value = SCHEDULE_LIMITS[field as keyof typeof SCHEDULE_LIMITS]
+      expect(typeof value).toBe('number')
+      expect(value).toBeGreaterThan(0)
     })
   })
 })

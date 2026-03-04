@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   SOLAR_EVENTS,
   TIME_FORMAT_REGEX,
+  type SolarEventValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
 /**
@@ -15,14 +16,16 @@ import {
 const TIME_WINDOW_MAX_OFFSET_MINUTES = 120
 
 const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
-  string,
-  ...string[],
+  SolarEventValue,
+  ...SolarEventValue[],
 ]
 
 const timeValue = z
   .string({ error: 'Time is required' })
   .refine(
-    (v) => TIME_FORMAT_REGEX.test(v) || solarEventValues.includes(v),
+    (v) =>
+      TIME_FORMAT_REGEX.test(v) ||
+      solarEventValues.includes(v as SolarEventValue),
     'Must be valid HH:MM time or solar event',
   )
 

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   SCHEDULE_LIMITS,
   MOON_PHASES,
+  type MoonPhaseValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
 
 /**
@@ -9,7 +10,10 @@ import {
  * moon_phase + time_of_day + offset_days.
  */
 
-const moonPhaseValues = MOON_PHASES.map((p) => p.value) as [string, ...string[]]
+const moonPhaseValues = MOON_PHASES.map((p) => p.value) as [
+  MoonPhaseValue,
+  ...MoonPhaseValue[],
+]
 
 export const moonPhaseTriggerSchema = z.object({
   moon_phase: z.enum(moonPhaseValues, {
