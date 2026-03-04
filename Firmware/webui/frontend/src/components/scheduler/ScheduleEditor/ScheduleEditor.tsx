@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import PropTypes from 'prop-types';
+import { useForm } from 'react-hook-form';
+import type { Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { scheduleSchema, type ScheduleFormData } from '../../../schemas/scheduler/schedule';
+import type { Routine, Schedule } from './scheduler-types';
 import { PencilIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
@@ -7,7 +11,6 @@ import ActivationPanel from './ActivationPanel';
 import CronLimitWarning from '../CronLimitWarning';
 import ConfirmDialog from '../../common/ConfirmDialog';
 import { SCHEDULE_LIMITS } from './constants';
-import { RoutinePropType } from './propTypes';
 import { generateUUID } from '../../../utils/uuid';
 import { getErrorMessage } from '../../../utils/errorCodes';
 import { useSchedule } from '../../../hooks/useSchedules';
@@ -15,6 +18,25 @@ import { useValidateDraft } from '../../../hooks/useValidateDraft';
 
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
+
+interface ScheduleEditorProps {
+  /** Whether the editor drawer is open */
+  isOpen: boolean;
+  /** Schedule to edit (null for new). Contains routines with per-routine triggers. */
+  schedule?: Schedule | null;
+  /** Callback when schedule is saved. Receives complete schedule object. */
+  onSave: (schedule: Record<string, unknown>) => Promise<void>;
+  /** Callback when editor is cancelled/closed */
+  onCancel: () => void;
+  /** Callback when schedule is deleted. Receives schedule_id. */
+  onDelete?: (scheduleId: string) => void;
+  /** Callback when schedule is cloned. Receives schedule_id. */
+  onClone?: (scheduleId: string) => void;
+  /** Loading state for deletion */
+  isDeleting?: boolean;
+  /** Loading state for cloning */
+  isCloning?: boolean;
+}
 
 /**
  * ScheduleEditor Component
@@ -42,21 +64,46 @@ const ScheduleEditor = ({
   onClone,
   isDeleting = false,
   isCloning = false,
-}) => {
+}: ScheduleEditorProps) => {
   // Refs
-  const nameInputRef = useRef(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   // Track requested schedule ID to prevent race conditions (Issue #385)
-  const requestedScheduleRef = useRef(null);
+  const requestedScheduleRef = useRef<string | null>(null);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [routines, setRoutines] = useState([]);
+  // React Hook Form for name and description
+  const resolver = zodResolver(
+    scheduleSchema as unknown as Parameters<typeof zodResolver>[0],
+  ) as unknown as Resolver<ScheduleFormData>;
+
+  const {
+    register,
+    handleSubmit,
+    reset: resetForm,
+    formState: { errors: formErrors },
+    watch,
+  } = useForm<ScheduleFormData>({
+    resolver,
+    defaultValues: { name: '', description: '' },
+    mode: 'onChange',
+  });
+
+  // Watch name for display purposes (e.g., unsaved changes detection)
+  const watchedName = watch('name');
+  const watchedDescription = watch('description');
+
+  // Merge the ref from register('name') with our nameInputRef for focus management
+  const { ref: registerNameRef, ...registerNameRest } = register('name');
+
+  // Form state (kept as useState)
+  const [routines, setRoutines] = useState<Routine[]>([]);
   const [useSecondsTiming, setUseSecondsTiming] = useState(false);
   const [isAddingRoutine, setIsAddingRoutine] = useState(false);
 
+  // Error state for routines and save (separate from form errors)
+  const [routineError, setRoutineError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   // UI state
-  const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isViewMode, setIsViewMode] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -72,12 +119,12 @@ const ScheduleEditor = ({
   // Track unsaved changes by comparing current form state to loaded data
   const hasUnsavedChanges = useMemo(() => {
     if (!isEditMode || !fullSchedule) return true; // New schedule always has "unsaved" state
-    if (name !== (fullSchedule.name || '')) return true;
-    if (description !== (fullSchedule.description || '')) return true;
+    if (watchedName !== (fullSchedule.name || '')) return true;
+    if (watchedDescription !== (fullSchedule.description || '')) return true;
     // Compare routine count as a simple heuristic (deep comparison is expensive)
     if (routines.length !== (fullSchedule.routines || []).length) return true;
     return false;
-  }, [isEditMode, fullSchedule, name, description, routines.length]);
+  }, [isEditMode, fullSchedule, watchedName, watchedDescription, routines.length]);
 
   // Draft validation for conflict detection
   const {
@@ -96,11 +143,11 @@ const ScheduleEditor = ({
   useEffect(() => {
     if (isOpen && isEditMode) {
       // Clear form while loading new schedule data
-      setName('');
-      setDescription('');
+      resetForm({ name: '', description: '' });
       setRoutines([]);
       setIsAddingRoutine(false);
-      setErrors({});
+      setRoutineError(null);
+      setSaveError(null);
       setIsViewMode(true); // Existing schedules open in view mode
       setShowDeleteConfirm(false);
       resetValidation();
@@ -141,23 +188,26 @@ const ScheduleEditor = ({
 
     if (isEditMode && fullSchedule && fullSchedule.schedule_id === schedule?.schedule_id) {
       // Only populate when fetched data matches the requested schedule
-      setName(fullSchedule.name || '');
-      setDescription(fullSchedule.description || '');
+      resetForm({
+        name: fullSchedule.name || '',
+        description: fullSchedule.description || '',
+      });
       setRoutines(fullSchedule.routines || []);
       setIsAddingRoutine(false);
-      setErrors({});
+      setRoutineError(null);
+      setSaveError(null);
       resetValidation();
     } else if (!isEditMode && isOpen) {
       // Reset to defaults for new schedule
-      setName('');
-      setDescription('');
+      resetForm({ name: '', description: '' });
       setRoutines([]);
       setUseSecondsTiming(false);
       setIsAddingRoutine(false);
-      setErrors({});
+      setRoutineError(null);
+      setSaveError(null);
       resetValidation();
     }
-  }, [isEditMode, fullSchedule, isOpen, schedule?.schedule_id, resetValidation]);
+  }, [isEditMode, fullSchedule, isOpen, schedule?.schedule_id, resetValidation, resetForm]);
 
   /**
    * Validate routines for conflicts when they change
@@ -185,7 +235,7 @@ const ScheduleEditor = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onCancel();
       }
@@ -234,20 +284,21 @@ const ScheduleEditor = ({
       );
     };
 
-    const handleKeyDown = (e) => {
-      if (e.key !== 'Tab') return;
+    const handleKeyDown = (e: Event) => {
+      const keyEvent = e as KeyboardEvent;
+      if (keyEvent.key !== 'Tab') return;
 
       const focusableElements = getFocusableElements();
       if (focusableElements.length === 0) return;
 
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
-      if (e.shiftKey && document.activeElement === firstElement) {
-        e.preventDefault();
+      if (keyEvent.shiftKey && document.activeElement === firstElement) {
+        keyEvent.preventDefault();
         lastElement.focus();
-      } else if (!e.shiftKey && document.activeElement === lastElement) {
-        e.preventDefault();
+      } else if (!keyEvent.shiftKey && document.activeElement === lastElement) {
+        keyEvent.preventDefault();
         firstElement.focus();
       }
     };
@@ -260,7 +311,7 @@ const ScheduleEditor = ({
    * Handle backdrop click
    */
   const handleBackdropClick = useCallback(
-    (e) => {
+    (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) {
         onCancel();
       }
@@ -269,109 +320,66 @@ const ScheduleEditor = ({
   );
 
   /**
-   * Validate form
+   * Handle save - called by handleSubmit when name/description are valid
    */
-  const validate = useCallback(() => {
-    const newErrors = {};
-
-    if (!name.trim()) {
-      newErrors.name = 'Schedule name is required';
-    } else if (name.length > SCHEDULE_LIMITS.NAME_MAX_LENGTH) {
-      newErrors.name = `Name must be ${SCHEDULE_LIMITS.NAME_MAX_LENGTH} characters or less`;
-    }
-
+  const onSubmit = useCallback(async (formData: ScheduleFormData) => {
+    // Manual routines validation
     if (routines.length === 0) {
-      newErrors.routines = 'At least one routine is required';
-    } else if (routines.some(r => !r.trigger || !r.actions || r.actions.length === 0)) {
-      newErrors.routines = 'All routines must have a trigger and at least one action';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [name, routines]);
-
-  /**
-   * Handle save
-   */
-  const handleSave = useCallback(async () => {
-    if (!validate()) {
+      setRoutineError('At least one routine is required');
       return;
     }
+    if (routines.some((r: Routine) => !r.trigger || !r.actions || r.actions.length === 0)) {
+      setRoutineError('All routines must have a trigger and at least one action');
+      return;
+    }
+    setRoutineError(null);
+    setSaveError(null);
 
     setIsSaving(true);
 
     try {
       const scheduleData = {
         schedule_id: schedule?.schedule_id || generateUUID(),
-        name: name.trim(),
-        description: description.trim(),
+        name: formData.name,
+        description: formData.description,
         routines,
         use_seconds_timing: useSecondsTiming,
       };
 
       await onSave(scheduleData);
     } catch (error) {
-      setErrors({ save: getErrorMessage(error, 'Failed to save schedule') });
+      setSaveError(getErrorMessage(error, 'Failed to save schedule'));
     } finally {
       setIsSaving(false);
     }
-  }, [
-    validate,
-    schedule?.schedule_id,
-    name,
-    description,
-    routines,
-    useSecondsTiming,
-    onSave,
-  ]);
-
-  /**
-   * Handle name change
-   */
-  const handleNameChange = (e) => {
-    setName(e.target.value);
-    if (errors.name) {
-      setErrors((prev) => ({ ...prev, name: undefined }));
-    }
-  };
-
-  /**
-   * Handle description change
-   */
-  const handleDescriptionChange = (e) => {
-    setDescription(e.target.value);
-  };
+  }, [routines, schedule, useSecondsTiming, onSave]);
 
   /**
    * Handle routine update
    */
-  const handleRoutineUpdate = useCallback((updatedRoutine) => {
+  const handleRoutineUpdate = useCallback((updatedRoutine: Routine) => {
     setRoutines((prev) =>
       prev.map((r) =>
         r.routine_id === updatedRoutine.routine_id ? updatedRoutine : r
       )
     );
-    if (errors.routines) {
-      setErrors((prev) => ({ ...prev, routines: undefined }));
-    }
-  }, [errors.routines]);
+    setRoutineError(null);
+  }, []);
 
   /**
    * Handle routine delete
    */
-  const handleRoutineDelete = useCallback((routineId) => {
+  const handleRoutineDelete = useCallback((routineId: string) => {
     setRoutines((prev) => prev.filter((r) => r.routine_id !== routineId));
   }, []);
 
   /**
    * Handle routine add
    */
-  const handleRoutineAdd = useCallback((routine) => {
+  const handleRoutineAdd = useCallback((routine: Routine) => {
     setRoutines((prev) => [...prev, routine]);
-    if (errors.routines) {
-      setErrors((prev) => ({ ...prev, routines: undefined }));
-    }
-  }, [errors.routines]);
+    setRoutineError(null);
+  }, []);
 
   /**
    * Start adding a new routine
@@ -402,16 +410,19 @@ const ScheduleEditor = ({
   const handleCancelEdit = useCallback(() => {
     if (isEditMode && fullSchedule) {
       // Return to view mode and reset form to original values
-      setName(fullSchedule.name || '');
-      setDescription(fullSchedule.description || '');
+      resetForm({
+        name: fullSchedule.name || '',
+        description: fullSchedule.description || '',
+      });
       setRoutines(fullSchedule.routines || []);
-      setErrors({});
+      setRoutineError(null);
+      setSaveError(null);
       setIsViewMode(true);
     } else {
       // New schedule: just close
       onCancel();
     }
-  }, [isEditMode, fullSchedule, onCancel]);
+  }, [isEditMode, fullSchedule, onCancel, resetForm]);
 
   /**
    * Handle delete button click - show confirmation dialog
@@ -542,11 +553,13 @@ const ScheduleEditor = ({
                   Schedule Name *
                 </label>
                 <input
-                  ref={nameInputRef}
+                  {...registerNameRest}
+                  ref={(el) => {
+                    registerNameRef(el);
+                    nameInputRef.current = el;
+                  }}
                   id="schedule-name"
                   type="text"
-                  value={name}
-                  onChange={handleNameChange}
                   maxLength={SCHEDULE_LIMITS.NAME_MAX_LENGTH}
                   disabled={isSaving || isViewMode}
                   className="w-full rounded-md border border-gray-300 dark:border-gray-600
@@ -556,8 +569,8 @@ const ScheduleEditor = ({
                   placeholder="Enter schedule name"
                   aria-label="Schedule name"
                 />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+                {formErrors.name && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.name.message}</p>
                 )}
               </div>
 
@@ -569,9 +582,8 @@ const ScheduleEditor = ({
                   Description
                 </label>
                 <textarea
+                  {...register('description')}
                   id="schedule-description"
-                  value={description}
-                  onChange={handleDescriptionChange}
                   maxLength={SCHEDULE_LIMITS.DESCRIPTION_MAX_LENGTH}
                   rows={3}
                   disabled={isSaving || isViewMode}
@@ -603,15 +615,15 @@ const ScheduleEditor = ({
                 onCancelAddRoutine={handleCancelAddRoutine}
                 disabled={isSaving || isViewMode}
               />
-              {errors.routines && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errors.routines}</p>
+              {routineError && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{routineError}</p>
               )}
             </div>
 
             {/* Save Error */}
-            {errors.save && (
+            {saveError && (
               <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-sm text-red-600 dark:text-red-400">{errors.save}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
               </div>
             )}
             </>
@@ -720,7 +732,7 @@ const ScheduleEditor = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleSave}
+                  onClick={handleSubmit(onSubmit)}
                   disabled={isSaving || (isEditMode && isLoadingSchedule)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md
                              hover:bg-blue-700 transition-colors
@@ -744,31 +756,6 @@ const ScheduleEditor = ({
       </div>
     </>
   );
-};
-
-ScheduleEditor.propTypes = {
-  /** Whether the editor drawer is open */
-  isOpen: PropTypes.bool.isRequired,
-  /** Schedule to edit (null for new). Contains routines with per-routine triggers. */
-  schedule: PropTypes.shape({
-    schedule_id: PropTypes.string,
-    name: PropTypes.string,
-    description: PropTypes.string,
-    routines: PropTypes.arrayOf(RoutinePropType),
-    use_seconds_timing: PropTypes.bool,
-  }),
-  /** Callback when schedule is saved. Receives complete schedule object. */
-  onSave: PropTypes.func.isRequired,
-  /** Callback when editor is cancelled/closed */
-  onCancel: PropTypes.func.isRequired,
-  /** Callback when schedule is deleted. Receives schedule_id. */
-  onDelete: PropTypes.func,
-  /** Callback when schedule is cloned. Receives schedule_id. */
-  onClone: PropTypes.func,
-  /** Loading state for deletion */
-  isDeleting: PropTypes.bool,
-  /** Loading state for cloning */
-  isCloning: PropTypes.bool,
 };
 
 export default ScheduleEditor;

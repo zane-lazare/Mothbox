@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ScheduleEditor from '../ScheduleEditor';
 
@@ -10,6 +10,11 @@ vi.mock('../RoutineList', () => ({
     onRoutineDelete,
     onRoutineAdd,
     disabled,
+  }: {
+    routines: Array<{ routine_id: string }>;
+    onRoutineDelete: (id: string) => void;
+    onRoutineAdd: (routine: Record<string, unknown>) => void;
+    disabled: boolean;
   }) => (
     <div data-testid="routine-list">
       <span data-testid="routines-count">{routines?.length ?? 0}</span>
@@ -46,7 +51,7 @@ const createTestQueryClient = () =>
     },
   });
 
-const renderWithClient = (ui) => {
+const renderWithClient = (ui: React.ReactElement) => {
   const queryClient = createTestQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
@@ -54,8 +59,8 @@ const renderWithClient = (ui) => {
 };
 
 describe('ScheduleEditor', () => {
-  let mockOnSave;
-  let mockOnCancel;
+  let mockOnSave: ReturnType<typeof vi.fn>;
+  let mockOnCancel: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockOnSave = vi.fn();
@@ -159,24 +164,28 @@ describe('ScheduleEditor', () => {
       expect(screen.getByText(/loading schedule/i)).toBeInTheDocument();
     });
 
-    it('updates name when typed', () => {
+    it('updates name when typed', async () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'New Schedule Name' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'New Schedule Name' } });
+      });
 
       expect(nameInput).toHaveValue('New Schedule Name');
     });
 
-    it('updates description when typed', () => {
+    it('updates description when typed', async () => {
       renderWithClient(
         <ScheduleEditor isOpen={true} onSave={mockOnSave} onCancel={mockOnCancel} />
       );
 
       const descInput = screen.getByLabelText(/description/i);
-      fireEvent.change(descInput, { target: { value: 'New description' } });
+      await act(async () => {
+        fireEvent.change(descInput, { target: { value: 'New description' } });
+      });
 
       expect(descInput).toHaveValue('New description');
     });
@@ -208,7 +217,9 @@ describe('ScheduleEditor', () => {
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/schedule name is required/i)).toBeInTheDocument();
@@ -223,10 +234,14 @@ describe('ScheduleEditor', () => {
 
       // Fill in name but no routines
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
+      });
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/at least one routine is required/i)).toBeInTheDocument();
@@ -243,7 +258,9 @@ describe('ScheduleEditor', () => {
 
       // Fill in required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test Schedule' } });
+      });
 
       // Add a routine
       const addButton = screen.getByTestId('add-routine');
@@ -251,7 +268,9 @@ describe('ScheduleEditor', () => {
 
       // Save
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
@@ -329,13 +348,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(saveButton).toBeDisabled();
@@ -351,13 +374,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/saving/i)).toBeInTheDocument();
@@ -468,7 +495,7 @@ describe('ScheduleEditor', () => {
 
   describe('Error Message Sanitization', () => {
     it('displays known error codes as user-friendly messages', async () => {
-      const knownError = new Error();
+      const knownError = new Error() as Error & { code: string };
       knownError.code = 'NETWORK_ERROR';
       mockOnSave.mockRejectedValue(knownError);
 
@@ -478,13 +505,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/unable to save.*connection/i)).toBeInTheDocument();
@@ -501,18 +532,22 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         const errorElement = screen.getByText(/A{50,}/);
         // The error should be truncated to 200 chars + "..." (203 total)
-        expect(errorElement.textContent.length).toBeLessThanOrEqual(203);
+        expect(errorElement.textContent!.length).toBeLessThanOrEqual(203);
         expect(errorElement.textContent).toMatch(/\.\.\.$/);
       });
     });
@@ -528,27 +563,31 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         // Error should be displayed with HTML tags stripped
         const errorContainer = document.querySelector('.text-red-600, .text-red-400');
         expect(errorContainer).toBeInTheDocument();
         // HTML tags should be stripped, leaving only the text content
-        expect(errorContainer.textContent).toBe('alert("xss")');
-        expect(errorContainer.textContent).not.toContain('<');
-        expect(errorContainer.textContent).not.toContain('>');
+        expect(errorContainer!.textContent).toBe('alert("xss")');
+        expect(errorContainer!.textContent).not.toContain('<');
+        expect(errorContainer!.textContent).not.toContain('>');
       });
     });
 
     it('handles validation errors with user-friendly message', async () => {
-      const validationError = new Error();
+      const validationError = new Error() as Error & { code: string };
       validationError.code = 'VALIDATION_ERROR';
       mockOnSave.mockRejectedValue(validationError);
 
@@ -558,13 +597,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/fix the errors above/i)).toBeInTheDocument();
@@ -572,7 +615,7 @@ describe('ScheduleEditor', () => {
     });
 
     it('handles server errors with user-friendly message', async () => {
-      const serverError = new Error();
+      const serverError = new Error() as Error & { code: string };
       serverError.code = 'SERVER_ERROR';
       mockOnSave.mockRejectedValue(serverError);
 
@@ -582,13 +625,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/server error.*try again/i)).toBeInTheDocument();
@@ -604,13 +651,17 @@ describe('ScheduleEditor', () => {
 
       // Fill required fields
       const nameInput = screen.getByLabelText(/schedule name/i);
-      fireEvent.change(nameInput, { target: { value: 'Test' } });
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'Test' } });
+      });
 
       const addButton = screen.getByTestId('add-routine');
       fireEvent.click(addButton);
 
       const saveButton = screen.getByRole('button', { name: /save/i });
-      fireEvent.click(saveButton);
+      await act(async () => {
+        fireEvent.click(saveButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText(/failed to save schedule/i)).toBeInTheDocument();

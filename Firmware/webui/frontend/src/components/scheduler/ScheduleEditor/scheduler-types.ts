@@ -296,4 +296,5 @@ export interface ConflictReport {
   }>
   total_conflicts?: number
   blocking_conflicts?: number
+  estimated_entries?: number
 }
