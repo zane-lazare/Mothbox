@@ -324,6 +324,8 @@ export default function DeploymentEditor({
             id="deployment-name"
             type="text"
             {...register('deployment_name')}
+            aria-invalid={!!errors.deployment_name}
+            aria-describedby={errors.deployment_name ? 'deployment-name-error' : undefined}
             disabled={isLoading}
             maxLength={200}
             placeholder="e.g., Oak Ridge Forest Survey 2024"
@@ -334,7 +336,7 @@ export default function DeploymentEditor({
                        disabled:opacity-50 disabled:cursor-not-allowed`}
           />
           {errors.deployment_name && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.deployment_name.message}</p>
+            <p id="deployment-name-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.deployment_name.message}</p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {(deploymentName || '').length}/200 characters
@@ -354,6 +356,8 @@ export default function DeploymentEditor({
             id="location-name"
             type="text"
             {...register('location_name')}
+            aria-invalid={!!errors.location_name}
+            aria-describedby={errors.location_name ? 'location-name-error' : undefined}
             disabled={isLoading}
             maxLength={500}
             placeholder="e.g., Oak Ridge, TN, USA"
@@ -363,7 +367,7 @@ export default function DeploymentEditor({
                        disabled:opacity-50 disabled:cursor-not-allowed`}
           />
           {errors.location_name && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.location_name.message}</p>
+            <p id="location-name-error" className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.location_name.message}</p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {(locationName || '').length}/500 characters
@@ -453,6 +457,8 @@ export default function DeploymentEditor({
               id="end-date"
               type="date"
               {...register('end_date')}
+              aria-invalid={!!errors.end_date}
+              aria-describedby={errors.end_date ? 'end-date-error' : undefined}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -463,7 +469,7 @@ export default function DeploymentEditor({
         </div>
 
         {errors.end_date && (
-          <p className="text-xs text-red-600 dark:text-red-400">{errors.end_date.message}</p>
+          <p id="end-date-error" className="text-xs text-red-600 dark:text-red-400">{errors.end_date.message}</p>
         )}
       </div>
 
