@@ -74,6 +74,7 @@ export default function DeploymentEditor({
     setValue,
     reset,
     control,
+    trigger,
     formState: { errors, isDirty, submitCount, isValid },
   } = useForm<DeploymentFormData>({
     resolver: zodResolver(
@@ -411,7 +412,9 @@ export default function DeploymentEditor({
             <input
               id="start-date"
               type="date"
-              {...register('start_date')}
+              {...register('start_date', {
+                onBlur: () => trigger('end_date'),
+              })}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -427,7 +430,9 @@ export default function DeploymentEditor({
             <input
               id="end-date"
               type="date"
-              {...register('end_date')}
+              {...register('end_date', {
+                onBlur: () => trigger('end_date'),
+              })}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
