@@ -262,6 +262,8 @@ export default function DeploymentEditor({
     })
   }
 
+  // No max-entries guard — backend has no cap on environmental fields
+  // (unlike custom fields which are capped at 50 in the schema).
   const addEnvironmentalField = () => {
     appendEnv({ key: '', value: '' })
     setSectionsExpanded((prev) => ({ ...prev, environmental: true }))
