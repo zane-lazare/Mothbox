@@ -1,6 +1,13 @@
 import { useEffect } from 'react';
-import PropTypes from 'prop-types';
 import { DAYS_OF_WEEK } from './constants';
+
+interface DaysOfWeekSelectorProps {
+  value: number[] | null;
+  onChange: (value: number[] | null) => void;
+  disabled?: boolean;
+  allowEmpty?: boolean;
+  compact?: boolean;
+}
 
 /**
  * DaysOfWeekSelector Component
@@ -37,7 +44,7 @@ const DaysOfWeekSelector = ({
   disabled = false,
   allowEmpty = false,
   compact = false,
-}) => {
+}: DaysOfWeekSelectorProps) => {
   /**
    * Initialize to valid state when allowEmpty=false and value is empty array
    * This handles the edge case where value={[]} is passed but allowEmpty={false}
@@ -50,9 +57,9 @@ const DaysOfWeekSelector = ({
 
   /**
    * Handle toggling a specific day of the week
-   * @param {number} dayValue - Day value (0=Monday, 6=Sunday)
+   * @param dayValue - Day value (0=Monday, 6=Sunday)
    */
-  const handleDayToggle = (dayValue) => {
+  const handleDayToggle = (dayValue: number) => {
     if (disabled) return;
 
     // Convert null/undefined (all days) to explicit array [0,1,2,3,4,5,6]
@@ -88,19 +95,17 @@ const DaysOfWeekSelector = ({
 
   /**
    * Check if a specific day is selected
-   * @param {number} dayValue - Day value to check
-   * @returns {boolean}
+   * @param dayValue - Day value to check
    */
-  const isDaySelected = (dayValue) => {
+  const isDaySelected = (dayValue: number): boolean => {
     if (value === null || value === undefined) return true; // null/undefined = all days selected
     return Array.isArray(value) && value.includes(dayValue);
   };
 
   /**
    * Check if all days are selected
-   * @returns {boolean}
    */
-  const isAllDaysSelected = () => {
+  const isAllDaysSelected = (): boolean => {
     return (
       value === null ||
       value === undefined ||
@@ -110,20 +115,18 @@ const DaysOfWeekSelector = ({
 
   /**
    * Check if a day is the last selected (cannot be deselected when !allowEmpty)
-   * @param {number} dayValue - Day value to check
-   * @returns {boolean}
+   * @param dayValue - Day value to check
    */
-  const isLastSelectedDay = (dayValue) => {
+  const isLastSelectedDay = (dayValue: number): boolean => {
     if (allowEmpty) return false;
     return Array.isArray(value) && value.length === 1 && value.includes(dayValue);
   };
 
   /**
    * Get button label for a day
-   * @param {Object} day - Day object from DAYS_OF_WEEK
-   * @returns {string}
+   * @param day - Day object from DAYS_OF_WEEK
    */
-  const getDayLabel = (day) => {
+  const getDayLabel = (day: typeof DAYS_OF_WEEK[number]): string => {
     if (compact) {
       // Single letter: M, T, W, T, F, S, S
       return day.shortLabel.charAt(0);
@@ -199,19 +202,6 @@ const DaysOfWeekSelector = ({
       </div>
     </div>
   );
-};
-
-DaysOfWeekSelector.propTypes = {
-  /** Array of selected day values [0-6] where 0=Monday, 6=Sunday. null = all days */
-  value: PropTypes.arrayOf(PropTypes.number),
-  /** Callback when selection changes */
-  onChange: PropTypes.func.isRequired,
-  /** Whether the selector is disabled */
-  disabled: PropTypes.bool,
-  /** Whether to allow deselecting all days (default false) */
-  allowEmpty: PropTypes.bool,
-  /** Show single-letter labels (M, T, W, T, F, S, S) instead of short labels */
-  compact: PropTypes.bool,
 };
 
 export default DaysOfWeekSelector;

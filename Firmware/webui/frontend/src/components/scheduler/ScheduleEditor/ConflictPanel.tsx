@@ -14,18 +14,25 @@
  * />
  */
 
-import PropTypes from 'prop-types'
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import { ConflictList } from '../ConflictResolver'
+import type { ConflictReport } from './scheduler-types'
+
+interface ConflictPanelProps {
+  conflictReport?: ConflictReport | null;
+  isValidating?: boolean;
+  isError?: boolean;
+  error?: { message?: string } | null;
+}
 
 /**
  * ConflictPanel displays conflict detection status in the schedule editor
  */
-function ConflictPanel({ conflictReport = null, isValidating = false, isError = false, error = null }) {
+function ConflictPanel({ conflictReport = null, isValidating = false, isError = false, error = null }: ConflictPanelProps) {
   // Loading state
   if (isValidating) {
     return (
@@ -87,26 +94,6 @@ function ConflictPanel({ conflictReport = null, isValidating = false, isError = 
       <ConflictList conflicts={conflictReport.conflicts} />
     </div>
   )
-}
-
-ConflictPanel.propTypes = {
-  /** Conflict report from validation API */
-  conflictReport: PropTypes.shape({
-    valid: PropTypes.bool,
-    has_warnings: PropTypes.bool,
-    has_blocking_conflicts: PropTypes.bool,
-    conflicts: PropTypes.array,
-    total_conflicts: PropTypes.number,
-    blocking_conflicts: PropTypes.number,
-  }),
-  /** Whether validation is in progress */
-  isValidating: PropTypes.bool,
-  /** Whether validation failed */
-  isError: PropTypes.bool,
-  /** Error object if validation failed */
-  error: PropTypes.shape({
-    message: PropTypes.string,
-  }),
 }
 
 export default ConflictPanel

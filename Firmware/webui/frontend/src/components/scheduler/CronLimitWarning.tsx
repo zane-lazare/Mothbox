@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types'
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 
 /**
@@ -9,6 +8,10 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
  *
  * Issue #385 review: Document 10k cron limit in user-facing UI
  */
+
+interface CronLimitWarningProps {
+  estimatedEntries?: number;
+}
 
 /** Maximum cron entries supported by the system */
 const MAX_CRON_ENTRIES = 10000
@@ -23,7 +26,7 @@ const WARNING_THRESHOLD = 0.75
  * @param {number} props.estimatedEntries - Estimated number of cron entries
  * @returns {JSX.Element|null}
  */
-function CronLimitWarning({ estimatedEntries }) {
+function CronLimitWarning({ estimatedEntries }: CronLimitWarningProps) {
   if (!estimatedEntries || estimatedEntries < MAX_CRON_ENTRIES * WARNING_THRESHOLD) {
     return null
   }
@@ -63,10 +66,6 @@ function CronLimitWarning({ estimatedEntries }) {
       </div>
     </div>
   )
-}
-
-CronLimitWarning.propTypes = {
-  estimatedEntries: PropTypes.number,
 }
 
 export default CronLimitWarning
