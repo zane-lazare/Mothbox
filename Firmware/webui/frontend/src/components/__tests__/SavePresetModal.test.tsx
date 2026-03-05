@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SavePresetModal } from '../SavePresetModal'
-import { validatePresetSettings } from '../../utils/presetValidation'
+import { validateLiveviewSettings } from '../../schemas/liveview-settings'
 
-vi.mock('../../utils/presetValidation', () => ({
-  validatePresetSettings: vi.fn(() => []),
+vi.mock('../../schemas/liveview-settings', () => ({
+  validateLiveviewSettings: vi.fn(() => []),
 }))
 
-const mockedValidate = vi.mocked(validatePresetSettings)
+const mockedValidate = vi.mocked(validateLiveviewSettings)
 
 describe('SavePresetModal', () => {
   const defaultProps = {

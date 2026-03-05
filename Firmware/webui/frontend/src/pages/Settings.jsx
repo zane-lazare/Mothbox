@@ -8,7 +8,7 @@ import { CAMERA_SETTINGS } from '../constants/config'
 import SavePresetModal from '../components/SavePresetModal'
 import GPSSettings from '../components/GPSSettings'
 import CollapsibleCard from '../components/CollapsibleCard'
-import { validatePresetSettings, formatValidationErrors } from '../utils/presetValidation'
+import { validateLiveviewSettings, formatLiveviewValidationErrors } from '../schemas/liveview-settings'
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -537,9 +537,9 @@ export default function Settings() {
 
     try {
       // Validate settings before updating
-      const validationErrors = validatePresetSettings(webuiForm)
+      const validationErrors = validateLiveviewSettings(webuiForm)
       if (validationErrors.length > 0) {
-        const errorMessage = formatValidationErrors(validationErrors, 3)
+        const errorMessage = formatLiveviewValidationErrors(validationErrors, 3)
         toast.error(errorMessage)
         return
       }
@@ -568,9 +568,9 @@ export default function Settings() {
   const handleSavePreset = async (presetData) => {
     // Validation happens in SavePresetModal before calling this function
     // But we validate again here as a safety check
-    const validationErrors = validatePresetSettings(webuiForm)
+    const validationErrors = validateLiveviewSettings(webuiForm)
     if (validationErrors.length > 0) {
-      const errorMessage = formatValidationErrors(validationErrors, 3)
+      const errorMessage = formatLiveviewValidationErrors(validationErrors, 3)
       toast.error(errorMessage)
       throw new Error('Validation failed')
     }
