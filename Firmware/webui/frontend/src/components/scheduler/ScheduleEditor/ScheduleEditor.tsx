@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { scheduleSchema, type ScheduleFormData } from '../../../schemas/scheduler/schedule';
 import { createZodResolver } from './zodResolverWorkaround';
 import type { Routine, Schedule } from './scheduler-types';
@@ -93,16 +93,18 @@ const ScheduleEditor = ({
     handleSubmit,
     reset: resetForm,
     formState: { errors: formErrors },
-    watch,
+    control,
   } = useForm<ScheduleFormData>({
     resolver,
     defaultValues: { name: '', description: '' },
     mode: 'onChange',
   });
 
-  // Watch name for display purposes (e.g., unsaved changes detection)
-  const watchedName = watch('name');
-  const watchedDescription = watch('description');
+  // Watch name/description for unsaved changes detection (scoped re-renders)
+  const [watchedName, watchedDescription] = useWatch({
+    control,
+    name: ['name', 'description'],
+  });
 
   // Merge the ref from register('name') with our nameInputRef for focus management
   const { ref: registerNameRef, ...registerNameRest } = register('name');

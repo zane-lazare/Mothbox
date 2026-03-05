@@ -10,8 +10,11 @@ import {
  * sensor_type + comparison + threshold + cooldown_minutes.
  */
 
+// z.enum requires a non-empty tuple — guard against empty constants
 const sensorTypeValues = SENSOR_TYPES.map((s) => s.value) as [string, ...string[]]
+if (sensorTypeValues.length === 0) throw new Error('SENSOR_TYPES must not be empty')
 const comparisonValues = SENSOR_COMPARISONS.map((c) => c.value) as [string, ...string[]]
+if (comparisonValues.length === 0) throw new Error('SENSOR_COMPARISONS must not be empty')
 
 export const sensorTriggerSchema = z.object({
   sensor_type: z.enum(sensorTypeValues, { error: 'Invalid sensor type' }),

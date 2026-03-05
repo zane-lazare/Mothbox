@@ -42,9 +42,9 @@ interface TriggerFormProps {
 }
 
 const TriggerForm = ({
-  value = {
-    ...TRIGGER_DEFAULTS.interval,
-  } as unknown as Trigger,
+  // TRIGGER_DEFAULTS uses readonly arrays (as const); shallow spread + double cast
+  // bridges to the mutable Trigger union. Safe: this is a static default value.
+  value = { ...TRIGGER_DEFAULTS.interval } as unknown as Trigger,
   onChange,
   disabled = false,
   errors = {},
