@@ -2,7 +2,7 @@ import { useState, useEffect, useId, useRef } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Resolver } from 'react-hook-form'
-import { formatCoordinateDisplay } from '../../utils/gpsCoordinates'
+import { formatCoordinateDisplay } from '../../utils/coordinateFormat'
 import { coordinatesSchema, type CoordinatesFormData } from '../../schemas/coordinates'
 
 interface CoordinateInputProps {

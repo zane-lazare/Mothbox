@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 // @ts-expect-error — helpers.js has no type declarations (pre-migration)
 import { formatTimestamp } from '../utils/helpers'
-import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
+import { formatCoordinateDisplay } from '../utils/coordinateFormat'
 import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
 // @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'

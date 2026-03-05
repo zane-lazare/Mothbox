@@ -10,7 +10,7 @@ import { getPhotoUrl } from '../utils/api'
 import MetadataPanel from './metadata/MetadataPanel'
 import MetadataErrorBoundary from './metadata/MetadataErrorBoundary'
 import ExportOptionsMenu from './export/ExportOptionsMenu'
-import { formatCoordinateDisplay } from '../utils/gpsCoordinates'
+import { formatCoordinateDisplay } from '../utils/coordinateFormat'
 import usePhotoMetadata from '../hooks/usePhotoMetadata'
 
 /**
