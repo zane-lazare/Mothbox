@@ -63,6 +63,10 @@ interface ScheduleEditorProps {
  *   onDelete={(scheduleId) => console.log('Delete:', scheduleId)}
  * />
  */
+
+// Module-level resolver (stable reference, not recreated per render)
+const resolver = createZodResolver<ScheduleFormData>(scheduleSchema);
+
 const ScheduleEditor = ({
   isOpen,
   schedule = null,
@@ -79,8 +83,6 @@ const ScheduleEditor = ({
   const requestedScheduleRef = useRef<string | null>(null);
 
   // React Hook Form for name and description
-  const resolver = createZodResolver<ScheduleFormData>(scheduleSchema);
-
   const {
     register,
     handleSubmit,
@@ -290,9 +292,8 @@ const ScheduleEditor = ({
       );
     };
 
-    const handleKeyDown = (e: Event) => {
-      const keyEvent = e as KeyboardEvent;
-      if (keyEvent.key !== 'Tab') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
 
       const focusableElements = getFocusableElements();
       if (focusableElements.length === 0) return;
@@ -300,11 +301,11 @@ const ScheduleEditor = ({
       const firstElement = focusableElements[0] as HTMLElement;
       const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
-      if (keyEvent.shiftKey && document.activeElement === firstElement) {
-        keyEvent.preventDefault();
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
         lastElement.focus();
-      } else if (!keyEvent.shiftKey && document.activeElement === lastElement) {
-        keyEvent.preventDefault();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
         firstElement.focus();
       }
     };
