@@ -66,19 +66,6 @@ export default defineConfig([
     },
   },
   {
-    // Deprecated validation utilities — warn on new imports (#197)
-    files: ['**/*.{js,jsx,ts,tsx}'],
-    rules: {
-      'no-restricted-imports': ['warn', {
-        patterns: [
-          { group: ['**/utils/gpsValidation'], message: 'Deprecated: will be replaced by schemas/gps-settings.ts in Phase 1 (#197)' },
-          { group: ['**/utils/presetValidation'], message: 'Deprecated: will be replaced by schemas/camera-preset.ts in Phase 1 (#197)' },
-          { group: ['**/utils/gpsCoordinates'], message: 'Deprecated: will be replaced by schemas/coordinates.ts in Phase 1 (#197)' },
-        ],
-      }],
-    },
-  },
-  {
     // Test files configuration with Vitest plugin
     files: ['**/__tests__/**/*.{js,jsx,ts,tsx}', '**/*.test.{js,jsx,ts,tsx}', '**/*.spec.{js,jsx,ts,tsx}'],
     plugins: {
