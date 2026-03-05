@@ -6,6 +6,7 @@ import SolarTriggerForm from './SolarTriggerForm';
 import MoonPhaseTriggerForm from './MoonPhaseTriggerForm';
 import FixedTimeTriggerForm from './FixedTimeTriggerForm';
 import SensorTriggerForm from './SensorTriggerForm';
+// @ts-expect-error -- .jsx module
 import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
 import CronExpressionInput from '../ExpertMode/CronExpressionInput';
 
@@ -148,30 +149,25 @@ const TriggerForm = ({
    */
   const renderTriggerForm = () => {
     // Each child form defines its own value/onChange types.
-    // The switch statement guarantees the correct trigger type is dispatched,
-    // so we use `as any` here to bridge the Trigger union to each specific type.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const commonProps: Record<string, any> = {
-      value,
-      onChange: handleTriggerValueChange,
-      disabled,
-      errors,
-    };
-
+    // The switch statement guarantees the correct trigger type is dispatched.
+    // We pass props explicitly; `as any` bridges the Trigger union to each
+    // sub-form's specific value type until #490 adds proper narrowing.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     switch (triggerType) {
       case 'interval':
-        return <IntervalTriggerForm {...commonProps} />;
+        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
       case 'solar':
-        return <SolarTriggerForm {...commonProps} />;
+        return <SolarTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
       case 'moon_phase':
-        return <MoonPhaseTriggerForm {...commonProps} />;
+        return <MoonPhaseTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
       case 'fixed_time':
-        return <FixedTimeTriggerForm {...commonProps} />;
+        return <FixedTimeTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
       case 'sensor':
-        return <SensorTriggerForm {...commonProps} />;
+        return <SensorTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
       default:
-        return <IntervalTriggerForm {...commonProps} />;
+        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
     }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   };
 
   return (

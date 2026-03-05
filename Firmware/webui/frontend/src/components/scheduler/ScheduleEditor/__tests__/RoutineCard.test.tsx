@@ -5,7 +5,7 @@ import RoutineCard from '../RoutineCard'
 
 // Mock TriggerSelector to simplify tests
 vi.mock('../../TriggerSelector', () => ({
-  default: vi.fn(({ trigger, onChange, disabled }) => (
+  default: vi.fn(({ trigger, onChange, disabled }: any) => (
     <div data-testid="mock-trigger-selector">
       <span>Trigger: {trigger?.trigger_type}</span>
       <button
@@ -20,7 +20,7 @@ vi.mock('../../TriggerSelector', () => ({
 
 // Mock ActionList to simplify tests
 vi.mock('../../RoutineEditor/ActionList', () => ({
-  default: vi.fn(({ actions, onActionsChange, disabled }) => (
+  default: vi.fn(({ actions, onActionsChange, disabled }: any) => (
     <div data-testid="mock-action-list">
       <span>Actions: {actions?.length || 0}</span>
       <button
@@ -40,7 +40,7 @@ vi.mock('../../RoutineEditor/ActionList', () => ({
 
 // Mock PreConditionForm to simplify tests
 vi.mock('../PreConditionForm', () => ({
-  default: vi.fn(({ preCondition, onChange, disabled }) => (
+  default: vi.fn(({ preCondition, onChange, disabled }: any) => (
     <div data-testid="mock-pre-condition-form">
       <span data-testid="pre-condition-status">
         {preCondition ? 'enabled' : 'disabled'}
@@ -77,14 +77,14 @@ describe('RoutineCard', () => {
     name: '',
     trigger: { trigger_type: 'solar', solar_event: 'dusk' },
     actions: [{ id: '1', action_type: 'gpio', action_name: 'attract_on' }],
-  }
+  } as any
 
   const defaultProps = {
     routine: defaultRoutine,
     index: 0,
     onUpdate: vi.fn(),
     onDelete: vi.fn(),
-  }
+  } as any
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -340,7 +340,7 @@ describe('RoutineCard', () => {
       const routineWithNoActions = {
         ...defaultRoutine,
         actions: [],
-      }
+      } as any
       render(<RoutineCard {...defaultProps} routine={routineWithNoActions} />)
 
       // Should still render without crashing
@@ -355,7 +355,7 @@ describe('RoutineCard', () => {
         name: '',
         trigger: null,
         actions: [{ id: '1', action_type: 'gpio', action_name: 'attract_on' }],
-      }
+      } as any
       render(<RoutineCard {...defaultProps} routine={routineWithNoTrigger} />)
 
       // Should still render without crashing
@@ -372,7 +372,7 @@ describe('RoutineCard', () => {
           { id: '2', action_type: 'camera', action_name: 'takephoto' },
           { id: '3', action_type: 'gpio', action_name: 'flash_off' },
         ],
-      }
+      } as any
       render(<RoutineCard {...defaultProps} routine={mixedActionsRoutine} />)
 
       // Primary action color should be based on first action (GPIO = orange)
@@ -386,7 +386,7 @@ describe('RoutineCard', () => {
         name: '',
         trigger: { trigger_type: 'solar', solar_event: 'dusk' },
         // actions property omitted (undefined)
-      }
+      } as any
       render(<RoutineCard {...defaultProps} routine={routineWithUndefinedActions} />)
 
       // Should render without crashing - ActionList should receive empty array fallback
@@ -397,7 +397,7 @@ describe('RoutineCard', () => {
       const longNameRoutine = {
         ...defaultRoutine,
         name: 'This is a very long routine name that should be truncated in the UI display to prevent layout issues',
-      }
+      } as any
       render(<RoutineCard {...defaultProps} routine={longNameRoutine} />)
 
       // Name element should have truncate class
@@ -423,7 +423,7 @@ describe('RoutineCard', () => {
           threshold: 100,
           cooldown_minutes: 5,
         },
-      }
+      } as any
       render(
         <RoutineCard
           {...defaultProps}
@@ -464,7 +464,7 @@ describe('RoutineCard', () => {
           comparison: 'lt',
           threshold: 100,
         },
-      }
+      } as any
       render(
         <RoutineCard {...defaultProps} routine={routineWithPreCondition} />
       )

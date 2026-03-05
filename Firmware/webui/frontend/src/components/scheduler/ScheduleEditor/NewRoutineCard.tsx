@@ -11,10 +11,14 @@
 
 import { useState, useCallback, memo } from 'react'
 import toast from 'react-hot-toast'
+// @ts-expect-error -- .js module
 import TriggerSelector from '../TriggerSelector'
 import PreConditionForm from './PreConditionForm'
+// @ts-expect-error -- .jsx module
 import ActionList from '../RoutineEditor/ActionList'
+// @ts-expect-error -- .js module
 import { createDefaultTrigger, validateTrigger } from '../TriggerSelector/constants'
+// @ts-expect-error -- .js module
 import { generateUUID } from '@/utils/uuid'
 import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-types'
 

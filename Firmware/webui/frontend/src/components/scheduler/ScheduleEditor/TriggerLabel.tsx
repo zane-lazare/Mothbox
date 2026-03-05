@@ -8,6 +8,7 @@
  */
 
 import { memo } from 'react'
+// @ts-expect-error -- .js module
 import { getTriggerLabel } from '@/utils/routineUtils'
 import type { Trigger } from './scheduler-types'
 

@@ -19,6 +19,7 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline'
+// @ts-expect-error -- .js module
 import { ConflictList } from '../ConflictResolver'
 import type { ConflictReport } from './scheduler-types'
 

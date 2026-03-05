@@ -1,13 +1,23 @@
 import { useState, useCallback } from 'react'
+// @ts-expect-error -- .jsx modules without declarations (migrated in later issues)
 import { SchedulerProvider } from '../contexts/SchedulerContext'
+// @ts-expect-error -- .jsx module
 import SchedulerHeader from '../components/scheduler/SchedulerHeader'
+// @ts-expect-error -- .jsx module
 import SchedulerToolbar from '../components/scheduler/SchedulerToolbar'
+// @ts-expect-error -- .jsx module
 import ActiveScheduleBanner from '../components/scheduler/ActiveScheduleBanner'
+// @ts-expect-error -- .js module
 import { ScheduleList } from '../components/scheduler/ScheduleList'
+// @ts-expect-error -- .js module
 import { ScheduleEditor } from '../components/scheduler/ScheduleEditor'
+// @ts-expect-error -- .jsx module
 import CalendarView from '../components/scheduler/CalendarView'
+// @ts-expect-error -- .jsx module
 import SchedulerLegend from '../components/scheduler/SchedulerLegend'
+// @ts-expect-error -- .jsx module
 import ErrorBoundary from '../components/ErrorBoundary'
+// @ts-expect-error -- .js module
 import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule, useCloneSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
 import type { Schedule } from '../components/scheduler/ScheduleEditor/scheduler-types'

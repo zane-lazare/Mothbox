@@ -8,11 +8,16 @@ import RoutineList from './RoutineList';
 import ConflictPanel from './ConflictPanel';
 import ActivationPanel from './ActivationPanel';
 import CronLimitWarning from '../CronLimitWarning';
+// @ts-expect-error -- .jsx module
 import ConfirmDialog from '../../common/ConfirmDialog';
 import { SCHEDULE_LIMITS } from './constants';
+// @ts-expect-error -- .js module
 import { generateUUID } from '../../../utils/uuid';
+// @ts-expect-error -- .js module
 import { getErrorMessage } from '../../../utils/errorCodes';
+// @ts-expect-error -- .js module
 import { useSchedule } from '../../../hooks/useSchedules';
+// @ts-expect-error -- .js module
 import { useValidateDraft } from '../../../hooks/useValidateDraft';
 
 /** Delay before focusing name input to allow drawer animation to start */
@@ -180,7 +185,7 @@ const ScheduleEditor = ({
    * the form initialization effect to ignore stale fetch responses.
    */
   useLayoutEffect(() => {
-    requestedScheduleRef.current = isEditMode ? schedule?.schedule_id : null;
+    requestedScheduleRef.current = isEditMode ? (schedule?.schedule_id ?? null) : null;
   }, [isEditMode, schedule?.schedule_id]);
 
   /**

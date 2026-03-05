@@ -9,12 +9,9 @@
 
 import { useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import {
-  useActiveSchedule,
-  useActivateSchedule,
-  useDeactivateSchedule,
-  useSchedulePreview,
-} from '../../../hooks/useSchedules'
+// @ts-expect-error -- .js module
+import { useActiveSchedule, useActivateSchedule, useDeactivateSchedule, useSchedulePreview } from '../../../hooks/useSchedules'
+// @ts-expect-error -- .jsx module
 import ActivationProgress from '../ActivationProgress/ActivationProgress'
 
 // Coordinate source display config (Issue #382)

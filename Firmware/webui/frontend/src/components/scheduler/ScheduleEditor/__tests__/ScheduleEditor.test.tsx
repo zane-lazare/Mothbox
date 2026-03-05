@@ -59,8 +59,8 @@ const renderWithClient = (ui: React.ReactElement) => {
 };
 
 describe('ScheduleEditor', () => {
-  let mockOnSave: ReturnType<typeof vi.fn>;
-  let mockOnCancel: ReturnType<typeof vi.fn>;
+  let mockOnSave: any;
+  let mockOnCancel: any;
 
   beforeEach(() => {
     mockOnSave = vi.fn();
