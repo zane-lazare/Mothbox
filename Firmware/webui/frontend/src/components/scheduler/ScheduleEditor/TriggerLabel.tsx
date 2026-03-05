@@ -8,8 +8,13 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
+// @ts-expect-error -- .js module
 import { getTriggerLabel } from '@/utils/routineUtils'
+import type { Trigger } from './scheduler-types'
+
+interface TriggerLabelProps {
+  trigger?: Trigger | null;
+}
 
 /**
  * TriggerLabel component
@@ -22,7 +27,7 @@ import { getTriggerLabel } from '@/utils/routineUtils'
  * <TriggerLabel trigger={{ trigger_type: 'solar' }} />
  * // Renders: <span className="...">Solar</span>
  */
-function TriggerLabel({ trigger }) {
+function TriggerLabel({ trigger }: TriggerLabelProps) {
   const label = getTriggerLabel(trigger)
 
   if (!label) {
@@ -37,20 +42,6 @@ function TriggerLabel({ trigger }) {
       {label}
     </span>
   )
-}
-
-TriggerLabel.propTypes = {
-  /** Trigger configuration object */
-  trigger: PropTypes.shape({
-    trigger_type: PropTypes.oneOf([
-      'interval',
-      'solar',
-      'fixed_time',
-      'moon_phase',
-      'recurring_days',
-      'cron',
-    ]),
-  }),
 }
 
 export default memo(TriggerLabel)

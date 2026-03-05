@@ -5,7 +5,7 @@ import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from '../constants';
 
 // Mock all trigger form components
 vi.mock('../IntervalTriggerForm', () => ({
-  default: ({ value, onChange, disabled, errors }) => (
+  default: ({ value, onChange, disabled, errors }: any) => (
     <div data-testid="interval-trigger-form">
       <span data-testid="interval-value">{JSON.stringify(value)}</span>
       <button
@@ -23,7 +23,7 @@ vi.mock('../IntervalTriggerForm', () => ({
 }));
 
 vi.mock('../SolarTriggerForm', () => ({
-  default: ({ value, onChange, disabled }) => (
+  default: ({ value, onChange, disabled }: any) => (
     <div data-testid="solar-trigger-form">
       <span data-testid="solar-value">{JSON.stringify(value)}</span>
       <button
@@ -38,7 +38,7 @@ vi.mock('../SolarTriggerForm', () => ({
 }));
 
 vi.mock('../MoonPhaseTriggerForm', () => ({
-  default: ({ value, onChange, disabled }) => (
+  default: ({ value, onChange, disabled }: any) => (
     <div data-testid="moon-phase-trigger-form">
       <span data-testid="moon-value">{JSON.stringify(value)}</span>
       <button
@@ -53,7 +53,7 @@ vi.mock('../MoonPhaseTriggerForm', () => ({
 }));
 
 vi.mock('../FixedTimeTriggerForm', () => ({
-  default: ({ value, onChange, disabled }) => (
+  default: ({ value, onChange, disabled }: any) => (
     <div data-testid="fixed-time-trigger-form">
       <span data-testid="fixed-time-value">{JSON.stringify(value)}</span>
       <button
@@ -68,7 +68,7 @@ vi.mock('../FixedTimeTriggerForm', () => ({
 }));
 
 vi.mock('../SensorTriggerForm', () => ({
-  default: ({ value, onChange, disabled }) => (
+  default: ({ value, onChange, disabled }: any) => (
     <div data-testid="sensor-trigger-form">
       <span data-testid="sensor-value">{JSON.stringify(value)}</span>
       <button
@@ -84,7 +84,7 @@ vi.mock('../SensorTriggerForm', () => ({
 
 // Mock ExpertModeToggle
 vi.mock('../../ExpertMode/ExpertModeToggle', () => ({
-  default: ({ mode, onChange }) => (
+  default: ({ mode, onChange }: any) => (
     <div data-testid="expert-mode-toggle">
       <button
         data-testid="toggle-visual"
@@ -106,7 +106,7 @@ vi.mock('../../ExpertMode/ExpertModeToggle', () => ({
 
 // Mock CronExpressionInput
 vi.mock('../../ExpertMode/CronExpressionInput', () => ({
-  default: ({ value, onChange, disabled }) => (
+  default: ({ value, onChange, disabled }: any) => (
     <div data-testid="cron-expression-input">
       <input
         data-testid="cron-input"
@@ -119,7 +119,7 @@ vi.mock('../../ExpertMode/CronExpressionInput', () => ({
 }));
 
 describe('TriggerForm', () => {
-  let mockOnChange;
+  let mockOnChange: any;
 
   beforeEach(() => {
     mockOnChange = vi.fn();
@@ -136,7 +136,7 @@ describe('TriggerForm', () => {
       render(<TriggerForm onChange={mockOnChange} />);
 
       const select = screen.getByLabelText(/trigger type/i);
-      const options = Array.from(select.options).map((opt) => opt.value);
+      const options = Array.from((select as HTMLSelectElement).options).map((opt: HTMLOptionElement) => opt.value);
 
       // All trigger types except 'cron' should be in the select in visual mode
       Object.keys(TRIGGER_TYPES)
@@ -165,9 +165,9 @@ describe('TriggerForm', () => {
 
   describe('Trigger Type Selection', () => {
     it('renders solar trigger form when trigger_type is solar', () => {
-      const value = {
-        trigger_type: 'solar',
+      const value: any = {
         ...TRIGGER_DEFAULTS.solar,
+        trigger_type: 'solar',
       };
       render(<TriggerForm value={value} onChange={mockOnChange} />);
 
@@ -176,9 +176,9 @@ describe('TriggerForm', () => {
     });
 
     it('renders moon phase trigger form when trigger_type is moon_phase', () => {
-      const value = {
-        trigger_type: 'moon_phase',
+      const value: any = {
         ...TRIGGER_DEFAULTS.moon_phase,
+        trigger_type: 'moon_phase',
       };
       render(<TriggerForm value={value} onChange={mockOnChange} />);
 
@@ -186,9 +186,9 @@ describe('TriggerForm', () => {
     });
 
     it('renders fixed time trigger form when trigger_type is fixed_time', () => {
-      const value = {
-        trigger_type: 'fixed_time',
+      const value: any = {
         ...TRIGGER_DEFAULTS.fixed_time,
+        trigger_type: 'fixed_time',
       };
       render(<TriggerForm value={value} onChange={mockOnChange} />);
 
@@ -196,9 +196,9 @@ describe('TriggerForm', () => {
     });
 
     it('renders sensor trigger form when trigger_type is sensor', () => {
-      const value = {
-        trigger_type: 'sensor',
+      const value: any = {
         ...TRIGGER_DEFAULTS.sensor,
+        trigger_type: 'sensor',
       };
       render(<TriggerForm value={value} onChange={mockOnChange} />);
 
@@ -206,9 +206,9 @@ describe('TriggerForm', () => {
     });
 
     it('shows description for solar trigger type', () => {
-      const value = {
-        trigger_type: 'solar',
+      const value: any = {
         ...TRIGGER_DEFAULTS.solar,
+        trigger_type: 'solar',
       };
       render(<TriggerForm value={value} onChange={mockOnChange} />);
 
@@ -231,7 +231,7 @@ describe('TriggerForm', () => {
 
   describe('Value Propagation', () => {
     it('passes value to interval trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'interval',
         interval_minutes: 120,
         time_window: { start_time: '21:00', end_time: '05:00' },
@@ -245,7 +245,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes value to solar trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'solar',
         solar_event: 'sunrise',
         offset_minutes: 30,
@@ -259,7 +259,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes value to moon phase trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'moon_phase',
         moon_phase: 'full',
         time_of_day: '20:00',
@@ -273,7 +273,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes value to fixed time trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'fixed_time',
         time_of_day: '12:00',
         days_of_week: null,
@@ -286,7 +286,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes value to sensor trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'sensor',
         sensor_type: 'light',
         comparison: 'lt',
@@ -303,7 +303,7 @@ describe('TriggerForm', () => {
 
   describe('onChange Propagation', () => {
     it('propagates onChange from interval trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'interval',
         interval_minutes: 60,
         time_window: { start_time: '21:00', end_time: '05:00' },
@@ -323,7 +323,7 @@ describe('TriggerForm', () => {
     });
 
     it('propagates onChange from solar trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'solar',
         solar_event: 'sunset',
         offset_minutes: 0,
@@ -343,7 +343,7 @@ describe('TriggerForm', () => {
     });
 
     it('propagates onChange from moon phase trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'moon_phase',
         moon_phase: 'full',
         time_of_day: '20:00',
@@ -363,7 +363,7 @@ describe('TriggerForm', () => {
     });
 
     it('propagates onChange from fixed time trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'fixed_time',
         time_of_day: '12:00',
         days_of_week: null,
@@ -382,7 +382,7 @@ describe('TriggerForm', () => {
     });
 
     it('propagates onChange from sensor trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'sensor',
         sensor_type: 'light',
         comparison: 'lt',
@@ -412,7 +412,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes disabled state to interval trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'interval',
         interval_minutes: 60,
         time_window: { start_time: '21:00', end_time: '05:00' },
@@ -426,7 +426,7 @@ describe('TriggerForm', () => {
     });
 
     it('passes disabled state to solar trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'solar',
         solar_event: 'sunset',
         offset_minutes: 0,
@@ -442,7 +442,7 @@ describe('TriggerForm', () => {
 
   describe('Error Propagation', () => {
     it('passes errors to interval trigger form', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'interval',
         interval_minutes: 60,
         time_window: { start_time: '21:00', end_time: '05:00' },
@@ -530,7 +530,7 @@ describe('TriggerForm', () => {
     });
 
     it('preserves cron expression in trigger value', () => {
-      const value = {
+      const value: any = {
         trigger_type: 'cron',
         cron_expression: '*/5 * * * *',
       };
@@ -542,8 +542,8 @@ describe('TriggerForm', () => {
     });
 
     it('syncs expert mode with trigger_type cron', () => {
-      const value = {
-        trigger_type: 'cron',
+      const value: any = {
+        trigger_type: 'cron' as const,
         cron_expression: '0 21 * * *',
       };
 
@@ -558,8 +558,8 @@ describe('TriggerForm', () => {
     });
 
     it('calls onChange with cron_expression when changed', () => {
-      const value = {
-        trigger_type: 'cron',
+      const value: any = {
+        trigger_type: 'cron' as const,
         cron_expression: '0 21 * * *',
       };
 
@@ -577,8 +577,8 @@ describe('TriggerForm', () => {
     });
 
     it('switches back to visual mode when clicking visual button', () => {
-      const value = {
-        trigger_type: 'cron',
+      const value: any = {
+        trigger_type: 'cron' as const,
         cron_expression: '0 21 * * *',
       };
 

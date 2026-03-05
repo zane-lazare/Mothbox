@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SchedulerUI from '../SchedulerUI'
@@ -17,7 +17,7 @@ vi.mock('../../hooks/useSchedules', () => ({
 }))
 
 vi.mock('../../contexts/SchedulerContext', () => ({
-  SchedulerProvider: ({ children }) => <div data-testid="scheduler-provider">{children}</div>,
+  SchedulerProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="scheduler-provider">{children}</div>,
   useSchedulerContext: vi.fn(() => ({
     state: { schedules: [], activeSchedule: null },
     scheduleActions: { setSchedules: vi.fn(), setActiveSchedule: vi.fn() }
@@ -25,7 +25,7 @@ vi.mock('../../contexts/SchedulerContext', () => ({
 }))
 
 vi.mock('../../components/scheduler/SchedulerHeader', () => ({
-  default: ({ children }) => <div data-testid="scheduler-header">{children}</div>
+  default: ({ children }: { children: React.ReactNode }) => <div data-testid="scheduler-header">{children}</div>
 }))
 
 vi.mock('../../components/scheduler/SchedulerToolbar', () => ({
@@ -45,7 +45,7 @@ vi.mock('../../components/scheduler/CalendarView', () => ({
 }))
 
 vi.mock('../../components/LoadingSpinner', () => ({
-  default: ({ size }) => <div data-testid="loading-spinner" data-size={size}>Loading...</div>
+  default: ({ size }: { size: string }) => <div data-testid="loading-spinner" data-size={size}>Loading...</div>
 }))
 
 vi.mock('../../components/scheduler/ScheduleEditor', () => ({
@@ -53,6 +53,7 @@ vi.mock('../../components/scheduler/ScheduleEditor', () => ({
 }))
 
 // Import the mocked hooks to configure them
+// @ts-expect-error -- .js module
 import { useSchedules } from '../../hooks/useSchedules'
 
 // Create QueryClient wrapper
@@ -60,7 +61,7 @@ const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
   })
-  return ({ children }) => (
+  return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
@@ -71,7 +72,7 @@ describe('SchedulerUI', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Default mock implementation - success state
-    useSchedules.mockReturnValue({
+    ;(useSchedules as Mock).mockReturnValue({
       isLoading: false,
       error: null,
       data: []

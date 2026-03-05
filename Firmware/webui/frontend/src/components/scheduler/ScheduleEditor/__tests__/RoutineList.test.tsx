@@ -5,7 +5,7 @@ import RoutineList from '../RoutineList'
 
 // Mock RoutineCard
 vi.mock('../RoutineCard', () => ({
-  default: vi.fn(({ routine, index, onUpdate, onDelete, disabled }) => (
+  default: vi.fn(({ routine, index, onUpdate, onDelete, disabled }: any) => (
     <div data-testid={`routine-${index}`}>
       <span>Routine: {routine.routine_id}</span>
       <button onClick={() => onUpdate({ ...routine, updated: true })} disabled={disabled}>
@@ -20,7 +20,7 @@ vi.mock('../RoutineCard', () => ({
 
 // Mock NewRoutineCard
 vi.mock('../NewRoutineCard', () => ({
-  default: vi.fn(({ onComplete, onCancel, disabled }) => (
+  default: vi.fn(({ onComplete, onCancel, disabled }: any) => (
     <div data-testid="new-routine-card">
       <button
         onClick={() =>
@@ -63,7 +63,7 @@ describe('RoutineList', () => {
       trigger: { trigger_type: 'interval', interval_minutes: 15 },
       actions: [{ id: '2', action_type: 'camera', action_name: 'takephoto' }],
     },
-  ]
+  ] as any
 
   beforeEach(() => {
     vi.clearAllMocks()

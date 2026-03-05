@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import DaysOfWeekSelector from '../DaysOfWeekSelector';
 
 describe('DaysOfWeekSelector', () => {
-  let mockOnChange;
-  let user;
+  let mockOnChange: any;
+  let user: ReturnType<typeof userEvent.setup>;
 
   beforeEach(() => {
     mockOnChange = vi.fn();
@@ -472,7 +472,7 @@ describe('DaysOfWeekSelector', () => {
 
   describe('Edge Cases', () => {
     it('handles undefined value as null (all days)', () => {
-      render(<DaysOfWeekSelector value={undefined} onChange={mockOnChange} />);
+      render(<DaysOfWeekSelector value={undefined as any} onChange={mockOnChange} />);
 
       // All days should be shown as selected
       expect(screen.getByRole('button', { name: 'Monday' })).toHaveAttribute(

@@ -14,12 +14,9 @@ vi.mock('../../ActivationProgress/ActivationProgress', () => ({
   default: vi.fn(() => <div data-testid="activation-progress" />),
 }))
 
-import {
-  useActiveSchedule,
-  useActivateSchedule,
-  useDeactivateSchedule,
-  useSchedulePreview,
-} from '../../../../hooks/useSchedules'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error -- .js module
+import { useActiveSchedule, useActivateSchedule, useDeactivateSchedule, useSchedulePreview } from '../../../../hooks/useSchedules'
 
 describe('ActivationPanel', () => {
   beforeEach(() => {

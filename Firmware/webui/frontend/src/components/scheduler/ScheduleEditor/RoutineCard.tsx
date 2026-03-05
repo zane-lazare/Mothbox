@@ -9,26 +9,36 @@
  */
 
 import { useState, useCallback, memo, useMemo } from 'react'
-import PropTypes from 'prop-types'
 import { ChevronDownIcon, TrashIcon } from '@heroicons/react/24/outline'
+// @ts-expect-error -- .js module
 import TriggerSelector from '../TriggerSelector'
+// @ts-expect-error -- .jsx module
 import ActionList from '../RoutineEditor/ActionList'
 import PreConditionForm from './PreConditionForm'
 import TriggerLabel from './TriggerLabel'
+// @ts-expect-error -- .js module
 import { generateRoutineName, getActionColor } from '@/utils/routineUtils'
-import { RoutinePropType } from './propTypes'
+import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-types'
+
+interface RoutineCardProps {
+  /** Routine object with trigger and actions */
+  routine: Routine;
+  /** Index in parent list for data-testid */
+  index: number;
+  /** Callback when routine is updated */
+  onUpdate: (routine: Routine) => void;
+  /** Callback when routine is deleted */
+  onDelete: (routineId: string) => void;
+  /** Whether editing is disabled */
+  disabled?: boolean;
+  /** Whether card starts expanded */
+  defaultExpanded?: boolean;
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming?: boolean;
+}
 
 /**
  * RoutineCard component
- *
- * @param {Object} props - Component props
- * @param {Object} props.routine - Routine object with trigger and actions
- * @param {number} props.index - Index in parent list (for data-testid)
- * @param {Function} props.onUpdate - Callback when routine is updated
- * @param {Function} props.onDelete - Callback when routine is deleted
- * @param {boolean} [props.disabled=false] - Whether editing is disabled
- * @param {boolean} [props.defaultExpanded=false] - Whether card starts expanded
- * @returns {JSX.Element} Routine card component
  *
  * @example
  * <RoutineCard
@@ -46,8 +56,8 @@ function RoutineCard({
   disabled = false,
   defaultExpanded = false,
   useSecondsTiming = false,
-}) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
+}: RoutineCardProps) {
+  const [expanded, setExpanded] = useState<boolean>(defaultExpanded)
 
   // Memoize display name to avoid recalculating on every render
   const displayName = useMemo(() => generateRoutineName(routine), [routine])
@@ -55,7 +65,7 @@ function RoutineCard({
   // Memoize action colors for all actions (deduplicated)
   const actionColors = useMemo(() => {
     if (!routine.actions?.length) return ['bg-gray-400']
-    const colors = routine.actions.map(action => getActionColor(action))
+    const colors = routine.actions.map((action: RoutineAction) => getActionColor(action))
     // Remove duplicates while preserving order
     return [...new Set(colors)]
   }, [routine.actions])
@@ -71,7 +81,7 @@ function RoutineCard({
    * Handle delete button click
    */
   const handleDelete = useCallback(
-    (e) => {
+    (e: React.MouseEvent) => {
       e.stopPropagation()
       onDelete(routine.routine_id)
     },
@@ -82,7 +92,7 @@ function RoutineCard({
    * Handle trigger change
    */
   const handleTriggerChange = useCallback(
-    (newTrigger) => {
+    (newTrigger: Trigger) => {
       onUpdate({
         ...routine,
         trigger: newTrigger,
@@ -95,7 +105,7 @@ function RoutineCard({
    * Handle actions change
    */
   const handleActionsChange = useCallback(
-    (newActions) => {
+    (newActions: RoutineAction[]) => {
       onUpdate({
         ...routine,
         actions: newActions,
@@ -108,7 +118,7 @@ function RoutineCard({
    * Handle pre-condition change
    */
   const handlePreConditionChange = useCallback(
-    (newPreCondition) => {
+    (newPreCondition: PreCondition | null) => {
       onUpdate({
         ...routine,
         pre_condition: newPreCondition,
@@ -203,8 +213,8 @@ function RoutineCard({
               disabled={disabled}
             />
             <PreConditionForm
-              preCondition={routine.pre_condition || null}
-              onChange={handlePreConditionChange}
+              preCondition={(routine.pre_condition || null) as any}  // eslint-disable-line @typescript-eslint/no-explicit-any
+              onChange={handlePreConditionChange as any}  // eslint-disable-line @typescript-eslint/no-explicit-any
               routineIndex={index}
               disabled={disabled}
             />
@@ -226,23 +236,6 @@ function RoutineCard({
       </div>
     </div>
   )
-}
-
-RoutineCard.propTypes = {
-  /** Routine object with trigger and actions */
-  routine: RoutinePropType.isRequired,
-  /** Index in parent list for data-testid */
-  index: PropTypes.number.isRequired,
-  /** Callback when routine is updated */
-  onUpdate: PropTypes.func.isRequired,
-  /** Callback when routine is deleted */
-  onDelete: PropTypes.func.isRequired,
-  /** Whether editing is disabled */
-  disabled: PropTypes.bool,
-  /** Whether card starts expanded */
-  defaultExpanded: PropTypes.bool,
-  /** Whether to show explicit seconds timing vs auto-stagger */
-  useSecondsTiming: PropTypes.bool,
 }
 
 export default memo(RoutineCard)

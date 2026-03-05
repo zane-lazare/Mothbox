@@ -11,25 +11,34 @@
  */
 
 import { memo, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import RoutineCard from './RoutineCard'
 import NewRoutineCard from './NewRoutineCard'
-import { RoutinePropType } from './propTypes'
+import type { Routine } from './scheduler-types'
+
+interface RoutineListProps {
+  /** Array of routine objects */
+  routines: Routine[];
+  /** Callback when a routine is updated */
+  onRoutineUpdate: (routine: Routine) => void;
+  /** Callback when a routine is deleted */
+  onRoutineDelete: (routineId: string) => void;
+  /** Callback when a new routine is added */
+  onRoutineAdd: (routine: Routine) => void;
+  /** Whether new routine form is visible */
+  isAddingRoutine?: boolean;
+  /** Callback to show new routine form */
+  onStartAddRoutine: () => void;
+  /** Callback to hide new routine form */
+  onCancelAddRoutine: () => void;
+  /** Whether editing is disabled */
+  disabled?: boolean;
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming?: boolean;
+}
 
 /**
  * RoutineList component
- *
- * @param {Object} props - Component props
- * @param {Array} props.routines - Array of routine objects
- * @param {Function} props.onRoutineUpdate - Callback when a routine is updated
- * @param {Function} props.onRoutineDelete - Callback when a routine is deleted
- * @param {Function} props.onRoutineAdd - Callback when a new routine is added
- * @param {boolean} [props.isAddingRoutine=false] - Whether new routine form is visible
- * @param {Function} props.onStartAddRoutine - Callback to show new routine form
- * @param {Function} props.onCancelAddRoutine - Callback to hide new routine form
- * @param {boolean} [props.disabled=false] - Whether editing is disabled
- * @returns {JSX.Element} Routine list component
  *
  * @example
  * <RoutineList
@@ -52,13 +61,13 @@ function RoutineList({
   onCancelAddRoutine,
   disabled = false,
   useSecondsTiming = false,
-}) {
+}: RoutineListProps) {
 
   /**
    * Handle new routine completion
    */
   const handleNewRoutineComplete = useCallback(
-    (routine) => {
+    (routine: Routine) => {
       onRoutineAdd(routine)
       onCancelAddRoutine()
     },
@@ -140,27 +149,6 @@ function RoutineList({
       )}
     </div>
   )
-}
-
-RoutineList.propTypes = {
-  /** Array of routine objects */
-  routines: PropTypes.arrayOf(RoutinePropType),
-  /** Callback when a routine is updated */
-  onRoutineUpdate: PropTypes.func.isRequired,
-  /** Callback when a routine is deleted */
-  onRoutineDelete: PropTypes.func.isRequired,
-  /** Callback when a new routine is added */
-  onRoutineAdd: PropTypes.func.isRequired,
-  /** Whether new routine form is visible */
-  isAddingRoutine: PropTypes.bool,
-  /** Callback to show new routine form */
-  onStartAddRoutine: PropTypes.func.isRequired,
-  /** Callback to hide new routine form */
-  onCancelAddRoutine: PropTypes.func.isRequired,
-  /** Whether editing is disabled */
-  disabled: PropTypes.bool,
-  /** Whether to show explicit seconds timing vs auto-stagger */
-  useSecondsTiming: PropTypes.bool,
 }
 
 export default memo(RoutineList)
