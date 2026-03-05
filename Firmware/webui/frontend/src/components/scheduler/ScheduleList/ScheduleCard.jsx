@@ -170,6 +170,7 @@ function ScheduleCard({
   )
 }
 
+// TODO: convert ScheduleCard to TSX with typed props (currently uses PropTypes.object as stopgap)
 ScheduleCard.propTypes = {
   schedule: PropTypes.object.isRequired,
   isActive: PropTypes.bool,

@@ -11,6 +11,7 @@ import ErrorBoundary from '../components/ErrorBoundary'
 import { useCreateSchedule, useUpdateSchedule, useDeleteSchedule, useCloneSchedule } from '../hooks/useSchedules'
 import toast from 'react-hot-toast'
 import type { Schedule } from '../components/scheduler/ScheduleEditor/scheduler-types'
+import type { ScheduleSaveData } from '../components/scheduler/ScheduleEditor/ScheduleEditor'
 
 function SchedulerUIContent(): React.JSX.Element {
   const [editorOpen, setEditorOpen] = useState<boolean>(false)
@@ -42,7 +43,7 @@ function SchedulerUIContent(): React.JSX.Element {
   /**
    * Handle saving a schedule (create or update)
    */
-  const handleSaveSchedule = useCallback(async (scheduleData: Record<string, unknown>) => {
+  const handleSaveSchedule = useCallback(async (scheduleData: ScheduleSaveData) => {
     try {
       if (editingSchedule?.schedule_id) {
         // Update existing schedule

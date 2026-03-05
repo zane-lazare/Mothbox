@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import type { Resolver } from 'react-hook-form'
 import {
   sensorTriggerSchema,
   type SensorTriggerFormData,
 } from '../../../schemas/scheduler/sensor'
+import { createZodResolver } from './zodResolverWorkaround'
 import { SENSOR_TYPES, SENSOR_COMPARISONS, SCHEDULE_LIMITS } from './constants'
 import type { TriggerErrors } from './scheduler-types'
 
@@ -79,12 +78,7 @@ function getSensorUnit(sensorType: string): string {
 
 // -- Component --------------------------------------------------------------
 
-// Zod 4 + @hookform/resolvers type workaround (@hookform/resolvers@3.x + zod@4.x)
-// TODO(#446): remove cast when resolvers#800 is fixed
-// Upstream: https://github.com/react-hook-form/resolvers/issues/800
-const resolver = zodResolver(
-  sensorTriggerSchema as unknown as Parameters<typeof zodResolver>[0],
-) as unknown as Resolver<SensorTriggerFormData>
+const resolver = createZodResolver<SensorTriggerFormData>(sensorTriggerSchema)
 
 export default function SensorTriggerForm({
   value = DEFAULT_VALUE,

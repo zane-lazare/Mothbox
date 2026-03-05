@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import type { Resolver } from 'react-hook-form'
 import {
   fixedTimeTriggerSchema,
   type FixedTimeTriggerFormData,
 } from '../../../schemas/scheduler/fixed-time'
+import { createZodResolver } from './zodResolverWorkaround'
 import { DAYS_OF_WEEK } from './constants'
 import DaysOfWeekSelector from './DaysOfWeekSelector'
 import type { TriggerErrors } from './scheduler-types'
@@ -59,12 +58,7 @@ function formatDays(days: number[] | null | undefined): string {
 
 // -- Component --------------------------------------------------------------
 
-// Zod 4 + @hookform/resolvers type workaround (@hookform/resolvers@3.x + zod@4.x)
-// TODO(#446): remove cast when resolvers#800 is fixed
-// Upstream: https://github.com/react-hook-form/resolvers/issues/800
-const resolver = zodResolver(
-  fixedTimeTriggerSchema as unknown as Parameters<typeof zodResolver>[0],
-) as unknown as Resolver<FixedTimeTriggerFormData>
+const resolver = createZodResolver<FixedTimeTriggerFormData>(fixedTimeTriggerSchema)
 
 export default function FixedTimeTriggerForm({
   value = DEFAULT_VALUE,

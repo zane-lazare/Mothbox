@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import type { Resolver } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { scheduleSchema, type ScheduleFormData } from '../../../schemas/scheduler/schedule';
+import { createZodResolver } from './zodResolverWorkaround';
 import type { Routine, Schedule } from './scheduler-types';
 import { PencilIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import RoutineList from './RoutineList';
@@ -19,13 +18,22 @@ import { useValidateDraft } from '../../../hooks/useValidateDraft';
 /** Delay before focusing name input to allow drawer animation to start */
 const FOCUS_DELAY_MS = 100;
 
+/** Data shape sent to the save callback (subset of Schedule used for create/update). */
+export interface ScheduleSaveData {
+  schedule_id: string;
+  name: string;
+  description: string;
+  routines: Routine[];
+  use_seconds_timing: boolean;
+}
+
 interface ScheduleEditorProps {
   /** Whether the editor drawer is open */
   isOpen: boolean;
   /** Schedule to edit (null for new). Contains routines with per-routine triggers. */
   schedule?: Schedule | null;
   /** Callback when schedule is saved. Receives complete schedule object. */
-  onSave: (schedule: Record<string, unknown>) => Promise<void>;
+  onSave: (schedule: ScheduleSaveData) => Promise<void>;
   /** Callback when editor is cancelled/closed */
   onCancel: () => void;
   /** Callback when schedule is deleted. Receives schedule_id. */
@@ -71,9 +79,7 @@ const ScheduleEditor = ({
   const requestedScheduleRef = useRef<string | null>(null);
 
   // React Hook Form for name and description
-  const resolver = zodResolver(
-    scheduleSchema as unknown as Parameters<typeof zodResolver>[0],
-  ) as unknown as Resolver<ScheduleFormData>;
+  const resolver = createZodResolver<ScheduleFormData>(scheduleSchema);
 
   const {
     register,
@@ -338,7 +344,7 @@ const ScheduleEditor = ({
     setIsSaving(true);
 
     try {
-      const scheduleData = {
+      const scheduleData: ScheduleSaveData = {
         schedule_id: schedule?.schedule_id || generateUUID(),
         name: formData.name,
         description: formData.description,
