@@ -103,6 +103,7 @@ export const liveviewSettingsSchema = z.object({
   focus_peaking_intensity: intRange(50, 200, 'Focus peaking intensity').optional(),
 
   // String enum controls
+  // British and American spelling variants — both accepted by backend
   focus_peaking_colour: stringEnum(['green', 'red', 'yellow', 'cyan', 'magenta'], 'Focus peaking colour').optional(),
   focus_peaking_color: stringEnum(['green', 'red', 'yellow', 'cyan', 'magenta'], 'Focus peaking color').optional(),
   focus_peaking_algorithm: stringEnum(['laplacian', 'sobel', 'canny'], 'Focus peaking algorithm').optional(),
