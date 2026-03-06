@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from './constants';
-import type { Trigger, TriggerErrors, TriggerType } from './scheduler-types';
+import type { Trigger, TriggerErrors, TriggerType, IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger } from './scheduler-types';
 import IntervalTriggerForm from './IntervalTriggerForm';
+import type { IntervalTriggerValue } from './IntervalTriggerForm';
 import SolarTriggerForm from './SolarTriggerForm';
+import type { SolarTriggerValue } from './SolarTriggerForm';
 import MoonPhaseTriggerForm from './MoonPhaseTriggerForm';
+import type { MoonPhaseTriggerValue } from './MoonPhaseTriggerForm';
 import FixedTimeTriggerForm from './FixedTimeTriggerForm';
+import type { FixedTimeTriggerValue } from './FixedTimeTriggerForm';
 import SensorTriggerForm from './SensorTriggerForm';
+import type { SensorTriggerValue } from './SensorTriggerForm';
 // @ts-expect-error -- .jsx module
 import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
 import CronExpressionInput from '../ExpertMode/CronExpressionInput';
@@ -148,26 +153,20 @@ const TriggerForm = ({
    * Render the appropriate trigger form based on type
    */
   const renderTriggerForm = () => {
-    // Each child form defines its own value/onChange types.
-    // The switch statement guarantees the correct trigger type is dispatched.
-    // We pass props explicitly; `as any` bridges the Trigger union to each
-    // sub-form's specific value type until #490 adds proper narrowing.
-    /* eslint-disable @typescript-eslint/no-explicit-any */
     switch (triggerType) {
       case 'interval':
-        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <IntervalTriggerForm value={value as IntervalTrigger as IntervalTriggerValue} onChange={handleTriggerValueChange as unknown as (v: IntervalTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string | Record<string, string>>} />;
       case 'solar':
-        return <SolarTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <SolarTriggerForm value={value as SolarTrigger as SolarTriggerValue} onChange={handleTriggerValueChange as unknown as (v: SolarTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string>} />;
       case 'moon_phase':
-        return <MoonPhaseTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <MoonPhaseTriggerForm value={value as MoonPhaseTrigger as MoonPhaseTriggerValue} onChange={handleTriggerValueChange as unknown as (v: MoonPhaseTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string>} />;
       case 'fixed_time':
-        return <FixedTimeTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <FixedTimeTriggerForm value={value as FixedTimeTrigger as FixedTimeTriggerValue} onChange={handleTriggerValueChange as unknown as (v: FixedTimeTriggerValue) => void} disabled={disabled} errors={errors} />;
       case 'sensor':
-        return <SensorTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <SensorTriggerForm value={value as SensorTrigger as SensorTriggerValue} onChange={handleTriggerValueChange as unknown as (v: SensorTriggerValue) => void} disabled={disabled} errors={errors} />;
       default:
-        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return <IntervalTriggerForm value={value as IntervalTrigger as IntervalTriggerValue} onChange={handleTriggerValueChange as unknown as (v: IntervalTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string | Record<string, string>>} />;
     }
-    /* eslint-enable @typescript-eslint/no-explicit-any */
   };
 
   return (
