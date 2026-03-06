@@ -8,7 +8,6 @@
  * (only the keys present in the current preset/form). Unknown keys pass through.
  */
 import { z } from 'zod'
-// @ts-expect-error — .js module without type declarations
 import { toBackendKey } from '../utils/cameraControlMapping'
 
 // ---------------------------------------------------------------------------
