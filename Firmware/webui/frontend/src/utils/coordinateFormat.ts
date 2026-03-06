@@ -3,6 +3,11 @@
  *
  * Pure display utilities extracted from the deprecated gpsCoordinates.ts.
  * For validation, use schemas/coordinates.ts (Zod schema).
+ *
+ * Intentionally omitted from gpsCoordinates.ts (zero consumers):
+ * - dmsToDecimal() — no frontend code converts DMS back to decimal
+ * - validateCoordinate() — replaced by schemas/coordinates.ts (Zod)
+ * - formatCoordinatePair() — no frontend code formats lat+lon as a single string
  */
 
 export interface DMSCoordinate {

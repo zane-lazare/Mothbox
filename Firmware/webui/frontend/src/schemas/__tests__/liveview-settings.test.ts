@@ -37,6 +37,10 @@ describe('liveviewSettingsSchema', () => {
     it('rejects out-of-range enum values', () => {
       expect(liveviewSettingsSchema.safeParse({ af_mode: 5 }).success).toBe(false)
     })
+
+    it('rejects non-numeric strings', () => {
+      expect(liveviewSettingsSchema.safeParse({ af_mode: 'abc' }).success).toBe(false)
+    })
   })
 
   describe('range fields', () => {
@@ -97,10 +101,20 @@ describe('validateLiveviewSettings', () => {
     expect(errors[1]).toMatchObject({ key: 'brightness' })
   })
 
-  it('handles camelCase keys via toBackendKey conversion', () => {
+  it('converts camelCase keys to snake_case via toBackendKey', () => {
+    const errors = validateLiveviewSettings({ colourGainRed: 2.0 })
+    expect(errors).toEqual([])
+  })
+
+  it('rejects invalid value after camelCase key conversion', () => {
     const errors = validateLiveviewSettings({ colourGainRed: 0.5 })
     expect(errors).toHaveLength(1)
     expect(errors[0].key).toBe('colour_gains_red')
+  })
+
+  it('passes through unknown camelCase keys without error', () => {
+    const errors = validateLiveviewSettings({ someUnknownSetting: 'whatever' })
+    expect(errors).toEqual([])
   })
 })
 
