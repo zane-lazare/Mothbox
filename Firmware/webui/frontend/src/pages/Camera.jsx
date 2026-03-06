@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import InstantCaptureButton from '../components/InstantCaptureButton'
 import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
-import { validatePresetSettings, formatValidationErrors } from '../utils/presetValidation'
+import { validateLiveviewSettings, formatLiveviewValidationErrors } from '../schemas/liveview-settings'
 
 /**
  * Field list constants for API response validation
@@ -1144,9 +1144,9 @@ export default function Camera() {
 
     try {
       // Validate current settings before updating
-      const validationErrors = validatePresetSettings(liveControls)
+      const validationErrors = validateLiveviewSettings(liveControls)
       if (validationErrors.length > 0) {
-        const errorMessage = formatValidationErrors(validationErrors, 3)
+        const errorMessage = formatLiveviewValidationErrors(validationErrors, 3)
         toast.error(errorMessage)
         return
       }
@@ -1201,10 +1201,10 @@ export default function Camera() {
     try {
       // Defense-in-depth: Modal validates before calling onSave, but we re-validate
       // here in case the modal is bypassed or settings change between modal open and save.
-      // Both use validatePresetSettings() from presetValidation.js for consistency.
-      const validationErrors = validatePresetSettings(liveControls)
+      // Both use validateLiveviewSettings() from liveview-settings.ts for consistency.
+      const validationErrors = validateLiveviewSettings(liveControls)
       if (validationErrors.length > 0) {
-        const errorMessage = formatValidationErrors(validationErrors, 3)
+        const errorMessage = formatLiveviewValidationErrors(validationErrors, 3)
         toast.error(errorMessage)
         throw new Error('Validation failed')
       }

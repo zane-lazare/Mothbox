@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { cameraPresetFormSchema, type CameraPresetFormData, WORKFLOW_VALUES } from '../schemas/camera-preset'
 import { FormField } from './form/FormField'
-import { validatePresetSettings, type SettingsValidationError } from '../utils/presetValidation'
+import { validateLiveviewSettings, type LiveviewValidationError } from '../schemas/liveview-settings'
 import { Z_INDEX } from '../constants/config'
 
 interface SavePresetModalProps {
@@ -30,7 +30,7 @@ export function SavePresetModal({
   defaultWorkflow = 'both',
   currentSettings = {},
 }: SavePresetModalProps) {
-  const [settingsErrors, setSettingsErrors] = useState<SettingsValidationError[]>([])
+  const [settingsErrors, setSettingsErrors] = useState<LiveviewValidationError[]>([])
 
   const {
     register,
@@ -56,7 +56,7 @@ export function SavePresetModal({
   const onSubmit = async (data: CameraPresetFormData) => {
     // Validate liveview settings when workflow includes liveview
     if (data.workflow !== 'photo') {
-      const settingsValidationErrors = validatePresetSettings(currentSettings)
+      const settingsValidationErrors = validateLiveviewSettings(currentSettings)
       if (settingsValidationErrors.length > 0) {
         setSettingsErrors(settingsValidationErrors)
         return
