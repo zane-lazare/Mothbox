@@ -15,26 +15,38 @@
  */
 
 import { memo, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+// @ts-expect-error -- .jsx module
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import {
   getActionColor,
   generateRoutineName,
   generateScheduleDescription,
-} from '../../../utils/routineUtils'
+} from '@/utils/routineUtils'
+// @ts-expect-error -- .js module
 import { CARD_STYLES, TEXT_STYLES, BUTTON_STYLES } from '../constants'
+
+interface ScheduleCardProps {
+  schedule: {
+    schedule_id: string
+    name: string
+    description?: string
+    enabled?: boolean
+    routines?: {
+      routine_id?: string
+      actions?: { action_type?: string; action_name?: string; name?: string }[]
+      trigger?: Record<string, unknown>
+      name?: string
+    }[]
+  }
+  isActive?: boolean
+  onView: (schedule: ScheduleCardProps['schedule']) => void
+  onToggleEnabled?: (schedule: ScheduleCardProps['schedule']) => void
+  isTogglingEnabled?: boolean
+}
 
 /**
  * ScheduleCard component
- *
- * @param {Object} props - Component props
- * @param {Object} props.schedule - Schedule object
- * @param {boolean} props.isActive - Whether this schedule is active
- * @param {Function} props.onView - Callback when View button clicked
- * @param {Function} props.onToggleEnabled - Callback when Enable/Disable button clicked
- * @param {boolean} [props.isTogglingEnabled] - Loading state for enable/disable toggle
- * @returns {JSX.Element} Schedule card component
  *
  * @example
  * <ScheduleCard
@@ -50,9 +62,10 @@ function ScheduleCard({
   onView,
   onToggleEnabled,
   isTogglingEnabled = false,
-}) {
+}: ScheduleCardProps) {
   const nameId = `schedule-name-${schedule.schedule_id}`
   const isEnabled = schedule.enabled !== false // Default to enabled if not explicitly set
+  const routines = schedule.routines ?? []
 
   // Memoize handlers to preserve memo() optimization (Issue #385)
   // Use schedule.schedule_id instead of schedule object to prevent breaking memo()
@@ -96,18 +109,18 @@ function ScheduleCard({
       </div>
 
       {/* Description - manual or auto-generated */}
-      {(schedule.description || schedule.routines?.length > 0) && (
+      {(schedule.description || routines.length > 0) && (
         <p className={`${TEXT_STYLES.description} mb-3`}>
-          {schedule.description || generateScheduleDescription(schedule.routines)}
+          {schedule.description || generateScheduleDescription(routines)}
         </p>
       )}
 
       {/* Routine Indicators - shows all actions per routine, enclosed in pipes */}
-      {schedule.routines?.length > 0 && (
+      {routines.length > 0 && (
         <div className="flex items-center gap-1 mb-3 flex-wrap">
           {/* Opening pipe */}
           <span className="text-gray-300 dark:text-gray-600 text-xs">|</span>
-          {schedule.routines.map((routine, routineIndex) => (
+          {routines.map((routine, routineIndex) => (
             <div
               key={routine.routine_id || routineIndex}
               className="flex items-center gap-1"
@@ -168,20 +181,6 @@ function ScheduleCard({
       </div>
     </article>
   )
-}
-
-// TODO(#491): convert ScheduleCard to TSX with typed props
-ScheduleCard.propTypes = {
-  schedule: PropTypes.shape({
-    schedule_id: PropTypes.string.isRequired,
-    name: PropTypes.string.isRequired,
-    description: PropTypes.string,
-    routines: PropTypes.array,
-  }).isRequired,
-  isActive: PropTypes.bool,
-  onView: PropTypes.func.isRequired,
-  onToggleEnabled: PropTypes.func,
-  isTogglingEnabled: PropTypes.bool,
 }
 
 export default memo(ScheduleCard)
