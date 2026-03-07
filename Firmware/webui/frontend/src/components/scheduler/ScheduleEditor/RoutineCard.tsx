@@ -12,8 +12,7 @@ import { useState, useCallback, memo, useMemo } from 'react'
 import { ChevronDownIcon, TrashIcon } from '@heroicons/react/24/outline'
 // @ts-expect-error -- .js module
 import TriggerSelector from '../TriggerSelector'
-// @ts-expect-error -- .jsx module
-import ActionList from '../RoutineEditor/ActionList'
+import ActionList from './ActionList'
 import PreConditionForm from './PreConditionForm'
 import TriggerLabel from './TriggerLabel'
 import { generateRoutineName, getActionColor } from '@/utils/routineUtils'

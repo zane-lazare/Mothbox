@@ -14,8 +14,7 @@ import toast from 'react-hot-toast'
 // @ts-expect-error -- .js module
 import TriggerSelector from '../TriggerSelector'
 import PreConditionForm from './PreConditionForm'
-// @ts-expect-error -- .jsx module
-import ActionList from '../RoutineEditor/ActionList'
+import ActionList from './ActionList'
 // @ts-expect-error -- .js module
 import { createDefaultTrigger, validateTrigger } from '../TriggerSelector/constants'
 // @ts-expect-error -- .js module

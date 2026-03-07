@@ -19,7 +19,7 @@ vi.mock('../../TriggerSelector', () => ({
 }))
 
 // Mock ActionList
-vi.mock('../../RoutineEditor/ActionList', () => ({
+vi.mock('../ActionList', () => ({
   default: vi.fn(({ actions, onActionsChange, disabled }) => (
     <div data-testid="mock-action-list">
       <span data-testid="action-count">Actions: {actions?.length || 0}</span>

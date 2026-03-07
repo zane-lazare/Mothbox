@@ -1,10 +1,8 @@
 /**
  * Routine Editor Components (Issue #226, #321)
  *
- * Components for creating and editing routines within schedules.
+ * NOTE: ActionList and InlineActionRow have been migrated to
+ * ScheduleEditor/ as TypeScript (Issue #497).
  *
- * Exports:
- * - ActionList: Drag-and-drop list of actions
+ * Remaining files (constants.js) will be cleaned up in Issue #498.
  */
-
-export { default as ActionList } from './ActionList'

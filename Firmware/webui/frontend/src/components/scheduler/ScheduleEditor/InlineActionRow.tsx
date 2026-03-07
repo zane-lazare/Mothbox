@@ -4,18 +4,18 @@
  * Per unified-scheduler-mockup.html design, displays inline dropdowns
  * for action type and name selection without modal dialogs.
  *
- * @module components/scheduler/RoutineEditor/InlineActionRow
+ * @module components/scheduler/ScheduleEditor/InlineActionRow
  */
 
-import PropTypes from 'prop-types'
 import { TrashIcon } from '@heroicons/react/24/outline'
 import { ACTION_NAMES, ACTION_LIMITS } from './constants'
+import type { RoutineAction } from './scheduler-types'
 
 /**
  * Get display label for action type
  */
-function getActionTypeLabel(type) {
-  const labels = {
+function getActionTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
     gpio: 'GPIO',
     camera: 'Camera',
     gps_sync: 'GPS Sync',
@@ -27,8 +27,8 @@ function getActionTypeLabel(type) {
 /**
  * Get display label for action name
  */
-function getActionNameLabel(name) {
-  const labels = {
+function getActionNameLabel(name: string): string {
+  const labels: Record<string, string> = {
     attract_on: 'Attract On',
     attract_off: 'Attract Off',
     flash_on: 'Flash On',
@@ -41,24 +41,26 @@ function getActionNameLabel(name) {
   return labels[name] || name || ''
 }
 
-/**
- * InlineActionRow component
- *
- * @param {Object} props - Component props
- * @param {Object} props.action - Action object with action_type, action_name, offset_minutes
- * @param {number} props.index - Index in parent list (for data-testid)
- * @param {Function} props.onChange - Callback when action is updated
- * @param {Function} props.onDelete - Callback when action is deleted
- * @param {boolean} [props.disabled=false] - Whether editing is disabled
- * @returns {JSX.Element} Inline action row component
- */
+interface InlineActionRowProps {
+  /** Action object with action_type, action_name, offset_minutes */
+  action: RoutineAction
+  /** Index in parent list for data-testid */
+  index: number
+  /** Callback when action is updated */
+  onChange: (action: RoutineAction) => void
+  /** Callback when action is deleted */
+  onDelete: (index: number) => void
+  /** Whether editing is disabled */
+  disabled?: boolean
+}
+
 export default function InlineActionRow({
   action,
   index,
   onChange,
   onDelete,
   disabled = false,
-}) {
+}: InlineActionRowProps) {
   const actionType = action?.action_type || ''
   const actionName = action?.action_name || ''
   const offsetMinutes = action?.offset_minutes ?? 0
@@ -67,7 +69,7 @@ export default function InlineActionRow({
    * Handle action type change
    * Reset action_name when type changes since names are type-specific
    */
-  const handleTypeChange = (e) => {
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value
     onChange({
       ...action,
@@ -79,7 +81,7 @@ export default function InlineActionRow({
   /**
    * Handle action name change
    */
-  const handleNameChange = (e) => {
+  const handleNameChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange({
       ...action,
       action_name: e.target.value,
@@ -89,7 +91,7 @@ export default function InlineActionRow({
   /**
    * Handle offset change
    */
-  const handleOffsetChange = (e) => {
+  const handleOffsetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10)
     const clampedValue = Math.max(
       ACTION_LIMITS.MIN_OFFSET_MINUTES,
@@ -104,7 +106,7 @@ export default function InlineActionRow({
   /**
    * Handle delete button click
    */
-  const handleDelete = (e) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     onDelete(index)
@@ -188,23 +190,4 @@ export default function InlineActionRow({
       </button>
     </div>
   )
-}
-
-InlineActionRow.propTypes = {
-  /** Action object with action_type, action_name, offset_minutes */
-  action: PropTypes.shape({
-    id: PropTypes.string,
-    action_type: PropTypes.string,
-    action_name: PropTypes.string,
-    offset_minutes: PropTypes.number,
-    description: PropTypes.string,
-  }).isRequired,
-  /** Index in parent list for data-testid */
-  index: PropTypes.number.isRequired,
-  /** Callback when action is updated */
-  onChange: PropTypes.func.isRequired,
-  /** Callback when action is deleted */
-  onDelete: PropTypes.func.isRequired,
-  /** Whether editing is disabled */
-  disabled: PropTypes.bool,
 }
