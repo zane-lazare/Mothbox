@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from './constants';
-import type { Trigger, TriggerErrors, TriggerType } from './scheduler-types';
+import type { Trigger, TriggerErrors, TriggerType, IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger } from './scheduler-types';
 import IntervalTriggerForm from './IntervalTriggerForm';
+import type { IntervalTriggerValue } from './IntervalTriggerForm';
 import SolarTriggerForm from './SolarTriggerForm';
+import type { SolarTriggerValue } from './SolarTriggerForm';
 import MoonPhaseTriggerForm from './MoonPhaseTriggerForm';
+import type { MoonPhaseTriggerValue } from './MoonPhaseTriggerForm';
 import FixedTimeTriggerForm from './FixedTimeTriggerForm';
+import type { FixedTimeTriggerValue } from './FixedTimeTriggerForm';
 import SensorTriggerForm from './SensorTriggerForm';
+import type { SensorTriggerValue } from './SensorTriggerForm';
 // @ts-expect-error -- .jsx module
 import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
 import CronExpressionInput from '../ExpertMode/CronExpressionInput';
@@ -116,8 +121,8 @@ const TriggerForm = ({
   };
 
   /**
-   * Handle value change from the specific trigger form
-   * Preserves the trigger_type when forwarding changes
+   * Handle value change from the specific trigger form.
+   * Preserves the trigger_type when forwarding changes.
    */
   const handleTriggerValueChange = (newValue: Trigger) => {
     onChange({
@@ -125,6 +130,16 @@ const TriggerForm = ({
       trigger_type: triggerType,
     } as Trigger);
   };
+
+  /**
+   * Create a typed onChange adapter for a sub-form.
+   * Sub-forms emit their own value type (e.g. IntervalTriggerValue) which
+   * lacks trigger_type. This adapter spreads the value back into a Trigger,
+   * keeping the single cast in one place instead of per-case `as unknown as`.
+   */
+  function adaptOnChange<T>(handler: (v: Trigger) => void): (v: T) => void {
+    return (v: T) => handler({ ...v, trigger_type: triggerType } as Trigger);
+  }
 
   /**
    * Handle cron expression change
@@ -147,27 +162,67 @@ const TriggerForm = ({
   /**
    * Render the appropriate trigger form based on type
    */
+  // Error prop casts vary per sub-form:
+  //   interval: Record<string, string | Record<string, string>> (nested time_window errors)
+  //   solar, moon_phase: Record<string, string> (flat errors only)
+  //   fixed_time, sensor: TriggerErrors (accepted directly, no cast needed)
   const renderTriggerForm = () => {
-    // Each child form defines its own value/onChange types.
-    // The switch statement guarantees the correct trigger type is dispatched.
-    // We pass props explicitly; `as any` bridges the Trigger union to each
-    // sub-form's specific value type until #490 adds proper narrowing.
-    /* eslint-disable @typescript-eslint/no-explicit-any */
     switch (triggerType) {
       case 'interval':
-        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <IntervalTriggerForm
+            value={value as IntervalTrigger as IntervalTriggerValue}
+            onChange={adaptOnChange<IntervalTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string | Record<string, string>>}
+          />
+        );
       case 'solar':
-        return <SolarTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <SolarTriggerForm
+            value={value as SolarTrigger as SolarTriggerValue}
+            onChange={adaptOnChange<SolarTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string>}
+          />
+        );
       case 'moon_phase':
-        return <MoonPhaseTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <MoonPhaseTriggerForm
+            value={value as MoonPhaseTrigger as MoonPhaseTriggerValue}
+            onChange={adaptOnChange<MoonPhaseTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string>}
+          />
+        );
       case 'fixed_time':
-        return <FixedTimeTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <FixedTimeTriggerForm
+            value={value as FixedTimeTrigger as FixedTimeTriggerValue}
+            onChange={adaptOnChange<FixedTimeTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors}
+          />
+        );
       case 'sensor':
-        return <SensorTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <SensorTriggerForm
+            value={value as SensorTrigger as SensorTriggerValue}
+            onChange={adaptOnChange<SensorTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors}
+          />
+        );
       default:
-        return <IntervalTriggerForm value={value as any} onChange={handleTriggerValueChange as any} disabled={disabled} errors={errors as any} />;
+        return (
+          <IntervalTriggerForm
+            value={value as IntervalTrigger as IntervalTriggerValue}
+            onChange={adaptOnChange<IntervalTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string | Record<string, string>>}
+          />
+        );
     }
-    /* eslint-enable @typescript-eslint/no-explicit-any */
   };
 
   return (

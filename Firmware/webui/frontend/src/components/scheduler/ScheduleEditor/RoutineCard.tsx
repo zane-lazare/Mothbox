@@ -16,7 +16,6 @@ import TriggerSelector from '../TriggerSelector'
 import ActionList from '../RoutineEditor/ActionList'
 import PreConditionForm from './PreConditionForm'
 import TriggerLabel from './TriggerLabel'
-// @ts-expect-error -- .js module
 import { generateRoutineName, getActionColor } from '@/utils/routineUtils'
 import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-types'
 

@@ -3,15 +3,56 @@
  * @module utils/routineUtils
  */
 
-import {
-  ACTION_TYPE_COLORS,
-  isHdrAction,
-} from '@/components/scheduler/constants'
+import { ACTION_TYPE_COLORS, isHdrAction } from '@/components/scheduler/constants'
+
+// ---------------------------------------------------------------------------
+// Loose helper types for display utilities
+//
+// These functions are called with partial / ad-hoc objects (tests pass `{}`,
+// `{ trigger_type: 'solar', solar_event: 'dusk' }` without required fields
+// like `offset_minutes`, etc.).  We therefore accept loose shapes and guard
+// every property access at runtime.
+// ---------------------------------------------------------------------------
+
+/** Loose trigger shape accepted by display helpers. */
+type LooseTrigger = {
+  trigger_type?: string
+  // Allow any additional trigger fields accessed via switch/case
+  interval_minutes?: number
+  solar_event?: string
+  offset_minutes?: number
+  time_of_day?: string
+  times?: unknown[]
+  moon_phase?: string
+  days_interval?: number
+  days?: unknown[]
+  time?: string
+  cron_expression?: string
+  days_of_week?: number[] | null
+}
+
+/** Loose action shape accepted by display helpers. */
+type LooseAction = {
+  action_type?: string
+  action_name?: string
+  name?: string
+  id?: string
+  offset_minutes?: number
+}
+
+/** Loose routine shape accepted by display helpers. */
+type LooseRoutine = {
+  name?: string
+  actions?: LooseAction[]
+  trigger?: LooseTrigger | null
+  routine_id?: string
+  pre_condition?: unknown
+}
 
 /**
  * Trigger type labels for display
  */
-export const TRIGGER_LABELS = {
+export const TRIGGER_LABELS: Record<string, string> = {
   interval: 'Interval',
   solar: 'Solar',
   fixed_time: 'Fixed',
@@ -24,14 +65,14 @@ export const TRIGGER_LABELS = {
  * Action type color classes for display dots
  * Derived from shared constants for single source of truth
  */
-export const ACTION_COLORS = Object.fromEntries(
+export const ACTION_COLORS: Record<string, string> = Object.fromEntries(
   Object.entries(ACTION_TYPE_COLORS).map(([key, val]) => [key, val.solid])
 )
 
 /**
  * Action name mappings for readable display
  */
-const ACTION_NAME_MAP = {
+const ACTION_NAME_MAP: Record<string, string> = {
   // GPIO actions
   attract_on: 'Attract On',
   attract_off: 'Attract Off',
@@ -49,7 +90,7 @@ const ACTION_NAME_MAP = {
 /**
  * Short labels for action summary (used when combining multiple actions)
  */
-const ACTION_SHORT_LABELS = {
+const ACTION_SHORT_LABELS: Record<string, string> = {
   attract_on: 'Attract',
   attract_off: 'Attract',
   flash_on: 'Flash',
@@ -64,7 +105,7 @@ const ACTION_SHORT_LABELS = {
 /**
  * Solar event labels for display
  */
-const SOLAR_EVENT_MAP = {
+const SOLAR_EVENT_MAP: Record<string, string> = {
   dawn: 'at Dawn',
   dusk: 'at Dusk',
   sunrise: 'at Sunrise',
@@ -80,10 +121,8 @@ const SOLAR_EVENT_MAP = {
 
 /**
  * Get the trigger label for display
- * @param {Object} trigger - Trigger object
- * @returns {string} Label text
  */
-export function getTriggerLabel(trigger) {
+export function getTriggerLabel(trigger: LooseTrigger | null | undefined): string {
   if (!trigger?.trigger_type) return ''
   return TRIGGER_LABELS[trigger.trigger_type] || trigger.trigger_type
 }
@@ -91,10 +130,8 @@ export function getTriggerLabel(trigger) {
 /**
  * Get the action color class based on action type
  * Uses shared constants for single source of truth
- * @param {Object} action - Action object
- * @returns {string} Tailwind color class
  */
-export function getActionColor(action) {
+export function getActionColor(action: LooseAction | null | undefined): string {
   if (!action?.action_type) return ACTION_COLORS.service
 
   // Check for HDR-specific camera actions using shared utility
@@ -107,20 +144,16 @@ export function getActionColor(action) {
 
 /**
  * Get the primary action color for a routine (based on first action)
- * @param {Array} actions - Array of action objects
- * @returns {string} Tailwind color class
  */
-export function getPrimaryActionColor(actions) {
+export function getPrimaryActionColor(actions: LooseAction[] | null | undefined): string {
   if (!actions?.length) return ACTION_COLORS.service
   return getActionColor(actions[0])
 }
 
 /**
  * Summarize actions for display name generation
- * @param {Array} actions - Array of action objects
- * @returns {string} Summary text
  */
-export function summarizeActions(actions) {
+export function summarizeActions(actions: LooseAction[] | null | undefined): string {
   if (!actions?.length) return ''
 
   // For single action, use full name
@@ -131,7 +164,7 @@ export function summarizeActions(actions) {
   }
 
   // For multiple actions, use short labels and deduplicate
-  const shortLabels = actions.map(action => {
+  const shortLabels: string[] = actions.map((action: LooseAction) => {
     const actionName = action.action_name || action.name || ''
     return ACTION_SHORT_LABELS[actionName.toLowerCase()] || actionName
   })
@@ -148,10 +181,8 @@ export function summarizeActions(actions) {
 
 /**
  * Describe trigger for display name generation
- * @param {Object} trigger - Trigger object
- * @returns {string} Description text
  */
-export function describeTrigger(trigger) {
+export function describeTrigger(trigger: LooseTrigger | null | undefined): string {
   if (!trigger?.trigger_type) return ''
 
   switch (trigger.trigger_type) {
@@ -174,7 +205,7 @@ export function describeTrigger(trigger) {
     case 'fixed_time': {
       const time = trigger.time_of_day || trigger.times?.[0] || '12:00'
       // Extract just the time value if it's an object
-      const timeValue = typeof time === 'object' ? time.value : time
+      const timeValue = typeof time === 'object' ? (time as { value: string }).value : time
       return `at ${timeValue}`
     }
 
@@ -184,7 +215,7 @@ export function describeTrigger(trigger) {
     }
 
     case 'recurring_days': {
-      const days = trigger.days_interval || trigger.days?.length || 1
+      const days = trigger.days_interval || (trigger.days as unknown[] | undefined)?.length || 1
       const time = trigger.time || '00:00'
       return `every ${days} days at ${time}`
     }
@@ -200,10 +231,8 @@ export function describeTrigger(trigger) {
 
 /**
  * Generate a display name for a routine based on its actions and trigger
- * @param {Object} routine - Routine object with actions and trigger
- * @returns {string} Generated display name
  */
-export function generateRoutineName(routine) {
+export function generateRoutineName(routine: LooseRoutine): string {
   // If explicit name exists and is not auto-generated placeholder, use it
   if (routine.name && !routine.name.startsWith('Routine ')) {
     return routine.name
@@ -231,14 +260,12 @@ export function generateRoutineName(routine) {
 /**
  * Generate a human-readable description for a schedule from its routines
  * Reuses generateRoutineName for each routine and joins them.
- * @param {Array} routines - Array of routine objects
- * @returns {string} Generated description like "Take Photo every 15 min, Attract On at Dusk"
  */
-export function generateScheduleDescription(routines) {
+export function generateScheduleDescription(routines: LooseRoutine[] | null | undefined): string {
   if (!routines?.length) return ''
 
   // Reuse generateRoutineName for each routine
-  const descriptions = routines.map(r => generateRoutineName(r)).filter(Boolean)
+  const descriptions: string[] = routines.map(r => generateRoutineName(r)).filter(Boolean)
 
   // Join with commas, limiting to first 2-3 for brevity
   if (descriptions.length <= 3) {
