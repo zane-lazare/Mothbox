@@ -82,6 +82,21 @@ vi.mock('../SensorTriggerForm', () => ({
   ),
 }));
 
+vi.mock('../RecurringDaysTriggerForm', () => ({
+  default: ({ value, onChange, disabled }: any) => (
+    <div data-testid="recurring-days-trigger-form">
+      <span data-testid="recurring-days-value">{JSON.stringify(value)}</span>
+      <button
+        data-testid="recurring-days-change"
+        onClick={() => onChange({ ...value, time: '21:00' })}
+        disabled={disabled}
+      >
+        Change Recurring Days
+      </button>
+    </div>
+  ),
+}));
+
 // Mock ExpertModeToggle
 vi.mock('../../ExpertMode/ExpertModeToggle', () => ({
   default: ({ mode, onChange }: any) => (
@@ -205,6 +220,16 @@ describe('TriggerForm', () => {
       expect(screen.getByTestId('sensor-trigger-form')).toBeInTheDocument();
     });
 
+    it('renders recurring days trigger form when trigger_type is recurring_days', () => {
+      const value: any = {
+        ...TRIGGER_DEFAULTS.recurring_days,
+        trigger_type: 'recurring_days',
+      };
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      expect(screen.getByTestId('recurring-days-trigger-form')).toBeInTheDocument();
+    });
+
     it('shows description for solar trigger type', () => {
       const value: any = {
         ...TRIGGER_DEFAULTS.solar,
@@ -298,6 +323,19 @@ describe('TriggerForm', () => {
 
       const sensorValue = screen.getByTestId('sensor-value');
       expect(sensorValue).toHaveTextContent('"sensor_type":"light"');
+    });
+
+    it('passes value to recurring days trigger form', () => {
+      const value: any = {
+        trigger_type: 'recurring_days',
+        days: [0, 5, 6],
+        time: '20:00',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      const recurringDaysValue = screen.getByTestId('recurring-days-value');
+      expect(recurringDaysValue).toHaveTextContent('"days":[0,5,6]');
     });
   });
 
@@ -398,6 +436,25 @@ describe('TriggerForm', () => {
       expect(mockOnChange).toHaveBeenCalledWith(
         expect.objectContaining({
           threshold: 200,
+        })
+      );
+    });
+
+    it('propagates onChange from recurring days trigger form', () => {
+      const value: any = {
+        trigger_type: 'recurring_days',
+        days: [0, 5, 6],
+        time: '20:00',
+      };
+
+      render(<TriggerForm value={value} onChange={mockOnChange} />);
+
+      const changeButton = screen.getByTestId('recurring-days-change');
+      fireEvent.click(changeButton);
+
+      expect(mockOnChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          time: '21:00',
         })
       );
     });

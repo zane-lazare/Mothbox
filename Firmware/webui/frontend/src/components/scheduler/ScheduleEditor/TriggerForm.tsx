@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TRIGGER_TYPES, TRIGGER_DEFAULTS } from './constants';
-import type { Trigger, TriggerErrors, TriggerType, IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger } from './scheduler-types';
+import type { Trigger, TriggerErrors, TriggerType, IntervalTrigger, SolarTrigger, MoonPhaseTrigger, FixedTimeTrigger, SensorTrigger, RecurringDaysTrigger } from './scheduler-types';
 import IntervalTriggerForm from './IntervalTriggerForm';
 import type { IntervalTriggerValue } from './IntervalTriggerForm';
 import SolarTriggerForm from './SolarTriggerForm';
@@ -11,6 +11,8 @@ import FixedTimeTriggerForm from './FixedTimeTriggerForm';
 import type { FixedTimeTriggerValue } from './FixedTimeTriggerForm';
 import SensorTriggerForm from './SensorTriggerForm';
 import type { SensorTriggerValue } from './SensorTriggerForm';
+import RecurringDaysTriggerForm from './RecurringDaysTriggerForm';
+import type { RecurringDaysTriggerValue } from './RecurringDaysTriggerForm';
 // @ts-expect-error -- .jsx module
 import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
 import CronExpressionInput from '../ExpertMode/CronExpressionInput';
@@ -209,6 +211,15 @@ const TriggerForm = ({
           <SensorTriggerForm
             value={value as SensorTrigger as SensorTriggerValue}
             onChange={adaptOnChange<SensorTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors}
+          />
+        );
+      case 'recurring_days':
+        return (
+          <RecurringDaysTriggerForm
+            value={value as RecurringDaysTrigger as RecurringDaysTriggerValue}
+            onChange={adaptOnChange<RecurringDaysTriggerValue>(handleTriggerValueChange)}
             disabled={disabled}
             errors={errors}
           />
