@@ -2,7 +2,7 @@
  * NewRoutineCard - Inline wizard for creating new routines
  *
  * Per unified-scheduler-mockup.html, displays an expanded card with:
- * - TriggerSelector for type and configuration
+ * - TriggerForm for type and configuration
  * - ActionList for adding actions
  * - Save/Cancel buttons
  *

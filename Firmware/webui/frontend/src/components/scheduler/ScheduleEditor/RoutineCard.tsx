@@ -3,7 +3,7 @@
  *
  * Per unified-scheduler-mockup.html, displays:
  * - Collapsed: color dot + auto-generated name + trigger label + chevron
- * - Expanded: TriggerSelector + ActionList for inline editing
+ * - Expanded: TriggerForm + ActionList for inline editing
  *
  * @module components/scheduler/ScheduleEditor/RoutineCard
  */

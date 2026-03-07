@@ -12,6 +12,8 @@ interface ActionListProps {
   onActionsChange: (actions: RoutineAction[]) => void
   /** Disable all interactions */
   disabled?: boolean
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming?: boolean
 }
 
 /**

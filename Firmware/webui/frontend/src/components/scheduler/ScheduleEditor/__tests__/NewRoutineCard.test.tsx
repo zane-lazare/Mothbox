@@ -6,7 +6,7 @@ import NewRoutineCard from '../NewRoutineCard'
 // Mock TriggerForm
 vi.mock('../TriggerForm', () => ({
   default: vi.fn(({ value, onChange, disabled }) => (
-    <div data-testid="mock-trigger-selector">
+    <div data-testid="mock-trigger-form">
       <span>Trigger: {value?.trigger_type}</span>
       <button
         onClick={() => onChange({ trigger_type: 'solar', solar_event: 'dusk', offset_minutes: 0 })}
@@ -100,9 +100,9 @@ describe('NewRoutineCard', () => {
       expect(screen.getByText('New Routine')).toBeInTheDocument()
     })
 
-    it('renders TriggerSelector', () => {
+    it('renders TriggerForm', () => {
       render(<NewRoutineCard {...defaultProps} />)
-      expect(screen.getByTestId('mock-trigger-selector')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-trigger-form')).toBeInTheDocument()
     })
 
     it('renders ActionList', () => {
@@ -250,7 +250,7 @@ describe('NewRoutineCard', () => {
   })
 
   describe('disabled state', () => {
-    it('disables TriggerSelector when disabled', () => {
+    it('disables TriggerForm when disabled', () => {
       render(<NewRoutineCard {...defaultProps} disabled={true} />)
       expect(screen.getByText('Change to Solar')).toBeDisabled()
     })
