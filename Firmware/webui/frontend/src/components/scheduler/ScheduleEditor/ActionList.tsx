@@ -26,6 +26,8 @@ export default function ActionList({
   actions = [],
   onActionsChange,
   disabled = false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  useSecondsTiming = false,
 }: ActionListProps) {
   // Track generated IDs for actions without stable IDs from parent
   // Uses content-based key to ensure same logical action gets same ID

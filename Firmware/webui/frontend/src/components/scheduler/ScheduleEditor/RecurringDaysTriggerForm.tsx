@@ -24,6 +24,7 @@ interface RecurringDaysTriggerFormProps {
 
 // -- Constants --------------------------------------------------------------
 
+// Defaults to weekend nights (Sun/Fri/Sat at 8 PM) — typical Mothbox deployment schedule
 const DEFAULT_VALUE: RecurringDaysTriggerValue = {
   days: [0, 5, 6],
   time: '20:00',
@@ -152,7 +153,12 @@ export default function RecurringDaysTriggerForm({
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Days of week:
         </label>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Days of week">
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Days of week"
+          aria-describedby={parentErrors.days ? 'days-error' : undefined}
+        >
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = value.days.includes(day.value)
             const isLastSelected = isSelected && value.days.length === 1
