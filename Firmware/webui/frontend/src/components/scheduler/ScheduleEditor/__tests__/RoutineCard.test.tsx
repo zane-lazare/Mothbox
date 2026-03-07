@@ -3,11 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import RoutineCard from '../RoutineCard'
 
-// Mock TriggerSelector to simplify tests
-vi.mock('../../TriggerSelector', () => ({
-  default: vi.fn(({ trigger, onChange, disabled }: any) => (
+// Mock TriggerForm to simplify tests
+vi.mock('../TriggerForm', () => ({
+  default: vi.fn(({ value, onChange, disabled }: any) => (
     <div data-testid="mock-trigger-selector">
-      <span>Trigger: {trigger?.trigger_type}</span>
+      <span>Trigger: {value?.trigger_type}</span>
       <button
         onClick={() => onChange({ trigger_type: 'interval', interval_minutes: 30 })}
         disabled={disabled}

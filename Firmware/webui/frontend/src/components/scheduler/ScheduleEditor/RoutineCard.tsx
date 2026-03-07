@@ -10,8 +10,7 @@
 
 import { useState, useCallback, memo, useMemo } from 'react'
 import { ChevronDownIcon, TrashIcon } from '@heroicons/react/24/outline'
-// @ts-expect-error -- .js module
-import TriggerSelector from '../TriggerSelector'
+import TriggerForm from './TriggerForm'
 import ActionList from './ActionList'
 import PreConditionForm from './PreConditionForm'
 import TriggerLabel from './TriggerLabel'
@@ -205,10 +204,11 @@ function RoutineCard({
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">
               Trigger
             </label>
-            <TriggerSelector
-              trigger={routine.trigger}
+            <TriggerForm
+              value={routine.trigger}
               onChange={handleTriggerChange}
               disabled={disabled}
+              compact
             />
             <PreConditionForm
               preCondition={(routine.pre_condition || null) as any}  // eslint-disable-line @typescript-eslint/no-explicit-any

@@ -46,6 +46,8 @@ interface TriggerFormProps {
   disabled?: boolean;
   /** Validation errors for trigger fields */
   errors?: TriggerErrors;
+  /** When true, hides header, expert mode toggle, and trigger type description for inline use */
+  compact?: boolean;
 }
 
 const TriggerForm = ({
@@ -55,6 +57,7 @@ const TriggerForm = ({
   onChange,
   disabled = false,
   errors = {},
+  compact = false,
 }: TriggerFormProps) => {
   /**
    * Get current trigger type from value
@@ -238,27 +241,31 @@ const TriggerForm = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-        Trigger Configuration
-      </h3>
+      {/* Header — hidden in compact mode */}
+      {!compact && (
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Trigger Configuration
+        </h3>
+      )}
 
-      {/* Expert Mode Toggle */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Mode:
-        </label>
-        <ExpertModeToggle
-          mode={expertMode}
-          onChange={handleExpertModeChange}
-        />
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {expertMode === 'expert'
-            ? 'Expert mode allows you to enter a raw cron expression for maximum flexibility.'
-            : 'Visual mode provides an intuitive interface for common scheduling patterns.'
-          }
-        </p>
-      </div>
+      {/* Expert Mode Toggle — hidden in compact mode */}
+      {!compact && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Mode:
+          </label>
+          <ExpertModeToggle
+            mode={expertMode}
+            onChange={handleExpertModeChange}
+          />
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {expertMode === 'expert'
+              ? 'Expert mode allows you to enter a raw cron expression for maximum flexibility.'
+              : 'Visual mode provides an intuitive interface for common scheduling patterns.'
+            }
+          </p>
+        </div>
+      )}
 
       {expertMode === 'expert' ? (
         /* Expert Mode: Cron Expression Input */
@@ -302,10 +309,12 @@ const TriggerForm = ({
                   </option>
                 ))}
             </select>
-            {/* Type Description */}
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
-              {getDescription()}
-            </p>
+            {/* Type Description — hidden in compact mode */}
+            {!compact && (
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
+                {getDescription()}
+              </p>
+            )}
           </div>
 
           {/* Divider */}
