@@ -194,10 +194,10 @@ export interface TriggerErrors {
  * }
  */
 export interface RoutineAction {
-  id?: string
+  id?: string // Optional — API may omit for unsaved/in-flight actions
   action_type: string
   action_name: string
-  name?: string
+  name?: string // Display fallback used by routineUtils when action_name is absent
   offset_minutes?: number
 }
 

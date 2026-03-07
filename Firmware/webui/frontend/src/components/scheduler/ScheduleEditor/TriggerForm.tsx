@@ -162,6 +162,10 @@ const TriggerForm = ({
   /**
    * Render the appropriate trigger form based on type
    */
+  // Error prop casts vary per sub-form:
+  //   interval: Record<string, string | Record<string, string>> (nested time_window errors)
+  //   solar, moon_phase: Record<string, string> (flat errors only)
+  //   fixed_time, sensor: TriggerErrors (accepted directly, no cast needed)
   const renderTriggerForm = () => {
     switch (triggerType) {
       case 'interval':
