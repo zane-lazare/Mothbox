@@ -32,10 +32,10 @@ vi.mock('../../../../utils/uuid', () => ({
 }))
 
 describe('ActionList', () => {
-  let mockOnActionsChange: ReturnType<typeof vi.fn>
+  let mockOnActionsChange: ReturnType<typeof vi.fn<(actions: RoutineAction[]) => void>>
 
   beforeEach(() => {
-    mockOnActionsChange = vi.fn()
+    mockOnActionsChange = vi.fn<(actions: RoutineAction[]) => void>()
     vi.clearAllMocks()
   })
 

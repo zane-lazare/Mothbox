@@ -5,8 +5,8 @@ import InlineActionRow from '../InlineActionRow'
 import type { RoutineAction } from '../scheduler-types'
 
 describe('InlineActionRow', () => {
-  let mockOnChange: ReturnType<typeof vi.fn>
-  let mockOnDelete: ReturnType<typeof vi.fn>
+  let mockOnChange: ReturnType<typeof vi.fn<(action: RoutineAction) => void>>
+  let mockOnDelete: ReturnType<typeof vi.fn<(index: number) => void>>
 
   const defaultAction: RoutineAction = {
     id: 'action-1',
@@ -16,8 +16,8 @@ describe('InlineActionRow', () => {
   }
 
   beforeEach(() => {
-    mockOnChange = vi.fn()
-    mockOnDelete = vi.fn()
+    mockOnChange = vi.fn<(action: RoutineAction) => void>()
+    mockOnDelete = vi.fn<(index: number) => void>()
   })
 
   describe('Rendering', () => {
@@ -112,8 +112,7 @@ describe('InlineActionRow', () => {
       })
     })
 
-    it('populates action name options based on selected type', async () => {
-      const user = userEvent.setup()
+    it('populates action name options based on selected type', () => {
       const action: RoutineAction = {
         id: 'action-1',
         action_type: 'service',
