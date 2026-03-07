@@ -25,23 +25,13 @@ import {
 } from '@/utils/routineUtils'
 // @ts-expect-error -- .js module
 import { CARD_STYLES, TEXT_STYLES, BUTTON_STYLES } from '../constants'
+import type { Schedule } from '../ScheduleEditor/scheduler-types'
 
 interface ScheduleCardProps {
-  schedule: {
-    schedule_id: string
-    name: string
-    description?: string
-    enabled?: boolean
-    routines?: {
-      routine_id?: string
-      actions?: { action_type?: string; action_name?: string; name?: string }[]
-      trigger?: Record<string, unknown>
-      name?: string
-    }[]
-  }
+  schedule: Schedule
   isActive?: boolean
-  onView: (schedule: ScheduleCardProps['schedule']) => void
-  onToggleEnabled?: (schedule: ScheduleCardProps['schedule']) => void
+  onView: (schedule: Schedule) => void
+  onToggleEnabled?: (schedule: Schedule) => void
   isTogglingEnabled?: boolean
 }
 

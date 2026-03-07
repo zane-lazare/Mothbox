@@ -194,9 +194,10 @@ export interface TriggerErrors {
  * }
  */
 export interface RoutineAction {
-  id: string
+  id?: string
   action_type: string
   action_name: string
+  name?: string
   offset_minutes?: number
 }
 
@@ -266,7 +267,7 @@ export interface Routine {
 export interface Schedule {
   schedule_id: string
   name: string
-  description: string
+  description?: string
   routines: Routine[]
   is_active?: boolean
   is_builtin?: boolean

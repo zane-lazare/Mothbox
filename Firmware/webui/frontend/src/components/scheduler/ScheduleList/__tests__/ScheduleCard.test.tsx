@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ScheduleCard from '../ScheduleCard'
+import type { Schedule } from '../../ScheduleEditor/scheduler-types'
 
 describe('ScheduleCard', () => {
   const mockOnView = vi.fn()
@@ -24,13 +25,13 @@ describe('ScheduleCard', () => {
   // Helper to create Schema 3.0 schedule fixtures
   // ==========================================================================
 
-  const createSchedule = (overrides = {}) => ({
+  const createSchedule = (overrides: Partial<Schedule> = {}): Schedule => ({
     schedule_id: 'sched-1',
     name: 'Test Schedule',
     routines: [
       {
         routine_id: 'routine-1',
-        trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+        trigger: { trigger_type: 'fixed_time' as const, time_of_day: '21:00' },
         actions: [{ action_type: 'camera', action_name: 'takephoto' }],
       },
     ],
@@ -279,10 +280,11 @@ describe('ScheduleCard', () => {
           {
             routine_id: 'r1',
             trigger: {
-              trigger_type: 'sensor',
+              trigger_type: 'sensor' as const,
               sensor_type: 'light',
               comparison: 'lt',
               threshold: 100,
+              cooldown_minutes: 5,
             },
             actions: [{ action_type: 'camera', action_name: 'takephoto' }],
           },
@@ -394,17 +396,17 @@ describe('ScheduleCard', () => {
         routines: [
           {
             routine_id: 'r1',
-            trigger: { trigger_type: 'solar', solar_event: 'sunset' },
+            trigger: { trigger_type: 'solar' as const, solar_event: 'sunset' as const, offset_minutes: 0 },
             actions: [{ action_type: 'gpio', action_name: 'attract_on' }],
           },
           {
             routine_id: 'r2',
-            trigger: { trigger_type: 'fixed_time', time_of_day: '21:00' },
+            trigger: { trigger_type: 'fixed_time' as const, time_of_day: '21:00' },
             actions: [{ action_type: 'camera', action_name: 'takephoto' }],
           },
           {
             routine_id: 'r3',
-            trigger: { trigger_type: 'solar', solar_event: 'sunrise' },
+            trigger: { trigger_type: 'solar' as const, solar_event: 'sunrise' as const, offset_minutes: 0 },
             actions: [{ action_type: 'gpio', action_name: 'attract_off' }],
           },
         ],

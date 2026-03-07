@@ -121,8 +121,8 @@ const TriggerForm = ({
   };
 
   /**
-   * Handle value change from the specific trigger form
-   * Preserves the trigger_type when forwarding changes
+   * Handle value change from the specific trigger form.
+   * Preserves the trigger_type when forwarding changes.
    */
   const handleTriggerValueChange = (newValue: Trigger) => {
     onChange({
@@ -130,6 +130,16 @@ const TriggerForm = ({
       trigger_type: triggerType,
     } as Trigger);
   };
+
+  /**
+   * Create a typed onChange adapter for a sub-form.
+   * Sub-forms emit their own value type (e.g. IntervalTriggerValue) which
+   * lacks trigger_type. This adapter spreads the value back into a Trigger,
+   * keeping the single cast in one place instead of per-case `as unknown as`.
+   */
+  function adaptOnChange<T>(handler: (v: Trigger) => void): (v: T) => void {
+    return (v: T) => handler({ ...v, trigger_type: triggerType } as Trigger);
+  }
 
   /**
    * Handle cron expression change
@@ -155,17 +165,59 @@ const TriggerForm = ({
   const renderTriggerForm = () => {
     switch (triggerType) {
       case 'interval':
-        return <IntervalTriggerForm value={value as IntervalTrigger as IntervalTriggerValue} onChange={handleTriggerValueChange as unknown as (v: IntervalTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string | Record<string, string>>} />;
+        return (
+          <IntervalTriggerForm
+            value={value as IntervalTrigger as IntervalTriggerValue}
+            onChange={adaptOnChange<IntervalTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string | Record<string, string>>}
+          />
+        );
       case 'solar':
-        return <SolarTriggerForm value={value as SolarTrigger as SolarTriggerValue} onChange={handleTriggerValueChange as unknown as (v: SolarTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string>} />;
+        return (
+          <SolarTriggerForm
+            value={value as SolarTrigger as SolarTriggerValue}
+            onChange={adaptOnChange<SolarTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string>}
+          />
+        );
       case 'moon_phase':
-        return <MoonPhaseTriggerForm value={value as MoonPhaseTrigger as MoonPhaseTriggerValue} onChange={handleTriggerValueChange as unknown as (v: MoonPhaseTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string>} />;
+        return (
+          <MoonPhaseTriggerForm
+            value={value as MoonPhaseTrigger as MoonPhaseTriggerValue}
+            onChange={adaptOnChange<MoonPhaseTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string>}
+          />
+        );
       case 'fixed_time':
-        return <FixedTimeTriggerForm value={value as FixedTimeTrigger as FixedTimeTriggerValue} onChange={handleTriggerValueChange as unknown as (v: FixedTimeTriggerValue) => void} disabled={disabled} errors={errors} />;
+        return (
+          <FixedTimeTriggerForm
+            value={value as FixedTimeTrigger as FixedTimeTriggerValue}
+            onChange={adaptOnChange<FixedTimeTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors}
+          />
+        );
       case 'sensor':
-        return <SensorTriggerForm value={value as SensorTrigger as SensorTriggerValue} onChange={handleTriggerValueChange as unknown as (v: SensorTriggerValue) => void} disabled={disabled} errors={errors} />;
+        return (
+          <SensorTriggerForm
+            value={value as SensorTrigger as SensorTriggerValue}
+            onChange={adaptOnChange<SensorTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors}
+          />
+        );
       default:
-        return <IntervalTriggerForm value={value as IntervalTrigger as IntervalTriggerValue} onChange={handleTriggerValueChange as unknown as (v: IntervalTriggerValue) => void} disabled={disabled} errors={errors as Record<string, string | Record<string, string>>} />;
+        return (
+          <IntervalTriggerForm
+            value={value as IntervalTrigger as IntervalTriggerValue}
+            onChange={adaptOnChange<IntervalTriggerValue>(handleTriggerValueChange)}
+            disabled={disabled}
+            errors={errors as Record<string, string | Record<string, string>>}
+          />
+        );
     }
   };
 
