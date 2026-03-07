@@ -24,6 +24,7 @@ import { fixedTimeTriggerSchema } from '@/schemas/scheduler/fixed-time'
 import { sensorTriggerSchema } from '@/schemas/scheduler/sensor'
 import { recurringDaysTriggerSchema } from '@/schemas/scheduler/recurring-days'
 import { cronExpressionSchema } from '@/schemas/scheduler/cron'
+import type { ZodTypeAny } from 'zod'
 import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-types'
 
 /**
@@ -31,7 +32,7 @@ import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-
  * Returns a human-readable error string, or null if valid.
  */
 function validateTriggerWithSchema(trigger: Trigger): string | null {
-  const schemas: Record<string, import('zod').ZodTypeAny> = {
+  const schemas: Record<string, ZodTypeAny> = {
     interval: intervalTriggerSchema,
     solar: solarTriggerSchema,
     moon_phase: moonPhaseTriggerSchema,
