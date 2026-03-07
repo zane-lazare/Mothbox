@@ -23,7 +23,6 @@ import {
   generateRoutineName,
   generateScheduleDescription,
 } from '@/utils/routineUtils'
-// @ts-expect-error -- .js module
 import { CARD_STYLES, TEXT_STYLES, BUTTON_STYLES } from '../constants'
 import type { Schedule } from '../ScheduleEditor/scheduler-types'
 

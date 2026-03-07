@@ -3,7 +3,6 @@
  * @module utils/routineUtils
  */
 
-// @ts-expect-error -- .js module without declaration file
 import { ACTION_TYPE_COLORS, isHdrAction } from '@/components/scheduler/constants'
 
 // ---------------------------------------------------------------------------
@@ -67,7 +66,7 @@ export const TRIGGER_LABELS: Record<string, string> = {
  * Derived from shared constants for single source of truth
  */
 export const ACTION_COLORS: Record<string, string> = Object.fromEntries(
-  Object.entries(ACTION_TYPE_COLORS as Record<string, { solid: string }>).map(([key, val]) => [key, val.solid])
+  Object.entries(ACTION_TYPE_COLORS).map(([key, val]) => [key, val.solid])
 )
 
 /**

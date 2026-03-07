@@ -8,9 +8,35 @@
  */
 
 /**
+ * Color variant with solid, background, and text Tailwind classes
+ */
+export interface ActionColorVariant {
+  solid: string
+  bg: string
+  text: string
+}
+
+/**
+ * Conflict color variant with ring, background, and text Tailwind classes
+ */
+export interface ConflictColorVariant {
+  ring: string
+  bg: string
+  text: string
+}
+
+/**
+ * Row conflict style with background and label Tailwind classes
+ */
+export interface RowConflictStyle {
+  bg: string
+  label: string
+}
+
+/**
  * Action type keys for type safety
  */
-export const ACTION_TYPES = {
+export const ACTION_TYPES: Record<string, string> = {
   CAMERA: 'camera',
   GPIO: 'gpio',
   HDR: 'hdr',
@@ -26,7 +52,7 @@ export const ACTION_TYPES = {
  * - bg: Semi-transparent background for chips/cards (e.g., bg-blue-500/20)
  * - text: Text color for labels (e.g., text-blue-400)
  */
-export const ACTION_TYPE_COLORS = {
+export const ACTION_TYPE_COLORS: Record<string, ActionColorVariant> = {
   camera: {
     solid: 'bg-blue-400',
     bg: 'bg-blue-500/20',
@@ -57,7 +83,7 @@ export const ACTION_TYPE_COLORS = {
 /**
  * Default colors for unknown action types
  */
-export const DEFAULT_ACTION_COLORS = {
+export const DEFAULT_ACTION_COLORS: ActionColorVariant = {
   solid: 'bg-blue-400',
   bg: 'bg-blue-500/20',
   text: 'text-blue-400',
@@ -66,7 +92,7 @@ export const DEFAULT_ACTION_COLORS = {
 /**
  * Human-readable labels for action types
  */
-export const ACTION_TYPE_LABELS = {
+export const ACTION_TYPE_LABELS: Record<string, string> = {
   camera: 'Camera',
   gpio: 'GPIO',
   hdr: 'HDR',
@@ -79,7 +105,7 @@ export const ACTION_TYPE_LABELS = {
  *
  * Used for highlighting time collisions (errors) and GPIO warnings
  */
-export const CONFLICT_COLORS = {
+export const CONFLICT_COLORS: Record<string, ConflictColorVariant> = {
   error: {
     ring: 'ring-1 ring-red-400',
     bg: 'bg-red-950/20',
@@ -95,7 +121,7 @@ export const CONFLICT_COLORS = {
 /**
  * Row conflict styles for DayTimeline hour rows
  */
-export const ROW_CONFLICT_STYLES = {
+export const ROW_CONFLICT_STYLES: Record<string, RowConflictStyle> = {
   error: {
     bg: 'bg-red-950/20',
     label: 'text-red-400',
@@ -113,14 +139,12 @@ export const ROW_CONFLICT_STYLES = {
 /**
  * Action names that indicate HDR mode
  */
-export const HDR_ACTION_NAMES = ['hdr', 'hdr_bracket', 'bracket']
+export const HDR_ACTION_NAMES: string[] = ['hdr', 'hdr_bracket', 'bracket']
 
 /**
  * Checks if an action name indicates HDR mode
- * @param {string} actionName - The action name to check
- * @returns {boolean} True if this is an HDR action
  */
-export function isHdrAction(actionName) {
+export function isHdrAction(actionName: string | undefined | null): boolean {
   if (!actionName) return false
   const lower = actionName.toLowerCase()
   return HDR_ACTION_NAMES.some((name) => lower.includes(name))
@@ -128,20 +152,15 @@ export function isHdrAction(actionName) {
 
 /**
  * Gets the solid color class for an action type
- * @param {string} actionType - The action type key
- * @returns {string} Tailwind solid background class
  */
-export function getActionSolidColor(actionType) {
+export function getActionSolidColor(actionType: string): string {
   return ACTION_TYPE_COLORS[actionType]?.solid || DEFAULT_ACTION_COLORS.solid
 }
 
 /**
  * Gets display colors for an action type (bg + text)
- * @param {string} actionType - Action type ('camera', 'gpio', etc.)
- * @param {string} actionName - Action name (used to detect HDR)
- * @returns {Object} { bg, text } Tailwind classes
  */
-export function getActionTypeDisplay(actionType, actionName) {
+export function getActionTypeDisplay(actionType: string, actionName?: string): { bg: string; text: string } {
   // Check for HDR first (special purple color)
   if (isHdrAction(actionName)) {
     return {
@@ -167,7 +186,7 @@ export function getActionTypeDisplay(actionType, actionName) {
  * Provides consistent styling for schedule cards across the scheduler UI.
  * Uses minimalist design with subtle borders and no shadows.
  */
-export const CARD_STYLES = {
+export const CARD_STYLES: Record<string, string> = {
   /** Base card styling - rounded corners, subtle border */
   base: 'rounded-lg border border-gray-200 dark:border-gray-800 p-4',
   /** Active/selected card - highlighted border and subtle background */
@@ -183,7 +202,7 @@ export const CARD_STYLES = {
  *
  * Compact text sizing for information-dense scheduler UI.
  */
-export const TEXT_STYLES = {
+export const TEXT_STYLES: Record<string, string> = {
   /** Card/item title */
   title: 'text-sm font-medium text-gray-900 dark:text-white',
   /** Secondary description text */
@@ -199,7 +218,7 @@ export const TEXT_STYLES = {
 /**
  * Button styles for scheduler components
  */
-export const BUTTON_STYLES = {
+export const BUTTON_STYLES: Record<string, string> = {
   /** Base button styling */
   base: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
   /** Primary button variant */
@@ -215,7 +234,7 @@ export const BUTTON_STYLES = {
  *
  * Used for calendar panels, timeline containers, and other major sections.
  */
-export const PANEL_STYLES = {
+export const PANEL_STYLES: Record<string, string> = {
   /** Main panel container - no shadow, subtle border */
   container: 'bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800',
   /** Panel header with bottom border */
