@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SavePresetModal } from '../SavePresetModal'
+import { LENGTH } from '../../../constants/errorMessages'
 
 const defaultProps = {
   isOpen: true,
@@ -88,7 +89,7 @@ describe('SavePresetModal', () => {
       await user.tab()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Name must be at least 3 characters'
+        LENGTH.min(3)
       )
     })
 
@@ -108,7 +109,7 @@ describe('SavePresetModal', () => {
       await user.tab()
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Name must be 50 characters or less'
+        LENGTH.max(50)
       )
     })
 
