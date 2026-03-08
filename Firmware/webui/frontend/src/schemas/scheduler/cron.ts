@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TYPE, REQUIRED, CRON } from '../../constants/errorMessages'
 
 /**
  * Regex matching a single cron field token.
@@ -25,9 +26,9 @@ export const CRON_FORMAT_REGEX = new RegExp(
  */
 export const cronExpressionSchema = z.object({
   cron_expression: z
-    .string({ error: 'Cron expression must be a string' })
-    .min(1, 'Cron expression is required')
-    .regex(CRON_FORMAT_REGEX, 'Must be 5 space-separated cron fields'),
+    .string({ error: TYPE.string('Cron expression') })
+    .min(1, REQUIRED.field('Cron expression'))
+    .regex(CRON_FORMAT_REGEX, CRON.format),
 })
 
 export type CronExpressionFormData = z.infer<typeof cronExpressionSchema>

@@ -4,6 +4,7 @@ import {
   SCHEDULE_LIMITS,
   SOLAR_EVENTS,
 } from '../../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE, SCHEDULER } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -31,7 +32,7 @@ describe('solarTriggerSchema', () => {
         offset_minutes: 0,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid solar event')
+      expect(firstError(result)).toBe(SCHEDULER.invalidSolarEvent)
     })
 
     it('rejects a numeric solar event', () => {
@@ -108,7 +109,7 @@ describe('solarTriggerSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Offset cannot exceed ${SCHEDULE_LIMITS.MAX_OFFSET_MINUTES} minutes`,
+        RANGE.max(SCHEDULE_LIMITS.MAX_OFFSET_MINUTES, 'minutes'),
       )
     })
 
@@ -119,7 +120,7 @@ describe('solarTriggerSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Offset must be at least ${-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES} minutes`,
+        RANGE.min(-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES, 'minutes'),
       )
     })
   })
@@ -131,7 +132,7 @@ describe('solarTriggerSchema', () => {
         offset_minutes: 30.5,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a whole number')
+      expect(firstError(result)).toBe(TYPE.integer('Offset'))
     })
 
     it('rejects string values', () => {
@@ -140,7 +141,7 @@ describe('solarTriggerSchema', () => {
         offset_minutes: '30',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
 
     it('rejects NaN', () => {
@@ -149,7 +150,7 @@ describe('solarTriggerSchema', () => {
         offset_minutes: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
 
     it('rejects undefined offset', () => {

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TIME_FORMAT_REGEX } from '../../components/scheduler/ScheduleEditor/constants'
+import { FORMAT } from '../../constants/errorMessages'
 
 /**
  * Schema for the time_of_day field owned by FixedTimeTriggerForm.
@@ -10,7 +11,7 @@ import { TIME_FORMAT_REGEX } from '../../components/scheduler/ScheduleEditor/con
 export const fixedTimeTriggerSchema = z.object({
   time_of_day: z
     .string()
-    .regex(TIME_FORMAT_REGEX, 'Must be a valid time in HH:MM format'),
+    .regex(TIME_FORMAT_REGEX, FORMAT.validTime),
 })
 
 export type FixedTimeTriggerFormData = z.infer<typeof fixedTimeTriggerSchema>
