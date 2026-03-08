@@ -90,7 +90,8 @@ export default function RecurringDaysTriggerForm({
   })
 
   // Prop sync: reset form when time changes externally
-  // (e.g., preset button click, parent state change)
+  // (e.g., preset button click, parent state change).
+  // Only tracks `time` — days bypass RHF entirely (toggle buttons call onChange directly).
   useEffect(() => {
     if (value.time !== lastPropagatedRef.current) {
       lastPropagatedRef.current = value.time
