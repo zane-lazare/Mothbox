@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cameraPresetFormSchema, WORKFLOW_VALUES } from '../camera-preset'
+import { REQUIRED, LENGTH, PRESET } from '../../constants/errorMessages'
 
 describe('cameraPresetFormSchema', () => {
   const validData = { name: 'my_preset', description: '', workflow: 'both' as const }
@@ -13,27 +14,25 @@ describe('cameraPresetFormSchema', () => {
     it('rejects empty name', () => {
       const result = cameraPresetFormSchema.safeParse({ ...validData, name: '' })
       expect(result.success).toBe(false)
-      expect(result.error!.issues[0].message).toBe('Preset name is required')
+      expect(result.error!.issues[0].message).toBe(REQUIRED.field('Preset name'))
     })
 
     it('rejects name shorter than 3 characters', () => {
       const result = cameraPresetFormSchema.safeParse({ ...validData, name: 'ab' })
       expect(result.success).toBe(false)
-      expect(result.error!.issues[0].message).toBe('Name must be at least 3 characters')
+      expect(result.error!.issues[0].message).toBe(LENGTH.min(3))
     })
 
     it('rejects name with spaces or special characters', () => {
       const result = cameraPresetFormSchema.safeParse({ ...validData, name: 'my preset!' })
       expect(result.success).toBe(false)
-      expect(result.error!.issues[0].message).toBe(
-        'Name can only contain letters, numbers, and underscores'
-      )
+      expect(result.error!.issues[0].message).toBe(PRESET.alphanumericOnly)
     })
 
     it('rejects name longer than 50 characters', () => {
       const result = cameraPresetFormSchema.safeParse({ ...validData, name: 'a'.repeat(51) })
       expect(result.success).toBe(false)
-      expect(result.error!.issues[0].message).toBe('Name must be 50 characters or less')
+      expect(result.error!.issues[0].message).toBe(LENGTH.max(50))
     })
 
     it('trims whitespace before validation', () => {
@@ -64,9 +63,7 @@ describe('cameraPresetFormSchema', () => {
         description: 'x'.repeat(201),
       })
       expect(result.success).toBe(false)
-      expect(result.error!.issues[0].message).toBe(
-        'Description must be 200 characters or less'
-      )
+      expect(result.error!.issues[0].message).toBe(LENGTH.max(200))
     })
   })
 
