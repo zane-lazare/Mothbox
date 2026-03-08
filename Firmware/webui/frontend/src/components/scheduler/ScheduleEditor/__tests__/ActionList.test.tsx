@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ActionList from '../ActionList'
+import type { RoutineAction } from '../scheduler-types'
 
 // Mock InlineActionRow component
 vi.mock('../InlineActionRow', () => ({
-  default: vi.fn(({ action, index, onChange, onDelete, disabled }) => (
+  default: vi.fn(({ action, index, onChange, onDelete, disabled }: any) => (
     <div data-testid={`action-row-${index}`}>
       <span data-testid="action-type">{action?.action_type || 'empty-type'}</span>
       <span data-testid="action-name">{action?.action_name || 'empty-name'}</span>
@@ -31,10 +32,10 @@ vi.mock('../../../../utils/uuid', () => ({
 }))
 
 describe('ActionList', () => {
-  let mockOnActionsChange
+  let mockOnActionsChange: ReturnType<typeof vi.fn<(actions: RoutineAction[]) => void>>
 
   beforeEach(() => {
-    mockOnActionsChange = vi.fn()
+    mockOnActionsChange = vi.fn<(actions: RoutineAction[]) => void>()
     vi.clearAllMocks()
   })
 
@@ -60,7 +61,7 @@ describe('ActionList', () => {
   })
 
   describe('Action Rendering', () => {
-    const mockActions = [
+    const mockActions: RoutineAction[] = [
       {
         id: 'action-1',
         action_type: 'gpio',
@@ -146,7 +147,7 @@ describe('ActionList', () => {
 
     it('appends new action to existing actions', async () => {
       const user = userEvent.setup()
-      const existingActions = [
+      const existingActions: RoutineAction[] = [
         { id: 'existing-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -168,7 +169,7 @@ describe('ActionList', () => {
   describe('Delete Action', () => {
     it('removes action when delete is clicked', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
         { id: 'action-2', action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 }
       ]
@@ -187,7 +188,7 @@ describe('ActionList', () => {
 
     it('removes correct action from middle of list', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
         { id: 'action-2', action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 },
         { id: 'action-3', action_type: 'gps_sync', action_name: 'sync', offset_minutes: 10 }
@@ -207,7 +208,7 @@ describe('ActionList', () => {
 
     it('handles deleting last action', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -223,7 +224,7 @@ describe('ActionList', () => {
   describe('Update Action', () => {
     it('updates action when onChange is called', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -243,7 +244,7 @@ describe('ActionList', () => {
 
     it('preserves other actions when updating one', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
         { id: 'action-2', action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 }
       ]
@@ -265,7 +266,7 @@ describe('ActionList', () => {
 
     it('preserves action ID during update', async () => {
       const user = userEvent.setup()
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -280,7 +281,7 @@ describe('ActionList', () => {
 
   describe('Disabled State', () => {
     it('passes disabled=false by default', () => {
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -290,7 +291,7 @@ describe('ActionList', () => {
     })
 
     it('passes disabled=true to InlineActionRow when disabled', () => {
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'action-1', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -308,7 +309,7 @@ describe('ActionList', () => {
 
   describe('Stable ID Generation', () => {
     it('generates IDs for actions without IDs', () => {
-      const actionsWithoutIds = [
+      const actionsWithoutIds: RoutineAction[] = [
         { action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 },
         { action_type: 'camera', action_name: 'takephoto', offset_minutes: 5 }
       ]
@@ -329,7 +330,7 @@ describe('ActionList', () => {
     })
 
     it('preserves existing IDs', () => {
-      const actions = [
+      const actions: RoutineAction[] = [
         { id: 'my-existing-id', action_type: 'gpio', action_name: 'attract_on', offset_minutes: 0 }
       ]
 
@@ -350,7 +351,7 @@ describe('ActionList', () => {
 
     it('handles actions with missing fields', () => {
       const actions = [
-        { id: 'action-1' } // Missing action_type, action_name, offset_minutes
+        { id: 'action-1' } as RoutineAction // Missing action_type, action_name, offset_minutes
       ]
 
       render(<ActionList actions={actions} onActionsChange={mockOnActionsChange} />)

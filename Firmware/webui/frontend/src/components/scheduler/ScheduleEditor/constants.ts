@@ -63,6 +63,12 @@ export const TRIGGER_TYPES = {
     icon: 'BoltIcon',
     description: 'Trigger based on sensor readings',
   },
+  recurring_days: {
+    value: 'recurring_days',
+    label: 'Recurring Days',
+    icon: 'CalendarDaysIcon',
+    description: 'Trigger on specific days of the week at a set time',
+  },
   cron: {
     value: 'cron',
     label: 'Expert Mode (Cron)',
@@ -252,10 +258,46 @@ export const TRIGGER_DEFAULTS = {
     threshold: 100,
     cooldown_minutes: 5,
   },
+  recurring_days: {
+    trigger_type: 'recurring_days',
+    days: [0, 5, 6],
+    time: '20:00',
+  },
   cron: {
     trigger_type: 'cron',
     cron_expression: '0 21 * * *',
   },
+} as const
+
+/**
+ * Validation limits for routine fields
+ */
+export const ROUTINE_LIMITS = {
+  NAME_MAX_LENGTH: 200,
+  DESCRIPTION_MAX_LENGTH: 2000,
+} as const
+
+/**
+ * Validation limits for action fields
+ */
+export const ACTION_LIMITS = {
+  DESCRIPTION_MAX_LENGTH: 500,
+  MIN_OFFSET_MINUTES: 0,
+  MAX_OFFSET_MINUTES: 1440, // 24 hours
+  MIN_OFFSET_SECONDS: 0,
+  MAX_OFFSET_SECONDS: 59,
+  DEFAULT_STAGGER_SECONDS: 5, // Auto-stagger interval for same-minute actions
+} as const
+
+/**
+ * Available action types and their corresponding action names.
+ * Update this when new action types are added to the backend.
+ */
+export const ACTION_NAMES: Record<string, readonly string[]> = {
+  gpio: ['attract_on', 'attract_off', 'flash_on', 'flash_off'],
+  camera: ['takephoto'],
+  gps_sync: ['sync'],
+  service: ['backup', 'update_display'],
 } as const
 
 /**

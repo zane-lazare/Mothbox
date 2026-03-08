@@ -2,7 +2,7 @@
  * NewRoutineCard - Inline wizard for creating new routines
  *
  * Per unified-scheduler-mockup.html, displays an expanded card with:
- * - TriggerSelector for type and configuration
+ * - TriggerForm for type and configuration
  * - ActionList for adding actions
  * - Save/Cancel buttons
  *
@@ -11,16 +11,46 @@
 
 import { useState, useCallback, memo } from 'react'
 import toast from 'react-hot-toast'
-// @ts-expect-error -- .js module
-import TriggerSelector from '../TriggerSelector'
+import TriggerForm from './TriggerForm'
 import PreConditionForm from './PreConditionForm'
-// @ts-expect-error -- .jsx module
-import ActionList from '../RoutineEditor/ActionList'
-// @ts-expect-error -- .js module
-import { createDefaultTrigger, validateTrigger } from '../TriggerSelector/constants'
+import ActionList from './ActionList'
+import { TRIGGER_DEFAULTS } from './constants'
 // @ts-expect-error -- .js module
 import { generateUUID } from '@/utils/uuid'
+import { intervalTriggerSchema } from '@/schemas/scheduler/interval'
+import { solarTriggerSchema } from '@/schemas/scheduler/solar'
+import { moonPhaseTriggerSchema } from '@/schemas/scheduler/moon-phase'
+import { fixedTimeTriggerSchema } from '@/schemas/scheduler/fixed-time'
+import { sensorTriggerSchema } from '@/schemas/scheduler/sensor'
+import { recurringDaysTriggerSchema } from '@/schemas/scheduler/recurring-days'
+import { cronExpressionSchema } from '@/schemas/scheduler/cron'
+import type { ZodTypeAny } from 'zod'
 import type { Routine, Trigger, RoutineAction, PreCondition } from './scheduler-types'
+
+/**
+ * Validate a trigger using the appropriate Zod schema for its type.
+ * Returns a human-readable error string, or null if valid.
+ */
+function validateTriggerWithSchema(trigger: Trigger): string | null {
+  const schemas: Record<string, ZodTypeAny> = {
+    interval: intervalTriggerSchema,
+    solar: solarTriggerSchema,
+    moon_phase: moonPhaseTriggerSchema,
+    fixed_time: fixedTimeTriggerSchema,
+    sensor: sensorTriggerSchema,
+    recurring_days: recurringDaysTriggerSchema,
+    cron: cronExpressionSchema,
+  }
+
+  const schema = schemas[trigger.trigger_type]
+  if (!schema) return null // unknown type passes (server validates)
+
+  const result = schema.safeParse(trigger)
+  if (result.success) return null
+
+  // Return the first error message
+  return result.error.issues[0]?.message ?? 'Invalid trigger configuration'
+}
 
 interface NewRoutineCardProps {
   /** Callback when routine is saved */
@@ -44,7 +74,7 @@ interface NewRoutineCardProps {
  */
 function NewRoutineCard({ onComplete, onCancel, disabled = false, useSecondsTiming = false }: NewRoutineCardProps) {
   // Initialize with default interval trigger
-  const [trigger, setTrigger] = useState<Trigger>(() => createDefaultTrigger('interval'))
+  const [trigger, setTrigger] = useState<Trigger>(() => ({ ...TRIGGER_DEFAULTS.interval }) as unknown as Trigger)
   const [actions, setActions] = useState<RoutineAction[]>([])
   const [preCondition, setPreCondition] = useState<PreCondition | null>(null)
 
@@ -80,7 +110,7 @@ function NewRoutineCard({ onComplete, onCancel, disabled = false, useSecondsTimi
     }
 
     // Validate trigger configuration is complete
-    const validationError = validateTrigger(trigger)
+    const validationError = validateTriggerWithSchema(trigger)
     if (validationError) {
       toast.error(validationError)
       return
@@ -125,10 +155,11 @@ function NewRoutineCard({ onComplete, onCancel, disabled = false, useSecondsTimi
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">
             Trigger
           </label>
-          <TriggerSelector
-            trigger={trigger}
+          <TriggerForm
+            value={trigger}
             onChange={handleTriggerChange}
             disabled={disabled}
+            compact
           />
           <PreConditionForm
             preCondition={preCondition as any}  // eslint-disable-line @typescript-eslint/no-explicit-any

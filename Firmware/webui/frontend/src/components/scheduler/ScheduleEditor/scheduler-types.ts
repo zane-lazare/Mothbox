@@ -8,7 +8,7 @@
  * Used by:
  * - ScheduleEditor
  * - RoutineList, RoutineCard, NewRoutineCard
- * - TriggerForm, TriggerSelector
+ * - TriggerForm
  * - MiniTimeline
  *
  * @module components/scheduler/ScheduleEditor/scheduler-types

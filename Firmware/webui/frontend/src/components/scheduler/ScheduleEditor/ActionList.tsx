@@ -1,38 +1,50 @@
 import { useMemo, useRef } from 'react'
-import PropTypes from 'prop-types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import InlineActionRow from './InlineActionRow'
+// @ts-expect-error -- .js module
 import { generateUUID } from '../../../utils/uuid'
+import type { RoutineAction } from './scheduler-types'
+
+interface ActionListProps {
+  /** Array of actions */
+  actions?: RoutineAction[]
+  /** Callback when actions change */
+  onActionsChange: (actions: RoutineAction[]) => void
+  /** Disable all interactions */
+  disabled?: boolean
+  /** Whether to show explicit seconds timing vs auto-stagger */
+  useSecondsTiming?: boolean
+}
 
 /**
  * ActionList Component
  *
  * Displays a list of inline action rows with add/edit/delete capabilities.
  * Per unified-scheduler-mockup.html design, uses inline editing instead of modals.
- *
- * @param {Object} props
- * @param {Array<PatternAction>} props.actions - Array of actions
- * @param {Function} props.onActionsChange - Callback when actions change
- * @param {boolean} props.disabled - Disable all interactions
  */
-export default function ActionList({ actions = [], onActionsChange, disabled = false }) {
+export default function ActionList({
+  actions = [],
+  onActionsChange,
+  disabled = false,
+}: ActionListProps) {
   // Track generated IDs for actions without stable IDs from parent
   // Uses content-based key to ensure same logical action gets same ID
-  const generatedIdsRef = useRef(new Map())
+  const generatedIdsRef = useRef(new Map<string, string>())
 
   // Ensure all actions have stable IDs
   // Uses a ref to maintain consistent IDs for actions that lack them
-  const actionsWithIds = useMemo(() =>
-    actions.map((action, index) => {
-      if (action.id) return action
-      // Create a stable key from action content and index
-      // Include index to handle new empty actions with same content
-      const contentKey = `${action.action_type || ''}:${action.action_name || ''}:${action.offset_minutes || 0}:${index}`
-      if (!generatedIdsRef.current.has(contentKey)) {
-        generatedIdsRef.current.set(contentKey, generateUUID())
-      }
-      return { ...action, id: generatedIdsRef.current.get(contentKey) }
-    }),
+  const actionsWithIds = useMemo(
+    () =>
+      actions.map((action, index) => {
+        if (action.id) return action
+        // Create a stable key from action content and index
+        // Include index to handle new empty actions with same content
+        const contentKey = `${action.action_type || ''}:${action.action_name || ''}:${action.offset_minutes || 0}:${index}`
+        if (!generatedIdsRef.current.has(contentKey)) {
+          generatedIdsRef.current.set(contentKey, generateUUID())
+        }
+        return { ...action, id: generatedIdsRef.current.get(contentKey) }
+      }),
     [actions]
   )
 
@@ -41,7 +53,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
    * Per mockup design, immediately adds an inline row for editing
    */
   function handleAddAction() {
-    const newAction = {
+    const newAction: RoutineAction = {
       id: generateUUID(),
       action_type: '',
       action_name: '',
@@ -53,7 +65,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
   /**
    * Update an action at the given index
    */
-  function handleActionChange(index, updatedAction) {
+  function handleActionChange(index: number, updatedAction: RoutineAction) {
     const newActions = actionsWithIds.map((action, i) =>
       i === index ? { ...updatedAction, id: action.id } : action
     )
@@ -63,7 +75,7 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
   /**
    * Delete an action at the given index
    */
-  function handleActionDelete(index) {
+  function handleActionDelete(index: number) {
     const newActions = actionsWithIds.filter((_, i) => i !== index)
     onActionsChange(newActions)
   }
@@ -110,10 +122,4 @@ export default function ActionList({ actions = [], onActionsChange, disabled = f
       </button>
     </div>
   )
-}
-
-ActionList.propTypes = {
-  actions: PropTypes.arrayOf(PropTypes.object),
-  onActionsChange: PropTypes.func.isRequired,
-  disabled: PropTypes.bool,
 }

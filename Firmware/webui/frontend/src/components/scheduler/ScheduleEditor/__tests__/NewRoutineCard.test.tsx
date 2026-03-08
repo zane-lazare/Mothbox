@@ -3,13 +3,13 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import NewRoutineCard from '../NewRoutineCard'
 
-// Mock TriggerSelector
-vi.mock('../../TriggerSelector', () => ({
-  default: vi.fn(({ trigger, onChange, disabled }) => (
-    <div data-testid="mock-trigger-selector">
-      <span>Trigger: {trigger?.trigger_type}</span>
+// Mock TriggerForm
+vi.mock('../TriggerForm', () => ({
+  default: vi.fn(({ value, onChange, disabled }) => (
+    <div data-testid="mock-trigger-form">
+      <span>Trigger: {value?.trigger_type}</span>
       <button
-        onClick={() => onChange({ trigger_type: 'solar', solar_event: 'dusk' })}
+        onClick={() => onChange({ trigger_type: 'solar', solar_event: 'dusk', offset_minutes: 0 })}
         disabled={disabled}
       >
         Change to Solar
@@ -19,7 +19,7 @@ vi.mock('../../TriggerSelector', () => ({
 }))
 
 // Mock ActionList
-vi.mock('../../RoutineEditor/ActionList', () => ({
+vi.mock('../ActionList', () => ({
   default: vi.fn(({ actions, onActionsChange, disabled }) => (
     <div data-testid="mock-action-list">
       <span data-testid="action-count">Actions: {actions?.length || 0}</span>
@@ -100,9 +100,9 @@ describe('NewRoutineCard', () => {
       expect(screen.getByText('New Routine')).toBeInTheDocument()
     })
 
-    it('renders TriggerSelector', () => {
+    it('renders TriggerForm', () => {
       render(<NewRoutineCard {...defaultProps} />)
-      expect(screen.getByTestId('mock-trigger-selector')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-trigger-form')).toBeInTheDocument()
     })
 
     it('renders ActionList', () => {
@@ -203,7 +203,13 @@ describe('NewRoutineCard', () => {
       expect(onComplete).toHaveBeenCalledWith({
         routine_id: 'mock-uuid-123',
         name: '',
-        trigger: { trigger_type: 'interval', interval_minutes: 15, time_window: null },
+        trigger: {
+          trigger_type: 'interval',
+          interval_minutes: 60,
+          time_window_start: '00:00',
+          time_window_end: '23:59',
+          days_of_week: [0, 1, 2, 3, 4, 5, 6],
+        },
         actions: [{ id: 'new', action_type: 'camera', action_name: 'takephoto' }],
         pre_condition: null,
       })
@@ -225,7 +231,7 @@ describe('NewRoutineCard', () => {
 
       expect(onComplete).toHaveBeenCalledWith(
         expect.objectContaining({
-          trigger: { trigger_type: 'solar', solar_event: 'dusk' },
+          trigger: { trigger_type: 'solar', solar_event: 'dusk', offset_minutes: 0 },
         })
       )
     })
@@ -244,7 +250,7 @@ describe('NewRoutineCard', () => {
   })
 
   describe('disabled state', () => {
-    it('disables TriggerSelector when disabled', () => {
+    it('disables TriggerForm when disabled', () => {
       render(<NewRoutineCard {...defaultProps} disabled={true} />)
       expect(screen.getByText('Change to Solar')).toBeDisabled()
     })
