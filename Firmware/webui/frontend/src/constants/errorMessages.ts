@@ -56,17 +56,25 @@ export const TYPE = {
     label ? `${label} must be a string` : 'Must be a string',
 } as const
 
-/** Format / pattern messages. */
+/**
+ * Format / pattern messages.
+ *
+ * Four time variants exist because the original schemas used different phrasing:
+ * - `time`:         generic, no field prefix (e.g. deployment coordinate labels)
+ * - `validTime`:    fixed-time trigger ("Must be a **valid** time…")
+ * - `timeRequired`: moon-phase + pre-condition ("**Time** must be…")
+ * - `timeOrSolar`:  time-window trigger (accepts HH:MM or solar event strings)
+ */
 export const FORMAT = {
-  /** Generic HH:MM (no field prefix). */
+  /** Generic HH:MM — used by schemas that show the field label separately. */
   time: 'Must be in HH:MM format',
-  /** Used by fixed-time trigger. */
+  /** FixedTimeTriggerForm (fixed-time.ts). */
   validTime: 'Must be a valid time in HH:MM format',
-  /** Used by moon-phase and pre-condition schemas ("Time must be ..."). */
+  /** MoonPhaseTriggerForm (moon-phase.ts) and PreConditionForm (pre-condition.ts). */
   timeRequired: 'Time must be in HH:MM format',
-  /** Used by time-window schema. */
+  /** TimeWindowInput (time-window.ts) — accepts HH:MM or solar event values. */
   timeOrSolar: 'Must be valid HH:MM time or solar event',
-  /** URL format. */
+  /** Species referenceUrl and any future URL fields. */
   url: 'Please enter a valid URL (e.g., https://example.com)',
 } as const
 
@@ -145,7 +153,12 @@ export const NETWORK = {
   timeout: 'Request timed out. Please try again.',
 } as const
 
-/** General validation feedback messages. */
+/**
+ * General validation feedback messages (from legacy errorMessages.js).
+ *
+ * These are used by UI components for form-level status, NOT by Zod schemas.
+ * For schema-level required-field messages, use REQUIRED.field(name) instead.
+ */
 export const VALIDATION = {
   general: 'Please fix the errors above.',
   requiredField: 'This field is required.',
