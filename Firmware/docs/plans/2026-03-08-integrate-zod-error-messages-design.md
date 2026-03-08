@@ -45,8 +45,9 @@ export const LENGTH = {
 };
 
 export const TYPE = {
-  number: (label?: string) => `${label ?? 'Value'} must be a number`,
-  integer: (label?: string) => `${label ?? 'Value'} must be a whole number`,
+  number: (label?: string) => label ? `${label} must be a number` : 'Must be a number',
+  integer: (label?: string) => label ? `${label} must be a whole number` : 'Must be a whole number',
+  string: (label?: string) => label ? `${label} must be a string` : 'Must be a string',
 };
 
 export const FORMAT = {
