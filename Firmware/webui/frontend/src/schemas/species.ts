@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { METADATA_VALIDATION } from '../constants/config'
+import { SPECIES, FORMAT } from '../constants/errorMessages'
 
 /**
  * Confidence levels for species identification.
@@ -15,11 +16,11 @@ export const CONFIDENCE_VALUES = ['certain', 'probable', 'possible', 'unknown'] 
  * enforce "required" via submit-button disable logic as appropriate.
  */
 export const speciesSchema = z.object({
-  species: z.string().trim().max(METADATA_VALIDATION.MAX_SPECIES_LENGTH, 'Species name is too long').optional().or(z.literal('')),
-  commonName: z.string().trim().max(METADATA_VALIDATION.MAX_COMMON_NAME_LENGTH, 'Common name is too long').optional().or(z.literal('')),
+  species: z.string().trim().max(METADATA_VALIDATION.MAX_SPECIES_LENGTH, SPECIES.nameTooLong).optional().or(z.literal('')),
+  commonName: z.string().trim().max(METADATA_VALIDATION.MAX_COMMON_NAME_LENGTH, SPECIES.commonNameTooLong).optional().or(z.literal('')),
   confidence: z.enum(CONFIDENCE_VALUES),
   referenceUrl: z.string()
-    .max(METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH, 'URL is too long')
+    .max(METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH, SPECIES.urlTooLong)
     .refine((val) => {
       if (!val) return true
       try {
@@ -28,7 +29,7 @@ export const speciesSchema = z.object({
       } catch {
         return false
       }
-    }, { message: 'Please enter a valid URL (e.g., https://example.com)' })
+    }, { message: FORMAT.url })
     .optional()
     .or(z.literal('')),
 })

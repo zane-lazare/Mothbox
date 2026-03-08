@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { speciesSchema, CONFIDENCE_VALUES } from '../species'
 import { METADATA_VALIDATION } from '../../constants/config'
+import { SPECIES, FORMAT } from '../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(result: { success: boolean; error?: { issues: { message: string }[] } }): string | null {
@@ -70,7 +71,7 @@ describe('speciesSchema', () => {
         confidence: 'probable',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Species name is too long')
+      expect(firstError(result)).toBe(SPECIES.nameTooLong)
     })
 
     it('accepts commonName at max length', () => {
@@ -87,7 +88,7 @@ describe('speciesSchema', () => {
         confidence: 'probable',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Common name is too long')
+      expect(firstError(result)).toBe(SPECIES.commonNameTooLong)
     })
   })
 
@@ -131,7 +132,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'not-a-url',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+      expect(firstError(result)).toBe(FORMAT.url)
     })
 
     it('rejects ftp:// URL', () => {
@@ -140,7 +141,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'ftp://example.com/file',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+      expect(firstError(result)).toBe(FORMAT.url)
     })
 
     it('rejects file:// URL', () => {
@@ -149,7 +150,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'file:///etc/passwd',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Please enter a valid URL (e.g., https://example.com)')
+      expect(firstError(result)).toBe(FORMAT.url)
     })
 
     it('accepts http:// URL', () => {
@@ -166,7 +167,7 @@ describe('speciesSchema', () => {
         referenceUrl: 'https://example.com/' + 'a'.repeat(METADATA_VALIDATION.MAX_REFERENCE_URL_LENGTH),
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('URL is too long')
+      expect(firstError(result)).toBe(SPECIES.urlTooLong)
     })
   })
 })
