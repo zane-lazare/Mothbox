@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { scheduleSchema, type ScheduleFormData } from '../schedule'
 import { SCHEDULE_LIMITS } from '@/components/scheduler/ScheduleEditor/constants'
+import { REQUIRED, LENGTH } from '../../../constants/errorMessages'
 
 describe('scheduleSchema', () => {
   describe('name field', () => {

@@ -4,6 +4,7 @@ import {
   SCHEDULE_LIMITS,
   MOON_PHASES,
 } from '../../../components/scheduler/ScheduleEditor/constants'
+import { REQUIRED, TYPE, RANGE, FORMAT, SCHEDULER } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -37,7 +38,7 @@ describe('moonPhaseTriggerSchema', () => {
         moon_phase: 'invalid_phase',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid moon phase')
+      expect(firstError(result)).toBe(SCHEDULER.invalidMoonPhase)
     })
 
     it('rejects a numeric moon phase', () => {
@@ -74,7 +75,7 @@ describe('moonPhaseTriggerSchema', () => {
         })
         expect(result.success).toBe(false)
         if (time === '') {
-          expect(firstError(result)).toBe('Time must be in HH:MM format')
+          expect(firstError(result)).toBe(FORMAT.timeRequired)
         }
       }
     })
@@ -85,7 +86,7 @@ describe('moonPhaseTriggerSchema', () => {
         time_of_day: 1200,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Time is required')
+      expect(firstError(result)).toBe(REQUIRED.field('Time'))
     })
 
     it('rejects undefined time', () => {
@@ -142,7 +143,7 @@ describe('moonPhaseTriggerSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Offset cannot exceed ${SCHEDULE_LIMITS.MAX_OFFSET_DAYS} days`,
+        RANGE.max(SCHEDULE_LIMITS.MAX_OFFSET_DAYS, 'days'),
       )
     })
 
@@ -153,7 +154,7 @@ describe('moonPhaseTriggerSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Offset must be at least ${-SCHEDULE_LIMITS.MAX_OFFSET_DAYS} days`,
+        RANGE.min(-SCHEDULE_LIMITS.MAX_OFFSET_DAYS, 'days'),
       )
     })
   })
@@ -165,7 +166,7 @@ describe('moonPhaseTriggerSchema', () => {
         offset_days: 2.5,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a whole number')
+      expect(firstError(result)).toBe(TYPE.integer('Offset'))
     })
 
     it('rejects string values', () => {
@@ -174,7 +175,7 @@ describe('moonPhaseTriggerSchema', () => {
         offset_days: '3',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
 
     it('rejects NaN', () => {
@@ -183,7 +184,7 @@ describe('moonPhaseTriggerSchema', () => {
         offset_days: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
 
     it('rejects undefined offset', () => {

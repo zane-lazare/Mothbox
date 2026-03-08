@@ -4,6 +4,7 @@ import {
   SENSOR_COMPARISONS,
   SCHEDULE_LIMITS,
 } from '../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE, SCHEDULER } from '../../constants/errorMessages'
 
 /**
  * Schema for fields owned by SensorTriggerForm:
@@ -17,18 +18,18 @@ const comparisonValues = SENSOR_COMPARISONS.map((c) => c.value) as [string, ...s
 if (comparisonValues.length === 0) throw new Error('SENSOR_COMPARISONS must not be empty')
 
 export const sensorTriggerSchema = z.object({
-  sensor_type: z.enum(sensorTypeValues, { error: 'Invalid sensor type' }),
-  comparison: z.enum(comparisonValues, { error: 'Invalid comparison operator' }),
+  sensor_type: z.enum(sensorTypeValues, { error: SCHEDULER.invalidSensorType }),
+  comparison: z.enum(comparisonValues, { error: SCHEDULER.invalidComparison }),
   threshold: z
-    .number({ error: 'Threshold must be a number' })
+    .number({ error: TYPE.number('Threshold') })
     .min(0, 'Threshold must be 0 or greater'),
   cooldown_minutes: z
-    .number({ error: 'Cooldown must be a number' })
-    .int('Cooldown must be a whole number')
-    .min(1, 'Cooldown must be at least 1 minute')
+    .number({ error: TYPE.number('Cooldown') })
+    .int(TYPE.integer('Cooldown'))
+    .min(1, RANGE.min(1, 'minute'))
     .max(
       SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES,
-      `Cooldown cannot exceed ${SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES} minutes`,
+      RANGE.max(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES, 'minutes'),
     ),
 })
 

@@ -5,8 +5,7 @@ import {
   TIME_WINDOW_SAME_ERROR,
 } from '../pre-condition'
 import { SCHEDULE_LIMITS } from '../../../components/scheduler/ScheduleEditor/constants'
-// @ts-expect-error — errorMessages.js has no type declarations (pre-migration)
-import { TIME_ERRORS } from '../../../components/scheduler/ScheduleEditor/errorMessages'
+import { REQUIRED, TYPE, RANGE, FORMAT, SCHEDULER } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -49,7 +48,7 @@ describe('preConditionSchema', () => {
         sensor_type: 'motion',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid sensor type')
+      expect(firstError(result)).toBe(SCHEDULER.invalidSensorType)
     })
 
     it('rejects arbitrary string', () => {
@@ -58,7 +57,7 @@ describe('preConditionSchema', () => {
         sensor_type: 'humidity',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid sensor type')
+      expect(firstError(result)).toBe(SCHEDULER.invalidSensorType)
     })
   })
 
@@ -80,7 +79,7 @@ describe('preConditionSchema', () => {
         comparison: 'gte',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid comparison operator')
+      expect(firstError(result)).toBe(SCHEDULER.invalidComparison)
     })
 
     it('rejects lte', () => {
@@ -89,7 +88,7 @@ describe('preConditionSchema', () => {
         comparison: 'lte',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid comparison operator')
+      expect(firstError(result)).toBe(SCHEDULER.invalidComparison)
     })
   })
 
@@ -134,7 +133,7 @@ describe('preConditionSchema', () => {
         threshold: '100',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Threshold must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Threshold'))
     })
 
     it('rejects NaN', () => {
@@ -143,7 +142,7 @@ describe('preConditionSchema', () => {
         threshold: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Threshold must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Threshold'))
     })
   })
 
@@ -180,7 +179,7 @@ describe('preConditionSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Cooldown must be at least ${SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES} minutes`,
+        RANGE.min(SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES, 'minutes'),
       )
     })
 
@@ -191,7 +190,7 @@ describe('preConditionSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Cooldown cannot exceed ${SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES} minutes`,
+        RANGE.max(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES, 'minutes'),
       )
     })
 
@@ -201,7 +200,7 @@ describe('preConditionSchema', () => {
         cooldown_minutes: '5',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Cooldown'))
     })
 
     it('rejects NaN', () => {
@@ -210,7 +209,7 @@ describe('preConditionSchema', () => {
         cooldown_minutes: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Cooldown'))
     })
   })
 
@@ -276,7 +275,7 @@ describe('preConditionTimeWindowSchema', () => {
       end_time: '18:00',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Time must be in HH:MM format')
+    expect(firstError(result)).toBe(FORMAT.timeRequired)
   })
 
   it('rejects invalid end_time format', () => {
@@ -285,7 +284,7 @@ describe('preConditionTimeWindowSchema', () => {
       end_time: '12:60',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Time must be in HH:MM format')
+    expect(firstError(result)).toBe(FORMAT.timeRequired)
   })
 
   it('rejects empty string for start_time', () => {
@@ -294,7 +293,7 @@ describe('preConditionTimeWindowSchema', () => {
       end_time: '18:00',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Time must be in HH:MM format')
+    expect(firstError(result)).toBe(FORMAT.timeRequired)
   })
 
   it('rejects non-string start_time', () => {
@@ -303,7 +302,7 @@ describe('preConditionTimeWindowSchema', () => {
       end_time: '18:00',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Start time is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Start time'))
   })
 
   it('rejects same start and end times', () => {
@@ -318,7 +317,7 @@ describe('preConditionTimeWindowSchema', () => {
   it('rejects empty object (both fields missing)', () => {
     const result = preConditionTimeWindowSchema.safeParse({})
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Start time is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Start time'))
   })
 
   it('rejects missing end_time', () => {
@@ -326,13 +325,13 @@ describe('preConditionTimeWindowSchema', () => {
       start_time: '06:00',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('End time is required')
+    expect(firstError(result)).toBe(REQUIRED.field('End time'))
   })
 })
 
 // ── Drift guard ──────────────────────────────────────────────────────────
 describe('error message consistency', () => {
-  it('TIME_WINDOW_SAME_ERROR matches TIME_ERRORS.SAME_START_END', () => {
-    expect(TIME_WINDOW_SAME_ERROR).toBe(TIME_ERRORS.SAME_START_END)
+  it('TIME_WINDOW_SAME_ERROR matches SCHEDULER.sameStartEnd', () => {
+    expect(TIME_WINDOW_SAME_ERROR).toBe(SCHEDULER.sameStartEnd)
   })
 })
