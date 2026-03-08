@@ -25,9 +25,9 @@ export const RANGE = {
   /** e.g. "Must be at least 5 s" */
   min: (val: number, unit?: string): string =>
     unit ? `Must be at least ${val} ${unit}` : `Must be at least ${val}`,
-  /** e.g. "Must be at most 60 s" */
+  /** e.g. "Cannot exceed 60 minutes" */
   max: (val: number, unit?: string): string =>
-    unit ? `Must be at most ${val} ${unit}` : `Must be at most ${val}`,
+    unit ? `Cannot exceed ${val} ${unit}` : `Cannot exceed ${val}`,
   /** e.g. "Must be between 1 and 100 minutes" */
   between: (min: number, max: number, unit?: string): string =>
     unit
@@ -109,7 +109,7 @@ export const SCHEDULER = {
 
 /** Cron expression messages. */
 export const CRON = {
-  format: 'Invalid cron expression format',
+  format: 'Must be 5 space-separated cron fields',
 } as const
 
 /** Preset naming messages. */

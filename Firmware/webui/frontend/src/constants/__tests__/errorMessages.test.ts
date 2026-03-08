@@ -49,11 +49,11 @@ describe('errorMessages', () => {
     })
 
     it('max() without unit', () => {
-      expect(RANGE.max(100)).toBe('Must be at most 100')
+      expect(RANGE.max(100)).toBe('Cannot exceed 100')
     })
 
     it('max() with unit', () => {
-      expect(RANGE.max(60, 's')).toBe('Must be at most 60 s')
+      expect(RANGE.max(60, 's')).toBe('Cannot exceed 60 s')
     })
 
     it('between() without unit', () => {
@@ -197,7 +197,7 @@ describe('errorMessages', () => {
 
   describe('CRON', () => {
     it('format message', () => {
-      expect(CRON.format).toBe('Invalid cron expression format')
+      expect(CRON.format).toBe('Must be 5 space-separated cron fields')
     })
   })
 
