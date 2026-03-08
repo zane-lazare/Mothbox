@@ -88,7 +88,13 @@ export const COORDINATES = {
   longitude: 'Longitude must be between -180 and 180',
 } as const
 
-/** GPS settings messages. Timeout helpers use compact "5s" format (no space). */
+/**
+ * GPS settings messages.
+ *
+ * WARNING: timeoutMin/timeoutMax use compact "5s" format (no space before unit).
+ * Do NOT substitute RANGE.min(val, 's') — that produces "Must be at least 5 s"
+ * (with a space), which does not match the existing GPS schema strings.
+ */
 export const GPS = {
   invalidPath:
     'Invalid device path format. Expected /dev/ttyAMA0, /dev/ttyUSB0, etc.',

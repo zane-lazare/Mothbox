@@ -7,6 +7,9 @@ const optionalStr = (max?: number) => {
   return (max ? base.max(max, LENGTH.max(max)) : base).optional().or(z.literal(''))
 }
 
+/** Maximum number of custom fields allowed per deployment. */
+export const MAX_CUSTOM_FIELDS = 50
+
 /** A key-value pair for useFieldArray (environmental or custom fields). */
 export const deploymentFieldEntrySchema = z.object({
   key: z.string(),
@@ -29,7 +32,7 @@ export const deploymentSchema = z.object({
   start_date: optionalStr(),
   end_date: optionalStr(),
   environmental: z.array(deploymentFieldEntrySchema),
-  custom: z.array(deploymentFieldEntrySchema).max(50, DEPLOYMENT_MSGS.maxCustomFields(50)),
+  custom: z.array(deploymentFieldEntrySchema).max(MAX_CUSTOM_FIELDS, DEPLOYMENT_MSGS.maxCustomFields(MAX_CUSTOM_FIELDS)),
   mothbox_id: optionalStr(),
   firmware_version: optionalStr(),
 }).refine(
