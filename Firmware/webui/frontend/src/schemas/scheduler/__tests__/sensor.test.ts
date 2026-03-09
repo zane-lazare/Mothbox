@@ -5,6 +5,7 @@ import {
   SENSOR_TYPES,
   SENSOR_COMPARISONS,
 } from '../../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE, SCHEDULER } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -80,7 +81,7 @@ describe('sensorTriggerSchema', () => {
         sensor_type: 'invalid_sensor',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid sensor type')
+      expect(firstError(result)).toBe(SCHEDULER.invalidSensorType)
     })
 
     it('rejects numeric sensor_type', () => {
@@ -105,7 +106,7 @@ describe('sensorTriggerSchema', () => {
         comparison: 'invalid_op',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Invalid comparison operator')
+      expect(firstError(result)).toBe(SCHEDULER.invalidComparison)
     })
 
     it('rejects numeric comparison', () => {
@@ -139,7 +140,7 @@ describe('sensorTriggerSchema', () => {
         threshold: '50',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Threshold must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Threshold'))
     })
 
     it('rejects undefined threshold', () => {
@@ -156,7 +157,7 @@ describe('sensorTriggerSchema', () => {
         cooldown_minutes: 0,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be at least 1 minute')
+      expect(firstError(result)).toBe(RANGE.min(1, 'minute'))
     })
 
     it('rejects cooldown exceeding MAX_COOLDOWN_MINUTES', () => {
@@ -166,7 +167,7 @@ describe('sensorTriggerSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Cooldown cannot exceed ${SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES} minutes`,
+        RANGE.max(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES, 'minutes'),
       )
     })
 
@@ -176,7 +177,7 @@ describe('sensorTriggerSchema', () => {
         cooldown_minutes: 5.5,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be a whole number')
+      expect(firstError(result)).toBe(TYPE.integer('Cooldown'))
     })
 
     it('rejects string cooldown', () => {
@@ -185,7 +186,7 @@ describe('sensorTriggerSchema', () => {
         cooldown_minutes: '5',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Cooldown'))
     })
 
     it('rejects NaN cooldown', () => {
@@ -194,7 +195,7 @@ describe('sensorTriggerSchema', () => {
         cooldown_minutes: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Cooldown must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Cooldown'))
     })
 
     it('rejects undefined cooldown', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { intervalTriggerSchema } from '../interval'
 import { SCHEDULE_LIMITS } from '../../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -40,7 +41,7 @@ describe('intervalTriggerSchema', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: 0 })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`,
+        RANGE.min(SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES, `minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`),
       )
     })
 
@@ -53,7 +54,7 @@ describe('intervalTriggerSchema', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: 10081 })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        `Interval cannot exceed ${SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES} minutes`,
+        RANGE.max(SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES, 'minutes'),
       )
     })
   })
@@ -62,19 +63,19 @@ describe('intervalTriggerSchema', () => {
     it('rejects float values', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: 30.5 })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Interval must be a whole number')
+      expect(firstError(result)).toBe(TYPE.integer('Interval'))
     })
 
     it('rejects string values', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: '60' })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Interval must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Interval'))
     })
 
     it('rejects NaN', () => {
       const result = intervalTriggerSchema.safeParse({ interval_minutes: NaN })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Interval must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Interval'))
     })
 
     it('rejects undefined', () => {

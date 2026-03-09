@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { filterPresetNameSchema, cameraPresetNameSchema } from '../preset'
+import { REQUIRED, LENGTH, PRESET } from '../../constants/errorMessages'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,25 +40,25 @@ describe('filterPresetNameSchema', () => {
   it('rejects an empty string', () => {
     const result = filterPresetNameSchema.safeParse({ name: '' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Preset name is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Preset name'))
   })
 
   it('rejects a whitespace-only string', () => {
     const result = filterPresetNameSchema.safeParse({ name: '   ' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Preset name is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Preset name'))
   })
 
   it('rejects a name shorter than 3 characters after trim', () => {
     const result = filterPresetNameSchema.safeParse({ name: '  ab  ' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be at least 3 characters')
+    expect(firstError(result)).toBe(LENGTH.min(3))
   })
 
   it('rejects a name longer than 50 characters', () => {
     const result = filterPresetNameSchema.safeParse({ name: 'a'.repeat(51) })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be 50 characters or less')
+    expect(firstError(result)).toBe(LENGTH.max(50))
   })
 
   it('trims whitespace before validation', () => {
@@ -102,37 +103,37 @@ describe('cameraPresetNameSchema', () => {
   it('rejects an empty string', () => {
     const result = cameraPresetNameSchema.safeParse({ name: '' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Preset name is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Preset name'))
   })
 
   it('rejects a name with spaces', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'my preset' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name can only contain letters, numbers, and underscores')
+    expect(firstError(result)).toBe(PRESET.alphanumericOnly)
   })
 
   it('rejects a name with hyphens', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'my-preset' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name can only contain letters, numbers, and underscores')
+    expect(firstError(result)).toBe(PRESET.alphanumericOnly)
   })
 
   it('rejects a name with special characters', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'preset!' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name can only contain letters, numbers, and underscores')
+    expect(firstError(result)).toBe(PRESET.alphanumericOnly)
   })
 
   it('rejects a name shorter than 3 characters', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'ab' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be at least 3 characters')
+    expect(firstError(result)).toBe(LENGTH.min(3))
   })
 
   it('rejects a name longer than 50 characters', () => {
     const result = cameraPresetNameSchema.safeParse({ name: 'a'.repeat(51) })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Name must be 50 characters or less')
+    expect(firstError(result)).toBe(LENGTH.max(50))
   })
 
   it('returns correct error for missing name field', () => {

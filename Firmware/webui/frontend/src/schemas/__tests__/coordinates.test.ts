@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { coordinatesSchema } from '../coordinates'
+import { COORDINATES } from '../../constants/errorMessages'
 
 function firstError(result: { success: boolean; error?: { issues: { message: string }[] } }): string | null {
   if (result.success) return null
@@ -35,13 +36,13 @@ describe('coordinatesSchema', () => {
     it('rejects latitude > 90', () => {
       const result = coordinatesSchema.safeParse({ latitude: 91, longitude: 0 })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Latitude must be between -90 and 90')
+      expect(firstError(result)).toBe(COORDINATES.latitude)
     })
 
     it('rejects latitude < -90', () => {
       const result = coordinatesSchema.safeParse({ latitude: -91, longitude: 0 })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Latitude must be between -90 and 90')
+      expect(firstError(result)).toBe(COORDINATES.latitude)
     })
   })
 
@@ -49,13 +50,13 @@ describe('coordinatesSchema', () => {
     it('rejects longitude > 180', () => {
       const result = coordinatesSchema.safeParse({ latitude: 0, longitude: 181 })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Longitude must be between -180 and 180')
+      expect(firstError(result)).toBe(COORDINATES.longitude)
     })
 
     it('rejects longitude < -180', () => {
       const result = coordinatesSchema.safeParse({ latitude: 0, longitude: -181 })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Longitude must be between -180 and 180')
+      expect(firstError(result)).toBe(COORDINATES.longitude)
     })
   })
 

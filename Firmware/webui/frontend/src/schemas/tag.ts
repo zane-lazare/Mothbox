@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TAG } from '../constants/errorMessages';
 
 /**
  * Tag mode options for bulk tag operations.
@@ -20,8 +21,8 @@ export const TAG_MAX_COUNT = 50;
  */
 export const bulkTagSchema = z.object({
   tags: z.array(
-    z.object({ value: z.string().trim().min(1, 'Tag cannot be empty').max(TAG_MAX_LENGTH, 'Tag is too long') })
-  ).min(1, 'At least one tag is required').max(TAG_MAX_COUNT, 'Too many tags'),
+    z.object({ value: z.string().trim().min(1, TAG.empty).max(TAG_MAX_LENGTH, TAG.tooLong) })
+  ).min(1, TAG.minRequired).max(TAG_MAX_COUNT, TAG.tooMany),
   mode: z.enum(TAG_MODES),
 });
 

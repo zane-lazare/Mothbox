@@ -4,6 +4,7 @@ import {
   SOLAR_EVENTS,
   type SolarEventValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE, SCHEDULER } from '../../constants/errorMessages'
 
 /**
  * Schema for fields owned by SolarTriggerForm: solar_event + offset_minutes.
@@ -19,18 +20,18 @@ const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
 
 export const solarTriggerSchema = z.object({
   solar_event: z.enum(solarEventValues, {
-    error: 'Invalid solar event',
+    error: SCHEDULER.invalidSolarEvent,
   }),
   offset_minutes: z
-    .number({ error: 'Offset must be a number' })
-    .int('Offset must be a whole number')
+    .number({ error: TYPE.number('Offset') })
+    .int(TYPE.integer('Offset'))
     .min(
       -SCHEDULE_LIMITS.MAX_OFFSET_MINUTES,
-      `Offset must be at least ${-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES} minutes`,
+      RANGE.min(-SCHEDULE_LIMITS.MAX_OFFSET_MINUTES, 'minutes'),
     )
     .max(
       SCHEDULE_LIMITS.MAX_OFFSET_MINUTES,
-      `Offset cannot exceed ${SCHEDULE_LIMITS.MAX_OFFSET_MINUTES} minutes`,
+      RANGE.max(SCHEDULE_LIMITS.MAX_OFFSET_MINUTES, 'minutes'),
     ),
 })
 

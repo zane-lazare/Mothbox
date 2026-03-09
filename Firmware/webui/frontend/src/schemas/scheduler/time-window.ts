@@ -4,6 +4,7 @@ import {
   TIME_FORMAT_REGEX,
   type SolarEventValue,
 } from '../../components/scheduler/ScheduleEditor/constants'
+import { REQUIRED, TYPE, RANGE, FORMAT } from '../../constants/errorMessages'
 
 /**
  * Schema for fields owned by TimeWindowInput:
@@ -21,39 +22,39 @@ const solarEventValues = SOLAR_EVENTS.map((e) => e.value) as [
 ]
 
 const timeValue = z
-  .string({ error: 'Time is required' })
+  .string({ error: REQUIRED.field('Time') })
   .refine(
     (v) =>
       TIME_FORMAT_REGEX.test(v) ||
       solarEventValues.includes(v as SolarEventValue),
-    'Must be valid HH:MM time or solar event',
+    FORMAT.timeOrSolar,
   )
 
 export const timeWindowSchema = z.object({
   start_time: timeValue,
   end_time: timeValue,
   start_offset_minutes: z
-    .number({ error: 'Offset must be a number' })
-    .int('Offset must be a whole number')
+    .number({ error: TYPE.number('Offset') })
+    .int(TYPE.integer('Offset'))
     .min(
       -TIME_WINDOW_MAX_OFFSET_MINUTES,
-      `Offset must be at least ${-TIME_WINDOW_MAX_OFFSET_MINUTES} minutes`,
+      RANGE.min(-TIME_WINDOW_MAX_OFFSET_MINUTES, 'minutes'),
     )
     .max(
       TIME_WINDOW_MAX_OFFSET_MINUTES,
-      `Offset cannot exceed ${TIME_WINDOW_MAX_OFFSET_MINUTES} minutes`,
+      RANGE.max(TIME_WINDOW_MAX_OFFSET_MINUTES, 'minutes'),
     )
     .default(0),
   end_offset_minutes: z
-    .number({ error: 'Offset must be a number' })
-    .int('Offset must be a whole number')
+    .number({ error: TYPE.number('Offset') })
+    .int(TYPE.integer('Offset'))
     .min(
       -TIME_WINDOW_MAX_OFFSET_MINUTES,
-      `Offset must be at least ${-TIME_WINDOW_MAX_OFFSET_MINUTES} minutes`,
+      RANGE.min(-TIME_WINDOW_MAX_OFFSET_MINUTES, 'minutes'),
     )
     .max(
       TIME_WINDOW_MAX_OFFSET_MINUTES,
-      `Offset cannot exceed ${TIME_WINDOW_MAX_OFFSET_MINUTES} minutes`,
+      RANGE.max(TIME_WINDOW_MAX_OFFSET_MINUTES, 'minutes'),
     )
     .default(0),
 })

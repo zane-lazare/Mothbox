@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fixedTimeTriggerSchema, type FixedTimeTriggerFormData } from '../fixed-time'
+import { FORMAT } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -38,19 +39,19 @@ describe('fixedTimeTriggerSchema', () => {
     it('rejects invalid time format (25:00)', () => {
       const result = fixedTimeTriggerSchema.safeParse({ time_of_day: '25:00' })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Must be a valid time in HH:MM format')
+      expect(firstError(result)).toBe(FORMAT.validTime)
     })
 
     it('rejects empty string', () => {
       const result = fixedTimeTriggerSchema.safeParse({ time_of_day: '' })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Must be a valid time in HH:MM format')
+      expect(firstError(result)).toBe(FORMAT.validTime)
     })
 
     it('rejects non-time string (noon)', () => {
       const result = fixedTimeTriggerSchema.safeParse({ time_of_day: 'noon' })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Must be a valid time in HH:MM format')
+      expect(firstError(result)).toBe(FORMAT.validTime)
     })
 
     it('rejects time with invalid minutes (12:60)', () => {

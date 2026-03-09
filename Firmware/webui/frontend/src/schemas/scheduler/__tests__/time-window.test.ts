@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { timeWindowSchema } from '../time-window'
 import { SOLAR_EVENTS } from '../../../components/scheduler/ScheduleEditor/constants'
+import { REQUIRED, TYPE, RANGE, FORMAT } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -77,7 +78,7 @@ describe('timeWindowSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        'Must be valid HH:MM time or solar event',
+        FORMAT.timeOrSolar,
       )
     })
 
@@ -88,7 +89,7 @@ describe('timeWindowSchema', () => {
       })
       expect(result.success).toBe(false)
       expect(firstError(result)).toBe(
-        'Must be valid HH:MM time or solar event',
+        FORMAT.timeOrSolar,
       )
     })
 
@@ -100,7 +101,7 @@ describe('timeWindowSchema', () => {
         })
         expect(result.success).toBe(false)
         expect(firstError(result)).toBe(
-          'Must be valid HH:MM time or solar event',
+          FORMAT.timeOrSolar,
         )
       }
     })
@@ -113,7 +114,7 @@ describe('timeWindowSchema', () => {
         })
         expect(result.success).toBe(false)
         expect(firstError(result)).toBe(
-          'Must be valid HH:MM time or solar event',
+          FORMAT.timeOrSolar,
         )
       }
     })
@@ -124,7 +125,7 @@ describe('timeWindowSchema', () => {
         start_time: 1200,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Time is required')
+      expect(firstError(result)).toBe(REQUIRED.field('Time'))
     })
 
     it('rejects undefined start_time', () => {
@@ -222,7 +223,7 @@ describe('timeWindowSchema', () => {
         start_offset_minutes: 121,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset cannot exceed 120 minutes')
+      expect(firstError(result)).toBe(RANGE.max(120, 'minutes'))
     })
 
     it('rejects -121 for start_offset_minutes (below minimum)', () => {
@@ -231,7 +232,7 @@ describe('timeWindowSchema', () => {
         start_offset_minutes: -121,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be at least -120 minutes')
+      expect(firstError(result)).toBe(RANGE.min(-120, 'minutes'))
     })
 
     it('rejects 121 for end_offset_minutes (above maximum)', () => {
@@ -240,7 +241,7 @@ describe('timeWindowSchema', () => {
         end_offset_minutes: 121,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset cannot exceed 120 minutes')
+      expect(firstError(result)).toBe(RANGE.max(120, 'minutes'))
     })
 
     it('rejects -121 for end_offset_minutes (below minimum)', () => {
@@ -249,7 +250,7 @@ describe('timeWindowSchema', () => {
         end_offset_minutes: -121,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be at least -120 minutes')
+      expect(firstError(result)).toBe(RANGE.min(-120, 'minutes'))
     })
   })
 
@@ -260,7 +261,7 @@ describe('timeWindowSchema', () => {
         start_offset_minutes: 2.5,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a whole number')
+      expect(firstError(result)).toBe(TYPE.integer('Offset'))
     })
 
     it('rejects string values', () => {
@@ -269,7 +270,7 @@ describe('timeWindowSchema', () => {
         start_offset_minutes: '30',
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
 
     it('rejects NaN', () => {
@@ -278,7 +279,7 @@ describe('timeWindowSchema', () => {
         end_offset_minutes: NaN,
       })
       expect(result.success).toBe(false)
-      expect(firstError(result)).toBe('Offset must be a number')
+      expect(firstError(result)).toBe(TYPE.number('Offset'))
     })
   })
 })

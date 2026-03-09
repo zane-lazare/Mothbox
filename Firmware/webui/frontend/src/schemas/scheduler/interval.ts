@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { SCHEDULE_LIMITS } from '../../components/scheduler/ScheduleEditor/constants'
+import { TYPE, RANGE } from '../../constants/errorMessages'
 
 /**
  * Schema for the interval_minutes field owned by IntervalTriggerForm.
@@ -9,15 +10,15 @@ import { SCHEDULE_LIMITS } from '../../components/scheduler/ScheduleEditor/const
  */
 export const intervalTriggerSchema = z.object({
   interval_minutes: z
-    .number({ error: 'Interval must be a number' })
-    .int('Interval must be a whole number')
+    .number({ error: TYPE.number('Interval') })
+    .int(TYPE.integer('Interval'))
     .min(
       SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES,
-      `Interval must be at least ${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES} minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`,
+      RANGE.min(SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES, `minute${SCHEDULE_LIMITS.MIN_INTERVAL_MINUTES !== 1 ? 's' : ''}`),
     )
     .max(
       SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES,
-      `Interval cannot exceed ${SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES} minutes`,
+      RANGE.max(SCHEDULE_LIMITS.MAX_INTERVAL_MINUTES, 'minutes'),
     ),
 })
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { bulkTagSchema, TAG_MODES, TAG_MAX_LENGTH, TAG_MAX_COUNT } from '../tag'
+import { TAG } from '../../constants/errorMessages'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,19 +72,19 @@ describe('bulkTagSchema – invalid data', () => {
   it('rejects an empty tags array', () => {
     const result = bulkTagSchema.safeParse({ tags: [], mode: 'add' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('At least one tag is required')
+    expect(firstError(result)).toBe(TAG.minRequired)
   })
 
   it('rejects an empty string tag', () => {
     const result = bulkTagSchema.safeParse({ tags: [{ value: '' }], mode: 'add' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Tag cannot be empty')
+    expect(firstError(result)).toBe(TAG.empty)
   })
 
   it('rejects a whitespace-only tag', () => {
     const result = bulkTagSchema.safeParse({ tags: [{ value: '   ' }], mode: 'add' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Tag cannot be empty')
+    expect(firstError(result)).toBe(TAG.empty)
   })
 
   it('rejects an invalid mode', () => {
@@ -104,13 +105,13 @@ describe('bulkTagSchema – invalid data', () => {
   it(`rejects a tag longer than ${TAG_MAX_LENGTH} characters`, () => {
     const result = bulkTagSchema.safeParse({ tags: [{ value: 'a'.repeat(TAG_MAX_LENGTH + 1) }], mode: 'add' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Tag is too long')
+    expect(firstError(result)).toBe(TAG.tooLong)
   })
 
   it(`rejects more than ${TAG_MAX_COUNT} tags`, () => {
     const tags = Array.from({ length: TAG_MAX_COUNT + 1 }, (_, i) => ({ value: `tag-${i}` }))
     const result = bulkTagSchema.safeParse({ tags, mode: 'add' })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Too many tags')
+    expect(firstError(result)).toBe(TAG.tooMany)
   })
 })

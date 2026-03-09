@@ -3,14 +3,10 @@ import {
   SCHEDULE_LIMITS,
   TIME_FORMAT_REGEX,
 } from '../../components/scheduler/ScheduleEditor/constants'
+import { REQUIRED, TYPE, RANGE, FORMAT, SCHEDULER } from '../../constants/errorMessages'
 
-/**
- * Cross-field error when start and end times match.
- * Duplicates TIME_ERRORS.SAME_START_END in errorMessages.js — kept separate
- * because schemas should not import from component directories.
- * If the message changes, update both locations.
- */
-export const TIME_WINDOW_SAME_ERROR = 'Start and end times cannot be the same'
+/** Cross-field error when start and end times match. */
+export const TIME_WINDOW_SAME_ERROR = SCHEDULER.sameStartEnd
 
 /** Sensor types allowed in pre-conditions (excludes motion per issue #325) */
 export const ALLOWED_SENSOR_TYPES = ['light', 'temperature'] as const
@@ -23,11 +19,11 @@ export const ALLOWED_SENSOR_TYPES = ['light', 'temperature'] as const
 export const preConditionTimeWindowSchema = z
   .object({
     start_time: z
-      .string({ error: 'Start time is required' })
-      .regex(TIME_FORMAT_REGEX, 'Time must be in HH:MM format'),
+      .string({ error: REQUIRED.field('Start time') })
+      .regex(TIME_FORMAT_REGEX, FORMAT.timeRequired),
     end_time: z
-      .string({ error: 'End time is required' })
-      .regex(TIME_FORMAT_REGEX, 'Time must be in HH:MM format'),
+      .string({ error: REQUIRED.field('End time') })
+      .regex(TIME_FORMAT_REGEX, FORMAT.timeRequired),
   })
   // This condition is also derived inline in PreConditionForm.tsx (timeWindowError)
   // because RHF mode:'onChange' does not run the resolver on mount.
@@ -43,23 +39,23 @@ export const preConditionTimeWindowSchema = z
  */
 export const preConditionSchema = z.object({
   sensor_type: z.enum(ALLOWED_SENSOR_TYPES, {
-    error: 'Invalid sensor type',
+    error: SCHEDULER.invalidSensorType,
   }),
   comparison: z.enum(['lt', 'gt', 'eq'], {
-    error: 'Invalid comparison operator',
+    error: SCHEDULER.invalidComparison,
   }),
   threshold: z
-    .number({ error: 'Threshold must be a number' })
+    .number({ error: TYPE.number('Threshold') })
     .min(0, 'Threshold must be non-negative'),
   cooldown_minutes: z
-    .number({ error: 'Cooldown must be a number' })
+    .number({ error: TYPE.number('Cooldown') })
     .min(
       SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES,
-      `Cooldown must be at least ${SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES} minutes`,
+      RANGE.min(SCHEDULE_LIMITS.MIN_COOLDOWN_MINUTES, 'minutes'),
     )
     .max(
       SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES,
-      `Cooldown cannot exceed ${SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES} minutes`,
+      RANGE.max(SCHEDULE_LIMITS.MAX_COOLDOWN_MINUTES, 'minutes'),
     ),
   time_window: preConditionTimeWindowSchema.nullable().default(null),
 })

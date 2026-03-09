@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { METADATA_VALIDATION } from '../constants/config'
+import { REQUIRED, METADATA } from '../constants/errorMessages'
 import { speciesSchema } from './species'
 
 /** A single custom field entry (key-value pair for useFieldArray). */
 export const customFieldEntrySchema = z.object({
-  key: z.string().min(1, 'Field name is required').max(100),
+  key: z.string().min(1, REQUIRED.field('Field name')).max(100),
   value: z.string().max(1000),
 })
 
@@ -27,7 +28,7 @@ export const metadataFormSchema = z.object({
         if (seen.has(entry.key)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `Duplicate key: "${entry.key}"`,
+            message: METADATA.duplicateKey(entry.key),
             path: [i, 'key'],
           })
         }

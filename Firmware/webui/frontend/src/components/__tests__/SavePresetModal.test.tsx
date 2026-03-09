@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SavePresetModal } from '../SavePresetModal'
+import { LENGTH } from '../../constants/errorMessages'
 import { validateLiveviewSettings } from '../../schemas/liveview-settings'
 
 vi.mock('../../schemas/liveview-settings', () => ({
@@ -58,7 +59,7 @@ describe('SavePresetModal', () => {
       renderModal()
       const input = screen.getByPlaceholderText('e.g., my_field_setup')
       await user.type(input, 'ab')
-      expect(await screen.findByText('Name must be at least 3 characters')).toBeInTheDocument()
+      expect(await screen.findByText(LENGTH.min(3))).toBeInTheDocument()
     })
 
     it('shows error for invalid characters', async () => {
@@ -76,10 +77,10 @@ describe('SavePresetModal', () => {
       renderModal()
       const input = screen.getByPlaceholderText('e.g., my_field_setup')
       await user.type(input, 'ab')
-      expect(await screen.findByText('Name must be at least 3 characters')).toBeInTheDocument()
+      expect(await screen.findByText(LENGTH.min(3))).toBeInTheDocument()
       await user.type(input, 'c')
       await waitFor(() => {
-        expect(screen.queryByText('Name must be at least 3 characters')).not.toBeInTheDocument()
+        expect(screen.queryByText(LENGTH.min(3))).not.toBeInTheDocument()
       })
     })
   })

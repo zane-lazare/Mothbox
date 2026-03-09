@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cronExpressionSchema, CRON_FORMAT_REGEX } from '../cron'
+import { TYPE, REQUIRED, CRON } from '../../../constants/errorMessages'
 
 /** Return the first Zod issue message from a failed parse, or null. */
 function firstError(
@@ -66,7 +67,7 @@ describe('cronExpressionSchema', () => {
       cron_expression: '',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Cron expression is required')
+    expect(firstError(result)).toBe(REQUIRED.field('Cron expression'))
   })
 
   it('rejects malformed expression', () => {
@@ -74,7 +75,7 @@ describe('cronExpressionSchema', () => {
       cron_expression: 'not a cron',
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Must be 5 space-separated cron fields')
+    expect(firstError(result)).toBe(CRON.format)
   })
 
   it('rejects missing field', () => {
@@ -87,7 +88,7 @@ describe('cronExpressionSchema', () => {
       cron_expression: 42,
     })
     expect(result.success).toBe(false)
-    expect(firstError(result)).toBe('Cron expression must be a string')
+    expect(firstError(result)).toBe(TYPE.string('Cron expression'))
   })
 
   it('accepts all preset expressions', () => {

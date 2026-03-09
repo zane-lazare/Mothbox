@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { REQUIRED, LENGTH, PRESET } from '../constants/errorMessages';
 
 /**
  * Filter preset name schema.
@@ -12,9 +13,9 @@ export const filterPresetNameSchema = z.object({
   // for 1-2 char input. Both are needed for distinct UX feedback.
   name: z.string()
     .trim()
-    .min(1, 'Preset name is required')
-    .min(3, 'Name must be at least 3 characters')
-    .max(50, 'Name must be 50 characters or less'),
+    .min(1, REQUIRED.field('Preset name'))
+    .min(3, LENGTH.min(3))
+    .max(50, LENGTH.max(50)),
 });
 
 export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
@@ -29,10 +30,10 @@ export type FilterPresetNameData = z.infer<typeof filterPresetNameSchema>;
 export const cameraPresetNameSchema = z.object({
   name: z.string()
     .trim()
-    .min(1, 'Preset name is required')
-    .min(3, 'Name must be at least 3 characters')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Name can only contain letters, numbers, and underscores')
-    .max(50, 'Name must be 50 characters or less'),
+    .min(1, REQUIRED.field('Preset name'))
+    .min(3, LENGTH.min(3))
+    .regex(/^[a-zA-Z0-9_]+$/, PRESET.alphanumericOnly)
+    .max(50, LENGTH.max(50)),
 });
 
 export type CameraPresetNameData = z.infer<typeof cameraPresetNameSchema>;
