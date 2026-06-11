@@ -1,7 +1,34 @@
-import React, { useEffect, useRef, useState } from 'react'
-import PropTypes from 'prop-types'
+import { useEffect, useRef, useState } from 'react'
 import ThumbnailGrid from './ThumbnailGrid'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
+import { ThumbnailGridPhoto } from './ThumbnailGrid'
+
+export interface MarkerHoverPopupCluster {
+  cluster_id?: string
+  center?: {
+    lat: number
+    lon: number
+  }
+  count: number
+  photos?: ThumbnailGridPhoto[]
+  date_range?: {
+    earliest?: string
+    latest?: string
+  }
+}
+
+export interface MarkerHoverPopupPosition {
+  x?: number
+  y?: number
+}
+
+export interface MarkerHoverPopupProps {
+  cluster: MarkerHoverPopupCluster | null
+  isVisible: boolean
+  position?: MarkerHoverPopupPosition
+  onPhotoClick?: (photo: ThumbnailGridPhoto) => void
+  onClose?: () => void
+}
 
 /**
  * MarkerHoverPopup - Displays photo preview popup when hovering over map markers
@@ -28,10 +55,10 @@ function MarkerHoverPopup({
   position,
   onPhotoClick,
   onClose,
-}) {
-  const popupRef = useRef(null)
-  const animationTimerRef = useRef(null)
-  const previousActiveElementRef = useRef(null)
+}: MarkerHoverPopupProps) {
+  const popupRef = useRef<HTMLDivElement>(null)
+  const animationTimerRef = useRef<number | null>(null)
+  const previousActiveElementRef = useRef<Element | null>(null)
   const isMountedRef = useRef(true)
   const [shouldRender, setShouldRender] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -60,7 +87,7 @@ function MarkerHoverPopup({
       // Start fade-out animation
       setIsAnimating(false)
       // Remove from DOM after animation completes
-      animationTimerRef.current = setTimeout(() => {
+      animationTimerRef.current = window.setTimeout(() => {
         if (isMountedRef.current) {
           setShouldRender(false)
         }
@@ -79,7 +106,7 @@ function MarkerHoverPopup({
   useEffect(() => {
     if (!isVisible) return
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose?.()
       }
@@ -93,11 +120,11 @@ function MarkerHoverPopup({
   useEffect(() => {
     if (!isVisible) return
 
-    const handleTabKey = (e) => {
+    const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return
 
       // Get all focusable elements in popup
-      const focusableElements = popupRef.current?.querySelectorAll(
+      const focusableElements = popupRef.current?.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
 
@@ -130,7 +157,9 @@ function MarkerHoverPopup({
       popupRef.current.focus()
     } else if (!isVisible && previousActiveElementRef.current) {
       // Restore focus when popup closes
-      previousActiveElementRef.current.focus?.()
+      if ('focus' in previousActiveElementRef.current) {
+        (previousActiveElementRef.current as HTMLElement).focus?.()
+      }
       previousActiveElementRef.current = null
     }
   }, [isVisible])
@@ -162,7 +191,7 @@ function MarkerHoverPopup({
   }
 
   const uniqueTags = getUniqueTags()
-  const hasPhotosWithTags = cluster.photos?.some((p) => p.tags?.length > 0)
+  const hasPhotosWithTags = cluster.photos?.some((p) => p.tags?.length && p.tags.length > 0)
 
   return (
     <div
@@ -219,29 +248,6 @@ function MarkerHoverPopup({
       )}
     </div>
   )
-}
-
-MarkerHoverPopup.propTypes = {
-  cluster: PropTypes.shape({
-    cluster_id: PropTypes.string,
-    center: PropTypes.shape({
-      lat: PropTypes.number,
-      lon: PropTypes.number,
-    }),
-    count: PropTypes.number.isRequired,
-    photos: PropTypes.array,
-    date_range: PropTypes.shape({
-      earliest: PropTypes.string,
-      latest: PropTypes.string,
-    }),
-  }),
-  isVisible: PropTypes.bool.isRequired,
-  position: PropTypes.shape({
-    x: PropTypes.number,
-    y: PropTypes.number,
-  }),
-  onPhotoClick: PropTypes.func,
-  onClose: PropTypes.func,
 }
 
 export default MarkerHoverPopup

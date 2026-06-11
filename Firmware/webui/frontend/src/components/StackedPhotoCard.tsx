@@ -1,10 +1,30 @@
-import PropTypes from 'prop-types'
 import { useCallback, memo, useRef, useEffect } from 'react'
 import LazyImage from './LazyImage'
 import { GALLERY_CONFIG, STACKED_CARD_CONFIG, Z_INDEX } from '../constants/config'
 import useSelection from '../hooks/useSelection'
 
 const { Z_INDEX_CLASSES, OFFSETS, SHADOWS } = STACKED_CARD_CONFIG
+
+export interface StackedPhotoCardPhoto {
+  path: string
+  filename: string
+  date?: string
+}
+
+export interface StackedPhotoCardSeries {
+  series_id: string
+  series_type: 'hdr' | 'focus_bracket'
+  photos: (string | StackedPhotoCardPhoto)[]
+  count: number
+  cover_photo?: string
+}
+
+export interface StackedPhotoCardProps {
+  series: StackedPhotoCardSeries | null
+  onCardClick?: (series: StackedPhotoCardSeries) => void
+  onPhotoClick?: (photo: StackedPhotoCardPhoto) => void
+  isLoading?: boolean
+}
 
 /**
  * StackedPhotoCard Component
@@ -25,27 +45,22 @@ const { Z_INDEX_CLASSES, OFFSETS, SHADOWS } = STACKED_CARD_CONFIG
  * │ └─────────────┘ │
  * └─────────────────┘
  *
- * @param {Object} props - Component props
- * @param {Object} props.series - Series data object
- * @param {string} props.series.series_id - Unique series identifier
- * @param {string} props.series.series_type - Series type ('hdr' or 'focus_bracket')
- * @param {Array} props.series.photos - Array of photo objects in the series
- * @param {number} props.series.count - Total number of photos in series
- * @param {string} props.series.cover_photo - Path to the cover photo
- * @param {Function} [props.onCardClick] - Handler when card is clicked (receives series)
- * @param {Function} [props.onPhotoClick] - Handler when opening photo (receives cover photo)
- * @param {boolean} [props.isLoading=false] - Show loading skeleton state
+ * @param props - Component props
+ * @param props.series - Series data object
+ * @param props.onCardClick - Handler when card is clicked (receives series)
+ * @param props.onPhotoClick - Handler when opening photo (receives cover photo)
+ * @param props.isLoading - Show loading skeleton state
  */
 function StackedPhotoCard({
   series,
   onCardClick,
   onPhotoClick,
   isLoading = false,
-}) {
+}: StackedPhotoCardProps) {
   // === ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS ===
   // React's rules of hooks require hooks to be called in the same order every render
 
-  const checkboxRef = useRef(null)
+  const checkboxRef = useRef<HTMLInputElement>(null)
 
   // Get selection state from context
   // Note: This will throw if not wrapped in SelectionProvider, which is the correct behavior
@@ -65,7 +80,7 @@ function StackedPhotoCard({
   const rawCoverPhoto = stackedPhotos[0]
   const coverPhoto = rawCoverPhoto
     ? (typeof rawCoverPhoto === 'string'
-        ? { path: rawCoverPhoto, filename: rawCoverPhoto.split('/').pop() }
+        ? { path: rawCoverPhoto, filename: rawCoverPhoto.split('/').pop() || rawCoverPhoto }
         : rawCoverPhoto)
     : null
 
@@ -94,7 +109,7 @@ function StackedPhotoCard({
   }, [someSelected])
 
   // Handle series selection toggle
-  const handleSeriesSelection = useCallback((e) => {
+  const handleSeriesSelection = useCallback((e: React.MouseEvent | React.ChangeEvent) => {
     e.stopPropagation()
 
     if (!selectPhoto || !deselectPhoto) return
@@ -116,7 +131,7 @@ function StackedPhotoCard({
   const handleClick = useCallback(() => {
     // In select mode, clicking card toggles series selection
     if (isSelectMode) {
-      handleSeriesSelection({ stopPropagation: () => {} })
+      handleSeriesSelection({ stopPropagation: () => {} } as React.MouseEvent)
       return
     }
 
@@ -124,14 +139,14 @@ function StackedPhotoCard({
     if (onPhotoClick && coverPhoto) {
       onPhotoClick(coverPhoto)
     }
-    if (onCardClick) {
+    if (onCardClick && series) {
       onCardClick(series)
     }
   }, [isSelectMode, handleSeriesSelection, onCardClick, onPhotoClick, coverPhoto, series])
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
-    (event) => {
+    (event: React.KeyboardEvent) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         handleClick()
@@ -160,7 +175,7 @@ function StackedPhotoCard({
   }
 
   // Format series type for display
-  const formatSeriesType = (type) => {
+  const formatSeriesType = (type: string) => {
     switch (type) {
       case 'hdr':
         return 'HDR'
@@ -223,7 +238,7 @@ function StackedPhotoCard({
         const isFront = actualIndex === stackedPhotos.length - 1
         // Normalize photo to object format (series API returns strings, not objects)
         const photoObj = typeof photo === 'string'
-          ? { path: photo, filename: photo.split('/').pop() }
+          ? { path: photo, filename: photo.split('/').pop() || photo }
           : photo
 
         return (
@@ -267,29 +282,6 @@ function StackedPhotoCard({
       </div>
     </div>
   )
-}
-
-StackedPhotoCard.propTypes = {
-  /** Series data - can be null/undefined (component returns null in that case) */
-  series: PropTypes.shape({
-    series_id: PropTypes.string.isRequired,
-    series_type: PropTypes.string.isRequired,
-    photos: PropTypes.arrayOf(
-      PropTypes.oneOfType([
-        PropTypes.string, // Series API returns paths as strings
-        PropTypes.shape({
-          path: PropTypes.string.isRequired,
-          filename: PropTypes.string.isRequired,
-          date: PropTypes.string,
-        }),
-      ])
-    ).isRequired,
-    count: PropTypes.number.isRequired,
-    cover_photo: PropTypes.string,
-  }),
-  onCardClick: PropTypes.func,
-  onPhotoClick: PropTypes.func,
-  isLoading: PropTypes.bool,
 }
 
 export default memo(StackedPhotoCard)

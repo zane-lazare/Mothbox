@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import { LIGHTBOX_CONFIG, Z_INDEX } from '../constants/config'
+import { Photo } from '../types/domain'
 import useZoomPan from '../hooks/useZoomPan'
 import useTouchGestures from '../hooks/useTouchGestures'
 import useImagePreload from '../hooks/useImagePreload'
@@ -13,6 +14,26 @@ import ExportOptionsMenu from './export/ExportOptionsMenu'
 import { formatCoordinateDisplay } from '../utils/coordinateFormat'
 import usePhotoMetadata from '../hooks/usePhotoMetadata'
 
+export interface PhotoLightboxProps {
+  /** Current photo to display */
+  photo: Photo | null
+  /** Array of all photos for navigation */
+  photos?: Photo[]
+  /** Callback when lightbox closes */
+  onClose: () => void
+  /** Callback when navigating to different photo */
+  onNavigate?: (photo: Photo) => void
+  /** Optional callback when location is clicked (lat, lon) => void */
+  onLocationClick?: (lat: number, lon: number) => void
+}
+
+interface LocationHeaderProps {
+  latitude: number | null
+  longitude: number | null
+  altitude?: number | null
+  onLocationClick?: (lat: number, lon: number) => void
+}
+
 /**
  * Adaptive Photo Lightbox Component
  *
@@ -20,12 +41,11 @@ import usePhotoMetadata from '../hooks/usePhotoMetadata'
  * Supports both desktop (mouse/keyboard) and mobile (touch) interactions.
  *
  * @component
- * @param {Object} props - Component props
- * @param {Object|null} props.photo - Current photo to display {path, filename, date, size, latitude, longitude, altitude, ...}
- * @param {Array<Object>} props.photos - Array of all photos for navigation
- * @param {Function} props.onClose - Callback when lightbox closes
- * @param {Function} props.onNavigate - Callback when navigating to different photo (photo) => void
- * @param {Function} [props.onLocationClick] - Optional callback when location is clicked (lat, lon) => void
+ * @param props.photo - Current photo to display {path, filename, date, size, latitude, longitude, altitude, ...}
+ * @param props.photos - Array of all photos for navigation
+ * @param props.onClose - Callback when lightbox closes
+ * @param props.onNavigate - Callback when navigating to different photo (photo) => void
+ * @param props.onLocationClick - Optional callback when location is clicked (lat, lon) => void
  *
  * @example
  * <PhotoLightbox
@@ -63,10 +83,10 @@ import usePhotoMetadata from '../hooks/usePhotoMetadata'
 
 /**
  * Format file size from bytes to human-readable string
- * @param {number} bytes - File size in bytes
- * @returns {string} Formatted size (e.g., "1.5 MB")
+ * @param bytes - File size in bytes
+ * @returns Formatted size (e.g., "1.5 MB")
  */
-const formatFileSize = (bytes) => {
+const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
@@ -77,10 +97,10 @@ const formatFileSize = (bytes) => {
 /**
  * Format date string to YYYY-MM-DD
  * Preserves the calendar date regardless of timezone by using UTC methods
- * @param {string} dateString - ISO date string
- * @returns {string} Formatted date or 'Invalid Date' if parsing fails
+ * @param dateString - ISO date string
+ * @returns Formatted date or 'Invalid Date' if parsing fails
  */
-const formatDate = (dateString) => {
+const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString)
     // new Date() doesn't throw on invalid input - it returns Invalid Date object
@@ -101,13 +121,8 @@ const formatDate = (dateString) => {
 
 /**
  * LocationHeader Component - Displays GPS coordinates and altitude
- * @param {Object} props - Component props
- * @param {number|null} props.latitude - Latitude in decimal degrees
- * @param {number|null} props.longitude - Longitude in decimal degrees
- * @param {number|null} [props.altitude] - Altitude in meters (optional)
- * @param {Function} [props.onLocationClick] - Optional callback when clicked (lat, lon) => void
  */
-function LocationHeader({ latitude, longitude, altitude, onLocationClick }) {
+function LocationHeader({ latitude, longitude, altitude, onLocationClick }: LocationHeaderProps) {
   // Check if GPS coordinates are available (must be numbers, 0 is valid)
   const hasGPS = typeof latitude === 'number' && typeof longitude === 'number'
 
@@ -159,14 +174,14 @@ function LocationHeader({ latitude, longitude, altitude, onLocationClick }) {
   )
 }
 
-function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClick }) {
-  const closeButtonRef = useRef(null)
-  const previousFocusRef = useRef(null)
-  const imageRef = useRef(null)
-  const containerRef = useRef(null)
-  const dialogRef = useRef(null)
+function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClick }: PhotoLightboxProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<Element | null>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const panStartRef = useRef({ x: 0, y: 0 })
-  const exportButtonRef = useRef(null)
+  const exportButtonRef = useRef<HTMLButtonElement>(null)
 
   // Image and container dimensions
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
@@ -186,11 +201,11 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
 
   // Zoom indicator auto-hide
   const [showZoomIndicator, setShowZoomIndicator] = useState(false)
-  const zoomIndicatorTimerRef = useRef(null)
+  const zoomIndicatorTimerRef = useRef<number | null>(null)
 
   // Debounced zoom announcement for screen readers (prevents spam during wheel zoom)
   const [announcedZoom, setAnnouncedZoom] = useState(1.0)
-  const zoomAnnouncementTimerRef = useRef(null)
+  const zoomAnnouncementTimerRef = useRef<number | null>(null)
 
   // Calculate current index for preloading (memoized to avoid O(n) on every render)
   const currentIndex = useMemo(
@@ -312,7 +327,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
     }
 
     // Hide after 2 seconds
-    zoomIndicatorTimerRef.current = setTimeout(() => {
+    zoomIndicatorTimerRef.current = window.setTimeout(() => {
       setShowZoomIndicator(false)
     }, 2000)
 
@@ -332,7 +347,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
     }
 
     // Announce zoom after 500ms of no changes (user finished zooming)
-    zoomAnnouncementTimerRef.current = setTimeout(() => {
+    zoomAnnouncementTimerRef.current = window.setTimeout(() => {
       setAnnouncedZoom(zoom)
     }, 500)
 
@@ -361,8 +376,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
       cancelAnimationFrame(frameId)
       document.body.classList.remove('lightbox-open')
       // Restore focus to previous element (only if still in DOM)
-      if (previousFocusRef.current?.isConnected) {
-        previousFocusRef.current.focus()
+      const prevFocus = previousFocusRef.current as HTMLElement | null
+      if (prevFocus && document.contains(prevFocus)) {
+        prevFocus.focus()
       }
     }
   }, [photo])
@@ -370,10 +386,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   // Navigation logic (must be defined before useEffect that uses it)
   const hasMultiplePhotos = photos.length > 1
 
-  const handleNavigate = useCallback((direction) => {
+  const handleNavigate = useCallback((direction: 'next' | 'prev') => {
     if (!photo || !onNavigate || !hasMultiplePhotos) return
 
-    let newIndex
+    let newIndex: number
     if (direction === 'next') {
       newIndex = currentIndex + 1
       if (newIndex >= photos.length) {
@@ -407,7 +423,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   })
 
   // Handle mouse move for panning
-  const handleMouseMove = useCallback((e) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isPanning || !panStartRef.current) return
 
     setPan({
@@ -438,7 +454,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   useEffect(() => {
     if (!photo || !LIGHTBOX_CONFIG.KEYBOARD_ENABLED) return
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'Escape':
           onClose()
@@ -474,10 +490,10 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   useEffect(() => {
     if (!photo || !dialogRef.current) return
 
-    const handleTabKey = (e) => {
+    const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return
 
-      const focusableElements = dialogRef.current.querySelectorAll(
+      const focusableElements = dialogRef.current!.querySelectorAll<HTMLElement>(
         'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
 
@@ -510,19 +526,19 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
   )
 
   // Handle backdrop click
-  const handleBackdropClick = (e) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose()
     }
   }
 
   // Handle image click (prevent close)
-  const handleImageClick = (e) => {
+  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
   }
 
   // Handle mouse down for panning
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLImageElement>) => {
     if (zoom <= 1.0) return // Only pan when zoomed
 
     setIsPanning(true)
@@ -620,12 +636,12 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
       <div className="absolute top-4 left-4 z-10 rounded-lg bg-black bg-opacity-50 p-3 text-white">
         <h3 className="text-sm font-semibold">{photo.filename}</h3>
         <p className="text-xs text-gray-300">
-          {formatDate(photo.date)} • {formatFileSize(photo.size)}
+          {formatDate(photo.timestamp)} • {formatFileSize(Number(photo.metadata?.custom_fields?.size || 0))}
         </p>
         <LocationHeader
-          latitude={photoMetadata?.location?.latitude ?? photo.latitude}
-          longitude={photoMetadata?.location?.longitude ?? photo.longitude}
-          altitude={photoMetadata?.location?.altitude ?? photo.altitude}
+          latitude={photoMetadata?.location?.latitude ?? (photo.gps?.latitude || null)}
+          longitude={photoMetadata?.location?.longitude ?? (photo.gps?.longitude || null)}
+          altitude={photoMetadata?.location?.altitude ?? (photo.gps?.altitude || null)}
           onLocationClick={onLocationClick}
         />
       </div>
@@ -816,7 +832,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
           <img
             ref={imageRef}
             src={getPhotoUrl(photo.path)}
-            alt={`Photo taken on ${formatDate(photo.date)}`}
+            alt={`Photo taken on ${formatDate(photo.timestamp)}`}
             className="max-h-full max-w-full object-contain select-none"
             style={{
               transform: imageTransform,

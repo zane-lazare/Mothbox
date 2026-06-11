@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, forwardRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-import L from 'leaflet'
+import L, { Map as LeafletMap, DivIcon, Icon } from 'leaflet'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
@@ -11,13 +11,95 @@ import ErrorBoundary from './ErrorBoundary'
 import { useHoverPopup } from '../hooks/useHoverPopup'
 import { getThumbnailUrl } from '../utils/thumbnailUrl'
 
+export interface PhotoLocation {
+  path: string
+  filename: string
+  latitude: number
+  longitude: number
+  thumbnail_url?: string
+  timestamp?: number
+  photo_path?: string
+}
+
+export interface GeoCluster {
+  cluster_id: string
+  center: {
+    lat: number
+    lon: number
+  }
+  count: number
+  photos: Array<{
+    path: string
+    filename?: string
+    latitude?: number
+    longitude?: number
+    thumbnail_url?: string
+    timestamp?: number
+  }>
+  date_range: {
+    earliest: string
+    latest: string
+  }
+}
+
+export interface ClusterSettings {
+  enabled: boolean
+  radius: number
+  minSize?: number
+}
+
+export interface ClusteringControlsProps {
+  settings: ClusterSettings
+  onEnabledChange: (enabled: boolean) => void
+  onRadiusChange: (radius: number) => void
+}
+
+export interface ClusterMarkerProps {
+  cluster: GeoCluster
+  onPhotoClick?: (photo: any) => void
+  onMouseEnter?: (cluster: GeoCluster, event: MouseEvent) => void
+  onMouseLeave?: () => void
+  onPopupOpen?: (cluster: GeoCluster) => void
+  onPopupClose?: () => void
+}
+
+export interface BoundsUpdaterProps {
+  locations: PhotoLocation[]
+  clusters: GeoCluster[]
+}
+
+export interface MapRefSetterProps {
+  mapRef: React.RefObject<LeafletMap | null>
+}
+
+export interface MapViewProps {
+  /** Array of individual photo location objects */
+  locations?: PhotoLocation[]
+  /** Array of geographic clusters from backend */
+  clusters?: GeoCluster[]
+  /** Clustering settings {enabled, radius, minSize} */
+  clusterSettings?: ClusterSettings | null
+  /** Callback when clustering is toggled */
+  onClusterEnabledChange?: ((enabled: boolean) => void) | null
+  /** Callback when cluster radius is changed */
+  onClusterRadiusChange?: ((radius: number) => void) | null
+  /** Callback when photo marker is clicked (receives location object) */
+  onPhotoClick?: (location: PhotoLocation) => void
+  /** Show loading skeleton instead of map */
+  isLoading?: boolean
+  /** Additional CSS classes for the map wrapper */
+  className?: string
+  /** Photo path to highlight on map (for lightbox sync) */
+  highlightedPhotoPath?: string | null
+}
+
 /**
  * ClusteringControls - UI controls for geographic clustering settings
  *
  * Provides toggle for enabling/disabling clustering and slider for radius adjustment.
  * Settings are persisted in localStorage via the parent component's hook.
  */
-function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
+function ClusteringControls({ settings, onEnabledChange, onRadiusChange }: ClusteringControlsProps) {
   return (
     <div className={`absolute top-4 right-4 ${Z_INDEX.MAP_CONTROLS} bg-white rounded-lg shadow-lg p-3 min-w-[200px]`}>
       <h3 className="font-medium text-sm mb-2">Geographic Clustering</h3>
@@ -62,9 +144,9 @@ function ClusteringControls({ settings, onEnabledChange, onRadiusChange }) {
  * Displays a circular badge with the number of photos in the cluster.
  * Clicking opens a popup with thumbnails and metadata.
  */
-function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPopupOpen, onPopupClose }) {
+function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPopupOpen, onPopupClose }: ClusterMarkerProps) {
   // Create custom cluster icon
-  const icon = L.divIcon({
+  const icon: DivIcon = L.divIcon({
     className: 'cluster-marker',
     html: `<div class="cluster-badge">${cluster.count}</div>`,
     iconSize: [40, 40],
@@ -100,7 +182,7 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPo
                   if (onPhotoClick) {
                     onPhotoClick({
                       path: photo.path,
-                      filename: photo.filename, // Guaranteed by useClusteredLocations normalization
+                      filename: photo.filename,
                       latitude: photo.latitude,
                       longitude: photo.longitude,
                       thumbnail_url: photo.thumbnail_url,
@@ -128,19 +210,19 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPo
  * This component uses the useMap hook to access the Leaflet map instance
  * and update the bounds whenever locations change.
  */
-function BoundsUpdater({ locations, clusters }) {
+function BoundsUpdater({ locations, clusters }: BoundsUpdaterProps) {
   const map = useMap()
 
   useEffect(() => {
     // Collect all positions from both individual locations and clusters
-    const allPositions = []
+    const allPositions: [number, number][] = []
 
     if (locations && locations.length > 0) {
-      allPositions.push(...locations.map((loc) => [loc.latitude, loc.longitude]))
+      allPositions.push(...locations.map((loc) => [loc.latitude, loc.longitude] as [number, number]))
     }
 
     if (clusters && clusters.length > 0) {
-      allPositions.push(...clusters.map((cluster) => [cluster.center.lat, cluster.center.lon]))
+      allPositions.push(...clusters.map((cluster) => [cluster.center.lat, cluster.center.lon] as [number, number]))
     }
 
     if (allPositions.length === 0) return
@@ -164,7 +246,7 @@ function BoundsUpdater({ locations, clusters }) {
  * This component uses the useMap hook to access the Leaflet map instance
  * and sets it on the parent ref.
  */
-function MapRefSetter({ mapRef }) {
+function MapRefSetter({ mapRef }: MapRefSetterProps) {
   const map = useMap()
 
   useEffect(() => {
@@ -188,20 +270,8 @@ function MapRefSetter({ mapRef }) {
  * - Fully responsive
  * - Clustering controls for adjusting backend clustering settings
  * - Marker highlighting support for map-lightbox integration
- *
- * @param {Object} props
- * @param {Array} props.locations - Array of individual photo location objects
- * @param {Array} props.clusters - Array of geographic clusters from backend
- * @param {Object} props.clusterSettings - Clustering settings {enabled, radius, minSize}
- * @param {Function} props.onClusterEnabledChange - Callback when clustering is toggled
- * @param {Function} props.onClusterRadiusChange - Callback when cluster radius is changed
- * @param {Function} props.onPhotoClick - Callback when photo marker is clicked (receives location object)
- * @param {boolean} props.isLoading - Show loading skeleton instead of map
- * @param {string} props.className - Additional CSS classes for the map wrapper
- * @param {string} props.highlightedPhotoPath - Photo path to highlight on map (for lightbox sync)
- * @param {React.RefObject} ref - Ref to expose map instance to parent components
  */
-const MapView = React.forwardRef(function MapView({
+const MapView = forwardRef<LeafletMap | null, MapViewProps>(function MapView({
   locations = [],
   clusters = [],
   clusterSettings = null,
@@ -262,7 +332,7 @@ const MapView = React.forwardRef(function MapView({
    * Get the appropriate icon for a location marker
    * Returns highlighted icon if this location matches the highlighted photo path
    */
-  const getMarkerIcon = (location) => {
+  const getMarkerIcon = (location: PhotoLocation): Icon | DivIcon => {
     // Check both path and photo_path fields for compatibility
     const locationPath = location.path || location.photo_path
     if (highlightedPhotoPath && locationPath === highlightedPhotoPath) {
@@ -343,7 +413,7 @@ const MapView = React.forwardRef(function MapView({
         />
 
         {/* Expose map instance via ref */}
-        <MapRefSetter mapRef={ref} />
+        <MapRefSetter mapRef={ref as React.RefObject<LeafletMap | null>} />
 
         {/* Backend geographic cluster markers (outside MarkerClusterGroup) */}
         {normalizedClusters.map((cluster) => (
