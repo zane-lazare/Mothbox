@@ -16,3 +16,9 @@ export type { CardProps } from './Card'
 
 export { Badge } from './Badge'
 export type { BadgeProps } from './Badge'
+
+export { Alert } from './Alert'
+export type { AlertProps } from './Alert'
+
+export { LoadingSpinner } from './LoadingSpinner'
+export type { LoadingSpinnerProps } from './LoadingSpinner'

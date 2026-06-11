@@ -1,6 +1,17 @@
 import { useEffect, useRef, useCallback } from 'react'
 
 /**
+ * Options for useInfiniteScroll hook
+ */
+interface UseInfiniteScrollOptions {
+  onLoadMore: () => void
+  hasMore: boolean
+  isLoading: boolean
+  threshold?: number
+  rootMargin?: string
+}
+
+/**
  * useInfiniteScroll - Custom hook for implementing infinite scroll with Intersection Observer
  *
  * This hook sets up an intersection observer that triggers a callback when a sentinel element
@@ -35,14 +46,14 @@ export function useInfiniteScroll({
   isLoading,
   threshold = 0.5,
   rootMargin = '100px',
-}) {
-  const observerRef = useRef(null)
-  const elementRef = useRef(null)
-  const callbackRef = useRef(null)
+}: UseInfiniteScrollOptions): (element: Element | null) => void {
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const elementRef = useRef<Element | null>(null)
+  const callbackRef = useRef<((entries: IntersectionObserverEntry[]) => void) | null>(null)
 
   // Memoize the intersection callback
   const handleIntersection = useCallback(
-    (entries) => {
+    (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries
 
       // Only trigger load if:
@@ -97,7 +108,7 @@ export function useInfiniteScroll({
   }, [rootMargin, threshold])
 
   // Ref callback to attach to sentinel element
-  const setElement = useCallback((element) => {
+  const setElement = useCallback((element: Element | null) => {
     // Unobserve old element if it exists
     if (elementRef.current && observerRef.current) {
       observerRef.current.unobserve(elementRef.current)

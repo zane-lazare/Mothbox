@@ -1,20 +1,44 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { api } from '../utils/api'
+import type { Photo } from '../types'
+
+interface ExportFilter {
+  date_start?: string
+  date_end?: string
+  series_type?: string
+  has_species?: boolean
+  tags?: string[]
+}
+
+interface PreviewData {
+  format: string
+  headers?: string[]
+  data: Partial<Photo>[]
+  metadata: {
+    total_photos: number
+  }
+}
+
+interface UseExportPreviewParams {
+  format: 'json' | 'csv' | 'darwin_core' | 'inaturalist'
+  filter: ExportFilter
+  selectedFields?: string[]
+}
 
 /**
  * Transform photo metadata to include only selected fields
  *
- * @param {Array} photos - Array of photo metadata objects
- * @param {Array} selectedFields - Array of field names to include
- * @returns {Array} Filtered photo objects
+ * @param photos - Array of photo metadata objects
+ * @param selectedFields - Array of field names to include
+ * @returns Filtered photo objects
  */
-function filterFields(photos, selectedFields) {
+function filterFields(photos: Photo[], selectedFields: string[]): Partial<Photo>[] {
   return photos.map(photo => {
-    const filtered = {}
+    const filtered: Partial<Photo> = {}
     selectedFields.forEach(field => {
       if (Object.hasOwn(photo, field)) {
-        filtered[field] = photo[field]
+        filtered[field as keyof Photo] = photo[field as keyof Photo]
       }
     })
     return filtered
@@ -24,12 +48,16 @@ function filterFields(photos, selectedFields) {
 /**
  * Transform photo data to preview format
  *
- * @param {Array} photos - Array of photo metadata
- * @param {string} format - Export format (json, csv, darwin_core, inaturalist)
- * @param {Array} selectedFields - Fields to include in preview
- * @returns {Object} Formatted preview data
+ * @param photos - Array of photo metadata
+ * @param format - Export format (json, csv, darwin_core, inaturalist)
+ * @param selectedFields - Fields to include in preview
+ * @returns Formatted preview data
  */
-function transformToFormat(photos, format, selectedFields) {
+function transformToFormat(
+  photos: Photo[],
+  format: string,
+  selectedFields: string[]
+): Omit<PreviewData, 'metadata'> {
   const filteredPhotos = filterFields(photos, selectedFields)
 
   if (format === 'csv') {
@@ -59,11 +87,11 @@ function transformToFormat(photos, format, selectedFields) {
  * - Field filtering based on selectedFields
  * - Format transformation (JSON, CSV, etc.)
  *
- * @param {Object} params - Hook parameters
- * @param {string} params.format - Export format (json, csv, darwin_core, inaturalist)
- * @param {Object} params.filter - Filter criteria for photos
- * @param {Array} params.selectedFields - Fields to include in preview
- * @returns {Object} Query result with previewData, isLoading, isError, error
+ * @param params - Hook parameters
+ * @param params.format - Export format (json, csv, darwin_core, inaturalist)
+ * @param params.filter - Filter criteria for photos
+ * @param params.selectedFields - Fields to include in preview
+ * @returns Query result with previewData, isLoading, isError, error
  *
  * @example
  * const { previewData, isLoading, error } = useExportPreview({
@@ -79,7 +107,11 @@ function transformToFormat(photos, format, selectedFields) {
  *   console.log(previewData.data)   // Array of photo objects with selected fields
  * }
  */
-export default function useExportPreview({ format, filter, selectedFields = [] }) {
+export default function useExportPreview({
+  format,
+  filter,
+  selectedFields = []
+}: UseExportPreviewParams): UseQueryResult<PreviewData, Error> {
   // Create stable query key including all dependencies
   const queryKey = useMemo(() => {
     return [
@@ -90,11 +122,11 @@ export default function useExportPreview({ format, filter, selectedFields = [] }
     ]
   }, [format, filter, selectedFields])
 
-  const query = useQuery({
+  return useQuery({
     queryKey,
-    queryFn: async () => {
+    queryFn: async (): Promise<PreviewData> => {
       // Build query parameters - use backend pagination params
-      const params = {
+      const params: Record<string, string | number> = {
         per_page: 3, // Fetch first 3 photos for preview
         page: 1,
       }
@@ -114,8 +146,8 @@ export default function useExportPreview({ format, filter, selectedFields = [] }
       const response = await api.get('/sidecar/photos', { params })
 
       // Backend returns 'items', not 'photos'
-      const photos = response.data.items || []
-      const total = response.data.total || 0
+      const photos: Photo[] = response.data.items || []
+      const total: number = response.data.total || 0
 
       // Transform to preview format and include metadata
       const previewData = transformToFormat(photos, format, selectedFields)
@@ -137,11 +169,4 @@ export default function useExportPreview({ format, filter, selectedFields = [] }
     // Don't refetch on window focus (preview is not critical)
     refetchOnWindowFocus: false
   })
-
-  return {
-    previewData: query.data,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    error: query.error
-  }
 }

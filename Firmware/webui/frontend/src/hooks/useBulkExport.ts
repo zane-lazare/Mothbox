@@ -55,9 +55,37 @@ import { useCreateExportJob, useExportJob, useCancelExportJob } from './useExpor
 import { getExportJobDownloadUrl } from '../utils/exportApi'
 import { VALID_EXPORT_FORMAT_IDS } from '../constants/config'
 
-export default function useBulkExport({ onComplete } = {}) {
-  const [jobId, setJobId] = useState(null)
-  const [error, setError] = useState(null)
+interface UseBulkExportOptions {
+  onComplete?: () => void
+}
+
+interface Progress {
+  current: number
+  total: number
+  percent: number
+  phase: string
+}
+
+interface ExportJob {
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress?: Progress
+  error?: string
+}
+
+interface UseBulkExportReturn {
+  exportPhotos: (photoPaths: string[], format: string) => Promise<void>
+  isExporting: boolean
+  progress: Progress | null
+  error: string | null
+  jobId: string | null
+  downloadUrl: string | null
+  cancel: () => Promise<void>
+  reset: () => void
+}
+
+export default function useBulkExport({ onComplete }: UseBulkExportOptions = {}): UseBulkExportReturn {
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const hasCompletedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
 
@@ -71,7 +99,7 @@ export default function useBulkExport({ onComplete } = {}) {
   const cancelExportJobMutation = useCancelExportJob()
 
   // Get job data
-  const job = jobQuery.data
+  const job = jobQuery.data as ExportJob | undefined
 
   // Determine if export is in progress
   const isExporting = job?.status === 'pending' || job?.status === 'running'
@@ -89,7 +117,7 @@ export default function useBulkExport({ onComplete } = {}) {
    * @param {string} format - Export format (darwin_core, inaturalist, json, csv)
    * @returns {Promise<void>}
    */
-  const exportPhotos = async (photoPaths, format) => {
+  const exportPhotos = async (photoPaths: string[], format: string): Promise<void> => {
     // Reset state
     setError(null)
     setJobId(null)
@@ -118,7 +146,7 @@ export default function useBulkExport({ onComplete } = {}) {
       const newJobId = response.data.job_id
       setJobId(newJobId)
     } catch (err) {
-      setError(err.message || 'Failed to create export job')
+      setError((err as Error).message || 'Failed to create export job')
     }
   }
 
@@ -127,20 +155,20 @@ export default function useBulkExport({ onComplete } = {}) {
    *
    * @returns {Promise<void>}
    */
-  const cancel = async () => {
+  const cancel = async (): Promise<void> => {
     if (!jobId) return
 
     try {
       await cancelExportJobMutation.mutateAsync(jobId)
     } catch (err) {
-      setError(err.message || 'Failed to cancel export job')
+      setError((err as Error).message || 'Failed to cancel export job')
     }
   }
 
   /**
    * Reset state (clear error, progress, stop polling)
    */
-  const reset = () => {
+  const reset = (): void => {
     setJobId(null)
     setError(null)
     hasCompletedRef.current = false

@@ -1,6 +1,30 @@
 import { useState, useCallback, useMemo } from 'react'
 
 /**
+ * Photo type (simplified for cluster navigation)
+ */
+interface Photo {
+  [key: string]: unknown
+}
+
+/**
+ * Return type for useClusterNavigation hook
+ */
+interface UseClusterNavigationResult {
+  currentPhoto: Photo | null
+  currentIndex: number
+  total: number
+  position: string
+  hasNext: boolean
+  hasPrevious: boolean
+  goNext: () => void
+  goPrevious: () => void
+  goToIndex: (index: number) => void
+  setCluster: (photos: Photo[], startIndex?: number) => void
+  clearCluster: () => void
+}
+
+/**
  * Custom hook for navigating within cluster photos in the photo lightbox.
  *
  * Provides navigation controls for moving between photos within a single cluster,
@@ -52,8 +76,8 @@ import { useState, useCallback, useMemo } from 'react'
  * - Uses useCallback for stable function references
  * - No external dependencies or API calls
  */
-function useClusterNavigation() {
-  const [clusterPhotos, setClusterPhotos] = useState([])
+function useClusterNavigation(): UseClusterNavigationResult {
+  const [clusterPhotos, setClusterPhotos] = useState<Photo[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
 
   /**
@@ -83,7 +107,7 @@ function useClusterNavigation() {
    * @param {number} index - Target index (0-based)
    */
   const goToIndex = useCallback(
-    (index) => {
+    (index: number) => {
       if (index >= 0 && index < clusterPhotos.length) {
         setCurrentIndex(index)
       }
@@ -97,7 +121,7 @@ function useClusterNavigation() {
    * @param {Array<Object>} photos - Array of photo objects
    * @param {number} [startIndex=0] - Starting index (defaults to 0)
    */
-  const setCluster = useCallback((photos, startIndex = 0) => {
+  const setCluster = useCallback((photos: Photo[], startIndex = 0) => {
     if (!photos || photos.length === 0) {
       setClusterPhotos([])
       setCurrentIndex(-1)

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
   getGpsExifStatus,
@@ -8,7 +8,27 @@ import {
   tagSinglePhoto,
 } from '../utils/api'
 
-export function useGpsExifStatus() {
+interface GpsExifStatus {
+  enabled: boolean
+  [key: string]: unknown
+}
+
+interface GpsExifConfig {
+  enabled: boolean
+  [key: string]: unknown
+}
+
+interface BatchTagData {
+  photo_paths: string[]
+  [key: string]: unknown
+}
+
+interface SingleTagData {
+  photo_path: string
+  [key: string]: unknown
+}
+
+export function useGpsExifStatus(): UseQueryResult<GpsExifStatus, Error> {
   return useQuery({
     queryKey: QUERY_KEYS.GPS_EXIF_STATUS,
     queryFn: async () => {
@@ -19,7 +39,7 @@ export function useGpsExifStatus() {
   })
 }
 
-export function useGpsExifConfig() {
+export function useGpsExifConfig(): UseQueryResult<GpsExifConfig, Error> {
   return useQuery({
     queryKey: QUERY_KEYS.GPS_EXIF_CONFIG,
     queryFn: async () => {
@@ -30,20 +50,20 @@ export function useGpsExifConfig() {
   })
 }
 
-export function useUpdateGpsExifConfig() {
+export function useUpdateGpsExifConfig(): UseMutationResult<unknown, Error, Partial<GpsExifConfig>> {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (config) => updateGpsExifConfig(config),
+    mutationFn: (config: Partial<GpsExifConfig>) => updateGpsExifConfig(config),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_EXIF_CONFIG })
     },
   })
 }
 
-export function useBatchTagPhotos() {
+export function useBatchTagPhotos(): UseMutationResult<unknown, Error, BatchTagData> {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data) => batchTagPhotos(data),
+    mutationFn: (data: BatchTagData) => batchTagPhotos(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_EXIF_STATUS })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PHOTOS })
@@ -51,10 +71,10 @@ export function useBatchTagPhotos() {
   })
 }
 
-export function useTagSinglePhoto() {
+export function useTagSinglePhoto(): UseMutationResult<unknown, Error, SingleTagData> {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data) => tagSinglePhoto(data),
+    mutationFn: (data: SingleTagData) => tagSinglePhoto(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_EXIF_STATUS })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PHOTOS })

@@ -5,6 +5,52 @@ import { API_LIMITS } from '../constants/config'
 
 const MAX_BATCH_SIZE = API_LIMITS.MAX_BATCH_SIZE
 
+interface ProgressCallback {
+  currentBatch: number
+  totalBatches: number
+  processedCount: number
+  totalCount: number
+}
+
+interface BulkOperationResult {
+  success: string[]
+  failed: string[]
+  errors: Record<string, string>
+  previousState: Record<string, any> | null
+  undoFetchedCount: number
+  undoFailedCount: number
+}
+
+interface SidecarMetadata {
+  [key: string]: any
+}
+
+interface BulkSidecarResponse {
+  success: Record<string, SidecarMetadata>
+  failed?: string[]
+}
+
+interface PreviousStateResult {
+  state: Record<string, any>
+  fetchedCount: number
+  failedCount: number
+}
+
+interface UseBulkOperationsReturn {
+  bulkAddTags: (filenames: string[], tags: string[], onProgress?: ((progress: ProgressCallback) => void) | null) => Promise<BulkOperationResult>
+  bulkReplaceTags: (filenames: string[], tags: string[], onProgress?: ((progress: ProgressCallback) => void) | null) => Promise<BulkOperationResult>
+  bulkRemoveTags: (filenames: string[], tagsToRemove: string[], onProgress?: ((progress: ProgressCallback) => void) | null) => Promise<BulkOperationResult>
+  bulkUpdateSpecies: (filenames: string[], speciesData: SpeciesData, onProgress?: ((progress: ProgressCallback) => void) | null) => Promise<BulkOperationResult>
+  bulkDelete: (filenames: string[], onProgress?: ((progress: ProgressCallback) => void) | null) => Promise<BulkOperationResult>
+  isProcessing: boolean
+}
+
+interface SpeciesData {
+  species: string
+  species_confidence?: string
+  species_common_name?: string
+}
+
 /**
  * Custom hook for bulk operations on photos (tag, species, delete)
  *
@@ -41,15 +87,15 @@ const MAX_BATCH_SIZE = API_LIMITS.MAX_BATCH_SIZE
  *   }
  * }
  */
-export default function useBulkOperations() {
+export default function useBulkOperations(): UseBulkOperationsReturn {
   const [isProcessing, setIsProcessing] = useState(false)
   const queryClient = useQueryClient()
 
   /**
    * Helper function to chunk array into batches
    */
-  const chunkArray = useCallback((arr, size) => {
-    const chunks = []
+  const chunkArray = useCallback(<T,>(arr: T[], size: number): T[][] => {
+    const chunks: T[][] = []
     for (let i = 0; i < arr.length; i += size) {
       chunks.push(arr.slice(i, i + size))
     }
@@ -69,19 +115,19 @@ export default function useBulkOperations() {
    *
    * @returns {Object} { state: previousState, fetchedCount, failedCount }
    */
-  const fetchPreviousState = useCallback(async (filenames, fields = ['tags', 'species']) => {
-    const previousState = {}
+  const fetchPreviousState = useCallback(async (filenames: string[], fields: string[] = ['tags', 'species']): Promise<PreviousStateResult> => {
+    const previousState: Record<string, any> = {}
     let fetchedCount = 0
     let failedCount = 0
 
     try {
       // Use bulk endpoint instead of N individual requests
       const response = await getBulkSidecarMetadata(filenames)
-      const { success, failed } = response.data
+      const { success, failed } = response.data as BulkSidecarResponse
 
       // Extract only requested fields from each photo's metadata
       for (const [filename, metadata] of Object.entries(success)) {
-        const state = {}
+        const state: Record<string, any> = {}
         fields.forEach(field => {
           if (metadata[field] !== undefined) {
             state[field] = metadata[field]
@@ -108,17 +154,17 @@ export default function useBulkOperations() {
    * Splits large operations into batches and aggregates results
    */
   const batchedOperation = useCallback(async (
-    filenames,
-    operation,
-    onProgress = null,
-    fetchUndo = false,
-    undoFields = ['tags']
-  ) => {
+    filenames: string[],
+    operation: (batch: string[]) => Promise<any>,
+    onProgress: ((progress: ProgressCallback) => void) | null = null,
+    fetchUndo: boolean = false,
+    undoFields: string[] = ['tags']
+  ): Promise<BulkOperationResult> => {
     setIsProcessing(true)
 
     try {
       // Fetch previous state for undo support if requested
-      let previousState = null
+      let previousState: Record<string, any> | null = null
       let undoFetchedCount = 0
       let undoFailedCount = 0
 
@@ -130,7 +176,7 @@ export default function useBulkOperations() {
       }
 
       const batches = chunkArray(filenames, MAX_BATCH_SIZE)
-      const results = {
+      const results: BulkOperationResult = {
         success: [],
         failed: [],
         errors: {},
@@ -178,7 +224,7 @@ export default function useBulkOperations() {
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors/previousState
    */
-  const bulkAddTags = useCallback(async (filenames, tags, onProgress = null) => {
+  const bulkAddTags = useCallback(async (filenames: string[], tags: string[], onProgress: ((progress: ProgressCallback) => void) | null = null): Promise<BulkOperationResult> => {
     const result = await batchedOperation(
       filenames,
       async (batch) => {
@@ -211,7 +257,7 @@ export default function useBulkOperations() {
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors/previousState
    */
-  const bulkReplaceTags = useCallback(async (filenames, tags, onProgress = null) => {
+  const bulkReplaceTags = useCallback(async (filenames: string[], tags: string[], onProgress: ((progress: ProgressCallback) => void) | null = null): Promise<BulkOperationResult> => {
     const result = await batchedOperation(
       filenames,
       async (batch) => {
@@ -245,7 +291,7 @@ export default function useBulkOperations() {
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors/previousState
    */
-  const bulkRemoveTags = useCallback(async (filenames, tagsToRemove, onProgress = null) => {
+  const bulkRemoveTags = useCallback(async (filenames: string[], tagsToRemove: string[], onProgress: ((progress: ProgressCallback) => void) | null = null): Promise<BulkOperationResult> => {
     setIsProcessing(true)
 
     try {
@@ -254,13 +300,13 @@ export default function useBulkOperations() {
 
       // Use previousState (which has current tags) to build photoUpdates
       // This avoids a second round of N API calls
-      const photoUpdates = {}
-      const failedFetches = []
+      const photoUpdates: Record<string, { tags: string[] }> = {}
+      const failedFetches: Array<{ filename: string; error: string }> = []
 
       for (const filename of filenames) {
         const state = previousState[filename]
         if (state) {
-          const currentTags = state.tags || []
+          const currentTags: string[] = state.tags || []
           // Filter out tags to remove
           const filteredTags = currentTags.filter(tag => !tagsToRemove.includes(tag))
           photoUpdates[filename] = { tags: filteredTags }
@@ -292,7 +338,7 @@ export default function useBulkOperations() {
         successfulFilenames,
         async (batch) => {
           // Build updates for this batch
-          const batchUpdates = {}
+          const batchUpdates: Record<string, { tags: string[] }> = {}
           batch.forEach(filename => {
             batchUpdates[filename] = photoUpdates[filename]
           })
@@ -340,7 +386,7 @@ export default function useBulkOperations() {
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors/previousState
    */
-  const bulkUpdateSpecies = useCallback(async (filenames, speciesData, onProgress = null) => {
+  const bulkUpdateSpecies = useCallback(async (filenames: string[], speciesData: SpeciesData, onProgress: ((progress: ProgressCallback) => void) | null = null): Promise<BulkOperationResult> => {
     const result = await batchedOperation(
       filenames,
       async (batch) => {
@@ -376,7 +422,7 @@ export default function useBulkOperations() {
    * @param {Function} onProgress - Progress callback (optional)
    * @returns {Promise<object>} Result with success/failed/errors (no previousState)
    */
-  const bulkDelete = useCallback(async (filenames, onProgress = null) => {
+  const bulkDelete = useCallback(async (filenames: string[], onProgress: ((progress: ProgressCallback) => void) | null = null): Promise<BulkOperationResult> => {
     const result = await batchedOperation(
       filenames,
       async (batch) => {
