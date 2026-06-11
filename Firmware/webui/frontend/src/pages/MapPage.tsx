@@ -72,7 +72,7 @@ export default function MapPage() {
   const mapRef = useRef<LeafletMap | null>(null)
 
   // Fetch all photos for lightbox navigation
-  // Using infinite query to match Gallery.jsx pattern
+  // Using infinite query to match Gallery.tsx pattern
   const {
     data: photosData,
   } = useInfiniteQuery<PhotosPaginatedResponse, Error, PhotosPaginatedResponse, string[], number>({
