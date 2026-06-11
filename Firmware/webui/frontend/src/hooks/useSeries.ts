@@ -1,6 +1,37 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { api } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
+import { Photo } from '../types'
+
+export interface SeriesParams {
+  limit?: number
+  offset?: number
+  type?: 'hdr' | 'focus_bracket'
+}
+
+export interface SeriesOptions {
+  enabled?: boolean
+}
+
+interface SeriesPagination {
+  offset: number
+  limit: number
+  has_next: boolean
+}
+
+interface PhotoSeries {
+  id: string
+  series_type: 'hdr' | 'focus_bracket'
+  photos: Photo[]
+  count: number
+  cover_photo?: Photo
+}
+
+interface SeriesListData {
+  series: PhotoSeries[]
+  total: number
+  pagination: SeriesPagination
+}
 
 /**
  * Custom hook for fetching photo series list using TanStack Query
@@ -8,18 +39,13 @@ import { QUERY_KEYS } from '../utils/queryKeys'
  * Fetches a paginated list of photo series (HDR, Focus Bracket) from the API.
  * Supports filtering by series type and pagination parameters.
  *
- * @param {Object} params - Query parameters for the API
- * @param {number} [params.limit] - Maximum number of series to return
- * @param {number} [params.offset] - Starting offset for pagination
- * @param {string} [params.type] - Filter by series type ('hdr' or 'focus_bracket')
- * @param {Object} options - TanStack Query options
- * @param {boolean} [options.enabled=true] - Whether to enable the query
- * @returns {object} TanStack Query result object containing:
- *   - data: Series list object with series array, total count, and pagination
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - isSuccess: Boolean indicating if the query was successful
- *   - error: Error object if an error occurred, null otherwise
+ * @param params - Query parameters for the API
+ * @param params.limit - Maximum number of series to return
+ * @param params.offset - Starting offset for pagination
+ * @param params.type - Filter by series type ('hdr' or 'focus_bracket')
+ * @param options - TanStack Query options
+ * @param options.enabled - Whether to enable the query
+ * @returns TanStack Query result object
  *
  * @example
  * const { data, isLoading, isError } = useSeries()
@@ -31,7 +57,10 @@ import { QUERY_KEYS } from '../utils/queryKeys'
  * // With filtering
  * const { data } = useSeries({ type: 'hdr', limit: 20 })
  */
-export function useSeries(params = {}, options = {}) {
+export function useSeries(
+  params: SeriesParams = {},
+  options: SeriesOptions = {}
+): UseQueryResult<SeriesListData, Error> {
   const { enabled = true } = options
 
   // Build query key - include params for cache differentiation
@@ -60,13 +89,8 @@ export function useSeries(params = {}, options = {}) {
  * Fetches detailed information about a specific photo series including
  * all photos in the series with their metadata.
  *
- * @param {string|null|undefined} seriesId - The unique series identifier
- * @returns {object} TanStack Query result object containing:
- *   - data: Series object with photos array, series_type, count, cover_photo
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - isSuccess: Boolean indicating if the query was successful
- *   - error: Error object if an error occurred, null otherwise
+ * @param seriesId - The unique series identifier
+ * @returns TanStack Query result object
  *
  * @example
  * const { data, isLoading } = useSeriesById('hdr_moth_2024_01_15__10_00_00')
@@ -77,13 +101,13 @@ export function useSeries(params = {}, options = {}) {
  *   console.log(data.count) // Number of photos in series
  * }
  */
-export function useSeriesById(seriesId) {
+export function useSeriesById(seriesId: string | null | undefined): UseQueryResult<PhotoSeries, Error> {
   return useQuery({
     // Query key: unique identifier for this series in the cache
     queryKey: [QUERY_KEYS.SERIES[0], seriesId],
 
     queryFn: async () => {
-      const endpoint = `/gallery/series/${encodeURIComponent(seriesId)}`
+      const endpoint = `/gallery/series/${encodeURIComponent(seriesId!)}`
       const response = await api.get(endpoint)
       return response.data
     },

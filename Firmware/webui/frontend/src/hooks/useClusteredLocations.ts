@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { useState, useCallback, useEffect } from 'react'
 import { getClusteredLocations } from '../utils/api'
 import { getThumbnailUrl } from '../utils/thumbnailUrl'
@@ -12,10 +12,82 @@ const DEFAULT_SETTINGS = {
   minSize: 2,
 }
 
+interface ClusteringSettings {
+  enabled: boolean
+  radius: number
+  minSize: number
+}
+
+interface RawPhoto {
+  path: string
+  lat: number
+  lon: number
+  timestamp?: string
+  tags?: string[]
+}
+
+interface NormalizedPhoto {
+  path: string
+  filename: string
+  latitude: number
+  longitude: number
+  thumbnail_url: string
+  timestamp?: string
+  tags?: string[]
+  lat: number
+  lon: number
+}
+
+interface PhotoCluster {
+  centroid: { lat: number; lng: number }
+  photo_count: number
+  photos: NormalizedPhoto[]
+  bounds: {
+    min_lat: number
+    max_lat: number
+    min_lng: number
+    max_lng: number
+  }
+}
+
+interface ClusteringMetadata {
+  total_photos: number
+  cluster_count: number
+  unclustered_count: number
+  processing_time_ms?: number
+  partial_result?: boolean
+  warning?: string
+}
+
+interface ClusteredLocationsData {
+  clusters: PhotoCluster[]
+  unclustered: NormalizedPhoto[]
+  metadata: ClusteringMetadata
+}
+
+export interface UseClusteredLocationsOptions {
+  enabled?: boolean
+}
+
+export interface UseClusteredLocationsResult {
+  clusters: PhotoCluster[]
+  unclustered: NormalizedPhoto[]
+  metadata: ClusteringMetadata
+  isLoading: boolean
+  error: Error | null
+  isPartialResult: boolean
+  partialWarning: string | null
+  settings: ClusteringSettings
+  setEnabled: (enabled: boolean) => void
+  setRadius: (radius: number) => void
+  setMinSize: (minSize: number) => void
+  refetch: () => void
+}
+
 /**
  * Get saved settings from localStorage
  */
-function getSavedSettings() {
+function getSavedSettings(): ClusteringSettings {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
@@ -30,7 +102,7 @@ function getSavedSettings() {
 /**
  * Save settings to localStorage
  */
-function saveSettings(settings) {
+function saveSettings(settings: ClusteringSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   } catch (e) {
@@ -47,15 +119,10 @@ function saveSettings(settings) {
  * This normalization guarantees all fields exist, so consumers can
  * safely access photo.filename without fallback logic.
  *
- * @param {Object} photo - Raw photo data from backend API
- * @param {string} photo.path - Relative path from PHOTOS_DIR (e.g., "2024-11-10/photo.jpg")
- * @param {number} photo.lat - Latitude coordinate
- * @param {number} photo.lon - Longitude coordinate
- * @param {string} [photo.timestamp] - Photo timestamp
- * @param {string[]} [photo.tags] - Photo tags
- * @returns {Object} Normalized photo object with guaranteed fields
+ * @param photo - Raw photo data from backend API
+ * @returns Normalized photo object with guaranteed fields
  */
-function normalizePhoto(photo) {
+function normalizePhoto(photo: RawPhoto): NormalizedPhoto {
   return {
     // Standardized field name
     path: photo.path,
@@ -75,14 +142,14 @@ function normalizePhoto(photo) {
 /**
  * Normalize unclustered photo data to expected field names.
  */
-function normalizeUnclusteredPhotos(photos) {
+function normalizeUnclusteredPhotos(photos: RawPhoto[]): NormalizedPhoto[] {
   return photos.map(normalizePhoto)
 }
 
 /**
  * Normalize cluster data including photos within clusters.
  */
-function normalizeClusters(clusters) {
+function normalizeClusters(clusters: PhotoCluster[]): PhotoCluster[] {
   return clusters.map((cluster) => ({
     ...cluster,
     photos: cluster.photos.map(normalizePhoto),
@@ -92,7 +159,7 @@ function normalizeClusters(clusters) {
 /**
  * Fetch clustered locations from API
  */
-async function fetchClusteredLocations({ enabled, radius, minSize }) {
+async function fetchClusteredLocations({ enabled, radius, minSize }: ClusteringSettings): Promise<ClusteredLocationsData> {
   const params = {
     enabled: enabled.toString(),
     radius: radius.toString(),
@@ -105,25 +172,16 @@ async function fetchClusteredLocations({ enabled, radius, minSize }) {
 /**
  * Custom hook for managing clustered photo locations.
  *
- * @param {Object} options - Hook options
- * @param {boolean} [options.enabled=true] - Whether to enable the query (useful for conditional fetching)
- * @returns {Object} Clustering state and controls
- *   - clusters: Array of photo clusters
- *   - unclustered: Array of individual photos
- *   - metadata: Clustering metadata (total photos, processing time, etc.)
- *   - isLoading: Loading state
- *   - error: Error object if failed
- *   - isPartialResult: True if clustering timed out and returned partial results
- *   - partialWarning: Warning message when partial results are returned
- *   - settings: Current clustering settings
- *   - setEnabled: Toggle clustering on/off
- *   - setRadius: Set clustering radius in meters
- *   - setMinSize: Set minimum cluster size
- *   - refetch: Manually refetch data
+ * @param options - Hook options
+ * @param options.enabled - Whether to enable the query (useful for conditional fetching)
+ * @returns Clustering state and controls
+ *
+ * @example
+ * const { clusters, unclustered, isLoading, settings, setRadius } = useClusteredLocations()
  */
-export function useClusteredLocations(options = {}) {
+export function useClusteredLocations(options: UseClusteredLocationsOptions = {}): UseClusteredLocationsResult {
   const { enabled: queryEnabled = true } = options
-  const [settings, setSettings] = useState(getSavedSettings)
+  const [settings, setSettings] = useState<ClusteringSettings>(getSavedSettings)
 
   // Save settings to localStorage when they change
   useEffect(() => {
@@ -131,7 +189,7 @@ export function useClusteredLocations(options = {}) {
   }, [settings])
 
   // Fetch clustered locations
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch }: UseQueryResult<ClusteredLocationsData, Error> = useQuery({
     queryKey: ['clusteredLocations', settings],
     queryFn: () => fetchClusteredLocations(settings),
     staleTime: 30000, // 30 seconds
@@ -140,15 +198,15 @@ export function useClusteredLocations(options = {}) {
   })
 
   // Settings setters
-  const setEnabled = useCallback((enabled) => {
+  const setEnabled = useCallback((enabled: boolean) => {
     setSettings((prev) => ({ ...prev, enabled }))
   }, [])
 
-  const setRadius = useCallback((radius) => {
+  const setRadius = useCallback((radius: number) => {
     setSettings((prev) => ({ ...prev, radius }))
   }, [])
 
-  const setMinSize = useCallback((minSize) => {
+  const setMinSize = useCallback((minSize: number) => {
     setSettings((prev) => ({ ...prev, minSize }))
   }, [])
 
@@ -159,7 +217,7 @@ export function useClusteredLocations(options = {}) {
   return {
     clusters: normalizeClusters(data?.clusters || []),
     unclustered: normalizeUnclusteredPhotos(data?.unclustered || []),
-    metadata: data?.metadata || {},
+    metadata: data?.metadata || {} as ClusteringMetadata,
     isLoading,
     error,
     isPartialResult,

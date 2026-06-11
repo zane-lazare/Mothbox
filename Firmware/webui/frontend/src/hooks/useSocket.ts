@@ -1,4 +1,11 @@
 import { useSocketContext } from '../contexts/SocketContext'
+import type { Socket } from 'socket.io-client'
+
+export interface UseSocketResult {
+  socket: Socket | null
+  connected: boolean
+  reconnecting: boolean
+}
 
 /**
  * useSocket - Thin wrapper around SocketContext (#368)
@@ -6,7 +13,7 @@ import { useSocketContext } from '../contexts/SocketContext'
  * Returns the shared Socket.io connection and connection status.
  * Throws if used outside of a SocketProvider.
  *
- * @returns {{ socket: import('socket.io-client').Socket | null, connected: boolean, reconnecting: boolean }}
+ * @returns Socket connection and status
  *
  * @example
  * const { socket, connected, reconnecting } = useSocket()
@@ -18,7 +25,7 @@ import { useSocketContext } from '../contexts/SocketContext'
  *   return () => socket.off('event_name', handler)
  * }, [socket])
  */
-export default function useSocket() {
+export default function useSocket(): UseSocketResult {
   const context = useSocketContext()
   if (context === null) {
     throw new Error('useSocket must be used within a SocketProvider')
