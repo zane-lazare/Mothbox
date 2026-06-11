@@ -24,7 +24,6 @@
  */
 
 import { useState } from 'react'
-import PropTypes from 'prop-types'
 import {
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
@@ -32,8 +31,19 @@ import {
   ChevronUpIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
-import { ConflictsPropType } from './ConflictPropTypes'
-import ConflictList from './ConflictList'
+import ConflictList, { type Conflict } from './ConflictList'
+
+/**
+ * Component props interface
+ */
+export interface ConflictWarningBannerProps {
+  conflicts?: Conflict[] | null
+  hasBlockingConflicts?: boolean
+  blockingCount?: number
+  warningCount?: number
+  onViewDetails?: () => void
+  onDismiss?: () => void
+}
 
 /**
  * Styling for severity variants
@@ -67,7 +77,7 @@ const SEVERITY_STYLES = {
       'dark:bg-amber-900/50 dark:text-amber-200 dark:border-amber-700 dark:hover:bg-amber-900',
     ].join(' '),
   },
-}
+} as const
 
 /**
  * Button base classes
@@ -89,7 +99,7 @@ function ConflictWarningBanner({
   warningCount,
   onViewDetails = undefined,
   onDismiss = undefined,
-}) {
+}: ConflictWarningBannerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Handle empty/null/undefined conflicts
@@ -192,21 +202,6 @@ function ConflictWarningBanner({
       )}
     </div>
   )
-}
-
-ConflictWarningBanner.propTypes = {
-  /** Array of conflict objects */
-  conflicts: ConflictsPropType,
-  /** Whether there are blocking (error severity) conflicts */
-  hasBlockingConflicts: PropTypes.bool,
-  /** Number of blocking conflicts (uses nullish coalescing, so 0 is valid) */
-  blockingCount: PropTypes.number,
-  /** Number of warning conflicts (uses nullish coalescing, so 0 is valid) */
-  warningCount: PropTypes.number,
-  /** Callback when "View Details" is clicked */
-  onViewDetails: PropTypes.func,
-  /** Callback when "Dismiss" is clicked (warnings only) */
-  onDismiss: PropTypes.func,
 }
 
 export default ConflictWarningBanner
