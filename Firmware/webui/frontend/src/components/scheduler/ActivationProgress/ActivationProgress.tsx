@@ -13,9 +13,28 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react'
-import PropTypes from 'prop-types'
 import useSocket from '../../../hooks/useSocket'
 import { PHASE_LABELS } from './constants'
+
+type ActivationState = 'activating' | 'complete' | 'error'
+
+interface ActivationProgressData {
+  schedule_id: string
+  progress: number
+  phase: string
+  error?: string
+}
+
+export interface ActivationProgressProps {
+  /** ID of the schedule being activated */
+  scheduleId: string
+  /** Callback when activation succeeds */
+  onComplete?: () => void
+  /** Callback when activation fails (receives error message) */
+  onError?: (message: string) => void
+  /** Callback when user clicks Retry button */
+  onRetry?: () => void
+}
 
 /**
  * ActivationProgress component
@@ -40,12 +59,12 @@ export default function ActivationProgress({
   onComplete,
   onError,
   onRetry,
-}) {
+}: ActivationProgressProps) {
   const { socket } = useSocket()
-  const [state, setState] = useState('activating')
-  const [progress, setProgress] = useState(0)
-  const [phase, setPhase] = useState('checking_conflicts')
-  const [errorMessage, setErrorMessage] = useState('')
+  const [state, setState] = useState<ActivationState>('activating')
+  const [progress, setProgress] = useState<number>(0)
+  const [phase, setPhase] = useState<string>('checking_conflicts')
+  const [errorMessage, setErrorMessage] = useState<string>('')
 
   // Store latest callbacks in refs to avoid effect re-runs when parent re-renders
   const onCompleteRef = useRef(onComplete)
@@ -72,7 +91,7 @@ export default function ActivationProgress({
       onErrorRef.current?.('Connection failed')
     }
 
-    const handleProgress = (data) => {
+    const handleProgress = (data: ActivationProgressData) => {
       // Filter events for this specific schedule
       if (data.schedule_id !== scheduleId) return
 
@@ -150,7 +169,7 @@ export default function ActivationProgress({
     <div data-testid="activation-progress" className="space-y-2">
       {/* ARIA live region for screen reader announcements */}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-        {PHASE_LABELS[phase] || phase} - {progress}%
+        {PHASE_LABELS[phase as keyof typeof PHASE_LABELS] || phase} - {progress}%
       </div>
       <div className="flex items-center gap-2">
         <div
@@ -173,17 +192,10 @@ export default function ActivationProgress({
       </div>
       <div className="flex justify-between text-xs">
         <span data-testid="activation-phase" className="text-gray-600 dark:text-gray-500">
-          {PHASE_LABELS[phase] || phase}
+          {PHASE_LABELS[phase as keyof typeof PHASE_LABELS] || phase}
         </span>
         <span className="text-gray-500 dark:text-gray-600">{progress}%</span>
       </div>
     </div>
   )
-}
-
-ActivationProgress.propTypes = {
-  scheduleId: PropTypes.string.isRequired,
-  onComplete: PropTypes.func,
-  onError: PropTypes.func,
-  onRetry: PropTypes.func,
 }

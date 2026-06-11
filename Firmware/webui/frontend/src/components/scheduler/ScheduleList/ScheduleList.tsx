@@ -9,7 +9,6 @@
  */
 
 import { useState } from 'react'
-import PropTypes from 'prop-types'
 import { CalendarDaysIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import {
@@ -20,15 +19,23 @@ import {
 import ScheduleCard from './ScheduleCard'
 import LoadingSpinner from '../../LoadingSpinner'
 import { SCHEDULER_LAYOUT_CONFIG } from '../../../constants/config'
+import type { Schedule } from '../ScheduleEditor/scheduler-types'
 
 /** Toast message constants for i18n and consistency */
 const TOAST_MESSAGES = {
   ENABLE_SUCCESS: 'Schedule enabled',
   DISABLE_SUCCESS: 'Schedule disabled',
-  TOGGLE_ENABLED_ERROR: (msg) => `Failed to update schedule: ${msg}`,
+  TOGGLE_ENABLED_ERROR: (msg: string) => `Failed to update schedule: ${msg}`,
 }
 
-export function ScheduleList({ onViewSchedule, variant = 'default' }) {
+export interface ScheduleListProps {
+  /** Callback when a schedule is selected for viewing */
+  onViewSchedule: (schedule: Schedule) => void
+  /** Layout variant: 'default' for full-page grid, 'sidebar' for vertical stack */
+  variant?: 'default' | 'sidebar'
+}
+
+export function ScheduleList({ onViewSchedule, variant = 'default' }: ScheduleListProps) {
   // Select grid classes based on variant (sidebar vs full-page)
   const gridClasses = variant === 'sidebar'
     ? SCHEDULER_LAYOUT_CONFIG.SIDEBAR_GRID
@@ -37,7 +44,7 @@ export function ScheduleList({ onViewSchedule, variant = 'default' }) {
   const { data: activeData } = useActiveSchedule()
   const { mutate: updateSchedule } = useUpdateSchedule()
 
-  const [togglingEnabledId, setTogglingEnabledId] = useState(null)
+  const [togglingEnabledId, setTogglingEnabledId] = useState<string | null>(null)
 
   const schedules = data?.schedules || []
   const activeScheduleId = activeData?.active_schedule?.schedule_id || null
@@ -45,7 +52,7 @@ export function ScheduleList({ onViewSchedule, variant = 'default' }) {
   // Find if any schedule is enabled (for controlling Enable/Disable button visibility)
   const enabledScheduleId = schedules.find(s => s.enabled && s.schedule_id !== activeScheduleId)?.schedule_id || null
 
-  const handleToggleEnabled = (schedule) => {
+  const handleToggleEnabled = (schedule: Schedule) => {
     const newEnabled = schedule.enabled === false ? true : false
     setTogglingEnabledId(schedule.schedule_id)
     updateSchedule(
@@ -121,11 +128,4 @@ export function ScheduleList({ onViewSchedule, variant = 'default' }) {
       })}
     </div>
   )
-}
-
-ScheduleList.propTypes = {
-  /** Callback when a schedule is selected for viewing */
-  onViewSchedule: PropTypes.func.isRequired,
-  /** Layout variant: 'default' for full-page grid, 'sidebar' for vertical stack */
-  variant: PropTypes.oneOf(['default', 'sidebar']),
 }

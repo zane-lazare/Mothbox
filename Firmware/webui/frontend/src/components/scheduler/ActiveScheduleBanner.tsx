@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import PropTypes from 'prop-types'
 import toast from 'react-hot-toast'
 import { CheckCircleIcon, ExclamationTriangleIcon, PlayIcon, InformationCircleIcon, SignalIcon, SignalSlashIcon } from '@heroicons/react/24/solid'
 import {
@@ -16,10 +15,18 @@ import { TEXT_STYLES, BUTTON_STYLES } from './constants'
  * @param {string} isoString - ISO date string
  * @returns {string} Formatted time
  */
-function formatTime(isoString) {
+function formatTime(isoString: string): string {
   if (!isoString) return ''
   const date = new Date(isoString)
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+interface Action {
+  time: string
+  action_name?: string
+  action_type?: string
+  offset_minutes?: number
+  description?: string
 }
 
 /**
@@ -27,7 +34,7 @@ function formatTime(isoString) {
  * @param {Object} action - Action object from preview API
  * @returns {string} Human-readable action name
  */
-function getActionDisplayName(action) {
+function getActionDisplayName(action: Action): string {
   if (!action) return ''
   // action has: time, action_name, action_type, offset_minutes, description
   const actionName = action.action_name || action.action_type || ''
@@ -46,10 +53,10 @@ function getActionDisplayName(action) {
  * )
  */
 function ActiveScheduleBanner() {
-  const [isActivating, setIsActivating] = useState(false)
+  const [isActivating, setIsActivating] = useState<boolean>(false)
   // Track coordinates source to drive conditional refetch (Issue #382)
   // Polls every 60s only while waiting for GPS fix (source === 'timezone')
-  const [coordinatesSource, setCoordinatesSource] = useState(null)
+  const [coordinatesSource, setCoordinatesSource] = useState<string | null>(null)
   const { data } = useActiveSchedule({
     refetchInterval: coordinatesSource === 'timezone' ? 60 * 1000 : false,
   })
@@ -64,7 +71,7 @@ function ActiveScheduleBanner() {
   const activeSchedule = data?.active_schedule
 
   // Track previous coordinates source for transition detection (Issue #382)
-  const prevCoordinatesSourceRef = useRef(data?.coordinates_source)
+  const prevCoordinatesSourceRef = useRef<string | undefined>(data?.coordinates_source)
   useEffect(() => {
     const currentSource = data?.coordinates_source
     const prevSource = prevCoordinatesSourceRef.current
@@ -97,7 +104,7 @@ function ActiveScheduleBanner() {
     deactivate()
   }
 
-  const handleActivate = (schedule) => {
+  const handleActivate = (schedule: { schedule_id: string; name: string }) => {
     setIsActivating(true)
     activate(
       { id: schedule.schedule_id },
@@ -232,7 +239,5 @@ function ActiveScheduleBanner() {
     </div>
   )
 }
-
-ActiveScheduleBanner.propTypes = {}
 
 export default ActiveScheduleBanner
