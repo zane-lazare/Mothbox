@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react'
+import { useState, memo } from 'react'
 import useInViewport from '../hooks/useInViewport'
 import { getThumbnailUrl } from '../utils/api'
 import { GALLERY_CONFIG } from '../constants/config'

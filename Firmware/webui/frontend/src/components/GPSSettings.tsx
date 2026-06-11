@@ -1,11 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-// @ts-expect-error — api.js has no type declarations (pre-migration)
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
-// @ts-expect-error — helpers.js has no type declarations (pre-migration)
 import { formatTimestamp } from '../utils/helpers'
 import { formatCoordinateDisplay } from '../utils/coordinateFormat'
 import { GPS_PRECISION_OPTIONS, getGpsPrecision, setGpsPrecision } from '../utils/gpsPrecision'
-// @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useEffect, useMemo, useRef, useState } from 'react'
 // Resolver type import is only needed for the zodResolver cast workaround — remove with TODO(#485)
@@ -17,11 +14,8 @@ import {
   type GpsSettingsFormData,
 } from '../schemas/gps-settings'
 import toast from 'react-hot-toast'
-// @ts-expect-error — CollapsibleCard.jsx has no type declarations (pre-migration)
 import CollapsibleCard from './CollapsibleCard'
-// @ts-expect-error — ConfirmDialog.jsx has no type declarations (pre-migration)
 import ConfirmDialog from './common/ConfirmDialog'
-// @ts-expect-error — useGpsExif.js has no type declarations (pre-migration)
 import { useGpsExifStatus, useGpsExifConfig, useUpdateGpsExifConfig } from '../hooks/useGpsExif'
 
 export default function GPSSettings() {
