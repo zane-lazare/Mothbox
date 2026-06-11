@@ -5,8 +5,16 @@
  * Used by GPSSettings component and other components that display GPS coordinates.
  */
 
-// GPS Precision options with accuracy descriptions
-export const GPS_PRECISION_OPTIONS = [
+export interface GPSPrecisionOption {
+  value: number
+  label: string
+  description: string
+}
+
+/**
+ * GPS Precision options with accuracy descriptions
+ */
+export const GPS_PRECISION_OPTIONS: GPSPrecisionOption[] = [
   { value: 0, label: '0 decimals (±30m)', description: 'Coarse location' },
   { value: 1, label: '1 decimal (±3m)', description: 'City block' },
   { value: 2, label: '2 decimals (±30cm)', description: 'Standard GPS' },
@@ -16,14 +24,16 @@ export const GPS_PRECISION_OPTIONS = [
   { value: 6, label: '6 decimals (±0.03mm)', description: 'Maximum' },
 ]
 
-// LocalStorage key for GPS precision preference
+/**
+ * LocalStorage key for GPS precision preference
+ */
 const GPS_PRECISION_KEY = 'mothbox_gps_precision'
 
 /**
  * Get stored GPS precision or default to 2 decimal places
- * @returns {number} Precision value (0-6)
+ * @returns Precision value (0-6)
  */
-export function getGpsPrecision() {
+export function getGpsPrecision(): number {
   try {
     const stored = localStorage.getItem(GPS_PRECISION_KEY)
     if (stored !== null) {
@@ -38,10 +48,10 @@ export function getGpsPrecision() {
 
 /**
  * Set GPS precision preference in localStorage
- * @param {number} precision - Precision value (0-6)
- * @returns {boolean} True if saved successfully, false if localStorage unavailable
+ * @param precision - Precision value (0-6)
+ * @returns True if saved successfully, false if localStorage unavailable
  */
-export function setGpsPrecision(precision) {
+export function setGpsPrecision(precision: number): boolean {
   try {
     localStorage.setItem(GPS_PRECISION_KEY, String(precision))
     return true

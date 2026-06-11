@@ -4,10 +4,10 @@
 
 /**
  * Format a Unix timestamp to a localized date/time string
- * @param {number} timestamp - Unix timestamp in seconds
- * @returns {string} Formatted date string or "Never" if timestamp is 0 or invalid
+ * @param timestamp - Unix timestamp in seconds
+ * @returns Formatted date string or "Never" if timestamp is 0 or invalid
  */
-export const formatTimestamp = (timestamp) => {
+export function formatTimestamp(timestamp: number): string {
   if (!timestamp || timestamp === 0) return 'Never'
   return new Date(timestamp * 1000).toLocaleString()
 }
@@ -19,10 +19,10 @@ export const formatTimestamp = (timestamp) => {
  * a message prefix with the error's message property, falling back to a default
  * when the error message is unavailable.
  *
- * @param {Error|Object|null|undefined} error - Error object with optional message property
- * @param {string} prefix - Message prefix (e.g., "Error loading photos")
- * @param {string} [fallback='An unexpected error occurred'] - Fallback message when error.message is unavailable
- * @returns {string} Formatted error message in the form "prefix: error message"
+ * @param error - Error object with optional message property
+ * @param prefix - Message prefix (e.g., "Error loading photos")
+ * @param fallback - Fallback message when error.message is unavailable
+ * @returns Formatted error message in the form "prefix: error message"
  *
  * @example
  * // With error object containing message
@@ -40,8 +40,15 @@ export const formatTimestamp = (timestamp) => {
  * formatErrorMessage(null, 'Failed to save', 'Unknown error')
  * // Returns: "Failed to save: Unknown error"
  */
-export const formatErrorMessage = (error, prefix, fallback = 'An unexpected error occurred') => {
-  const errorDetail = error?.message || fallback
+export function formatErrorMessage(
+  error: unknown,
+  prefix: string,
+  fallback = 'An unexpected error occurred'
+): string {
+  const errorDetail =
+    error && typeof error === 'object' && 'message' in error
+      ? String(error.message)
+      : fallback
   return `${prefix}: ${errorDetail}`
 }
 
@@ -51,14 +58,14 @@ export const formatErrorMessage = (error, prefix, fallback = 'An unexpected erro
  * Converts an ISO 8601 date string to a localized date/time string with
  * a short month format. Returns the original string if parsing fails.
  *
- * @param {string} isoDate - ISO date string (e.g., "2024-03-15T14:30:00Z")
- * @returns {string} Formatted date string (e.g., "Mar 15, 2024, 02:30 PM")
+ * @param isoDate - ISO date string (e.g., "2024-03-15T14:30:00Z")
+ * @returns Formatted date string (e.g., "Mar 15, 2024, 02:30 PM")
  *
  * @example
  * formatDate('2024-03-15T14:30:00Z')
  * // Returns: "Mar 15, 2024, 02:30 PM"
  */
-export const formatDate = (isoDate) => {
+export function formatDate(isoDate: string): string {
   try {
     const date = new Date(isoDate)
     return date.toLocaleDateString('en-US', {
@@ -79,15 +86,15 @@ export const formatDate = (isoDate) => {
  * Converts a byte count to KB or MB based on size, returning null
  * for invalid/missing values.
  *
- * @param {number} bytes - File size in bytes
- * @returns {string|null} Formatted size (e.g., "1.5 MB", "512.3 KB") or null if bytes is falsy
+ * @param bytes - File size in bytes
+ * @returns Formatted size (e.g., "1.5 MB", "512.3 KB") or null if bytes is falsy
  *
  * @example
  * formatSize(1536000)  // Returns: "1.5 MB"
  * formatSize(512000)   // Returns: "500.0 KB"
  * formatSize(0)        // Returns: null
  */
-export const formatSize = (bytes) => {
+export function formatSize(bytes: number): string | null {
   if (!bytes) return null
 
   const kb = bytes / 1024
@@ -106,13 +113,12 @@ export const formatSize = (bytes) => {
  * when photo thumbnails fail to load. This is thematically appropriate
  * for the Mothbox insect photography system.
  *
- * @returns {string} Data URI string containing the moth SVG
+ * @returns Data URI string containing the moth SVG
  *
  * @example
  * <img src={url} onError={(e) => { e.target.src = getMothFallbackIcon() }} />
  */
-export const getMothFallbackIcon = () => {
-  // SVG moth icon with wings, body, antennae, and "Image Unavailable" text
+export function getMothFallbackIcon(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
     <rect fill="#e5e7eb" width="200" height="200"/>
     <g transform="translate(100, 100)">
@@ -130,6 +136,5 @@ export const getMothFallbackIcon = () => {
     <text x="50%" y="85%" text-anchor="middle" fill="#6b7280" font-size="12" font-family="system-ui, -apple-system, sans-serif">Image Unavailable</text>
   </svg>`
 
-  // Encode as data URI
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }

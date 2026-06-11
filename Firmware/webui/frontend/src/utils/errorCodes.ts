@@ -23,16 +23,17 @@ export const ERROR_CODES = {
   STORAGE_ERROR: 'STORAGE_ERROR',
   PERMISSION_ERROR: 'PERMISSION_ERROR',
   SERVER_ERROR: 'SERVER_ERROR',
-  // Client-side only (no backend equivalent)
   NETWORK_ERROR: 'NETWORK_ERROR',
   TIMEOUT_ERROR: 'TIMEOUT_ERROR',
-};
+} as const
+
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 
 /**
  * User-friendly messages for each error code.
  * These are shown to the user when an API error occurs.
  */
-export const ERROR_MESSAGES = {
+export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ERROR_CODES.VALIDATION_ERROR]: 'Please fix the errors above.',
   [ERROR_CODES.NOT_FOUND]: 'Resource not found. It may have been deleted.',
   [ERROR_CODES.CONFLICT_ERROR]: 'Schedule has conflicts that must be resolved.',
@@ -44,7 +45,7 @@ export const ERROR_MESSAGES = {
   [ERROR_CODES.SERVER_ERROR]: 'Server error. Please try again later.',
   [ERROR_CODES.NETWORK_ERROR]: 'Unable to save. Please check your connection.',
   [ERROR_CODES.TIMEOUT_ERROR]: 'Request timed out. Please try again.',
-};
+}
 
 /**
  * Sanitize an error message string for safe display.
@@ -52,22 +53,33 @@ export const ERROR_MESSAGES = {
  * Strips HTML tags (defense-in-depth — React escapes by default)
  * and truncates long messages.
  *
- * @param {string} message - Raw error message
- * @param {number} [maxLength=200] - Maximum message length
- * @returns {string} Sanitized message
+ * @param message - Raw error message
+ * @param maxLength - Maximum message length
+ * @returns Sanitized message
  */
-export function sanitizeMessage(message, maxLength = 200) {
-  if (!message) return 'An unexpected error occurred.';
-  let msg = String(message);
+export function sanitizeMessage(message: string, maxLength = 200): string {
+  if (!message) return 'An unexpected error occurred.'
+  let msg = String(message)
 
   // Strip HTML tags iteratively (handles incomplete/malformed tags)
-  let previousLength;
+  let previousLength: number
   do {
-    previousLength = msg.length;
-    msg = msg.replace(/<[^>]*>?/g, '');
-  } while (msg.length < previousLength);
+    previousLength = msg.length
+    msg = msg.replace(/<[^>]*>?/g, '')
+  } while (msg.length < previousLength)
 
-  return msg.length > maxLength ? msg.slice(0, maxLength) + '...' : msg;
+  return msg.length > maxLength ? msg.slice(0, maxLength) + '...' : msg
+}
+
+interface ApiError {
+  response?: {
+    data?: {
+      code?: string
+      error?: string
+    }
+  }
+  code?: string
+  message?: string
 }
 
 /**
@@ -77,27 +89,32 @@ export function sanitizeMessage(message, maxLength = 200) {
  * then falls back to the server-provided error message (sanitized),
  * then to a generic fallback.
  *
- * @param {Error|Object} error - Axios error or error-like object
- * @param {string} [fallback='An unexpected error occurred.'] - Fallback message
- * @returns {string} User-friendly error message
+ * @param error - Axios error or error-like object
+ * @param fallback - Fallback message
+ * @returns User-friendly error message
  */
-export function getErrorMessage(error, fallback = 'An unexpected error occurred.') {
+export function getErrorMessage(
+  error: unknown,
+  fallback = 'An unexpected error occurred.'
+): string {
+  const apiError = error as ApiError
+
   // Check for known error code from API response (axios pattern)
-  const apiCode = error?.response?.data?.code;
-  if (apiCode && ERROR_MESSAGES[apiCode]) {
-    return ERROR_MESSAGES[apiCode];
+  const apiCode = apiError?.response?.data?.code
+  if (apiCode && apiCode in ERROR_MESSAGES) {
+    return ERROR_MESSAGES[apiCode as ErrorCode]
   }
 
   // Check for known error code on the error object itself
-  if (error?.code && ERROR_MESSAGES[error.code]) {
-    return ERROR_MESSAGES[error.code];
+  if (apiError?.code && apiError.code in ERROR_MESSAGES) {
+    return ERROR_MESSAGES[apiError.code as ErrorCode]
   }
 
   // Fall back to server-provided message, sanitized
-  const rawMessage = error?.response?.data?.error || error?.message;
+  const rawMessage = apiError?.response?.data?.error || apiError?.message
   if (rawMessage) {
-    return sanitizeMessage(rawMessage);
+    return sanitizeMessage(rawMessage)
   }
 
-  return fallback;
+  return fallback
 }

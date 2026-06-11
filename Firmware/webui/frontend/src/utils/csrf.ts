@@ -3,12 +3,17 @@
  * Handles fetching and caching CSRF tokens for API requests
  */
 
-// Use current window location for API calls, or fall back to env variable
-const getApiBaseUrl = () => {
+interface CsrfResponse {
+  csrf_token: string
+}
+
+/**
+ * Get the API base URL from environment or construct from window location
+ */
+function getApiBaseUrl(): string {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
-  // Use current host and port
   const protocol = window.location.protocol
   const host = window.location.hostname
   const port = window.location.port
@@ -18,13 +23,13 @@ const getApiBaseUrl = () => {
 const API_URL = getApiBaseUrl()
 
 // In-memory token storage (not localStorage to prevent XSS attacks)
-let csrfToken = null
+let csrfToken: string | null = null
 
 /**
  * Fetch CSRF token from the backend
- * @returns {Promise<string>} CSRF token
+ * @returns CSRF token
  */
-export async function fetchCsrfToken() {
+export async function fetchCsrfToken(): Promise<string> {
   try {
     const response = await fetch(`${API_URL}/csrf-token`, {
       credentials: 'include', // Include cookies for session
@@ -34,7 +39,7 @@ export async function fetchCsrfToken() {
       throw new Error(`Failed to fetch CSRF token: ${response.statusText}`)
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as CsrfResponse
     csrfToken = data.csrf_token
     return csrfToken
   } catch (error) {
@@ -45,26 +50,26 @@ export async function fetchCsrfToken() {
 
 /**
  * Get the current CSRF token, fetching if not already cached
- * @returns {Promise<string>} CSRF token
+ * @returns CSRF token
  */
-export async function getCsrfToken() {
+export async function getCsrfToken(): Promise<string> {
   if (!csrfToken) {
     await fetchCsrfToken()
   }
-  return csrfToken
+  return csrfToken as string
 }
 
 /**
  * Clear the cached CSRF token (useful after CSRF errors)
  */
-export function clearCsrfToken() {
+export function clearCsrfToken(): void {
   csrfToken = null
 }
 
 /**
  * Initialize CSRF token on app load
  */
-export async function initializeCsrf() {
+export async function initializeCsrf(): Promise<void> {
   try {
     await fetchCsrfToken()
   } catch (error) {
