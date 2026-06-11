@@ -1,4 +1,4 @@
-import React from 'react'
+// React import not needed with new JSX transform
 import { HOVER_POPUP_CONFIG } from '../constants/config'
 
 /**

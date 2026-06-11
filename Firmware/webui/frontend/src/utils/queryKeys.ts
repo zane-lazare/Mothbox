@@ -56,6 +56,7 @@ export const QUERY_KEYS = {
 
   // GPS queries
   GPS_STATUS: ['gps-status'] as const,
+  GPS_CONFIG: ['gps-config'] as const,
   GPS_EXIF_CONFIG: ['gps-exif-config'] as const,
   GPS_EXIF_STATUS: ['gps-exif-status'] as const,
 
