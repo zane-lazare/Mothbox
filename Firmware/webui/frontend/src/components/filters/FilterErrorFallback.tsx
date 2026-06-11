@@ -1,4 +1,9 @@
-import PropTypes from 'prop-types'
+export interface FilterErrorFallbackProps {
+  /** The error that was caught */
+  error?: Error
+  /** Callback to reset the error boundary and retry */
+  onRetry: () => void
+}
 
 /**
  * Error fallback component for FilterDrawer errors.
@@ -17,7 +22,7 @@ import PropTypes from 'prop-types'
  *   onRetry={() => resetErrorBoundary()}
  * />
  */
-function FilterErrorFallback({ error, onRetry }) {
+function FilterErrorFallback({ error, onRetry }: FilterErrorFallbackProps) {
   return (
     <aside
       role="complementary"
@@ -76,11 +81,6 @@ function FilterErrorFallback({ error, onRetry }) {
       </div>
     </aside>
   )
-}
-
-FilterErrorFallback.propTypes = {
-  error: PropTypes.instanceOf(Error),
-  onRetry: PropTypes.func.isRequired,
 }
 
 export default FilterErrorFallback

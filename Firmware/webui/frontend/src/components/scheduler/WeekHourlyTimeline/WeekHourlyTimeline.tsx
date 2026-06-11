@@ -13,11 +13,10 @@
  */
 
 import { memo, useMemo, useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import PropTypes from 'prop-types'
 import DaySelector from './DaySelector'
 import MoonPhaseIcon from '../CalendarView/MoonPhaseIcon'
 import ConflictSummary from '../DayTimeline/ConflictSummary'
-import ExecutionChip from '../DayTimeline/ExecutionChip'
+import ExecutionChip, { type Execution } from '../DayTimeline/ExecutionChip'
 import HourRow from '../DayTimeline/HourRow'
 import {
   WEEK_VIEW_CONFIG,
@@ -39,18 +38,70 @@ import {
 } from './weekTimelineUtils'
 
 /**
+ * Cycle information for schedule rendering
+ */
+interface CycleInfo {
+  start_hour?: number
+  end_hour?: number
+  spans_midnight?: boolean
+  suggested_preview_days?: number
+}
+
+/**
+ * Conflict object structure
+ */
+interface Conflict {
+  id?: string
+  severity: 'error' | 'warning'
+  message?: string
+  start_time?: string
+}
+
+/**
+ * Moon phase data
+ */
+interface MoonPhase {
+  phase?: string
+  phase_name?: string
+  illumination?: number
+}
+
+/**
+ * Display hour item - either a regular hour or collapsed indicator
+ */
+type DisplayHourItem = { type: 'hour'; hour: number } | { type: 'collapsed'; count: number }
+
+/**
+ * Component props interface
+ */
+export interface WeekHourlyTimelineProps {
+  currentDate: Date
+  executions?: Execution[]
+  conflicts?: Conflict[]
+  moonPhases?: Record<string, MoonPhase>
+  cycleInfo?: CycleInfo | null
+  onCellClick: (date: Date) => void
+  onExecutionClick?: (execution: Execution) => void
+  patternOffset?: number | null
+}
+
+/**
  * Day header cell for CSS Grid layout
  */
 const DayHeaderCell = memo(function DayHeaderCell({
   dayIndex,
   moonPhase,
   onDayClick,
+}: {
+  dayIndex: number
+  moonPhase: MoonPhase | null
+  onDayClick: () => void
 }) {
   const handleClick = () => {
     if (onDayClick) onDayClick()
   }
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       handleClick()
@@ -76,16 +127,10 @@ const DayHeaderCell = memo(function DayHeaderCell({
   )
 })
 
-DayHeaderCell.propTypes = {
-  dayIndex: PropTypes.number.isRequired,
-  moonPhase: PropTypes.object,
-  onDayClick: PropTypes.func.isRequired,
-}
-
 /**
  * Hour label cell for CSS Grid layout
  */
-const HourLabelCell = memo(function HourLabelCell({ item }) {
+const HourLabelCell = memo(function HourLabelCell({ item }: { item: DisplayHourItem }) {
   if (item.type === 'collapsed') {
     return (
       <div className="p-1 border-b border-gray-800 text-[10px] text-gray-600 flex items-center">
@@ -101,13 +146,6 @@ const HourLabelCell = memo(function HourLabelCell({ item }) {
   )
 })
 
-HourLabelCell.propTypes = {
-  item: PropTypes.oneOfType([
-    PropTypes.shape({ type: PropTypes.oneOf(['hour']), hour: PropTypes.number }),
-    PropTypes.shape({ type: PropTypes.oneOf(['collapsed']), count: PropTypes.number }),
-  ]).isRequired,
-}
-
 /**
  * Week grid cell for CSS Grid layout (single hour/day intersection)
  */
@@ -117,6 +155,12 @@ const WeekGridCell = memo(function WeekGridCell({
   conflict,
   onExecutionClick,
   executionConflicts,
+}: {
+  hour: number
+  executions: Execution[]
+  conflict: Conflict | null
+  onExecutionClick?: (execution: Execution) => void
+  executionConflicts: Record<string, { severity: 'error' | 'warning' }>
 }) {
   const conflictState = conflict?.severity || 'none'
   const rowStyles = ROW_CONFLICT_STYLES[conflictState] || ROW_CONFLICT_STYLES.none
@@ -148,18 +192,6 @@ const WeekGridCell = memo(function WeekGridCell({
   )
 })
 
-WeekGridCell.propTypes = {
-  hour: PropTypes.number.isRequired,
-  executions: PropTypes.array.isRequired,
-  conflict: PropTypes.shape({
-    id: PropTypes.string,
-    severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-    message: PropTypes.string,
-  }),
-  onExecutionClick: PropTypes.func,
-  executionConflicts: PropTypes.object.isRequired,
-}
-
 /**
  * Desktop week view - CSS Grid with aligned rows across all days
  */
@@ -173,6 +205,16 @@ const DesktopWeekView = memo(function DesktopWeekView({
   onDayClick,
   onExecutionClick,
   patternOffset = null,
+}: {
+  weekDates: Date[]
+  displayHours: DisplayHourItem[]
+  executionsByDayAndHour: Record<string, Record<number, Execution[]>>
+  conflicts: Conflict[]
+  executionConflicts: Record<string, { severity: 'error' | 'warning' }>
+  moonPhases?: Record<string, MoonPhase>
+  onDayClick: (date: Date) => void
+  onExecutionClick?: (execution: Execution) => void
+  patternOffset?: number | null
 }) {
   return (
     <div className="border border-gray-700 rounded-lg overflow-hidden overflow-x-auto">
@@ -202,7 +244,7 @@ const DesktopWeekView = memo(function DesktopWeekView({
         {/* Remaining rows: Hour label + 7 day cells per row */}
         {displayHours.map((item, rowIndex) => {
           const isCollapsed = item.type === 'collapsed'
-          const hour = item.hour
+          const hour = item.type === 'hour' ? item.hour : 0
 
           return (
             <Fragment key={isCollapsed ? `collapsed-${rowIndex}` : `hour-${hour}`}>
@@ -246,18 +288,6 @@ const DesktopWeekView = memo(function DesktopWeekView({
   )
 })
 
-DesktopWeekView.propTypes = {
-  weekDates: PropTypes.array.isRequired,
-  displayHours: PropTypes.array.isRequired,
-  executionsByDayAndHour: PropTypes.object.isRequired,
-  conflicts: PropTypes.array.isRequired,
-  executionConflicts: PropTypes.object.isRequired,
-  moonPhases: PropTypes.object,
-  onDayClick: PropTypes.func.isRequired,
-  onExecutionClick: PropTypes.func,
-  patternOffset: PropTypes.number,
-}
-
 /**
  * Mobile week view - single day with swipe navigation
  */
@@ -271,6 +301,16 @@ const MobileWeekView = memo(function MobileWeekView({
   onDayClick,
   onExecutionClick,
   patternOffset = null,
+}: {
+  weekDates: Date[]
+  displayHours: DisplayHourItem[]
+  executionsByDayAndHour: Record<string, Record<number, Execution[]>>
+  conflicts: Conflict[]
+  executionConflicts: Record<string, { severity: 'error' | 'warning' }>
+  moonPhases?: Record<string, MoonPhase>
+  onDayClick: (date: Date) => void
+  onExecutionClick?: (execution: Execution) => void
+  patternOffset?: number | null
 }) {
   const [currentDayIndex, setCurrentDayIndex] = useState(() => {
     // In pattern mode, default to first day; in calendar mode, default to today
@@ -289,11 +329,11 @@ const MobileWeekView = memo(function MobileWeekView({
   const touchStartX = useRef(0)
   const touchEndX = useRef(0)
 
-  const handleTouchStart = useCallback((e) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
   }, [])
 
-  const handleTouchMove = useCallback((e) => {
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
     touchEndX.current = e.touches[0].clientX
   }, [])
 
@@ -396,18 +436,6 @@ const MobileWeekView = memo(function MobileWeekView({
   )
 })
 
-MobileWeekView.propTypes = {
-  weekDates: PropTypes.array.isRequired,
-  displayHours: PropTypes.array.isRequired,
-  executionsByDayAndHour: PropTypes.object.isRequired,
-  conflicts: PropTypes.array.isRequired,
-  executionConflicts: PropTypes.object.isRequired,
-  moonPhases: PropTypes.object,
-  onDayClick: PropTypes.func.isRequired,
-  onExecutionClick: PropTypes.func,
-  patternOffset: PropTypes.number,
-}
-
 /**
  * WeekHourlyTimeline main component
  */
@@ -420,7 +448,7 @@ function WeekHourlyTimeline({
   onCellClick,
   onExecutionClick,
   patternOffset = null,
-}) {
+}: WeekHourlyTimelineProps) {
   // Mobile detection
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.innerWidth < WEEK_VIEW_CONFIG.MOBILE_BREAKPOINT
@@ -473,7 +501,7 @@ function WeekHourlyTimeline({
   // Build a combined executions-by-hour for collapse calculation
   // (collapse if ALL days have similar patterns)
   const combinedExecutionsByHour = useMemo(() => {
-    const combined = {}
+    const combined: Record<number, Execution[]> = {}
     cycleHours.forEach(hour => {
       combined[hour] = []
       Object.values(executionsByDayAndHour).forEach(dayMap => {
@@ -498,7 +526,7 @@ function WeekHourlyTimeline({
   )
 
   // Handle day click - switch to day view
-  const handleDayClick = useCallback((date) => {
+  const handleDayClick = useCallback((date: Date) => {
     if (onCellClick) onCellClick(date)
   }, [onCellClick])
 
@@ -548,50 +576,6 @@ function WeekHourlyTimeline({
       )}
     </div>
   )
-}
-
-WeekHourlyTimeline.propTypes = {
-  /** Any date within the target week */
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  /** Array of execution objects from preview API */
-  executions: PropTypes.arrayOf(
-    PropTypes.shape({
-      pattern_id: PropTypes.string.isRequired,
-      pattern_name: PropTypes.string.isRequired,
-      start_time: PropTypes.string.isRequired,
-      actions: PropTypes.array,
-    })
-  ),
-  /** Array of conflict objects from preview API */
-  conflicts: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-      message: PropTypes.string,
-      start_time: PropTypes.string,
-    })
-  ),
-  /** Moon phases by date { 'YYYY-MM-DD': { phase, phase_name, illumination } } */
-  moonPhases: PropTypes.objectOf(
-    PropTypes.shape({
-      phase: PropTypes.string,
-      phase_name: PropTypes.string,
-      illumination: PropTypes.number,
-    })
-  ),
-  /** Cycle info from preview API for cycle-aware rendering */
-  cycleInfo: PropTypes.shape({
-    start_hour: PropTypes.number,
-    end_hour: PropTypes.number,
-    spans_midnight: PropTypes.bool,
-    suggested_preview_days: PropTypes.number,
-  }),
-  /** Click handler for day/cell clicks (receives Date) */
-  onCellClick: PropTypes.func.isRequired,
-  /** Click handler for execution clicks (receives execution object) */
-  onExecutionClick: PropTypes.func,
-  /** Pattern offset for pattern mode (null for calendar mode) */
-  patternOffset: PropTypes.number,
 }
 
 export default memo(WeekHourlyTimeline)

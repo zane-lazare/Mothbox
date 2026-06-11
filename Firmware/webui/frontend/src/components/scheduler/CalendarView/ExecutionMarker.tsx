@@ -9,9 +9,44 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import { formatTime } from './calendarUtils'
 import { getActionColor } from '@/utils/routineUtils'
+
+/**
+ * Action object structure
+ */
+interface Action {
+  action_type?: string
+  action_name?: string
+  type?: string
+}
+
+/**
+ * Execution object structure
+ */
+export interface Execution {
+  pattern_id: string
+  pattern_name: string
+  start_time: string
+  end_time?: string
+  trigger_info?: string
+  actions?: Action[]
+}
+
+/**
+ * Conflict severity levels
+ */
+type ConflictSeverity = 'error' | 'warning' | null
+
+/**
+ * Component props interface
+ */
+export interface ExecutionMarkerProps {
+  execution: Execution
+  onClick: () => void
+  conflictSeverity?: ConflictSeverity
+  conflictMessage?: string
+}
 
 /**
  * Conflict severity ring classes for highlighting conflicting executions (Issue #229).
@@ -20,7 +55,7 @@ import { getActionColor } from '@/utils/routineUtils'
 const CONFLICT_RING_CLASSES = {
   error: 'ring-2 ring-red-500 dark:ring-red-400',
   warning: 'ring-2 ring-amber-500 dark:ring-amber-400',
-}
+} as const
 
 /**
  * ExecutionMarker component
@@ -58,7 +93,7 @@ function ExecutionMarker({
   onClick,
   conflictSeverity = null,
   conflictMessage = '',
-}) {
+}: ExecutionMarkerProps) {
   const { pattern_name, start_time, actions } = execution
 
   // Format time for tooltip/aria-label
@@ -85,12 +120,12 @@ function ExecutionMarker({
     .filter(Boolean)
     .join(' ')
 
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     onClick()
   }
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       e.stopPropagation()
@@ -119,24 +154,6 @@ function ExecutionMarker({
       aria-label={ariaLabel}
     />
   )
-}
-
-ExecutionMarker.propTypes = {
-  /** Execution object containing pattern and timing details */
-  execution: PropTypes.shape({
-    pattern_id: PropTypes.string.isRequired,
-    pattern_name: PropTypes.string.isRequired,
-    start_time: PropTypes.string.isRequired,
-    end_time: PropTypes.string,
-    trigger_info: PropTypes.string,
-    actions: PropTypes.array,
-  }).isRequired,
-  /** Click handler for when marker is selected */
-  onClick: PropTypes.func.isRequired,
-  /** Conflict severity for highlighting ('error'|'warning'|null) - Issue #229 */
-  conflictSeverity: PropTypes.oneOf(['error', 'warning', null]),
-  /** Message describing the conflict - Issue #229 */
-  conflictMessage: PropTypes.string,
 }
 
 export default memo(ExecutionMarker)

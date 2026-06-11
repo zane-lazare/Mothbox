@@ -1,7 +1,17 @@
-import { useMemo } from 'react'
-import PropTypes from 'prop-types'
+import { useMemo, type ReactNode } from 'react'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import { useFilterContext } from '../../contexts/FilterContext'
+
+export interface FilterSectionProps {
+  /** Section identifier (must match filter type in context) */
+  id: string
+  /** Display title for the section */
+  title: string
+  /** Filter content to render when expanded */
+  children: ReactNode
+  /** Initial expanded state (default: false) */
+  defaultExpanded?: boolean
+}
 
 /**
  * FilterSection Component
@@ -18,7 +28,7 @@ import { useFilterContext } from '../../contexts/FilterContext'
  *   <TagFilter />
  * </FilterSection>
  */
-export function FilterSection({ id, title, children, defaultExpanded = false }) {
+export function FilterSection({ id, title, children, defaultExpanded = false }: FilterSectionProps) {
   const {
     expandedSections,
     toggleSection,
@@ -85,7 +95,7 @@ export function FilterSection({ id, title, children, defaultExpanded = false }) 
   }
 
   // Handle keyboard events
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       handleToggle()
@@ -138,17 +148,6 @@ export function FilterSection({ id, title, children, defaultExpanded = false }) 
       </div>
     </div>
   )
-}
-
-FilterSection.propTypes = {
-  /** Section identifier (must match filter type in context) */
-  id: PropTypes.string.isRequired,
-  /** Display title for the section */
-  title: PropTypes.string.isRequired,
-  /** Filter content to render when expanded */
-  children: PropTypes.node.isRequired,
-  /** Initial expanded state (default: false) */
-  defaultExpanded: PropTypes.bool,
 }
 
 export default FilterSection

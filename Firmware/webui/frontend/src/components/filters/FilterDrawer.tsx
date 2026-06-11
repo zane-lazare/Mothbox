@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import PropTypes from 'prop-types'
 import { useFilterContext } from '../../contexts/FilterContext'
 import FilterDrawerHeader from './FilterDrawerHeader'
 import FilterDrawerFooter from './FilterDrawerFooter'
@@ -31,7 +30,7 @@ export function FilterDrawer() {
   useEffect(() => {
     if (!isDrawerOpen) return
 
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         toggleDrawer()
       }
@@ -55,7 +54,7 @@ export function FilterDrawer() {
   }, [isDrawerOpen])
 
   // Handle backdrop click (tablet/mobile only)
-  const handleBackdropClick = (e) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       toggleDrawer()
     }
@@ -132,7 +131,5 @@ export function FilterDrawer() {
     </>
   )
 }
-
-FilterDrawer.propTypes = {}
 
 export default FilterDrawer

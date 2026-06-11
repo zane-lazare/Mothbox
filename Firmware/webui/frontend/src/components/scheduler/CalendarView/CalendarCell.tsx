@@ -8,21 +8,51 @@
  */
 
 import { memo, useCallback, useMemo } from 'react'
-import PropTypes from 'prop-types'
 import MoonPhaseIcon from './MoonPhaseIcon'
 import { isToday } from './calendarUtils'
 import { getActionColor } from '@/utils/routineUtils'
 import { PANEL_STYLES } from '../constants'
 
+interface Action {
+  action_type?: string
+  type?: string
+  action_name?: string
+  offset_minutes?: number
+  time?: string
+  description?: string
+}
+
+interface Execution {
+  id?: string
+  pattern_id: string
+  pattern_name: string
+  start_time: string
+  end_time?: string
+  trigger_info?: string
+  actions?: Action[]
+}
+
+interface MoonPhase {
+  phase?: string
+  phase_name: string
+  illumination?: number
+}
+
+export interface CalendarCellProps {
+  date: Date
+  isCurrentMonth: boolean
+  executions?: Execution[]
+  moonPhase?: MoonPhase | null
+  onClick: (date: Date) => void
+}
+
 /**
  * Extract unique action types from all executions.
  * Returns one representative action per unique action type.
- * @param {Array} executions - Array of execution objects
- * @returns {Array} Array of unique action objects
  */
-function getUniqueActionTypes(executions) {
-  const seen = new Set()
-  const uniqueActions = []
+function getUniqueActionTypes(executions: Execution[]): Action[] {
+  const seen = new Set<string>()
+  const uniqueActions: Action[] = []
 
   for (const exec of executions) {
     if (!exec.actions) continue
@@ -45,14 +75,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
 /**
  * CalendarCell component
  *
- * @param {Object} props - Component props
- * @param {Date} props.date - The date this cell represents (required)
- * @param {boolean} props.isCurrentMonth - Whether date is in the displayed month
- * @param {Array} props.executions - Executions for this date (from groupExecutionsByDate)
- * @param {Object|null} props.moonPhase - Moon phase data { phase, phase_name, illumination }
- * @param {Function} props.onClick - Cell click handler (receives date, navigates to day view)
- * @returns {JSX.Element} Calendar cell component
- *
  * @example
  * <CalendarCell
  *   date={new Date(2025, 11, 17)}
@@ -68,7 +90,7 @@ function CalendarCell({
   executions = [],
   moonPhase = null,
   onClick,
-}) {
+}: CalendarCellProps) {
   // Check if this date is today
   const isTodayDate = isToday(date)
 
@@ -146,26 +168,6 @@ function CalendarCell({
       </div>
     </div>
   )
-}
-
-CalendarCell.propTypes = {
-  date: PropTypes.instanceOf(Date).isRequired,
-  isCurrentMonth: PropTypes.bool.isRequired,
-  executions: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      pattern_id: PropTypes.string.isRequired,
-      pattern_name: PropTypes.string.isRequired,
-      start_time: PropTypes.string.isRequired,
-      actions: PropTypes.array,
-    })
-  ),
-  moonPhase: PropTypes.shape({
-    phase: PropTypes.string,
-    phase_name: PropTypes.string,
-    illumination: PropTypes.number,
-  }),
-  onClick: PropTypes.func.isRequired,
 }
 
 export default memo(CalendarCell)

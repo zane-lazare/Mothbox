@@ -1,8 +1,12 @@
 import { memo, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/20/solid'
 import { useFilterContext } from '../../contexts/FilterContext'
 import { getActiveFilterSummaries } from '../../utils/filterQueryBuilder'
+
+export interface ActiveFilterChipsProps {
+  /** Additional CSS classes */
+  className?: string
+}
 
 /**
  * ActiveFilterChips Component
@@ -19,15 +23,15 @@ import { getActiveFilterSummaries } from '../../utils/filterQueryBuilder'
  * // With custom className
  * <ActiveFilterChips className="mb-4" />
  */
-function ActiveFilterChips({ className = '' }) {
+function ActiveFilterChips({ className = '' }: ActiveFilterChipsProps) {
   const { clearFilter, clearAllFilters, ...filterState } = useFilterContext()
 
   // Get active filter summaries using the utility function
   const summaries = getActiveFilterSummaries(filterState)
 
   // Handle removing a filter
-  const handleRemoveFilter = useCallback((filterType) => {
-    clearFilter(filterType)
+  const handleRemoveFilter = useCallback((filterType: string) => {
+    clearFilter(filterType as any)
   }, [clearFilter])
 
   // Handle clearing all filters
@@ -75,9 +79,13 @@ function ActiveFilterChips({ className = '' }) {
   )
 }
 
-ActiveFilterChips.propTypes = {
-  /** Additional CSS classes */
-  className: PropTypes.string,
+export interface FilterChipProps {
+  /** Filter label (e.g., "Date", "Tag", "Species") */
+  label: string
+  /** Filter value (e.g., "Last 7 Days", "moth") */
+  value: string
+  /** Remove button handler */
+  onRemove: () => void
 }
 
 /**
@@ -86,17 +94,17 @@ ActiveFilterChips.propTypes = {
  * Individual filter chip with label, value, and remove button.
  * Internal component used by ActiveFilterChips.
  */
-function FilterChip({ label, value, onRemove }) {
-  const handleRemove = useCallback((e) => {
+function FilterChip({ label, value, onRemove }: FilterChipProps) {
+  const handleRemove = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     onRemove()
   }, [onRemove])
 
-  const handleRemoveKeyDown = useCallback((e) => {
+  const handleRemoveKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      handleRemove(e)
+      handleRemove(e as any)
     }
   }, [handleRemove])
 
@@ -136,15 +144,6 @@ function FilterChip({ label, value, onRemove }) {
       </button>
     </div>
   )
-}
-
-FilterChip.propTypes = {
-  /** Filter label (e.g., "Date", "Tag", "Species") */
-  label: PropTypes.string.isRequired,
-  /** Filter value (e.g., "Last 7 Days", "moth") */
-  value: PropTypes.string.isRequired,
-  /** Remove button handler */
-  onRemove: PropTypes.func.isRequired,
 }
 
 export default memo(ActiveFilterChips)

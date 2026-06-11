@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import PropTypes from 'prop-types'
 import { useFilterPresets } from '../../hooks/useFilterPresets'
 import { useFilterContext } from '../../contexts/FilterContext'
 import SaveFilterPresetModal from './SaveFilterPresetModal'
 import ConfirmDialog from '../common/ConfirmDialog'
+import type { FilterState } from '../../types/filters'
+
+interface FilterPreset {
+  id: string
+  name: string
+  filters: Partial<FilterState>
+}
 
 /**
  * FilterPresetManager Component
@@ -19,7 +25,7 @@ export function FilterPresetManager() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [presetToDelete, setPresetToDelete] = useState(null)
+  const [presetToDelete, setPresetToDelete] = useState<FilterPreset | null>(null)
 
   const {
     presets,
@@ -44,10 +50,10 @@ export function FilterPresetManager() {
   /**
    * Handle saving a new preset
    */
-  const handleSavePreset = async (presetName) => {
+  const handleSavePreset = async (presetName: string) => {
     setIsSaving(true)
     try {
-      const filterState = {
+      const filterState: FilterState = {
         dateRange,
         tags,
         species,
@@ -62,7 +68,7 @@ export function FilterPresetManager() {
     } catch (error) {
       console.error('Error saving preset:', error)
       // In a real app, you might show a toast notification here
-      alert(`Failed to save preset: ${error.message}`)
+      alert(`Failed to save preset: ${(error as Error).message}`)
     } finally {
       setIsSaving(false)
     }
@@ -71,7 +77,7 @@ export function FilterPresetManager() {
   /**
    * Handle loading a preset
    */
-  const handleLoadPreset = (presetId) => {
+  const handleLoadPreset = (presetId: string) => {
     try {
       const filterState = loadPreset(presetId)
       if (filterState) {
@@ -79,14 +85,14 @@ export function FilterPresetManager() {
       }
     } catch (error) {
       console.error('Error loading preset:', error)
-      alert(`Failed to load preset: ${error.message}`)
+      alert(`Failed to load preset: ${(error as Error).message}`)
     }
   }
 
   /**
    * Handle initiating preset deletion (opens confirm dialog)
    */
-  const handleDeletePreset = (presetId, e) => {
+  const handleDeletePreset = (presetId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent triggering the load action
 
     const preset = presets.find((p) => p.id === presetId)
@@ -106,7 +112,7 @@ export function FilterPresetManager() {
       deletePreset(presetToDelete.id)
     } catch (error) {
       console.error('Error deleting preset:', error)
-      alert(`Failed to delete preset: ${error.message}`)
+      alert(`Failed to delete preset: ${(error as Error).message}`)
     } finally {
       setShowDeleteConfirm(false)
       setPresetToDelete(null)
@@ -245,7 +251,5 @@ export function FilterPresetManager() {
     </>
   )
 }
-
-FilterPresetManager.propTypes = {}
 
 export default FilterPresetManager

@@ -1,7 +1,24 @@
-import PropTypes from 'prop-types'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { formatDateRange } from './calendarUtils'
 import { PANEL_STYLES } from '../constants'
+
+interface Schedule {
+  schedule_id: string
+  name: string
+  enabled?: boolean
+}
+
+export interface CalendarHeaderProps {
+  viewMode: 'month' | 'week' | 'day'
+  currentDate: Date
+  onViewModeChange: (mode: 'month' | 'week' | 'day') => void
+  onNavigate: (direction: 'prev' | 'next' | 'today') => void
+  schedules: Schedule[]
+  selectedScheduleId: string | null
+  onScheduleSelect: (id: string | null) => void
+  patternOffset?: number | null
+  maxPatternDays?: number
+}
 
 /**
  * CalendarHeader Component
@@ -12,7 +29,6 @@ import { PANEL_STYLES } from '../constants'
  * - View mode toggle (day/week/month)
  * - Formatted date range display
  *
- * @component
  * @example
  * <CalendarHeader
  *   viewMode="month"
@@ -34,7 +50,7 @@ export default function CalendarHeader({
   onScheduleSelect,
   patternOffset = null,
   maxPatternDays = 7,
-}) {
+}: CalendarHeaderProps) {
   // In week view, navigation is pattern-based
   const isWeekView = viewMode === 'week'
   const isPrevDisabled = isWeekView && patternOffset !== null && patternOffset <= 0
@@ -118,7 +134,7 @@ export default function CalendarHeader({
           {['day', 'week', 'month'].map((mode) => (
             <button
               key={mode}
-              onClick={() => onViewModeChange(mode)}
+              onClick={() => onViewModeChange(mode as 'day' | 'week' | 'month')}
               className={`px-3 py-1.5 text-sm font-medium border ${
                 viewMode === mode
                   ? 'bg-blue-500 text-white border-blue-500 z-10'
@@ -140,38 +156,4 @@ export default function CalendarHeader({
       </div>
     </div>
   )
-}
-
-CalendarHeader.propTypes = {
-  /** Current view mode: 'month', 'week', or 'day' */
-  viewMode: PropTypes.oneOf(['month', 'week', 'day']).isRequired,
-
-  /** The current date being displayed */
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-
-  /** Callback when view mode changes */
-  onViewModeChange: PropTypes.func.isRequired,
-
-  /** Callback when navigation button clicked ('prev', 'next', 'today') */
-  onNavigate: PropTypes.func.isRequired,
-
-  /** Array of schedule objects with schedule_id and name */
-  schedules: PropTypes.arrayOf(
-    PropTypes.shape({
-      schedule_id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-    })
-  ).isRequired,
-
-  /** Currently selected schedule ID (null if none selected) */
-  selectedScheduleId: PropTypes.string,
-
-  /** Callback when schedule is selected/changed */
-  onScheduleSelect: PropTypes.func.isRequired,
-
-  /** Pattern offset for week view pattern mode (0, 7, 14, etc.) */
-  patternOffset: PropTypes.number,
-
-  /** Maximum pattern days for navigation bounds (disables next when offset + 7 >= max) */
-  maxPatternDays: PropTypes.number,
 }
