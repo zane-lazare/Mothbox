@@ -1,5 +1,19 @@
 import { useRef, useCallback } from 'react'
 import { useMap } from 'react-leaflet'
+import { Map as LeafletMap, LatLngExpression, LatLngBounds, FitBoundsOptions } from 'leaflet'
+
+/**
+ * Return type for useMapRef hook
+ */
+interface UseMapRefResult {
+  mapRef: React.RefObject<LeafletMap>
+  flyTo: (lat: number, lng: number, zoom?: number) => void
+  setZoom: (level: number) => void
+  getCenter: () => { lat: number; lng: number } | null
+  getZoom: () => number | null
+  getBounds: () => LatLngBounds | null
+  fitBounds: (bounds: LatLngExpression[], options?: FitBoundsOptions) => void
+}
 
 /**
  * Custom hook for controlled access to Leaflet map instance via React ref
@@ -51,13 +65,13 @@ import { useMap } from 'react-leaflet'
  *   return <PhotoLightbox onPhotoChange={handlePhotoSelect} />
  * }
  */
-export function useMapRef() {
+export function useMapRef(): UseMapRefResult {
   // Get Leaflet map instance from react-leaflet context
   // This hook MUST be used inside a <MapContainer> - will throw if not
   const map = useMap()
 
   // Store map instance in ref for external access
-  const mapRef = useRef(map)
+  const mapRef = useRef<LeafletMap>(map)
 
   // Update ref when map instance changes
   if (map !== mapRef.current) {
@@ -75,7 +89,7 @@ export function useMapRef() {
    * @param {number} [zoom] - Optional zoom level (uses current zoom if not specified)
    */
   const flyTo = useCallback(
-    (lat, lng, zoom) => {
+    (lat: number, lng: number, zoom?: number) => {
       if (!mapRef.current) return
 
       try {
@@ -100,7 +114,7 @@ export function useMapRef() {
    * @param {number} level - Zoom level (Leaflet clamps to valid range automatically)
    */
   const setZoom = useCallback(
-    (level) => {
+    (level: number) => {
       if (!mapRef.current) return
 
       try {
@@ -164,7 +178,7 @@ export function useMapRef() {
    * @param {Object} [options] - Leaflet fitBounds options (e.g., {padding: [50, 50]})
    */
   const fitBounds = useCallback(
-    (bounds, options) => {
+    (bounds: LatLngExpression[], options?: FitBoundsOptions) => {
       if (!mapRef.current) return
 
       try {
