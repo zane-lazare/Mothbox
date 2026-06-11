@@ -40,7 +40,7 @@ import { useFilters } from '../hooks/useFilters'
 import { combineWithUserSearch } from '../utils/filterQueryBuilder'
 import { GALLERY_CONFIG, GALLERY_MESSAGES } from '../constants/config'
 import { formatErrorMessage } from '../utils/helpers'
-import GpsTagBanner from '../components/Gallery/GpsTagBanner'
+import GpsTagBanner from '../components/gallery/GpsTagBanner'
 import { useGpsExifStatus } from '../hooks/useGpsExif'
 import toast from 'react-hot-toast'
 
