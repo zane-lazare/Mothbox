@@ -8,10 +8,36 @@
  */
 
 import { useMemo } from 'react'
-import PropTypes from 'prop-types'
 import ExecutionMarker from './ExecutionMarker'
 import MoonPhaseIcon from './MoonPhaseIcon'
 import { getWeekDates, isToday, getDateKey } from './calendarUtils'
+
+interface Action {
+  action_type?: string
+  type?: string
+}
+
+interface Execution {
+  id?: string
+  pattern_id: string
+  pattern_name: string
+  start_time: string
+  actions?: Action[]
+}
+
+interface MoonPhase {
+  phase?: string
+  phase_name: string
+  illumination?: number
+}
+
+export interface WeekTimelineProps {
+  currentDate: Date
+  executions?: Execution[]
+  moonPhases?: Record<string, MoonPhase>
+  onCellClick: (date: Date) => void
+  onExecutionClick: (execution: Execution) => void
+}
 
 /**
  * Time slots for grouping executions
@@ -28,10 +54,8 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 /**
  * Determine which time slot an hour belongs to
- * @param {number} hour - Hour (0-23)
- * @returns {string} Time slot ID
  */
-function getTimeSlotForHour(hour) {
+function getTimeSlotForHour(hour: number): string {
   if (hour >= 6 && hour <= 11) return 'morning'
   if (hour >= 12 && hour <= 17) return 'midday'
   if (hour >= 18 && hour <= 20) return 'evening'
@@ -41,12 +65,9 @@ function getTimeSlotForHour(hour) {
 
 /**
  * Group executions by day and time slot
- * @param {Array} executions - Array of execution objects
- * @param {Date[]} weekDates - Array of 7 dates for the week
- * @returns {Object} Grouped executions { 'dayIndex-slotId': [executions] }
  */
-function groupByDayAndSlot(executions, weekDates) {
-  const grouped = {}
+function groupByDayAndSlot(executions: Execution[], weekDates: Date[]): Record<string, Execution[]> {
+  const grouped: Record<string, Execution[]> = {}
 
   // Initialize empty arrays for all day-slot combinations
   weekDates.forEach((_, dayIndex) => {
@@ -86,7 +107,7 @@ function groupByDayAndSlot(executions, weekDates) {
 
   // Sort executions within each slot by time
   Object.keys(grouped).forEach((key) => {
-    grouped[key].sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    grouped[key].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
   })
 
   return grouped
@@ -95,13 +116,14 @@ function groupByDayAndSlot(executions, weekDates) {
 /**
  * WeekTimeline component
  *
- * @param {Object} props - Component props
- * @param {Date} props.currentDate - Any date within the target week
- * @param {Array} props.executions - Array of execution objects
- * @param {Object} props.moonPhases - Moon phases by date { 'YYYY-MM-DD': { phase, phase_name, illumination } }
- * @param {Function} props.onCellClick - Cell click handler (receives date)
- * @param {Function} props.onExecutionClick - Execution click handler (receives execution)
- * @returns {JSX.Element} Week timeline component
+ * @example
+ * <WeekTimeline
+ *   currentDate={new Date()}
+ *   executions={executionsArray}
+ *   moonPhases={moonPhasesObject}
+ *   onCellClick={(date) => handleDateClick(date)}
+ *   onExecutionClick={(exec) => handleExecutionClick(exec)}
+ * />
  */
 function WeekTimeline({
   currentDate,
@@ -109,7 +131,7 @@ function WeekTimeline({
   moonPhases = {},
   onCellClick,
   onExecutionClick,
-}) {
+}: WeekTimelineProps) {
   // Get 7 days for the week (Sunday to Saturday)
   const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate])
 
@@ -234,27 +256,6 @@ function WeekTimeline({
       ))}
     </div>
   )
-}
-
-WeekTimeline.propTypes = {
-  currentDate: PropTypes.instanceOf(Date).isRequired,
-  executions: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      pattern_id: PropTypes.string.isRequired,
-      pattern_name: PropTypes.string.isRequired,
-      start_time: PropTypes.string.isRequired,
-    })
-  ),
-  moonPhases: PropTypes.objectOf(
-    PropTypes.shape({
-      phase: PropTypes.string,
-      phase_name: PropTypes.string,
-      illumination: PropTypes.number,
-    })
-  ),
-  onCellClick: PropTypes.func.isRequired,
-  onExecutionClick: PropTypes.func.isRequired,
 }
 
 export default WeekTimeline
