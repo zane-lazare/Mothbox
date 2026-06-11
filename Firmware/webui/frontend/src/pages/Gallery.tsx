@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, InfiniteData } from '@tanstack/react-query'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
@@ -43,14 +43,75 @@ import { formatErrorMessage } from '../utils/helpers'
 import GpsTagBanner from '../components/gallery/GpsTagBanner'
 import { useGpsExifStatus } from '../hooks/useGpsExif'
 import toast from 'react-hot-toast'
+import type { Photo } from '../types'
+
+// Type definitions for Gallery component
+
+interface PaginationInfo {
+  offset: number
+  limit: number
+  has_next: boolean
+}
+
+interface PhotosPageData {
+  photos: Photo[]
+  pagination: PaginationInfo
+}
+
+interface PhotoSeries {
+  id: string
+  series_type: 'hdr' | 'focus_bracket'
+  photos: (Photo | string)[]
+  count: number
+  cover_photo: string
+}
+
+interface SeriesData {
+  series: PhotoSeries[]
+  total: number
+}
+
+interface GpsExifStatus {
+  untagged_count?: number
+  [key: string]: unknown
+}
+
+type ProgressStatus = 'processing' | 'success' | 'error'
+type ProgressOperation = 'export' | 'tag' | 'species' | 'delete' | null
+
+interface ProgressState {
+  status: ProgressStatus
+  current: number
+  total: number
+  message: string
+  downloadUrl?: string
+}
+
+interface BulkTagApplyData {
+  tags: string[]
+  mode: 'add' | 'replace' | 'remove'
+}
+
+interface SpeciesData {
+  species: string
+  species_confidence?: string
+  species_common_name?: string
+}
+
+interface ExportProgress {
+  current: number
+  total: number
+  percent: number
+  phase: string
+}
 
 /**
  * Inner Gallery component that uses selection context
  * Separated to allow SelectionProvider wrapping
  */
 function GalleryContent() {
-  const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [selectedSeries, setSelectedSeries] = useState(null)
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
+  const [selectedSeries, setSelectedSeries] = useState<PhotoSeries | null>(null)
   const { viewMode, setViewMode, isLoading: isLoadingPreference } = useViewMode()
   const navigate = useNavigate()
 
@@ -109,8 +170,8 @@ function GalleryContent() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [progressModalOpen, setProgressModalOpen] = useState(false)
-  const [progressOperation, setProgressOperation] = useState(null) // 'export' | 'tag' | 'species' | 'delete'
-  const [progressState, setProgressState] = useState({
+  const [progressOperation, setProgressOperation] = useState<ProgressOperation>(null)
+  const [progressState, setProgressState] = useState<ProgressState>({
     status: 'processing',
     current: 0,
     total: 0,
@@ -124,7 +185,7 @@ function GalleryContent() {
   const [hasShownInitialErrorToast, setHasShownInitialErrorToast] = useState(false)
   const [hasShownEndToast, setHasShownEndToast] = useState(false)
   const [hasShownSeriesErrorToast, setHasShownSeriesErrorToast] = useState(false)
-  const prevPaginationError = useRef(null)
+  const prevPaginationError = useRef<string | null>(null)
 
   // Search functionality
   const { results: searchResults, total: searchTotal, isLoading: isSearching, tookMs } = usePhotoSearch(combinedQuery)
@@ -140,14 +201,14 @@ function GalleryContent() {
     isError,
     error,
     refetch,
-  } = useInfiniteQuery({
+  } = useInfiniteQuery<PhotosPageData, Error, InfiniteData<PhotosPageData>, readonly unknown[], number>({
     queryKey: QUERY_KEYS.PHOTOS_INFINITE,
     queryFn: ({ pageParam = 0 }) =>
       getPhotosPaginated({
         limit: GALLERY_CONFIG.PAGE_SIZE,
         offset: pageParam,
         sort: 'date_desc',
-      }).then((res) => res.data),
+      }).then((res) => res.data as PhotosPageData),
     initialPageParam: 0,
     getNextPageParam: (lastPage) => {
       if (lastPage.pagination.has_next) {
@@ -171,7 +232,7 @@ function GalleryContent() {
   } = useClusteredLocations({ enabled: viewMode === 'map' })
 
   // Calculate total counts from clustered data
-  const totalInClusters = clusters.reduce((sum, cluster) => sum + cluster.count, 0)
+  const totalInClusters = clusters.reduce((sum, cluster) => sum + cluster.photo_count, 0)
   const totalWithGps = totalInClusters + unclustered.length
 
   // Set up infinite scroll sentinel
@@ -191,7 +252,7 @@ function GalleryContent() {
   // Build series lookup map: photoPath -> seriesData
   // This allows quick lookup to determine if a photo is part of a series
   const seriesLookup = useMemo(() => {
-    const lookup = new Map()
+    const lookup = new Map<string, PhotoSeries>()
     if (seriesData?.series) {
       seriesData.series.forEach((series) => {
         series.photos.forEach((photo) => {
@@ -221,7 +282,13 @@ function GalleryContent() {
         if (typeof photo === 'string') {
           // Find full photo object from photos array, or create minimal object
           const fullPhoto = photos.find(p => p.path === photo)
-          return fullPhoto || { path: photo, filename: photo.split('/').pop() }
+          return fullPhoto || {
+            path: photo,
+            filename: photo.split('/').pop() || photo,
+            timestamp: '',
+            thumbnail_url: '',
+            full_url: '',
+          } as Photo
         }
         return photo
       })
@@ -243,26 +310,29 @@ function GalleryContent() {
     setSelectedPhoto(null)
     setSelectedSeries(null)
   }, [])
-  const handlePhotoClick = useCallback((photo) => {
+
+  const handlePhotoClick = useCallback((photo: Photo) => {
     // Save scroll position before opening lightbox
     saveScrollPosition()
     setSelectedPhoto(photo)
   }, [saveScrollPosition])
-  const handleNavigate = useCallback((photo) => {
+
+  const handleNavigate = useCallback((photo: Photo) => {
     // Validate photo exists in current photos array before navigating
     if (photos.some(p => p.path === photo.path)) {
       setSelectedPhoto(photo)
     }
   }, [photos])
+
   // Handle series card click - open lightbox with cover photo and track series
-  const handleSeriesPhotoClick = useCallback((photo, series) => {
+  const handleSeriesPhotoClick = useCallback((photo: Photo, series: PhotoSeries) => {
     saveScrollPosition()
     setSelectedSeries(series)
     setSelectedPhoto(photo)
   }, [saveScrollPosition])
 
   // Handle map marker click - open lightbox with the clicked photo
-  const handleMapPhotoClick = useCallback((location) => {
+  const handleMapPhotoClick = useCallback((location: Photo) => {
     // Find the photo object in the photos array by matching the path
     const photo = photos.find(p => p.path === location.path)
     if (photo) {
@@ -335,7 +405,7 @@ function GalleryContent() {
   }, [isSeriesError, hasShownSeriesErrorToast])
 
   // Derive export progress state from hook (avoids race condition with manual updates)
-  const exportProgressState = useMemo(() => {
+  const exportProgressState = useMemo<ProgressState | null>(() => {
     if (progressOperation !== 'export') return null
 
     if (exportError) {
@@ -380,7 +450,7 @@ function GalleryContent() {
 
   // Keyboard shortcuts for bulk selection
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle shortcuts when in select mode
       if (!isSelectMode) return
 
@@ -420,7 +490,7 @@ function GalleryContent() {
   }, [isSelectMode, toggleSelectMode, selectAll, photos, selectedCount])
 
   // Bulk operation handlers
-  const handleBulkTagApply = useCallback(async ({ tags, mode }) => {
+  const handleBulkTagApply = useCallback(async ({ tags, mode }: BulkTagApplyData) => {
     setTagModalOpen(false)
     setProgressModalOpen(true)
     setProgressState({
@@ -433,7 +503,7 @@ function GalleryContent() {
     const filenames = Array.from(selectedPhotos)
     let result
 
-    const onProgress = (progress) => {
+    const onProgress = (progress: { processedCount: number; currentBatch: number; totalBatches: number }) => {
       setProgressState({
         status: 'processing',
         current: progress.processedCount,
@@ -451,7 +521,7 @@ function GalleryContent() {
         result = await bulkRemoveTags(filenames, tags, onProgress)
       }
 
-      if (result.success.length > 0) {
+      if (result && result.success.length > 0) {
         setProgressState({
           status: 'success',
           current: result.success.length,
@@ -464,7 +534,7 @@ function GalleryContent() {
           showUndoToast(`Updated tags on ${result.success.length} photos`, async () => {
             // Restore previous tags
             for (const [filename, state] of Object.entries(result.previousState)) {
-              await bulkReplaceTags([filename], state.tags || [])
+              await bulkReplaceTags([filename], (state as any).tags || [])
             }
             toast.success('Tags restored')
           })
@@ -484,12 +554,12 @@ function GalleryContent() {
         status: 'error',
         current: 0,
         total: filenames.length,
-        message: error.message || 'An error occurred',
+        message: (error as Error).message || 'An error occurred',
       })
     }
   }, [selectedPhotos, selectedCount, bulkAddTags, bulkReplaceTags, bulkRemoveTags, showUndoToast, deselectAll])
 
-  const handleBulkSpeciesApply = useCallback(async (speciesData) => {
+  const handleBulkSpeciesApply = useCallback(async (speciesData: SpeciesData) => {
     setSpeciesModalOpen(false)
     setProgressModalOpen(true)
     setProgressState({
@@ -501,7 +571,7 @@ function GalleryContent() {
 
     const filenames = Array.from(selectedPhotos)
 
-    const onProgress = (progress) => {
+    const onProgress = (progress: { processedCount: number; currentBatch: number; totalBatches: number }) => {
       setProgressState({
         status: 'processing',
         current: progress.processedCount,
@@ -525,7 +595,7 @@ function GalleryContent() {
         if (result.previousState) {
           showUndoToast(`Updated species on ${result.success.length} photos`, async () => {
             for (const [filename, state] of Object.entries(result.previousState)) {
-              await bulkUpdateSpecies([filename], state.species || null)
+              await bulkUpdateSpecies([filename], (state as any).species || null)
             }
             toast.success('Species restored')
           })
@@ -545,7 +615,7 @@ function GalleryContent() {
         status: 'error',
         current: 0,
         total: filenames.length,
-        message: error.message || 'An error occurred',
+        message: (error as Error).message || 'An error occurred',
       })
     }
   }, [selectedPhotos, selectedCount, bulkUpdateSpecies, showUndoToast, deselectAll])
@@ -562,7 +632,7 @@ function GalleryContent() {
 
     const filenames = Array.from(selectedPhotos)
 
-    const onProgress = (progress) => {
+    const onProgress = (progress: { processedCount: number; currentBatch: number; totalBatches: number }) => {
       setProgressState({
         status: 'processing',
         current: progress.processedCount,
@@ -599,12 +669,12 @@ function GalleryContent() {
         status: 'error',
         current: 0,
         total: filenames.length,
-        message: error.message || 'An error occurred',
+        message: (error as Error).message || 'An error occurred',
       })
     }
   }, [selectedPhotos, selectedCount, bulkDelete, deselectAll, refetch])
 
-  const handleBulkExport = useCallback(async (format) => {
+  const handleBulkExport = useCallback(async (format: string) => {
     setExportModalOpen(false)
     setProgressModalOpen(true)
     setProgressOperation('export')
@@ -682,7 +752,7 @@ function GalleryContent() {
 
         {/* GPS Tag Banner */}
         <GpsTagBanner
-          untaggedCount={exifStatus?.untagged_count}
+          untaggedCount={(exifStatus as GpsExifStatus)?.untagged_count}
           currentDirectory={undefined}
         />
 
