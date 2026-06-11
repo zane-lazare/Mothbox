@@ -142,11 +142,11 @@ export function useHoverPopup(): UseHoverPopupReturn {
    * the popup to be shown after SHOW_DELAY_MS. Skips if this cluster
    * has an open click popup.
    *
-   * @param cluster - The cluster being hovered
-   * @param event - The mouse event containing position
+   * @param {Object} cluster - The cluster being hovered
+   * @param {MouseEvent} event - The mouse event containing position
    */
   const handleMouseEnter = useCallback(
-    (cluster: Cluster, event: React.MouseEvent) => {
+    (cluster: Cluster, event: MouseEvent) => {
       // Skip hover if this cluster has click popup open
       const clusterId = getClusterId(cluster)
       if (clusterId && clickedClusterId === clusterId) {
@@ -161,7 +161,7 @@ export function useHoverPopup(): UseHoverPopupReturn {
       setPosition({ x: event.clientX, y: event.clientY })
 
       // Schedule popup to show after delay
-      showTimerRef.current = window.setTimeout(() => {
+      showTimerRef.current = setTimeout(() => {
         setIsVisible(true)
       }, HOVER_POPUP_CONFIG.SHOW_DELAY_MS)
     },
@@ -179,7 +179,7 @@ export function useHoverPopup(): UseHoverPopupReturn {
     clearTimers()
 
     // Schedule popup to hide after delay
-    hideTimerRef.current = window.setTimeout(() => {
+    hideTimerRef.current = setTimeout(() => {
       setIsVisible(false)
       setTargetCluster(null)
       setPosition(null)
@@ -192,7 +192,7 @@ export function useHoverPopup(): UseHoverPopupReturn {
    * Toggles the popup visibility immediately without delays.
    * Sets the target cluster when showing.
    *
-   * @param cluster - The cluster being clicked
+   * @param {Object} cluster - The cluster being clicked
    */
   const handleClick = useCallback((cluster: Cluster) => {
     setTargetCluster(cluster)
@@ -205,7 +205,7 @@ export function useHoverPopup(): UseHoverPopupReturn {
    * Tracks which cluster has an open click popup so we can
    * suppress hover popups for that cluster.
    *
-   * @param cluster - The cluster whose popup was opened
+   * @param {Object} cluster - The cluster whose popup was opened
    */
   const handlePopupOpen = useCallback(
     (cluster: Cluster) => {

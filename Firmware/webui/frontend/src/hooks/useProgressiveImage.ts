@@ -1,6 +1,31 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { getThumbnailUrl } from '../utils/api';
-import { imageCache } from '../utils/imageCache';
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { getThumbnailUrl } from '../utils/api'
+import { imageCache } from '../utils/imageCache'
+
+/**
+ * Progressive image loading stage
+ */
+type LoadingStage = 'idle' | 'thumbnail' | 'full' | 'loaded' | 'error'
+
+/**
+ * Options for progressive image loading
+ */
+interface UseProgressiveImageOptions {
+  thumbnailSize?: number
+  fullSize?: number
+  autoLoad?: boolean
+}
+
+/**
+ * Return type for useProgressiveImage hook
+ */
+interface UseProgressiveImageReturn {
+  src: string | null
+  isLoading: boolean
+  error: Error | null
+  loadImage: () => Promise<void>
+  stage: LoadingStage
+}
 
 /**
  * Progressive image loading hook
@@ -26,18 +51,21 @@ import { imageCache } from '../utils/imageCache';
  * @param {boolean} [options.autoLoad=true] - Start loading automatically
  * @returns {object} { src, isLoading, error, loadImage, stage }
  */
-export default function useProgressiveImage(photoPath, options = {}) {
+export default function useProgressiveImage(
+  photoPath: string,
+  options: UseProgressiveImageOptions = {}
+): UseProgressiveImageReturn {
   const {
     thumbnailSize = 64,
     fullSize = 256,
     autoLoad = true
-  } = options;
+  } = options
 
-  const [stage, setStage] = useState('idle');
-  const [currentSrc, setCurrentSrc] = useState(null);
-  const [error, setError] = useState(null);
-  const isMountedRef = useRef(true);
-  const pendingImagesRef = useRef(new Set());
+  const [stage, setStage] = useState<LoadingStage>('idle')
+  const [currentSrc, setCurrentSrc] = useState<string | null>(null)
+  const [error, setError] = useState<Error | null>(null)
+  const isMountedRef = useRef<boolean>(true)
+  const pendingImagesRef = useRef<Set<HTMLImageElement>>(new Set())
 
   /**
    * Load an image and return promise that resolves with URL
@@ -49,47 +77,47 @@ export default function useProgressiveImage(photoPath, options = {}) {
    * @param {string} cacheKey - Cache key for this image
    * @returns {Promise<string>} Resolves with URL on success, rejects with cleanup
    */
-  const loadImage = useCallback((url, cacheKey) => {
+  const loadImage = useCallback((url: string, cacheKey: string): Promise<string> => {
     // Check cache first
-    const cached = imageCache.get(cacheKey);
+    const cached = imageCache.get(cacheKey)
     if (cached) {
       // Return immediately with cached URL
-      return Promise.resolve(url);
+      return Promise.resolve(url)
     }
 
     // Not in cache - load from network
     return new Promise((resolve, reject) => {
-      const img = new Image();
+      const img = new Image()
 
       // Track pending image to allow cleanup on unmount
-      pendingImagesRef.current.add(img);
+      pendingImagesRef.current.add(img)
 
       // Cleanup function to prevent memory leaks
       // Setting img.src = '' is necessary for proper garbage collection in Safari and older Chrome
       // Also aborts pending network requests
       const cleanup = () => {
-        img.onload = null;
-        img.onerror = null;
-        img.src = ''; // Required for GC - aborts pending network request
-        pendingImagesRef.current.delete(img);
-      };
+        img.onload = null
+        img.onerror = null
+        img.src = '' // Required for GC - aborts pending network request
+        pendingImagesRef.current.delete(img)
+      }
 
       img.onload = () => {
-        pendingImagesRef.current.delete(img);
+        pendingImagesRef.current.delete(img)
         // Cache the loaded image object
-        imageCache.set(cacheKey, img);
-        resolve(url);
+        imageCache.set(cacheKey, img)
+        resolve(url)
         // Don't cleanup here - image is cached and may be used again
-      };
+      }
 
       img.onerror = (err) => {
-        cleanup();
-        reject(err);
-      };
+        cleanup()
+        reject(err)
+      }
 
-      img.src = url;
-    });
-  }, []);
+      img.src = url
+    })
+  }, [])
 
   /**
    * Start progressive loading sequence
@@ -98,62 +126,62 @@ export default function useProgressiveImage(photoPath, options = {}) {
    */
   const startLoading = useCallback(async () => {
     if (!photoPath) {
-      return;
+      return
     }
 
     try {
-      setError(null);
+      setError(null)
 
       // Stage 1: Load thumbnail (low-res)
-      setStage('thumbnail');
-      const thumbnailUrl = getThumbnailUrl(photoPath, thumbnailSize);
-      const thumbnailCacheKey = `${photoPath}:${thumbnailSize}`;
+      setStage('thumbnail')
+      const thumbnailUrl = getThumbnailUrl(photoPath, thumbnailSize)
+      const thumbnailCacheKey = `${photoPath}:${thumbnailSize}`
 
-      await loadImage(thumbnailUrl, thumbnailCacheKey);
+      await loadImage(thumbnailUrl, thumbnailCacheKey)
 
-      if (!isMountedRef.current) return;
-      setCurrentSrc(thumbnailUrl);
+      if (!isMountedRef.current) return
+      setCurrentSrc(thumbnailUrl)
 
       // Stage 2: Load full resolution
-      setStage('full');
-      const fullUrl = getThumbnailUrl(photoPath, fullSize);
-      const fullCacheKey = `${photoPath}:${fullSize}`;
+      setStage('full')
+      const fullUrl = getThumbnailUrl(photoPath, fullSize)
+      const fullCacheKey = `${photoPath}:${fullSize}`
 
-      await loadImage(fullUrl, fullCacheKey);
+      await loadImage(fullUrl, fullCacheKey)
 
-      if (!isMountedRef.current) return;
-      setCurrentSrc(fullUrl);
-      setStage('loaded');
+      if (!isMountedRef.current) return
+      setCurrentSrc(fullUrl)
+      setStage('loaded')
     } catch (err) {
-      if (!isMountedRef.current) return;
-      setError(err);
-      setStage('error');
+      if (!isMountedRef.current) return
+      setError(err as Error)
+      setStage('error')
     }
-  }, [photoPath, thumbnailSize, fullSize, loadImage]);
+  }, [photoPath, thumbnailSize, fullSize, loadImage])
 
   // Auto-load on mount or when photoPath changes
   useEffect(() => {
-    isMountedRef.current = true;
+    isMountedRef.current = true
     // Capture ref value for cleanup to avoid stale reference warning
-    const pendingImages = pendingImagesRef.current;
+    const pendingImages = pendingImagesRef.current
 
     if (autoLoad) {
-      startLoading();
+      startLoading()
     }
 
     return () => {
-      isMountedRef.current = false;
+      isMountedRef.current = false
 
       // Abort all pending image loads to prevent memory leaks and race conditions
       // This is critical when component unmounts while images are still loading
       pendingImages.forEach(img => {
-        img.onload = null;
-        img.onerror = null;
-        img.src = ''; // Abort network request
-      });
-      pendingImages.clear();
-    };
-  }, [autoLoad, startLoading]);
+        img.onload = null
+        img.onerror = null
+        img.src = '' // Abort network request
+      })
+      pendingImages.clear()
+    }
+  }, [autoLoad, startLoading])
 
   return {
     src: currentSrc,
@@ -161,5 +189,5 @@ export default function useProgressiveImage(photoPath, options = {}) {
     error,
     loadImage: startLoading,
     stage
-  };
+  }
 }

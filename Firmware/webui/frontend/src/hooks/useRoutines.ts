@@ -18,10 +18,18 @@
 
 import { useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import type { UseQueryOptions, UseMutationOptions, UseMutationResult } from '@tanstack/react-query'
+import type { AxiosResponse } from 'axios'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
   listBuiltinRoutines,
   validateRoutine,
+} from '../utils/schedulerApi'
+import type {
+  BuiltInPatternsResponse,
+  BuiltInPattern,
+  ScheduleEvent,
+  ValidationResult,
 } from '../utils/schedulerApi'
 
 // =============================================================================
@@ -47,7 +55,7 @@ const QUERY_CONFIG = {
  * @param {Error} error - The error from the mutation
  * @param {string} operation - Name of the operation for context
  */
-function handleMutationError(error, operation) {
+function handleMutationError(error: Error, operation: string): void {
   if (import.meta.env.DEV) {
     console.error(`[Routine ${operation}]:`, error.message || error)
   }
@@ -78,8 +86,10 @@ function handleMutationError(error, operation) {
  *   data.patterns.forEach(p => console.log(p.name))
  * }
  */
-export function useBuiltinRoutines(queryOptions = {}) {
-  return useQuery({
+export function useBuiltinRoutines(
+  queryOptions: Omit<UseQueryOptions<BuiltInPatternsResponse, Error>, 'queryKey' | 'queryFn'> = {}
+) {
+  return useQuery<BuiltInPatternsResponse, Error>({
     queryKey: QUERY_KEYS.BUILTIN_ROUTINES,
     queryFn: async () => {
       const response = await listBuiltinRoutines()
@@ -131,16 +141,36 @@ export function useBuiltinRoutines(queryOptions = {}) {
  *   })
  * }
  */
-export function useValidateRoutine() {
-  return useMutation({
-    mutationFn: (data) => validateRoutine(data),
-    onError: (error) => handleMutationError(error, 'validateRoutine'),
+export function useValidateRoutine(): UseMutationResult<
+  AxiosResponse<ValidationResult>,
+  Error,
+  ScheduleEvent
+> {
+  return useMutation<AxiosResponse<ValidationResult>, Error, ScheduleEvent>({
+    mutationFn: (data: ScheduleEvent) => validateRoutine(data),
+    onError: (error: Error) => handleMutationError(error, 'validateRoutine'),
   })
 }
 
 // =============================================================================
 // Utility Hooks
 // =============================================================================
+
+/**
+ * Action with offset_minutes
+ */
+interface ActionWithOffset {
+  offset_minutes?: number
+  [key: string]: unknown
+}
+
+/**
+ * Routine with actions
+ */
+interface RoutineWithActions {
+  actions?: ActionWithOffset[]
+  [key: string]: unknown
+}
 
 /**
  * Calculate the total duration of a routine based on action offsets
@@ -181,7 +211,7 @@ export function useValidateRoutine() {
  * const { data } = useBuiltinRoutines()
  * const duration = useRoutineDuration(data?.patterns?.[0])
  */
-export function useRoutineDuration(routine) {
+export function useRoutineDuration(routine: RoutineWithActions | BuiltInPattern | null | undefined): number {
   return useMemo(() => {
     if (!routine?.actions?.length) return 0
     return Math.max(...routine.actions.map(a => a.offset_minutes ?? 0))

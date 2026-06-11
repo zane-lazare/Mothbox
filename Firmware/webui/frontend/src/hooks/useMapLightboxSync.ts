@@ -1,6 +1,63 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, RefObject } from 'react'
+import type { Map as LeafletMap, Marker } from 'leaflet'
 import useClusterNavigation from './useClusterNavigation'
 import { extractPhotosFromCluster, findPhotoIndexInCluster } from '../utils/clusterUtils'
+import type { Photo } from '../types/domain'
+
+/**
+ * Extended Photo type with optional latitude/longitude at top level
+ * (Photos may have GPS data in multiple formats)
+ */
+interface PhotoWithLocation extends Photo {
+  latitude?: number | null
+  longitude?: number | null
+}
+
+/**
+ * Leaflet cluster marker with spiderfy support
+ */
+interface ClusterMarker {
+  getAllChildMarkers?: () => ClusterMarker[]
+  spiderfy?: () => void
+  options?: Record<string, unknown>
+}
+
+/**
+ * Hook parameters
+ */
+interface UseMapLightboxSyncParams {
+  mapRef: RefObject<LeafletMap | null>
+}
+
+/**
+ * Hook return type
+ */
+interface UseMapLightboxSyncResult {
+  // State
+  isLightboxOpen: boolean
+  currentPhoto: PhotoWithLocation | null
+  highlightedPhotoPath: string | null
+
+  // Cluster navigation (from useClusterNavigation)
+  clusterPhotos: Photo[]
+  currentIndex: number
+  total: number
+  position: string
+  hasNext: boolean
+  hasPrevious: boolean
+  goNext: () => void
+  goPrevious: () => void
+  goToIndex: (index: number) => void
+
+  // Actions
+  openLightbox: (photo: PhotoWithLocation, clusterMarker?: ClusterMarker | null) => void
+  closeLightbox: () => void
+  selectPhoto: (photo: PhotoWithLocation) => void
+
+  // Map event handlers
+  onMarkerClick: (marker: Marker, photo: PhotoWithLocation) => void
+  onClusterClick: (clusterMarker: ClusterMarker, clickedPhoto: PhotoWithLocation) => void
+}
 
 /**
  * Custom hook for orchestrating two-way synchronization between map and lightbox components.
@@ -85,12 +142,12 @@ import { extractPhotosFromCluster, findPhotoIndexInCluster } from '../utils/clus
  * - Minimal re-renders via focused state updates
  * - No external API calls or network requests
  */
-function useMapLightboxSync({ mapRef }) {
+function useMapLightboxSync({ mapRef }: UseMapLightboxSyncParams): UseMapLightboxSyncResult {
   // Lightbox state
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
-  const [currentPhoto, setCurrentPhoto] = useState(null)
-  const [highlightedPhotoPath, setHighlightedPhotoPath] = useState(null)
-  const [, setCurrentClusterMarker] = useState(null)
+  const [currentPhoto, setCurrentPhoto] = useState<PhotoWithLocation | null>(null)
+  const [highlightedPhotoPath, setHighlightedPhotoPath] = useState<string | null>(null)
+  const [, setCurrentClusterMarker] = useState<ClusterMarker | null>(null)
 
   // Cluster navigation state (delegated to useClusterNavigation)
   const {
@@ -108,7 +165,7 @@ function useMapLightboxSync({ mapRef }) {
   } = useClusterNavigation()
 
   // Get cluster photos array for external access
-  const [clusterPhotos, setClusterPhotos] = useState([])
+  const [clusterPhotos, setClusterPhotos] = useState<Photo[]>([])
 
   /**
    * Pan map to photo location if GPS coordinates available
@@ -117,7 +174,7 @@ function useMapLightboxSync({ mapRef }) {
    * @param {Object} photo - Photo object with latitude/longitude
    */
   const panMapToPhoto = useCallback(
-    (photo) => {
+    (photo: PhotoWithLocation) => {
       if (!mapRef?.current || !photo) return
 
       // Check if photo has valid GPS coordinates
@@ -146,7 +203,7 @@ function useMapLightboxSync({ mapRef }) {
    * @param {Object} [clusterMarker] - Optional cluster marker (for spiderfy and navigation)
    */
   const openLightbox = useCallback(
-    (photo, clusterMarker = null) => {
+    (photo: PhotoWithLocation, clusterMarker: ClusterMarker | null = null) => {
       if (!photo) return
 
       setCurrentPhoto(photo)
@@ -206,7 +263,7 @@ function useMapLightboxSync({ mapRef }) {
    * @param {Object} photo - New photo to select
    */
   const selectPhoto = useCallback(
-    (photo) => {
+    (photo: PhotoWithLocation) => {
       if (!photo) return
 
       setCurrentPhoto(photo)
@@ -223,7 +280,7 @@ function useMapLightboxSync({ mapRef }) {
    * @param {Object} photo - Photo data associated with marker
    */
   const onMarkerClick = useCallback(
-    (marker, photo) => {
+    (marker: Marker, photo: PhotoWithLocation) => {
       openLightbox(photo)
     },
     [openLightbox]
@@ -236,7 +293,7 @@ function useMapLightboxSync({ mapRef }) {
    * @param {Object} clickedPhoto - Photo data that was clicked within cluster
    */
   const onClusterClick = useCallback(
-    (clusterMarker, clickedPhoto) => {
+    (clusterMarker: ClusterMarker, clickedPhoto: PhotoWithLocation) => {
       openLightbox(clickedPhoto, clusterMarker)
     },
     [openLightbox]
@@ -261,7 +318,7 @@ function useMapLightboxSync({ mapRef }) {
    */
   useEffect(() => {
     if (clusterCurrentPhoto && isLightboxOpen) {
-      selectPhoto(clusterCurrentPhoto)
+      selectPhoto(clusterCurrentPhoto as PhotoWithLocation)
     }
   }, [clusterCurrentPhoto, isLightboxOpen, selectPhoto])
 
