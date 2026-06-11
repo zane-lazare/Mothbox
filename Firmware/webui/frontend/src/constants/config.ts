@@ -81,7 +81,7 @@ export const GALLERY_CONFIG = {
     MIN_VIEWPORT_HEIGHT: 600, // Minimum viewport height in pixels (600px)
     RESIZE_DEBOUNCE_MS: 150, // Debounce delay for resize events (balances responsiveness vs performance)
   },
-}
+} as const;
 
 /**
  * API configuration
@@ -91,10 +91,10 @@ export const GALLERY_CONFIG = {
  * @property {number} GPS_SYNC_TIMEOUT - Extended timeout for GPS sync operations
  */
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || '/api',
+  BASE_URL: (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL || '/api',
   DEFAULT_TIMEOUT: 30000, // 30 seconds
   GPS_SYNC_TIMEOUT: 60000, // 60 seconds
-}
+} as const;
 
 /**
  * Toast notification configuration
@@ -107,7 +107,7 @@ export const TOAST_CONFIG = {
   DEFAULT_DURATION: 4000, // 4 seconds
   ERROR_DURATION: 6000, // 6 seconds
   SUCCESS_DURATION: 3000, // 3 seconds
-}
+} as const;
 
 /**
  * View mode configuration for gallery
@@ -127,7 +127,7 @@ export const VIEW_CONFIG = {
   },
   DEFAULT_VIEW: 'grid',
   STORAGE_KEY: 'gallery_view_mode',
-}
+} as const;
 
 /**
  * Gallery user-facing messages
@@ -160,7 +160,7 @@ export const GALLERY_MESSAGES = {
   },
   EMPTY: 'No photos yet',
   END: 'No more photos to load',
-}
+} as const;
 
 /**
  * Photo Lightbox Configuration
@@ -207,7 +207,7 @@ export const LIGHTBOX_CONFIG = {
     SWIPE_MIN_VELOCITY: 0.3, // Min swipe speed - distinguishes swipe from slow drag (px/ms)
     DOUBLE_TAP_DISTANCE_BASE: 15, // Base distance threshold for double-tap at 1x DPI (px)
   },
-}
+} as const;
 
 /**
  * Map Component Configuration
@@ -237,7 +237,7 @@ export const LIGHTBOX_CONFIG = {
  */
 export const MAP_CONFIG = {
   // Default map center (world view)
-  DEFAULT_CENTER: [0, 0],
+  DEFAULT_CENTER: [0, 0] as const,
   DEFAULT_ZOOM: 2,
 
   // Zoom limits
@@ -264,7 +264,7 @@ export const MAP_CONFIG = {
 
   // Photo batch size for map page lightbox navigation
   PHOTO_BATCH_SIZE: 100,
-}
+} as const;
 
 /**
  * Clustering Configuration
@@ -288,7 +288,7 @@ export const CLUSTERING_CONFIG = {
   RADIUS_STEP: 10,
   DEFAULT_MIN_SIZE: 2,
   STORAGE_KEY: 'mothbox_clustering_settings',
-}
+} as const;
 
 /**
  * Hover Popup Configuration (Issue #117)
@@ -318,7 +318,7 @@ export const HOVER_POPUP_CONFIG = {
   Z_INDEX: 1100,
   SWIPE_THRESHOLD: 50,
   ANIMATION_DURATION: 100,
-}
+} as const;
 
 /**
  * Metadata Field Validation Limits
@@ -339,7 +339,7 @@ export const METADATA_VALIDATION = {
   MAX_NOTES_LENGTH: 10000,
   MAX_REFERENCE_URL_LENGTH: 500,
   MAX_CUSTOM_FIELDS: 100,
-}
+} as const;
 
 /**
  * Species Identification Configuration
@@ -356,8 +356,8 @@ export const SPECIES_CONFIG = {
     { value: 'probable', label: 'Probable' },
     { value: 'possible', label: 'Possible' },
     { value: 'unknown', label: 'Unknown' },
-  ],
-}
+  ] as const,
+} as const;
 
 /**
  * Stacked Photo Card Configuration
@@ -369,14 +369,14 @@ export const SPECIES_CONFIG = {
  * @property {Array<string>} SHADOWS - Shadow classes for depth effect (back to front)
  */
 export const STACKED_CARD_CONFIG = {
-  Z_INDEX_CLASSES: ['z-10', 'z-20', 'z-30'],
+  Z_INDEX_CLASSES: ['z-10', 'z-20', 'z-30'] as const,
   OFFSETS: [
     'translate-x-2 translate-y-2',
     'translate-x-1 translate-y-1',
     'translate-x-0 translate-y-0',
-  ],
-  SHADOWS: ['shadow-sm', 'shadow-md', 'shadow-lg'],
-}
+  ] as const,
+  SHADOWS: ['shadow-sm', 'shadow-md', 'shadow-lg'] as const,
+} as const;
 
 /**
  * Tag Autocomplete Configuration
@@ -393,9 +393,9 @@ export const TAG_AUTOCOMPLETE_CONFIG = {
   DEBOUNCE_MS: 200,
   MIN_CHARS: 2,
   MAX_SUGGESTIONS: 10,
-  CACHE_STALE_TIME: 5 * 60 * 1000,  // 5 minutes
-  CACHE_GC_TIME: 10 * 60 * 1000,    // 10 minutes
-}
+  CACHE_STALE_TIME: 5 * 60 * 1000, // 5 minutes
+  CACHE_GC_TIME: 10 * 60 * 1000, // 10 minutes
+} as const;
 
 /**
  * API Limits Configuration
@@ -409,8 +409,17 @@ export const TAG_AUTOCOMPLETE_CONFIG = {
  * @property {number} MAX_BULK_DELETE - Max files per bulk delete operation
  */
 export const API_LIMITS = {
-  MAX_BATCH_SIZE: 100,    // Backend: MAX_BULK_FILES
-  MAX_BULK_DELETE: 100,   // Backend: MAX_BULK_DELETE
+  MAX_BATCH_SIZE: 100, // Backend: MAX_BULK_FILES
+  MAX_BULK_DELETE: 100, // Backend: MAX_BULK_DELETE
+} as const;
+
+/**
+ * Export format configuration interface
+ */
+export interface ExportFormat {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
 }
 
 /**
@@ -423,7 +432,7 @@ export const API_LIMITS = {
  * @property {string} name - User-facing format name
  * @property {string} description - Brief description of the format
  */
-export const EXPORT_FORMATS = [
+export const EXPORT_FORMATS: readonly ExportFormat[] = [
   {
     id: 'darwin_core',
     name: 'Darwin Core',
@@ -444,13 +453,13 @@ export const EXPORT_FORMATS = [
     name: 'CSV',
     description: 'Excel compatible',
   },
-]
+] as const;
 
 /**
  * Valid export format IDs (derived from EXPORT_FORMATS)
  * Used for input validation in useBulkExport hook.
  */
-export const VALID_EXPORT_FORMAT_IDS = EXPORT_FORMATS.map(f => f.id)
+export const VALID_EXPORT_FORMAT_IDS = EXPORT_FORMATS.map((f) => f.id);
 
 /**
  * Z-Index Layer System
@@ -474,13 +483,13 @@ export const VALID_EXPORT_FORMAT_IDS = EXPORT_FORMATS.map(f => f.id)
  * @property {number} MAP_POPUP - Map hover popup (numeric for inline style)
  */
 export const Z_INDEX = {
-  PHOTO_CONTROLS: 'z-10',    // Checkboxes, quick tag buttons on photos
-  DROPDOWN: 'z-30',          // Search bar dropdowns, autocomplete
-  TOOLBAR: 'z-40',           // Bulk actions toolbar, floating buttons
-  MODAL: 'z-[1200]',         // Modals, lightbox, overlays (above map elements)
-  MAP_CONTROLS: 'z-[1000]',  // Leaflet map controls layer
-  MAP_POPUP: 1100,           // Map hover popup (numeric for inline style)
-}
+  PHOTO_CONTROLS: 'z-10', // Checkboxes, quick tag buttons on photos
+  DROPDOWN: 'z-30', // Search bar dropdowns, autocomplete
+  TOOLBAR: 'z-40', // Bulk actions toolbar, floating buttons
+  MODAL: 'z-[1200]', // Modals, lightbox, overlays (above map elements)
+  MAP_CONTROLS: 'z-[1000]', // Leaflet map controls layer
+  MAP_POPUP: 1100, // Map hover popup (numeric for inline style)
+} as const;
 
 /**
  * Scheduler Layout Configuration
@@ -499,7 +508,7 @@ export const Z_INDEX = {
 export const SCHEDULER_LAYOUT_CONFIG = {
   DEFAULT_GRID: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
   SIDEBAR_GRID: 'flex flex-col space-y-3',
-}
+} as const;
 
 /**
  * Camera settings constants for the Focus Strategy card.
@@ -523,7 +532,13 @@ export const CAMERA_SETTINGS = {
   },
   AF_MODE_VALUES: { MANUAL: '0', SINGLE: '1', CONTINUOUS: '2' },
   AF_RANGE_VALUES: { NORMAL: '0', MACRO: '1', FULL: '2' },
-  AF_RANGE_DEFAULT: '1',   // Macro - optimal for insect photography
+  AF_RANGE_DEFAULT: '1', // Macro - optimal for insect photography
   AF_SPEED_VALUES: { NORMAL: '0', FAST: '1' },
-  AF_SPEED_DEFAULT: '1',   // Fast
-}
+  AF_SPEED_DEFAULT: '1', // Fast
+} as const;
+
+// Type exports for better TypeScript integration
+export type ViewMode = (typeof VIEW_CONFIG.VIEW_MODES)[keyof typeof VIEW_CONFIG.VIEW_MODES];
+export type ConfidenceLevel = (typeof SPECIES_CONFIG.CONFIDENCE_OPTIONS)[number]['value'];
+export type ExportFormatId = (typeof EXPORT_FORMATS)[number]['id'];
+export type FocusMode = (typeof CAMERA_SETTINGS.FOCUS_MODES)[keyof typeof CAMERA_SETTINGS.FOCUS_MODES];
