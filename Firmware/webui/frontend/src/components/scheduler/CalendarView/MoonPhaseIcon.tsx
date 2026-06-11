@@ -8,7 +8,6 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import { MoonIcon } from '@heroicons/react/24/outline'
 
 /**
@@ -19,6 +18,46 @@ const SIZE_CLASSES = {
   sm: 'h-4 w-4',
   md: 'h-5 w-5',
   lg: 'h-6 w-6',
+} as const
+
+type SizeType = keyof typeof SIZE_CLASSES
+
+/**
+ * Moon phase identifier types
+ */
+type MoonPhase =
+  | 'new'
+  | 'waxing_crescent'
+  | 'first_quarter'
+  | 'waxing_gibbous'
+  | 'full'
+  | 'waning_gibbous'
+  | 'last_quarter'
+  | 'waning_crescent'
+
+/**
+ * Moon phase data structure
+ */
+interface PhaseData {
+  phase?: MoonPhase
+  phase_name?: string
+  illumination?: number
+}
+
+/**
+ * Phase style configuration
+ */
+interface PhaseStyles {
+  color: string
+  fill: string
+}
+
+/**
+ * Component props interface
+ */
+export interface MoonPhaseIconProps {
+  phase?: PhaseData
+  size?: SizeType
 }
 
 /**
@@ -27,7 +66,7 @@ const SIZE_CLASSES = {
  * @param {string} phase - Phase identifier (e.g., 'new', 'full', 'waxing_crescent')
  * @returns {Object} Object with color and fill classes
  */
-function getPhaseStyles(phase) {
+function getPhaseStyles(phase: MoonPhase): PhaseStyles {
   switch (phase) {
     case 'new':
       // New moon: Gray outline only
@@ -115,7 +154,7 @@ function getPhaseStyles(phase) {
  *   size="md"
  * />
  */
-function MoonPhaseIcon({ phase, size = 'sm' }) {
+function MoonPhaseIcon({ phase, size = 'sm' }: MoonPhaseIconProps) {
   // Handle missing phase data
   if (!phase || !phase.phase) {
     return (
@@ -153,24 +192,6 @@ function MoonPhaseIcon({ phase, size = 'sm' }) {
       </div>
     </div>
   )
-}
-
-MoonPhaseIcon.propTypes = {
-  phase: PropTypes.shape({
-    phase: PropTypes.oneOf([
-      'new',
-      'waxing_crescent',
-      'first_quarter',
-      'waxing_gibbous',
-      'full',
-      'waning_gibbous',
-      'last_quarter',
-      'waning_crescent',
-    ]),
-    phase_name: PropTypes.string,
-    illumination: PropTypes.number,
-  }),
-  size: PropTypes.oneOf(['sm', 'md', 'lg']),
 }
 
 export default memo(MoonPhaseIcon)
