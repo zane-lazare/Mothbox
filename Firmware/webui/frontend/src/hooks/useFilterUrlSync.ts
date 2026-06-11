@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { DATE_PRESETS } from '../utils/filterQueryBuilder'
+import type { FilterState, DateRangeFilter, TagFilter, SpeciesFilter, FileTypeFilter, CameraSettingsFilter, NotesFilter, CustomFieldsFilter } from '../types'
 
 /**
  * Filter URL Synchronization Hook
@@ -47,18 +48,23 @@ const URL_KEYS = {
 
   // Custom fields (dynamic, prefixed with f_cf_)
   customFieldPrefix: 'f_cf_',
-}
+} as const
 
 const DEBOUNCE_MS = 300
 const MAX_URL_PARAMS = 50
 
+interface RangeParam {
+  min: number | null
+  max: number | null
+}
+
 /**
  * Parse URL search parameters to filter state object
  *
- * @param {URLSearchParams} searchParams - URL search parameters
- * @returns {Object|null} Filter state object or null if no filters in URL
+ * @param searchParams - URL search parameters
+ * @returns Filter state object or null if no filters in URL
  */
-export function parseUrlToFilterState(searchParams) {
+export function parseUrlToFilterState(searchParams: URLSearchParams): Partial<FilterState> | null {
   // Prevent memory exhaustion from malicious URLs with many parameters
   const paramCount = Array.from(searchParams.keys()).length
   if (paramCount > MAX_URL_PARAMS) {
@@ -69,7 +75,7 @@ export function parseUrlToFilterState(searchParams) {
   }
 
   let hasAnyFilter = false
-  const filterState = {}
+  const filterState: Partial<FilterState> = {}
 
   // Date range
   const dateRangePreset = searchParams.get(URL_KEYS.dateRangePreset)
@@ -77,12 +83,12 @@ export function parseUrlToFilterState(searchParams) {
   const dateEnd = searchParams.get(URL_KEYS.dateEnd)
 
   if (dateRangePreset || dateStart || dateEnd) {
-    const dateRange = {}
+    const dateRange: Partial<DateRangeFilter> = {}
     let hasValidDate = false
 
     // Validate preset
-    if (dateRangePreset && DATE_PRESETS[dateRangePreset]) {
-      dateRange.preset = dateRangePreset
+    if (dateRangePreset && DATE_PRESETS[dateRangePreset as keyof typeof DATE_PRESETS]) {
+      dateRange.preset = dateRangePreset as DateRangeFilter['preset']
       hasValidDate = true
     }
 
@@ -98,7 +104,7 @@ export function parseUrlToFilterState(searchParams) {
 
     // Only add dateRange if we found valid values
     if (hasValidDate) {
-      filterState.dateRange = dateRange
+      filterState.dateRange = dateRange as DateRangeFilter
       hasAnyFilter = true
     }
   }
@@ -124,21 +130,23 @@ export function parseUrlToFilterState(searchParams) {
 
   if (speciesParam || includeUnidentified) {
     hasAnyFilter = true
-    filterState.species = {}
+    const species: Partial<SpeciesFilter> = {}
 
     if (speciesParam) {
-      const species = speciesParam
+      const speciesList = speciesParam
         .split(',')
         .map((s) => decodeURIComponent(s.trim()))
         .filter(Boolean)
-      if (species.length > 0) {
-        filterState.species.selected = species
+      if (speciesList.length > 0) {
+        species.selected = speciesList
       }
     }
 
     if (includeUnidentified === '1') {
-      filterState.species.includeUnidentified = true
+      species.includeUnidentified = true
     }
+
+    filterState.species = species as SpeciesFilter
   }
 
   // File types
@@ -157,7 +165,7 @@ export function parseUrlToFilterState(searchParams) {
     const parsed = parseRangeParam(isoRange, parseInt)
     if (parsed) {
       hasAnyFilter = true
-      if (!filterState.cameraSettings) filterState.cameraSettings = {}
+      if (!filterState.cameraSettings) filterState.cameraSettings = {} as CameraSettingsFilter
       filterState.cameraSettings.iso = parsed
     }
   }
@@ -168,7 +176,7 @@ export function parseUrlToFilterState(searchParams) {
     const parsed = parseRangeParam(apertureRange, parseFloat)
     if (parsed) {
       hasAnyFilter = true
-      if (!filterState.cameraSettings) filterState.cameraSettings = {}
+      if (!filterState.cameraSettings) filterState.cameraSettings = {} as CameraSettingsFilter
       filterState.cameraSettings.aperture = parsed
     }
   }
@@ -179,7 +187,7 @@ export function parseUrlToFilterState(searchParams) {
     const parsed = parseRangeParam(shutterSpeedRange, parseFloat)
     if (parsed) {
       hasAnyFilter = true
-      if (!filterState.cameraSettings) filterState.cameraSettings = {}
+      if (!filterState.cameraSettings) filterState.cameraSettings = {} as CameraSettingsFilter
       filterState.cameraSettings.shutterSpeed = parsed
     }
   }
@@ -190,21 +198,23 @@ export function parseUrlToFilterState(searchParams) {
 
   if (hasNotesParam !== null || notesKeywords) {
     hasAnyFilter = true
-    filterState.notes = {}
+    const notes: Partial<NotesFilter> = {}
 
     if (hasNotesParam === '1') {
-      filterState.notes.hasNotes = true
+      notes.hasNotes = true
     } else if (hasNotesParam === '0') {
-      filterState.notes.hasNotes = false
+      notes.hasNotes = false
     }
 
     if (notesKeywords) {
-      filterState.notes.keywords = decodeURIComponent(notesKeywords)
+      notes.keywords = decodeURIComponent(notesKeywords)
     }
+
+    filterState.notes = notes as NotesFilter
   }
 
   // Custom fields (f_cf_{fieldname}={value})
-  const customFields = {}
+  const customFields: CustomFieldsFilter = {}
   for (const [key, value] of searchParams.entries()) {
     if (key.startsWith(URL_KEYS.customFieldPrefix)) {
       const fieldName = key.substring(URL_KEYS.customFieldPrefix.length)
@@ -225,11 +235,14 @@ export function parseUrlToFilterState(searchParams) {
 /**
  * Parse a range parameter (e.g., "100-3200" or "2.8-8")
  *
- * @param {string} rangeStr - Range string in format "min-max"
- * @param {Function} parser - Parsing function (parseInt or parseFloat)
- * @returns {Object|null} Object with min/max properties or null if invalid
+ * @param rangeStr - Range string in format "min-max"
+ * @param parser - Parsing function (parseInt or parseFloat)
+ * @returns Object with min/max properties or null if invalid
  */
-function parseRangeParam(rangeStr, parser) {
+function parseRangeParam(
+  rangeStr: string,
+  parser: typeof parseInt | typeof parseFloat
+): RangeParam | null {
   if (!rangeStr) return null
 
   const parts = rangeStr.split('-')
@@ -249,10 +262,10 @@ function parseRangeParam(rangeStr, parser) {
 /**
  * Serialize filter state to URL search parameters
  *
- * @param {Object} filterState - Filter state object
- * @returns {URLSearchParams} URL search parameters
+ * @param filterState - Filter state object
+ * @returns URL search parameters
  */
-export function serializeFilterStateToUrl(filterState) {
+export function serializeFilterStateToUrl(filterState: Partial<FilterState>): URLSearchParams {
   const params = new URLSearchParams()
 
   if (!filterState) return params
@@ -271,7 +284,7 @@ export function serializeFilterStateToUrl(filterState) {
   }
 
   // Tags
-  if (filterState.tags?.selected?.length > 0) {
+  if (filterState.tags?.selected?.length && filterState.tags.selected.length > 0) {
     const tags = filterState.tags.selected.map((t) => encodeURIComponent(t)).join(',')
     params.set(URL_KEYS.tags, tags)
 
@@ -282,7 +295,7 @@ export function serializeFilterStateToUrl(filterState) {
 
   // Species
   if (filterState.species) {
-    if (filterState.species.selected?.length > 0) {
+    if (filterState.species.selected?.length && filterState.species.selected.length > 0) {
       const species = filterState.species.selected.map((s) => encodeURIComponent(s)).join(',')
       params.set(URL_KEYS.species, species)
     }
@@ -292,7 +305,7 @@ export function serializeFilterStateToUrl(filterState) {
   }
 
   // File types
-  if (filterState.fileTypes?.selected?.length > 0) {
+  if (filterState.fileTypes?.selected?.length && filterState.fileTypes.selected.length > 0) {
     const fileTypes = filterState.fileTypes.selected.join(',')
     params.set(URL_KEYS.fileTypes, fileTypes)
   }
@@ -347,10 +360,10 @@ export function serializeFilterStateToUrl(filterState) {
 /**
  * Serialize a range object to string format "min-max"
  *
- * @param {Object} range - Range object with min/max properties
- * @returns {string|null} Range string or null if invalid
+ * @param range - Range object with min/max properties
+ * @returns Range string or null if invalid
  */
-function serializeRange(range) {
+function serializeRange(range: RangeParam): string | null {
   if (!range) return null
 
   const min = range.min !== null && range.min !== undefined ? String(range.min) : ''
@@ -369,11 +382,11 @@ function serializeRange(range) {
  * - Special value handling (undefined, NaN, Infinity)
  * - Performance overhead of serialization
  *
- * @param {Object} state1 - First filter state
- * @param {Object} state2 - Second filter state
- * @returns {boolean} True if states are equal
+ * @param state1 - First filter state
+ * @param state2 - Second filter state
+ * @returns True if states are equal
  */
-function areFilterStatesEqual(state1, state2) {
+function areFilterStatesEqual(state1: Partial<FilterState> | null, state2: Partial<FilterState> | null): boolean {
   // Fast path: same reference
   if (state1 === state2) return true
 
@@ -405,7 +418,7 @@ function areFilterStatesEqual(state1, state2) {
 }
 
 // Helper: Compare date ranges
-function areDateRangesEqual(dr1, dr2) {
+function areDateRangesEqual(dr1?: Partial<DateRangeFilter>, dr2?: Partial<DateRangeFilter>): boolean {
   if (!dr1 && !dr2) return true
   if (!dr1 || !dr2) return false
   return dr1.preset === dr2.preset &&
@@ -414,7 +427,7 @@ function areDateRangesEqual(dr1, dr2) {
 }
 
 // Helper: Compare tags (sort arrays for order-independent comparison)
-function areTagsEqual(t1, t2) {
+function areTagsEqual(t1?: Partial<TagFilter>, t2?: Partial<TagFilter>): boolean {
   if (!t1 && !t2) return true
   if (!t1 || !t2) return false
   if (t1.matchMode !== t2.matchMode) return false
@@ -422,7 +435,7 @@ function areTagsEqual(t1, t2) {
 }
 
 // Helper: Compare species
-function areSpeciesEqual(s1, s2) {
+function areSpeciesEqual(s1?: Partial<SpeciesFilter>, s2?: Partial<SpeciesFilter>): boolean {
   if (!s1 && !s2) return true
   if (!s1 || !s2) return false
   if (s1.includeUnidentified !== s2.includeUnidentified) return false
@@ -430,7 +443,7 @@ function areSpeciesEqual(s1, s2) {
 }
 
 // Helper: Compare sorted arrays (order-independent)
-function areArraySelectionsEqual(arr1, arr2) {
+function areArraySelectionsEqual(arr1?: string[], arr2?: string[]): boolean {
   if (!arr1 && !arr2) return true
   if (!arr1 || !arr2) return false
   if (arr1.length !== arr2.length) return false
@@ -440,7 +453,7 @@ function areArraySelectionsEqual(arr1, arr2) {
 }
 
 // Helper: Compare camera settings (range objects)
-function areCameraSettingsEqual(cs1, cs2) {
+function areCameraSettingsEqual(cs1?: Partial<CameraSettingsFilter>, cs2?: Partial<CameraSettingsFilter>): boolean {
   if (!cs1 && !cs2) return true
   if (!cs1 || !cs2) return false
   return areRangesEqual(cs1.iso, cs2.iso) &&
@@ -449,21 +462,21 @@ function areCameraSettingsEqual(cs1, cs2) {
 }
 
 // Helper: Compare range objects
-function areRangesEqual(r1, r2) {
+function areRangesEqual(r1?: RangeParam, r2?: RangeParam): boolean {
   if (!r1 && !r2) return true
   if (!r1 || !r2) return false
   return r1.min === r2.min && r1.max === r2.max
 }
 
 // Helper: Compare notes
-function areNotesEqual(n1, n2) {
+function areNotesEqual(n1?: Partial<NotesFilter>, n2?: Partial<NotesFilter>): boolean {
   if (!n1 && !n2) return true
   if (!n1 || !n2) return false
   return n1.hasNotes === n2.hasNotes && n1.keywords === n2.keywords
 }
 
 // Helper: Compare custom fields objects
-function areCustomFieldsEqual(cf1, cf2) {
+function areCustomFieldsEqual(cf1?: CustomFieldsFilter, cf2?: CustomFieldsFilter): boolean {
   if (!cf1 && !cf2) return true
   if (!cf1 || !cf2) return false
   const keys1 = Object.keys(cf1)
@@ -481,18 +494,21 @@ function areCustomFieldsEqual(cf1, cf2) {
  *
  * Uses window.history.replaceState to avoid polluting browser history.
  *
- * @param {Object} filterState - Current filter state from context
- * @param {Function} loadState - Function to load state into context
+ * @param filterState - Current filter state from context
+ * @param loadState - Function to load state into context
  *
  * @example
  * // In a component that uses filter context
  * const { filterState, loadFilterState } = useFilterContext()
  * useFilterUrlSync(filterState, loadFilterState)
  */
-export function useFilterUrlSync(filterState, loadState) {
+export function useFilterUrlSync(
+  filterState: Partial<FilterState>,
+  loadState: (state: Partial<FilterState>) => void
+): void {
   const isInitialMount = useRef(true)
-  const debounceTimer = useRef(null)
-  const lastSyncedState = useRef(null)
+  const debounceTimer = useRef<number | null>(null)
+  const lastSyncedState = useRef<Partial<FilterState> | null>(null)
 
   // On mount: Parse URL and load into state
   useEffect(() => {
@@ -528,7 +544,7 @@ export function useFilterUrlSync(filterState, loadState) {
     }
 
     // Debounce URL update
-    debounceTimer.current = setTimeout(() => {
+    debounceTimer.current = window.setTimeout(() => {
       const params = serializeFilterStateToUrl(filterState)
       const newUrl = params.toString()
         ? `${window.location.pathname}?${params.toString()}`

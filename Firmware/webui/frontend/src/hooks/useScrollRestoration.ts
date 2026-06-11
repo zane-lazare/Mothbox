@@ -1,7 +1,32 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react'
 
-const STORAGE_KEY_PREFIX = 'gallery-scroll-position';
-const POSITION_TTL_MS = 300000; // 5 minutes - long enough for tab switching, not so long that stale positions persist
+const STORAGE_KEY_PREFIX = 'gallery-scroll-position'
+const POSITION_TTL_MS = 300000 // 5 minutes - long enough for tab switching, not so long that stale positions persist
+
+/**
+ * Scroll position data stored in sessionStorage
+ */
+interface ScrollPosition {
+  scrollTop: number
+  timestamp: number
+  key: string
+}
+
+/**
+ * Return type for useScrollRestoration hook
+ */
+interface UseScrollRestorationResult {
+  scrollRef: React.MutableRefObject<HTMLElement | null>
+  saveScrollPosition: () => void
+  scrollTo: (offset: number) => void
+}
+
+/**
+ * Element with scrollTo method (react-window grid)
+ */
+interface ScrollableElement extends HTMLElement {
+  scrollTo?: (options: { scrollTop: number }) => void
+}
 
 /**
  * Generate storage key for a given scroll context
@@ -9,7 +34,7 @@ const POSITION_TTL_MS = 300000; // 5 minutes - long enough for tab switching, no
  * @param {string} key - Unique identifier for this scroll context
  * @returns {string} Namespaced storage key
  */
-const getStorageKey = (key) => `${STORAGE_KEY_PREFIX}-${key}`;
+const getStorageKey = (key: string): string => `${STORAGE_KEY_PREFIX}-${key}`
 
 /**
  * Scroll position restoration for virtual grid
@@ -28,37 +53,37 @@ const getStorageKey = (key) => `${STORAGE_KEY_PREFIX}-${key}`;
  * @param {string} key - Unique key for this scroll context
  * @returns {object} { scrollRef, saveScrollPosition, scrollTo }
  */
-export default function useScrollRestoration(key = 'default') {
-  const scrollRef = useRef(null);
+export default function useScrollRestoration(key = 'default'): UseScrollRestorationResult {
+  const scrollRef = useRef<HTMLElement | null>(null)
 
   /**
    * Save current scroll position to sessionStorage
    * Handles QuotaExceededError gracefully (privacy mode, storage full)
    */
   const saveScrollPosition = useCallback(() => {
-    if (!scrollRef.current) return;
+    if (!scrollRef.current) return
 
-    const position = {
+    const position: ScrollPosition = {
       scrollTop: scrollRef.current.scrollTop,
       timestamp: Date.now(),
       key
-    };
+    }
 
     try {
-      sessionStorage.setItem(getStorageKey(key), JSON.stringify(position));
+      sessionStorage.setItem(getStorageKey(key), JSON.stringify(position))
     } catch (e) {
       // QuotaExceededError occurs in:
       // - Private browsing mode (Safari, Firefox)
       // - When sessionStorage quota is full
       // Gracefully degrade: scroll restoration disabled, but app continues working
-      if (e.name === 'QuotaExceededError') {
-        console.warn('SessionStorage quota exceeded, scroll position not saved');
+      if (e instanceof Error && e.name === 'QuotaExceededError') {
+        console.warn('SessionStorage quota exceeded, scroll position not saved')
       } else {
         // Log unexpected errors for debugging
-        console.error('Failed to save scroll position:', e);
+        console.error('Failed to save scroll position:', e)
       }
     }
-  }, [key]);
+  }, [key])
 
   /**
    * Scroll to a specific offset
@@ -66,17 +91,19 @@ export default function useScrollRestoration(key = 'default') {
    *
    * @param {number} offset - Scroll offset in pixels
    */
-  const scrollTo = useCallback((offset) => {
-    if (!scrollRef.current) return;
+  const scrollTo = useCallback((offset: number) => {
+    if (!scrollRef.current) return
+
+    const element = scrollRef.current as ScrollableElement
 
     // For react-window FixedSizeGrid (has scrollTo method)
-    if (typeof scrollRef.current.scrollTo === 'function') {
-      scrollRef.current.scrollTo({ scrollTop: offset });
+    if (typeof element.scrollTo === 'function') {
+      element.scrollTo({ scrollTop: offset })
     } else {
       // For native scrollable elements
-      scrollRef.current.scrollTop = offset;
+      element.scrollTop = offset
     }
-  }, []);
+  }, [])
 
   /**
    * Restore scroll position from sessionStorage
@@ -89,10 +116,10 @@ export default function useScrollRestoration(key = 'default') {
    */
   const restoreScrollPosition = useCallback(() => {
     try {
-      const saved = sessionStorage.getItem(getStorageKey(key));
-      if (!saved) return;
+      const saved = sessionStorage.getItem(getStorageKey(key))
+      if (!saved) return
 
-      const position = JSON.parse(saved);
+      const position: ScrollPosition = JSON.parse(saved)
 
       // Validate parsed JSON structure (defense against corrupted/malformed data)
       if (
@@ -102,49 +129,51 @@ export default function useScrollRestoration(key = 'default') {
       ) {
         // Invalid structure - clear corrupted data
         try {
-          sessionStorage.removeItem(getStorageKey(key));
+          sessionStorage.removeItem(getStorageKey(key))
         } catch {
           // Ignore errors when clearing (privacy mode)
         }
-        return;
+        return
       }
 
       // Check TTL and key match
-      const isExpired = Date.now() - position.timestamp >= POSITION_TTL_MS;
-      const keyMatches = position.key === key;
+      const isExpired = Date.now() - position.timestamp >= POSITION_TTL_MS
+      const keyMatches = position.key === key
 
       if (isExpired || !keyMatches) {
         // Clear stale or mismatched position
         try {
-          sessionStorage.removeItem(getStorageKey(key));
+          sessionStorage.removeItem(getStorageKey(key))
         } catch {
           // Ignore errors when clearing (privacy mode)
         }
-        return;
+        return
       }
 
       // Restore position on next animation frame to ensure DOM is ready
       // This is more reliable than setTimeout and syncs with browser paint cycle
       requestAnimationFrame(() => {
-        scrollTo(position.scrollTop);
-      });
+        scrollTo(position.scrollTop)
+      })
     } catch (err) {
       // Gracefully handle:
       // - SecurityError: sessionStorage access blocked (privacy mode)
       // - JSON parse errors: corrupted data
       // - Other storage access errors
-      console.warn('Failed to restore scroll position:', err.message);
+      if (err instanceof Error) {
+        console.warn('Failed to restore scroll position:', err.message)
+      }
     }
-  }, [key, scrollTo]);
+  }, [key, scrollTo])
 
   // Restore position on mount
   useEffect(() => {
-    restoreScrollPosition();
-  }, [restoreScrollPosition]);
+    restoreScrollPosition()
+  }, [restoreScrollPosition])
 
   return {
     scrollRef,
     saveScrollPosition,
     scrollTo
-  };
+  }
 }
