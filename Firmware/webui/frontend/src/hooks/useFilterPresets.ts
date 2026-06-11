@@ -16,17 +16,36 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import type { FilterState } from '../types'
 
 const STORAGE_KEY = 'mothbox-filter-presets'
 const MAX_PRESETS = 20
+
+interface FilterPreset {
+  id: string
+  name: string
+  filters: Partial<FilterState>
+  createdAt: string
+}
+
+interface SaveResult {
+  preset: FilterPreset
+  success: boolean
+  error?: string
+}
+
+interface OperationResult {
+  success: boolean
+  error?: string
+}
 
 /**
  * Generate a unique preset ID
  * Uses timestamp + random suffix for uniqueness
  *
- * @returns {string} Unique preset ID
+ * @returns Unique preset ID
  */
-function generatePresetId() {
+function generatePresetId(): string {
   const timestamp = Date.now()
   const random = Math.random().toString(36).substring(2, 9)
   return `preset_${timestamp}_${random}`
@@ -36,9 +55,9 @@ function generatePresetId() {
  * Load presets from localStorage
  * Handles parsing errors gracefully
  *
- * @returns {Array} Array of preset objects
+ * @returns Array of preset objects
  */
-function loadPresetsFromStorage() {
+function loadPresetsFromStorage(): FilterPreset[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
@@ -46,7 +65,7 @@ function loadPresetsFromStorage() {
       // Validate and filter valid presets
       if (Array.isArray(presets)) {
         return presets.filter(
-          (p) =>
+          (p): p is FilterPreset =>
             p &&
             typeof p === 'object' &&
             p.id &&
@@ -66,16 +85,16 @@ function loadPresetsFromStorage() {
  * Save presets to localStorage
  * Handles storage errors gracefully and returns status
  *
- * @param {Array} presets - Array of preset objects
- * @returns {{success: boolean, error?: string}} Status object
+ * @param presets - Array of preset objects
+ * @returns Status object
  */
-function savePresetsToStorage(presets) {
+function savePresetsToStorage(presets: FilterPreset[]): OperationResult {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(presets))
     return { success: true }
   } catch (e) {
     console.error('Failed to save filter presets to localStorage:', e)
-    if (e.name === 'QuotaExceededError') {
+    if (e instanceof Error && e.name === 'QuotaExceededError') {
       return {
         success: false,
         error: 'Storage quota exceeded. Please delete old presets.',
@@ -88,12 +107,16 @@ function savePresetsToStorage(presets) {
 /**
  * Check if preset name already exists (case-insensitive)
  *
- * @param {Array} presets - Current presets array
- * @param {string} name - Name to check
- * @param {string} excludeId - Optional preset ID to exclude from check (for rename)
- * @returns {boolean} True if name exists
+ * @param presets - Current presets array
+ * @param name - Name to check
+ * @param excludeId - Optional preset ID to exclude from check (for rename)
+ * @returns True if name exists
  */
-function presetNameExists(presets, name, excludeId = null) {
+function presetNameExists(
+  presets: FilterPreset[],
+  name: string,
+  excludeId: string | null = null
+): boolean {
   const lowerName = name.toLowerCase().trim()
   return presets.some(
     (p) => p.id !== excludeId && p.name.toLowerCase().trim() === lowerName
@@ -103,12 +126,16 @@ function presetNameExists(presets, name, excludeId = null) {
 /**
  * Generate unique name by appending number if needed
  *
- * @param {Array} presets - Current presets array
- * @param {string} baseName - Base name to make unique
- * @param {string} excludeId - Optional preset ID to exclude from check
- * @returns {string} Unique name
+ * @param presets - Current presets array
+ * @param baseName - Base name to make unique
+ * @param excludeId - Optional preset ID to exclude from check
+ * @returns Unique name
  */
-function generateUniqueName(presets, baseName, excludeId = null) {
+function generateUniqueName(
+  presets: FilterPreset[],
+  baseName: string,
+  excludeId: string | null = null
+): string {
   let name = baseName.trim()
   let counter = 2
 
@@ -123,22 +150,31 @@ function generateUniqueName(presets, baseName, excludeId = null) {
 /**
  * Sort presets by creation date (newest first)
  *
- * @param {Array} presets - Presets to sort
- * @returns {Array} Sorted presets
+ * @param presets - Presets to sort
+ * @returns Sorted presets
  */
-function sortPresets(presets) {
+function sortPresets(presets: FilterPreset[]): FilterPreset[] {
   return [...presets].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
+}
+
+interface UseFilterPresetsResult {
+  presets: FilterPreset[]
+  savePreset: (name: string, filterState: Partial<FilterState>) => SaveResult
+  loadPreset: (presetId: string) => Partial<FilterState> | null
+  deletePreset: (presetId: string) => OperationResult
+  renamePreset: (presetId: string, newName: string) => OperationResult
+  isLoading: boolean
 }
 
 /**
  * Main filter presets hook
  *
- * @returns {Object} Preset management functions and state
+ * @returns Preset management functions and state
  */
-export function useFilterPresets() {
-  const [presets, setPresets] = useState([])
+export function useFilterPresets(): UseFilterPresetsResult {
+  const [presets, setPresets] = useState<FilterPreset[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Load presets on mount
@@ -151,12 +187,12 @@ export function useFilterPresets() {
   /**
    * Save a new filter preset
    *
-   * @param {string} name - Preset name
-   * @param {Object} filterState - Complete filter state to save
-   * @returns {{preset: Object, success: boolean, error?: string}} Result object with preset and status
+   * @param name - Preset name
+   * @param filterState - Complete filter state to save
+   * @returns Result object with preset and status
    */
   const savePreset = useCallback(
-    (name, filterState) => {
+    (name: string, filterState: Partial<FilterState>): SaveResult => {
       if (!name || typeof name !== 'string' || !name.trim()) {
         throw new Error('Preset name is required')
       }
@@ -167,7 +203,7 @@ export function useFilterPresets() {
 
       const uniqueName = generateUniqueName(presets, name)
 
-      const newPreset = {
+      const newPreset: FilterPreset = {
         id: generatePresetId(),
         name: uniqueName,
         filters: filterState,
@@ -195,11 +231,11 @@ export function useFilterPresets() {
   /**
    * Load a preset by ID
    *
-   * @param {string} presetId - Preset ID to load
-   * @returns {Object|null} Filter state object or null if not found
+   * @param presetId - Preset ID to load
+   * @returns Filter state object or null if not found
    */
   const loadPreset = useCallback(
-    (presetId) => {
+    (presetId: string): Partial<FilterState> | null => {
       if (!presetId || typeof presetId !== 'string') {
         throw new Error('Preset ID is required')
       }
@@ -218,11 +254,11 @@ export function useFilterPresets() {
   /**
    * Delete a preset by ID
    *
-   * @param {string} presetId - Preset ID to delete
-   * @returns {{success: boolean, error?: string}} Status object
+   * @param presetId - Preset ID to delete
+   * @returns Status object
    */
   const deletePreset = useCallback(
-    (presetId) => {
+    (presetId: string): OperationResult => {
       if (!presetId || typeof presetId !== 'string') {
         throw new Error('Preset ID is required')
       }
@@ -237,12 +273,12 @@ export function useFilterPresets() {
   /**
    * Rename a preset
    *
-   * @param {string} presetId - Preset ID to rename
-   * @param {string} newName - New preset name
-   * @returns {{success: boolean, error?: string}|undefined} Status object, or undefined if no change needed
+   * @param presetId - Preset ID to rename
+   * @param newName - New preset name
+   * @returns Status object
    */
   const renamePreset = useCallback(
-    (presetId, newName) => {
+    (presetId: string, newName: string): OperationResult => {
       if (!presetId || typeof presetId !== 'string') {
         throw new Error('Preset ID is required')
       }
