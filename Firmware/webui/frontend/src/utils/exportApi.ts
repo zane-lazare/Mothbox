@@ -12,6 +12,144 @@
  */
 
 import { api } from './api'
+import type { AxiosResponse } from 'axios'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Export formats
+ */
+export type ExportFormat = 'darwin_core' | 'inaturalist' | 'json' | 'csv'
+
+/**
+ * Export job statuses
+ */
+export type ExportJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'expired'
+
+/**
+ * Export filter criteria
+ */
+export interface ExportFilter {
+  date_start?: string
+  date_end?: string
+  deployment?: string
+  tags?: string[]
+  series_type?: 'hdr' | 'focus_bracket'
+  has_species?: boolean
+  photo_paths?: string[]
+}
+
+/**
+ * Export job progress
+ */
+export interface ExportJobProgress {
+  current: number
+  total: number
+  percent: number
+  phase: string
+}
+
+/**
+ * Export job creation data
+ */
+export interface ExportJobCreateData {
+  preset?: string
+  format?: ExportFormat
+  filter?: ExportFilter
+  options?: Record<string, unknown>
+  ttl_seconds?: number
+}
+
+/**
+ * Export job response
+ */
+export interface ExportJob {
+  job_id: string
+  status: ExportJobStatus
+  format: ExportFormat
+  created_at: string
+  updated_at?: string
+  completed_at?: string
+  progress?: ExportJobProgress
+  error?: string
+  result_path?: string
+  filter?: ExportFilter
+  options?: Record<string, unknown>
+}
+
+/**
+ * Export jobs list response
+ */
+export interface ExportJobsListResponse {
+  jobs: ExportJob[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * Export jobs list params
+ */
+export interface ExportJobsListParams {
+  status?: ExportJobStatus
+  limit?: number
+  offset?: number
+}
+
+/**
+ * Export job operation response
+ */
+export interface ExportJobOperationResponse {
+  success: boolean
+  message: string
+}
+
+/**
+ * Export preset
+ */
+export interface ExportPreset {
+  name: string
+  display_name: string
+  export_format: ExportFormat
+  description?: string
+  category: 'built-in' | 'user'
+  filter?: ExportFilter
+  options?: Record<string, unknown>
+}
+
+/**
+ * Export presets list response
+ */
+export interface ExportPresetsListResponse {
+  presets: ExportPreset[]
+  counts: {
+    'built-in': number
+    user: number
+  }
+}
+
+/**
+ * Export preset creation data
+ */
+export interface ExportPresetCreateData {
+  name: string
+  display_name: string
+  export_format: ExportFormat
+  description?: string
+  filter?: ExportFilter
+  options?: Record<string, unknown>
+}
+
+/**
+ * Export preset operation response
+ */
+export interface ExportPresetOperationResponse {
+  success: boolean
+  message: string
+  name?: string
+}
 
 // ============================================================================
 // Export Jobs API (Issue #122)
@@ -37,7 +175,8 @@ import { api } from './api'
  *
  * Response: { job_id, status, format, created_at, ... }
  */
-export const createExportJob = (data) => api.post('/export/jobs', data)
+export const createExportJob = (data: ExportJobCreateData): Promise<AxiosResponse<ExportJob>> =>
+  api.post('/export/jobs', data)
 
 /**
  * List all export jobs with optional filtering and pagination
@@ -50,7 +189,8 @@ export const createExportJob = (data) => api.post('/export/jobs', data)
  *
  * Response: { jobs: [...], total, limit, offset }
  */
-export const listExportJobs = (params = {}) => api.get('/export/jobs', { params })
+export const listExportJobs = (params: ExportJobsListParams = {}): Promise<AxiosResponse<ExportJobsListResponse>> =>
+  api.get('/export/jobs', { params })
 
 /**
  * Get status and details of a specific export job
@@ -60,7 +200,8 @@ export const listExportJobs = (params = {}) => api.get('/export/jobs', { params 
  *
  * Response: { job_id, status, format, progress: { current, total, percent, phase }, ... }
  */
-export const getExportJob = (jobId) => api.get(`/export/jobs/${jobId}`)
+export const getExportJob = (jobId: string): Promise<AxiosResponse<ExportJob>> =>
+  api.get(`/export/jobs/${jobId}`)
 
 /**
  * Cancel a pending or running export job
@@ -70,7 +211,8 @@ export const getExportJob = (jobId) => api.get(`/export/jobs/${jobId}`)
  *
  * Response: { success: true, message: "Job cancelled" }
  */
-export const cancelExportJob = (jobId) => api.post(`/export/jobs/${jobId}/cancel`)
+export const cancelExportJob = (jobId: string): Promise<AxiosResponse<ExportJobOperationResponse>> =>
+  api.post(`/export/jobs/${jobId}/cancel`)
 
 /**
  * Delete an export job and its output files
@@ -82,7 +224,8 @@ export const cancelExportJob = (jobId) => api.post(`/export/jobs/${jobId}/cancel
  *
  * Response: { success: true, message: "Job deleted" }
  */
-export const deleteExportJob = (jobId) => api.delete(`/export/jobs/${jobId}`)
+export const deleteExportJob = (jobId: string): Promise<AxiosResponse<ExportJobOperationResponse>> =>
+  api.delete(`/export/jobs/${jobId}`)
 
 /**
  * Get download URL for completed export job result
@@ -94,7 +237,8 @@ export const deleteExportJob = (jobId) => api.delete(`/export/jobs/${jobId}`)
  *
  * Example: /api/export/jobs/550e8400-e29b-41d4-a716-446655440000/download
  */
-export const getExportJobDownloadUrl = (jobId) => `/api/export/jobs/${jobId}/download`
+export const getExportJobDownloadUrl = (jobId: string): string =>
+  `/api/export/jobs/${jobId}/download`
 
 // ============================================================================
 // Export Presets API (Issue #123)
@@ -108,7 +252,7 @@ export const getExportJobDownloadUrl = (jobId) => `/api/export/jobs/${jobId}/dow
  *
  * Response: { presets: [...], counts: { 'built-in': 6, user: 1 } }
  */
-export const listExportPresets = (formatFilter) => {
+export const listExportPresets = (formatFilter?: ExportFormat): Promise<AxiosResponse<ExportPresetsListResponse>> => {
   const params = formatFilter ? { format: formatFilter } : {}
   return api.get('/export/presets', { params })
 }
@@ -121,7 +265,8 @@ export const listExportPresets = (formatFilter) => {
  *
  * Response: { name, display_name, export_format, description, category, filter, options }
  */
-export const getExportPreset = (name) => api.get(`/export/presets/${name}`)
+export const getExportPreset = (name: string): Promise<AxiosResponse<ExportPreset>> =>
+  api.get(`/export/presets/${name}`)
 
 /**
  * Create new user export preset
@@ -137,7 +282,8 @@ export const getExportPreset = (name) => api.get(`/export/presets/${name}`)
  *
  * Response: { success: true, message: "Preset created", name: "my_preset" }
  */
-export const createExportPreset = (data) => api.post('/export/presets', data)
+export const createExportPreset = (data: ExportPresetCreateData): Promise<AxiosResponse<ExportPresetOperationResponse>> =>
+  api.post('/export/presets', data)
 
 /**
  * Delete user export preset (built-in presets are protected)
@@ -147,4 +293,5 @@ export const createExportPreset = (data) => api.post('/export/presets', data)
  *
  * Response: { success: true, message: "Preset deleted" }
  */
-export const deleteExportPreset = (name) => api.delete(`/export/presets/${name}`)
+export const deleteExportPreset = (name: string): Promise<AxiosResponse<ExportPresetOperationResponse>> =>
+  api.delete(`/export/presets/${name}`)

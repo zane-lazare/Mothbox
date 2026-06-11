@@ -15,6 +15,68 @@
  */
 
 import { api } from './api'
+import type { AxiosResponse } from 'axios'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Deployment list item
+ */
+export interface DeploymentListItem {
+  directory: string
+  name: string
+}
+
+/**
+ * Deployment list response
+ */
+export interface DeploymentListResponse {
+  deployments: DeploymentListItem[]
+  total: number
+}
+
+/**
+ * Deployment metadata
+ */
+export interface DeploymentMetadata {
+  deployment_name: string
+  location_name?: string
+  latitude?: number
+  longitude?: number
+  altitude?: number
+  start_date?: string
+  end_date?: string
+  environmental?: Record<string, unknown>
+  mothbox_id?: string
+  firmware_version?: string
+  custom?: Record<string, unknown>
+}
+
+/**
+ * Deployment metadata creation data
+ */
+export interface DeploymentCreateData extends DeploymentMetadata {
+  deployment_name: string
+}
+
+/**
+ * Deployment metadata update data (partial)
+ */
+export type DeploymentUpdateData = Partial<DeploymentMetadata>
+
+/**
+ * Success response for create/update/delete operations
+ */
+export interface DeploymentOperationResponse {
+  message: string
+  directory: string
+}
+
+// =============================================================================
+// API Functions
+// =============================================================================
 
 /**
  * List all deployments
@@ -29,7 +91,8 @@ import { api } from './api'
  *   total: 10
  * }
  */
-export const listDeployments = () => api.get('/deployment/list')
+export const listDeployments = (): Promise<AxiosResponse<DeploymentListResponse>> =>
+  api.get('/deployment/list')
 
 /**
  * Get deployment metadata by directory path
@@ -51,7 +114,7 @@ export const listDeployments = () => api.get('/deployment/list')
  *   custom: { project_code: "ORNL-2024-001" }
  * }
  */
-export const getDeployment = (directory) => {
+export const getDeployment = (directory: string): Promise<AxiosResponse<DeploymentMetadata>> => {
   // Encode directory path for URL
   const encodedPath = encodeURIComponent(directory)
   return api.get(`/deployment/metadata/${encodedPath}`)
@@ -80,7 +143,10 @@ export const getDeployment = (directory) => {
  *   directory: "/photos/deployment1"
  * }
  */
-export const createDeployment = (directory, data) => {
+export const createDeployment = (
+  directory: string,
+  data: DeploymentCreateData
+): Promise<AxiosResponse<DeploymentOperationResponse>> => {
   const encodedPath = encodeURIComponent(directory)
   return api.put(`/deployment/metadata/${encodedPath}`, data)
 }
@@ -97,7 +163,10 @@ export const createDeployment = (directory, data) => {
  *   directory: "/photos/deployment1"
  * }
  */
-export const updateDeployment = (directory, data) => {
+export const updateDeployment = (
+  directory: string,
+  data: DeploymentUpdateData
+): Promise<AxiosResponse<DeploymentOperationResponse>> => {
   const encodedPath = encodeURIComponent(directory)
   return api.patch(`/deployment/metadata/${encodedPath}`, data)
 }
@@ -113,7 +182,7 @@ export const updateDeployment = (directory, data) => {
  *   directory: "/photos/deployment1"
  * }
  */
-export const deleteDeployment = (directory) => {
+export const deleteDeployment = (directory: string): Promise<AxiosResponse<DeploymentOperationResponse>> => {
   const encodedPath = encodeURIComponent(directory)
   return api.delete(`/deployment/metadata/${encodedPath}`)
 }

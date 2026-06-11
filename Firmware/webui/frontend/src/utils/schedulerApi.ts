@@ -19,6 +19,7 @@
  */
 
 import { api } from './api'
+import type { AxiosResponse } from 'axios'
 
 // =============================================================================
 // Configuration
@@ -46,6 +47,327 @@ const API_TIMEOUT_MS = 30000
 const SCHEDULER_API_PREFIX = '/scheduler/ui'
 
 // =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Schedule category
+ */
+export type ScheduleCategory = 'user' | 'built-in'
+
+/**
+ * Trigger types
+ */
+export type TriggerType = 'solar' | 'interval' | 'fixed' | 'moon' | 'sensor' | 'cron' | 'recurring_days'
+
+/**
+ * Solar events
+ */
+export type SolarEvent = 'sunrise' | 'sunset' | 'dawn' | 'dusk'
+
+/**
+ * Action types
+ */
+export type ActionType = 'take_photo' | 'attract_on' | 'attract_off' | 'flash_on' | 'flash_off' | 'gps_sync' | 'service'
+
+/**
+ * Trigger configuration (solar)
+ */
+export interface SolarTrigger {
+  type: 'solar'
+  solar_event: SolarEvent
+  offset_minutes?: number
+}
+
+/**
+ * Trigger configuration (interval)
+ */
+export interface IntervalTrigger {
+  type: 'interval'
+  interval_minutes: number
+  start_time?: string
+  end_time?: string
+}
+
+/**
+ * Trigger configuration (fixed time)
+ */
+export interface FixedTrigger {
+  type: 'fixed'
+  time: string
+  days?: string[]
+}
+
+/**
+ * Trigger configuration (cron)
+ */
+export interface CronTrigger {
+  type: 'cron'
+  expression: string
+}
+
+/**
+ * Trigger configuration (recurring days)
+ */
+export interface RecurringDaysTrigger {
+  type: 'recurring_days'
+  time: string
+  days: string[]
+}
+
+/**
+ * Trigger configuration (union type)
+ */
+export type Trigger = SolarTrigger | IntervalTrigger | FixedTrigger | CronTrigger | RecurringDaysTrigger
+
+/**
+ * Event/routine definition
+ */
+export interface ScheduleEvent {
+  name: string
+  action: ActionType
+  trigger: Trigger
+  enabled?: boolean
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Schedule metadata
+ */
+export interface ScheduleMetadata {
+  id: string
+  name: string
+  category: ScheduleCategory
+  description?: string
+  events: ScheduleEvent[]
+  created_at?: string
+  modified_at?: string
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Schedule creation data
+ */
+export interface ScheduleCreateData {
+  name: string
+  description?: string
+  events: ScheduleEvent[]
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Schedule update data (partial)
+ */
+export interface ScheduleUpdateData {
+  name?: string
+  description?: string
+  events?: ScheduleEvent[]
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Schedule list response
+ */
+export interface ScheduleListResponse {
+  schedules: ScheduleMetadata[]
+  total: number
+}
+
+/**
+ * Schedule list params
+ */
+export interface ScheduleListParams {
+  include_builtin?: boolean
+}
+
+/**
+ * Schedule create/update response
+ */
+export interface ScheduleOperationResponse {
+  id: string
+  message: string
+  schedule: ScheduleMetadata
+}
+
+/**
+ * Schedule delete response
+ */
+export interface ScheduleDeleteResponse {
+  message: string
+  id: string
+}
+
+/**
+ * Active schedule response
+ */
+export interface ActiveScheduleResponse {
+  active_schedule: ScheduleMetadata | null
+}
+
+/**
+ * Schedule activation options
+ */
+export interface ScheduleActivationOptions {
+  create_deployment?: boolean
+}
+
+/**
+ * Schedule activation response
+ */
+export interface ScheduleActivationResponse {
+  message: string
+  schedule_id: string
+  deployment_created?: boolean
+}
+
+/**
+ * Schedule deactivation response
+ */
+export interface ScheduleDeactivationResponse {
+  message: string
+  schedule_id: string
+}
+
+/**
+ * Next action item
+ */
+export interface NextAction {
+  time: string
+  action_name: string
+  action_type: ActionType
+  routine_id: string
+}
+
+/**
+ * Next actions response
+ */
+export interface NextActionsResponse {
+  actions: NextAction[]
+  schedule_id: string | null
+  coordinates_source: 'gps' | 'timezone' | 'explicit' | null
+  total_stored: number
+}
+
+/**
+ * Next actions params
+ */
+export interface NextActionsParams {
+  limit?: number
+}
+
+/**
+ * Schedule execution preview
+ */
+export interface ScheduleExecution {
+  event_name: string
+  action: ActionType
+  scheduled_time: string
+  trigger_info?: Record<string, unknown>
+}
+
+/**
+ * Schedule preview params
+ */
+export interface SchedulePreviewParams {
+  days?: number
+  lat?: number
+  lon?: number
+  tz?: string
+}
+
+/**
+ * Schedule preview response
+ */
+export interface SchedulePreviewResponse {
+  schedule_id: string
+  preview_days: number
+  executions: ScheduleExecution[]
+  total: number
+}
+
+/**
+ * Validation result
+ */
+export interface ValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+}
+
+/**
+ * Conflict information
+ */
+export interface ConflictInfo {
+  type: string
+  severity: 'blocking' | 'warning'
+  message: string
+  routines?: string[]
+}
+
+/**
+ * Draft validation data
+ */
+export interface DraftValidationData {
+  routines: ScheduleEvent[]
+  days?: number
+  latitude?: number
+  longitude?: number
+  timezone?: string
+}
+
+/**
+ * Draft validation response
+ */
+export interface DraftValidationResponse {
+  valid: boolean
+  has_warnings: boolean
+  conflicts: ConflictInfo[]
+  total_conflicts: number
+  blocking_conflicts: number
+}
+
+/**
+ * Built-in schedule item
+ */
+export interface BuiltInSchedule {
+  schedule_id: string
+  name: string
+  description?: string
+  trigger_type: TriggerType
+  enabled: boolean
+  is_active: boolean
+}
+
+/**
+ * Built-in schedules list response
+ */
+export interface BuiltInSchedulesResponse {
+  schedules: BuiltInSchedule[]
+  total: number
+}
+
+/**
+ * Built-in pattern/routine
+ */
+export interface BuiltInPattern {
+  pattern_id: string
+  name: string
+  description?: string
+  category: 'built-in'
+  actions: ScheduleEvent[]
+  source_schedule?: string
+  duration_minutes?: number
+}
+
+/**
+ * Built-in patterns list response
+ */
+export interface BuiltInPatternsResponse {
+  patterns: BuiltInPattern[]
+  warnings: string[]
+}
+
+// =============================================================================
 // Schedule CRUD
 // =============================================================================
 
@@ -71,7 +393,7 @@ const SCHEDULER_API_PREFIX = '/scheduler/ui'
  *   total: 5
  * }
  */
-export const listSchedules = (params = {}) =>
+export const listSchedules = (params: ScheduleListParams = {}): Promise<AxiosResponse<ScheduleListResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules`, { params, timeout: API_TIMEOUT_MS })
 
 /**
@@ -98,7 +420,7 @@ export const listSchedules = (params = {}) =>
  *   modified_at: "2024-12-15T14:30:00Z"
  * }
  */
-export const getSchedule = (id) =>
+export const getSchedule = (id: string): Promise<AxiosResponse<ScheduleMetadata>> =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules/${id}`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -117,7 +439,7 @@ export const getSchedule = (id) =>
  *   schedule: { ... }
  * }
  */
-export const createSchedule = (data) =>
+export const createSchedule = (data: ScheduleCreateData): Promise<AxiosResponse<ScheduleOperationResponse>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules`, data, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -137,7 +459,7 @@ export const createSchedule = (data) =>
  *   schedule: { ... }
  * }
  */
-export const updateSchedule = (id, data) =>
+export const updateSchedule = (id: string, data: ScheduleUpdateData): Promise<AxiosResponse<ScheduleOperationResponse>> =>
   api.put(`${SCHEDULER_API_PREFIX}/schedules/${id}`, data, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -151,7 +473,7 @@ export const updateSchedule = (id, data) =>
  *   id: "schedule_id"
  * }
  */
-export const deleteSchedule = (id) =>
+export const deleteSchedule = (id: string): Promise<AxiosResponse<ScheduleDeleteResponse>> =>
   api.delete(`${SCHEDULER_API_PREFIX}/schedules/${id}`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -167,7 +489,7 @@ export const deleteSchedule = (id) =>
  *   schedule: { ... }
  * }
  */
-export const cloneSchedule = (id, data = {}) =>
+export const cloneSchedule = (id: string, data: { name?: string } = {}): Promise<AxiosResponse<ScheduleOperationResponse>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/clone`, data, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
@@ -188,7 +510,7 @@ export const cloneSchedule = (id, data = {}) =>
  *   } | null
  * }
  */
-export const getActiveSchedule = () =>
+export const getActiveSchedule = (): Promise<AxiosResponse<ActiveScheduleResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules/active`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -205,7 +527,7 @@ export const getActiveSchedule = () =>
  *   deployment_created: true
  * }
  */
-export const activateSchedule = (id, options = {}) =>
+export const activateSchedule = (id: string, options: ScheduleActivationOptions = {}): Promise<AxiosResponse<ScheduleActivationResponse>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/activate`, options, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -218,7 +540,7 @@ export const activateSchedule = (id, options = {}) =>
  *   schedule_id: "schedule_id"
  * }
  */
-export const deactivateSchedule = () =>
+export const deactivateSchedule = (): Promise<AxiosResponse<ScheduleDeactivationResponse>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/deactivate`, {}, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -248,7 +570,7 @@ export const deactivateSchedule = () =>
  *
  * Issue #331: Store cron entries in active_state.json
  */
-export const getNextActions = (params = {}) =>
+export const getNextActions = (params: NextActionsParams = {}): Promise<AxiosResponse<NextActionsResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/active/next-actions`, { params, timeout: API_TIMEOUT_MS })
 
 // =============================================================================
@@ -281,7 +603,7 @@ export const getNextActions = (params = {}) =>
  *   total: 14
  * }
  */
-export const getSchedulePreview = (id, params = {}) =>
+export const getSchedulePreview = (id: string, params: SchedulePreviewParams = {}): Promise<AxiosResponse<SchedulePreviewResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules/${id}/preview`, { params, timeout: API_TIMEOUT_MS })
 
 /**
@@ -297,7 +619,7 @@ export const getSchedulePreview = (id, params = {}) =>
  *   warnings: ["Solar events require GPS coordinates"]
  * }
  */
-export const validateSchedule = (id, data) =>
+export const validateSchedule = (id: string, data: ScheduleCreateData | ScheduleUpdateData): Promise<AxiosResponse<ValidationResult>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/${id}/validate`, data, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -321,7 +643,7 @@ export const validateSchedule = (id, data) =>
  *   blocking_conflicts: number
  * }
  */
-export const validateDraftRoutines = (data) =>
+export const validateDraftRoutines = (data: DraftValidationData): Promise<AxiosResponse<DraftValidationResponse>> =>
   api.post(`${SCHEDULER_API_PREFIX}/schedules/validate-draft`, data, { timeout: API_TIMEOUT_MS })
 
 // =============================================================================
@@ -349,7 +671,7 @@ export const validateDraftRoutines = (data) =>
  *   total: 3
  * }
  */
-export const listBuiltinSchedules = () =>
+export const listBuiltinSchedules = (): Promise<AxiosResponse<BuiltInSchedulesResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/schedules/builtin`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -374,7 +696,7 @@ export const listBuiltinSchedules = () =>
  *   warnings: []
  * }
  */
-export const listBuiltinRoutines = () =>
+export const listBuiltinRoutines = (): Promise<AxiosResponse<BuiltInPatternsResponse>> =>
   api.get(`${SCHEDULER_API_PREFIX}/patterns/builtin`, { timeout: API_TIMEOUT_MS })
 
 /**
@@ -392,5 +714,5 @@ export const listBuiltinRoutines = () =>
  *   warnings: []
  * }
  */
-export const validateRoutine = (data) =>
+export const validateRoutine = (data: ScheduleEvent): Promise<AxiosResponse<ValidationResult>> =>
   api.post(`${SCHEDULER_API_PREFIX}/patterns/validate`, data, { timeout: API_TIMEOUT_MS })

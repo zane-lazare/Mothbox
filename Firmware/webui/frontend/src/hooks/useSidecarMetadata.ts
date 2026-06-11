@@ -1,6 +1,36 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/api'
+
+export interface SidecarMetadata {
+  tags: string[]
+  species?: string
+  notes?: string
+  [key: string]: unknown
+}
+
+interface SidecarMetadataUpdate {
+  tags?: string[]
+  species?: string
+  notes?: string
+  [key: string]: unknown
+}
+
+export interface UseSidecarMetadataResult {
+  data: SidecarMetadata | undefined
+  isLoading: boolean
+  isError: boolean
+  isSuccess: boolean
+  error: Error | null
+  updateTags: (tags: string[]) => void
+  addTag: (tag: string) => void
+  removeTag: (tag: string) => void
+  updateSpecies: (species: string) => void
+  updateNotes: (notes: string) => void
+  updateMetadata: (updates: SidecarMetadataUpdate) => Promise<unknown>
+  isUpdating: boolean
+  updateError: Error | null
+}
 
 /**
  * Custom hook for fetching and mutating photo sidecar metadata
@@ -9,19 +39,8 @@ import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/ap
  * optimistic updates for instant UI feedback. Automatically invalidates
  * related queries on successful updates.
  *
- * @param {string|null|undefined} filename - Photo filename (e.g., "photo_2023-10-31_12-00-00.jpg")
- * @returns {object} Hook state and mutation functions
- * @returns {object} data - Sidecar metadata object with tags, species, notes
- * @returns {boolean} isLoading - Whether the query is currently loading
- * @returns {boolean} isError - Whether an error occurred during fetch
- * @returns {object} error - Error object if fetch failed
- * @returns {Function} updateTags - Update tags array
- * @returns {Function} addTag - Add a single tag (prevents duplicates)
- * @returns {Function} removeTag - Remove a single tag
- * @returns {Function} updateSpecies - Update species field
- * @returns {Function} updateNotes - Update notes field
- * @returns {boolean} isUpdating - Whether a mutation is in progress
- * @returns {object} updateError - Error object if mutation failed
+ * @param filename - Photo filename (e.g., "photo_2023-10-31_12-00-00.jpg")
+ * @returns Hook state and mutation functions
  *
  * @example
  * const {
@@ -46,12 +65,12 @@ import { getPhotoSidecarMetadata, updatePhotoSidecarMetadata } from '../utils/ap
  *   )
  * }
  */
-export default function useSidecarMetadata(filename) {
+export default function useSidecarMetadata(filename: string | null | undefined): UseSidecarMetadataResult {
   const queryClient = useQueryClient()
 
   // Per-component ref for debouncing tags cache invalidation
   // Batches rapid tag operations into a single refetch after 1 second of inactivity
-  const tagsInvalidationTimeoutRef = useRef(null)
+  const tagsInvalidationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cleanup pending tags invalidation timeout on unmount
   // Prevents memory leaks in fast navigation scenarios
@@ -67,10 +86,10 @@ export default function useSidecarMetadata(filename) {
   /**
    * Query for fetching sidecar metadata
    */
-  const query = useQuery({
+  const query: UseQueryResult<SidecarMetadata, Error> = useQuery({
     queryKey: ['sidecarMetadata', filename],
     queryFn: async () => {
-      const response = await getPhotoSidecarMetadata(filename)
+      const response = await getPhotoSidecarMetadata(filename!)
       return response.data
     },
     enabled: !!filename,
@@ -83,8 +102,8 @@ export default function useSidecarMetadata(filename) {
   /**
    * Mutation for updating sidecar metadata with optimistic updates
    */
-  const updateMutation = useMutation({
-    mutationFn: (updates) => updatePhotoSidecarMetadata(filename, updates),
+  const updateMutation: UseMutationResult<unknown, Error, SidecarMetadataUpdate, { previousData: unknown }> = useMutation({
+    mutationFn: (updates: SidecarMetadataUpdate) => updatePhotoSidecarMetadata(filename!, updates),
     onMutate: async (updates) => {
       // Cancel outgoing refetches to prevent overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: ['sidecarMetadata', filename] })
@@ -93,7 +112,7 @@ export default function useSidecarMetadata(filename) {
       const previousData = queryClient.getQueryData(['sidecarMetadata', filename])
 
       // Optimistically update the cache immediately
-      queryClient.setQueryData(['sidecarMetadata', filename], (old) => ({
+      queryClient.setQueryData(['sidecarMetadata', filename], (old: SidecarMetadata | undefined) => ({
         ...old,
         ...updates,
       }))
@@ -130,9 +149,9 @@ export default function useSidecarMetadata(filename) {
   /**
    * Update tags array
    *
-   * @param {string[]} tags - New tags array
+   * @param tags - New tags array
    */
-  const updateTags = (tags) => {
+  const updateTags = (tags: string[]) => {
     updateMutation.mutate({ tags })
   }
 
@@ -141,12 +160,12 @@ export default function useSidecarMetadata(filename) {
    * Prevents duplicate tags
    * Uses queryClient.getQueryData for fresh data to avoid stale closure issues
    *
-   * @param {string} tag - Tag to add
+   * @param tag - Tag to add
    */
-  const addTag = (tag) => {
+  const addTag = (tag: string) => {
     // Get fresh data from queryClient to avoid stale closure when called
     // immediately after another mutation (optimistic updates modify cache)
-    const currentTags = queryClient.getQueryData(['sidecarMetadata', filename])?.tags || []
+    const currentTags = (queryClient.getQueryData(['sidecarMetadata', filename]) as SidecarMetadata)?.tags || []
     const trimmedTag = tag?.trim()
 
     // Reject empty/whitespace tags
@@ -161,30 +180,30 @@ export default function useSidecarMetadata(filename) {
    * Remove a single tag from existing tags
    * Uses queryClient.getQueryData for fresh data to avoid stale closure issues
    *
-   * @param {string} tag - Tag to remove
+   * @param tag - Tag to remove
    */
-  const removeTag = (tag) => {
+  const removeTag = (tag: string) => {
     // Get fresh data from queryClient to avoid stale closure when called
     // immediately after another mutation (optimistic updates modify cache)
-    const currentTags = queryClient.getQueryData(['sidecarMetadata', filename])?.tags || []
+    const currentTags = (queryClient.getQueryData(['sidecarMetadata', filename]) as SidecarMetadata)?.tags || []
     updateMutation.mutate({ tags: currentTags.filter((t) => t !== tag) })
   }
 
   /**
    * Update species field
    *
-   * @param {string} species - Species name
+   * @param species - Species name
    */
-  const updateSpecies = (species) => {
+  const updateSpecies = (species: string) => {
     updateMutation.mutate({ species })
   }
 
   /**
    * Update notes field
    *
-   * @param {string} notes - Notes text
+   * @param notes - Notes text
    */
-  const updateNotes = (notes) => {
+  const updateNotes = (notes: string) => {
     updateMutation.mutate({ notes })
   }
 
@@ -193,10 +212,10 @@ export default function useSidecarMetadata(filename) {
    * Useful for updating multiple fields at once or custom fields
    * Returns a promise for async/await usage (uses mutateAsync)
    *
-   * @param {object} updates - Metadata fields to update
-   * @returns {Promise} Resolves on success, rejects on error
+   * @param updates - Metadata fields to update
+   * @returns Promise that resolves on success, rejects on error
    */
-  const updateMetadata = (updates) => {
+  const updateMetadata = (updates: SidecarMetadataUpdate): Promise<unknown> => {
     return updateMutation.mutateAsync(updates)
   }
 

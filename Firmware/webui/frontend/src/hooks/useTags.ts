@@ -1,26 +1,34 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { getAllTags } from '../utils/api'
+
+export interface Tag {
+  name: string
+  count: number
+}
+
+export interface TagsData {
+  tags: Tag[]
+  total: number
+}
+
+export interface TagsParams {
+  sort?: 'name' | 'count'
+  order?: 'asc' | 'desc'
+  limit?: number
+}
 
 /**
  * Custom hook for fetching all tags from sidecar metadata
- *
- * TypeScript types: ./useTags.d.ts (keep in sync)
  *
  * Fetches a list of all tags from the sidecar API with optional sorting,
  * ordering, and limiting. The hook uses TanStack Query for caching,
  * loading states, and error handling.
  *
- * @param {Object} params - Query parameters
- * @param {string} [params.sort] - Sort field ('name' or 'count')
- * @param {string} [params.order] - Sort order ('asc' or 'desc')
- * @param {number} [params.limit] - Maximum tags to return
- * @returns {Object} TanStack Query result object containing:
- *   - data: Tags data object with tags array and total count
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - isSuccess: Boolean indicating if the query was successful
- *   - error: Error object if an error occurred, null otherwise
- *   - refetch: Function to manually trigger a refetch
+ * @param params - Query parameters
+ * @param params.sort - Sort field ('name' or 'count')
+ * @param params.order - Sort order ('asc' or 'desc')
+ * @param params.limit - Maximum tags to return
+ * @returns TanStack Query result object
  *
  * @example
  * const { data, isLoading, isError, error, refetch } = useTags()
@@ -42,7 +50,7 @@ import { getAllTags } from '../utils/api'
  * const { data } = useTags({ sort: 'count', order: 'desc', limit: 10 })
  * // Returns top 10 tags sorted by count in descending order
  */
-export default function useTags(params = {}) {
+export default function useTags(params: TagsParams = {}): UseQueryResult<TagsData, Error> {
   // Normalize query key to ensure consistent cache keys regardless of
   // property order in params object (e.g., { sort, order } vs { order, sort })
   const normalizedParams = {

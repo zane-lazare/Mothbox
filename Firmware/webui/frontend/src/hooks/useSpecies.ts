@@ -1,6 +1,31 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { getAllSpecies } from '../utils/api'
+
+export interface Species {
+  name: string
+  count: number
+}
+
+export interface SpeciesData {
+  species: Species[]
+  total: number
+}
+
+export interface SpeciesParams {
+  sort?: 'name' | 'count'
+  order?: 'asc' | 'desc'
+  limit?: number
+}
+
+export interface UseSpeciesResult {
+  species: Species[]
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+  refetch: () => void
+  filteredSpecies: (searchTerm: string) => Species[]
+}
 
 /**
  * Custom hook for fetching all species from sidecar metadata
@@ -9,17 +34,11 @@ import { getAllSpecies } from '../utils/api'
  * ordering, and limiting. The hook uses TanStack Query for caching,
  * loading states, and error handling.
  *
- * @param {Object} params - Query parameters
- * @param {string} [params.sort] - Sort field ('name' or 'count')
- * @param {string} [params.order] - Sort order ('asc' or 'desc')
- * @param {number} [params.limit] - Maximum species to return
- * @returns {Object} Enhanced query result object containing:
- *   - species: Array of species objects (or empty array while loading)
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - error: Error object if an error occurred, null otherwise
- *   - refetch: Function to manually trigger a refetch
- *   - filteredSpecies: Function to filter species by search term
+ * @param params - Query parameters
+ * @param params.sort - Sort field ('name' or 'count')
+ * @param params.order - Sort order ('asc' or 'desc')
+ * @param params.limit - Maximum species to return
+ * @returns Enhanced query result object
  *
  * @example
  * const { species, isLoading, isError, error, refetch, filteredSpecies } = useSpecies()
@@ -45,7 +64,7 @@ import { getAllSpecies } from '../utils/api'
  * const { species } = useSpecies({ sort: 'count', order: 'desc', limit: 10 })
  * // Returns top 10 species sorted by count in descending order
  */
-export default function useSpecies(params = {}) {
+export default function useSpecies(params: SpeciesParams = {}): UseSpeciesResult {
   // Normalize query key to ensure consistent cache keys regardless of
   // property order in params object (e.g., { sort, order } vs { order, sort })
   const normalizedParams = {
@@ -54,7 +73,7 @@ export default function useSpecies(params = {}) {
     limit: params?.limit,
   }
 
-  const query = useQuery({
+  const query: UseQueryResult<SpeciesData, Error> = useQuery({
     // Query key: unique identifier for this query in the cache
     // Format: ['species', normalizedParams] - explicitly ordered for cache consistency
     queryKey: ['species', normalizedParams],
@@ -86,7 +105,7 @@ export default function useSpecies(params = {}) {
 
   // Helper function to filter species by search term (case-insensitive, partial match)
   const filteredSpecies = useMemo(() => {
-    return (searchTerm) => {
+    return (searchTerm: string): Species[] => {
       if (!searchTerm || searchTerm.trim() === '') {
         return species
       }

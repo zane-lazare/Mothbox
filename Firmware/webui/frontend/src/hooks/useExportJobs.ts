@@ -14,7 +14,7 @@
  * - This provides real-time progress updates in the UI without manual refresh
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
   listExportJobs,
@@ -23,19 +23,48 @@ import {
   cancelExportJob,
   deleteExportJob,
 } from '../utils/exportApi'
+import type { ExportJob } from '../types'
+
+type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'expired'
+
+interface ExportJobsOptions {
+  status?: JobStatus
+  limit?: number
+  offset?: number
+}
+
+interface ExportJobsData {
+  jobs: ExportJob[]
+  total: number
+  limit: number
+  offset: number
+}
+
+interface ExportJobProgress {
+  current: number
+  total: number
+  percent: number
+  phase: string
+}
+
+interface ExportJobDetail extends ExportJob {
+  progress: ExportJobProgress
+}
+
+interface CreateExportJobParams {
+  format: 'darwin_core' | 'inaturalist' | 'json' | 'csv'
+  filter?: Record<string, unknown>
+  options?: Record<string, unknown>
+}
 
 /**
  * List all export jobs with optional filtering and pagination
  *
- * @param {Object} [options] - Query options
- * @param {string} [options.status] - Filter by status (pending, running, completed, failed, cancelled, expired)
- * @param {number} [options.limit=50] - Max results (max: 100)
- * @param {number} [options.offset=0] - Pagination offset
- * @returns {Object} React Query result
- * @returns {Object} data - { jobs: [...], total, limit, offset }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @param options - Query options
+ * @param options.status - Filter by status (pending, running, completed, failed, cancelled, expired)
+ * @param options.limit - Max results (max: 100)
+ * @param options.offset - Pagination offset
+ * @returns React Query result
  *
  * @example
  * const { data, isLoading } = useExportJobs({ status: 'completed', limit: 10 })
@@ -44,7 +73,7 @@ import {
  *   data.jobs.forEach(job => console.log(job.job_id))
  * }
  */
-export function useExportJobs(options = {}) {
+export function useExportJobs(options: ExportJobsOptions = {}): UseQueryResult<ExportJobsData, Error> {
   const { status, limit = 50, offset = 0 } = options
 
   return useQuery({
@@ -63,12 +92,8 @@ export function useExportJobs(options = {}) {
  * Automatically polls at 5s interval when job is in active state (pending or running).
  * Polling stops when job reaches terminal state (completed, failed, cancelled, expired).
  *
- * @param {string|null} jobId - Job ID (null to disable query)
- * @returns {Object} React Query result
- * @returns {Object} data - Job details with progress: { job_id, status, format, progress: { current, total, percent, phase }, ... }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @param jobId - Job ID (null to disable query)
+ * @returns React Query result
  *
  * @example
  * const { data, isLoading } = useExportJob('550e8400-e29b-41d4-a716-446655440000')
@@ -77,11 +102,11 @@ export function useExportJobs(options = {}) {
  *   console.log(`Phase: ${data.progress.phase}`)
  * }
  */
-export function useExportJob(jobId) {
+export function useExportJob(jobId: string | null): UseQueryResult<ExportJobDetail, Error> {
   return useQuery({
-    queryKey: QUERY_KEYS.EXPORT_JOB(jobId),
+    queryKey: QUERY_KEYS.EXPORT_JOB(jobId!),
     queryFn: async () => {
-      const response = await getExportJob(jobId)
+      const response = await getExportJob(jobId!)
       return response.data
     },
     enabled: !!jobId, // Disable query if jobId is null/undefined
@@ -106,13 +131,7 @@ export function useExportJob(jobId) {
  *
  * Invalidates job list cache on success to show new job.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function (fire and forget)
- * @returns {Function} mutateAsync - Async mutation function (returns promise)
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useCreateExportJob()
@@ -131,7 +150,7 @@ export function useExportJob(jobId) {
  *   })
  * }
  */
-export function useCreateExportJob() {
+export function useCreateExportJob(): UseMutationResult<unknown, Error, CreateExportJobParams> {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -148,13 +167,7 @@ export function useCreateExportJob() {
  *
  * Invalidates job cache and job list on success.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function with jobId parameter
- * @returns {Function} mutateAsync - Async mutation function
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useCancelExportJob()
@@ -167,11 +180,11 @@ export function useCreateExportJob() {
  *   })
  * }
  */
-export function useCancelExportJob() {
+export function useCancelExportJob(): UseMutationResult<unknown, Error, string> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (jobId) => cancelExportJob(jobId),
+    mutationFn: (jobId: string) => cancelExportJob(jobId),
     onSuccess: (response, jobId) => {
       // Invalidate specific job to update status immediately
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_JOB(jobId) })
@@ -187,13 +200,7 @@ export function useCancelExportJob() {
  * Invalidates job cache and job list on success.
  * Cannot delete running jobs - must cancel first.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function with jobId parameter
- * @returns {Function} mutateAsync - Async mutation function
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useDeleteExportJob()
@@ -208,11 +215,11 @@ export function useCancelExportJob() {
  *   }
  * }
  */
-export function useDeleteExportJob() {
+export function useDeleteExportJob(): UseMutationResult<unknown, Error, string> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (jobId) => deleteExportJob(jobId),
+    mutationFn: (jobId: string) => deleteExportJob(jobId),
     onSuccess: (response, jobId) => {
       // Invalidate specific job cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_JOB(jobId) })

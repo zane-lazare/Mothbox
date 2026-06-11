@@ -46,7 +46,16 @@
  * - Documentation: /webui/docs/NAMING_CONVENTION_ANALYSIS.md
  */
 
-export const CAMERA_CONTROL_MAPPING = {
+/**
+ * Camera control mapping configuration
+ */
+interface CameraControlMapping {
+  FRONTEND_TO_BACKEND: Record<string, string>
+  BACKEND_TO_FRONTEND: Record<string, string>
+  PICAMERA_CONTROLS: Record<string, string>
+}
+
+export const CAMERA_CONTROL_MAPPING: CameraControlMapping = {
   // Frontend camelCase → Backend snake_case
   FRONTEND_TO_BACKEND: {
     // Core image quality
@@ -162,7 +171,7 @@ Object.entries(CAMERA_CONTROL_MAPPING.FRONTEND_TO_BACKEND).forEach(([camel, snak
  * toBackendKey('colourGainRed')  // → 'colour_gains_red'
  * toBackendKey('exposureTime')   // → 'exposure_time'
  */
-export const toBackendKey = (camelKey) => {
+export const toBackendKey = (camelKey: string): string => {
   return CAMERA_CONTROL_MAPPING.FRONTEND_TO_BACKEND[camelKey] || camelKey
 }
 
@@ -176,7 +185,7 @@ export const toBackendKey = (camelKey) => {
  * toFrontendKey('colour_gains_red')  // → 'colourGainRed'
  * toFrontendKey('exposure_time')     // → 'exposureTime'
  */
-export const toFrontendKey = (snakeKey) => {
+export const toFrontendKey = (snakeKey: string): string => {
   return CAMERA_CONTROL_MAPPING.BACKEND_TO_FRONTEND[snakeKey] || snakeKey
 }
 
@@ -191,7 +200,7 @@ export const toFrontendKey = (snakeKey) => {
  * toPicameraControl('colourGainRed')  // → 'ColourGainRed'
  * toPicameraControl('exposureTime')   // → 'ExposureTime'
  */
-export const toPicameraControl = (camelKey) => {
+export const toPicameraControl = (camelKey: string): string => {
   return CAMERA_CONTROL_MAPPING.PICAMERA_CONTROLS[camelKey] || camelKey
 }
 
@@ -211,8 +220,8 @@ export const toPicameraControl = (camelKey) => {
  * //   exposure_time: 500
  * // }
  */
-export const convertToBackend = (frontendState) => {
-  const backendSettings = {}
+export const convertToBackend = (frontendState: Record<string, unknown>): Record<string, unknown> => {
+  const backendSettings: Record<string, unknown> = {}
   Object.entries(frontendState).forEach(([key, value]) => {
     const backendKey = toBackendKey(key)
     backendSettings[backendKey] = value
@@ -232,12 +241,12 @@ export const convertToBackend = (frontendState) => {
  *   exposure_time: 500
  * })
  * // → {
- * //   colourGainRed: 2.5,
- * //   exposureTime: 500
+ *   colourGainRed: 2.5,
+ *   exposureTime: 500
  * // }
  */
-export const convertFromBackend = (backendSettings) => {
-  const frontendState = {}
+export const convertFromBackend = (backendSettings: Record<string, unknown>): Record<string, unknown> => {
+  const frontendState: Record<string, unknown> = {}
   Object.entries(backendSettings).forEach(([key, value]) => {
     const frontendKey = toFrontendKey(key)
     frontendState[frontendKey] = value
@@ -255,7 +264,7 @@ export const convertFromBackend = (backendSettings) => {
  * splitColourGains([2.259, 1.5])
  * // → { colourGainRed: 2.259, colourGainBlue: 1.5 }
  */
-export const splitColourGains = (colourGains) => {
+export const splitColourGains = (colourGains: number[] | null | undefined): { colourGainRed: number; colourGainBlue: number } => {
   if (!Array.isArray(colourGains) || colourGains.length !== 2) {
     return { colourGainRed: 2.259, colourGainBlue: 1.5 }
   }
@@ -276,6 +285,6 @@ export const splitColourGains = (colourGains) => {
  * combineColourGains(2.259, 1.5)
  * // → [2.259, 1.5]
  */
-export const combineColourGains = (red, blue) => {
+export const combineColourGains = (red: number, blue: number): [number, number] => {
   return [red, blue]
 }

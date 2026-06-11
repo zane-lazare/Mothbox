@@ -1,5 +1,37 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { api } from '../utils/api'
+
+interface FileMetadata {
+  name: string
+  size: number
+  modified?: string
+}
+
+interface ExifMetadata {
+  make?: string
+  model?: string
+  iso?: number
+  aperture?: number
+  shutter_speed?: number
+  focal_length?: number
+  exposure_mode?: string
+  metering_mode?: string
+  white_balance?: string
+  [key: string]: unknown
+}
+
+interface GpsMetadata {
+  lat?: number
+  lon?: number
+  altitude?: number
+  precision?: number
+}
+
+export interface PhotoMetadata {
+  file: FileMetadata
+  exif: ExifMetadata
+  gps: GpsMetadata
+}
 
 /**
  * Custom hook for fetching photo metadata using TanStack Query
@@ -7,13 +39,8 @@ import { api } from '../utils/api'
  * Fetches EXIF, GPS, and file metadata for a given photo path. The hook uses
  * TanStack Query for caching, loading states, and error handling.
  *
- * @param {string|null|undefined} photoPath - Full path to the photo file (e.g., "/var/lib/mothbox/photos/photo.jpg")
- * @returns {object} TanStack Query result object containing:
- *   - data: Photo metadata object with file, exif, and gps properties
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - isSuccess: Boolean indicating if the query was successful
- *   - error: Error object if an error occurred, null otherwise
+ * @param photoPath - Full path to the photo file (e.g., "/var/lib/mothbox/photos/photo.jpg")
+ * @returns TanStack Query result object
  *
  * @example
  * const { data, isLoading, isError, error } = usePhotoMetadata('/var/lib/mothbox/photos/photo.jpg')
@@ -30,7 +57,7 @@ import { api } from '../utils/api'
  *   )
  * }
  */
-export default function usePhotoMetadata(photoPath) {
+export default function usePhotoMetadata(photoPath: string | null | undefined): UseQueryResult<PhotoMetadata, Error> {
   return useQuery({
     // Query key: unique identifier for this query in the cache
     // Format: ['photoMetadata', photoPath]
@@ -39,7 +66,7 @@ export default function usePhotoMetadata(photoPath) {
     // Query function: fetches the metadata from the API
     queryFn: async () => {
       // Build API endpoint with URL-encoded photo path
-      const endpoint = `/metadata/photo/${encodeURIComponent(photoPath)}/metadata`
+      const endpoint = `/metadata/photo/${encodeURIComponent(photoPath!)}/metadata`
 
       // Fetch metadata from backend using centralized API client
       // This automatically includes CSRF tokens, base URL, and error handling

@@ -7,6 +7,22 @@
  */
 
 /**
+ * Debounced function with cancel method
+ */
+interface DebouncedFunction<T extends (...args: unknown[]) => unknown> {
+  (...args: Parameters<T>): void
+  cancel: () => void
+}
+
+/**
+ * Throttled function with cancel method
+ */
+interface ThrottledFunction<T extends (...args: unknown[]) => unknown> {
+  (...args: Parameters<T>): void
+  cancel: () => void
+}
+
+/**
  * Debounces a function call, delaying execution until after wait milliseconds
  * have elapsed since the last invocation.
  *
@@ -37,12 +53,15 @@
  *
  * <input onChange={(e) => debouncedSearch(e.target.value)} />
  */
-export function debounce(func, wait) {
-  let timeoutId = null
-  let pendingArgs = null
-  let pendingContext = null
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  wait: number
+): DebouncedFunction<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let pendingArgs: unknown[] | null = null
+  let pendingContext: unknown = null
 
-  const debouncedFunc = function (...args) {
+  const debouncedFunc = function (this: unknown, ...args: Parameters<T>) {
     // Store context and args
     pendingContext = this
     pendingArgs = args
@@ -54,7 +73,7 @@ export function debounce(func, wait) {
 
     // Set new timeout
     timeoutId = setTimeout(() => {
-      func.apply(pendingContext, pendingArgs)
+      func.apply(pendingContext, pendingArgs as Parameters<T>)
       timeoutId = null
       // Clear references after execution
       pendingArgs = null
@@ -73,7 +92,7 @@ export function debounce(func, wait) {
     pendingContext = null
   }
 
-  return debouncedFunc
+  return debouncedFunc as DebouncedFunction<T>
 }
 
 /**
@@ -111,13 +130,16 @@ export function debounce(func, wait) {
  * - Debounce: Waits until action stops, then executes once
  * - Throttle: Executes at regular intervals while action is ongoing
  */
-export function throttle(func, limit) {
+export function throttle<T extends (...args: unknown[]) => unknown>(
+  func: T,
+  limit: number
+): ThrottledFunction<T> {
   let lastRan = 0
-  let timeoutId = null
-  let lastArgs = null
-  let lastContext = null
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let lastArgs: unknown[] | null = null
+  let lastContext: unknown = null
 
-  const throttledFunc = function (...args) {
+  const throttledFunc = function (this: unknown, ...args: Parameters<T>) {
     lastArgs = args
     lastContext = this
 
@@ -125,7 +147,7 @@ export function throttle(func, limit) {
 
     // If enough time has passed since last execution, execute immediately
     if (now - lastRan >= limit) {
-      func.apply(lastContext, lastArgs)
+      func.apply(lastContext, lastArgs as Parameters<T>)
       lastRan = now
       lastArgs = null
       lastContext = null
@@ -134,7 +156,7 @@ export function throttle(func, limit) {
       if (timeoutId === null) {
         timeoutId = setTimeout(() => {
           if (lastArgs !== null) {
-            func.apply(lastContext, lastArgs)
+            func.apply(lastContext, lastArgs as Parameters<T>)
             lastRan = Date.now()
             lastArgs = null
             lastContext = null
@@ -155,5 +177,5 @@ export function throttle(func, limit) {
     lastContext = null
   }
 
-  return throttledFunc
+  return throttledFunc as ThrottledFunction<T>
 }

@@ -9,7 +9,7 @@
  * - useDeleteDeployment: Delete deployment
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
   listDeployments,
@@ -18,15 +18,34 @@ import {
   updateDeployment,
   deleteDeployment,
 } from '../utils/deploymentApi'
+import type { DeploymentMetadata } from '../types'
+
+interface DeploymentListItem {
+  directory: string
+  deployment_name?: string
+  location_name?: string
+  photo_count: number
+}
+
+interface DeploymentsData {
+  deployments: DeploymentListItem[]
+  total: number
+}
+
+interface CreateDeploymentParams {
+  directory: string
+  data: Partial<DeploymentMetadata>
+}
+
+interface UpdateDeploymentParams {
+  directory: string
+  data: Partial<DeploymentMetadata>
+}
 
 /**
  * List all deployments
  *
- * @returns {Object} React Query result
- * @returns {Object} data - { deployments: [...], total }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @returns React Query result
  *
  * @example
  * const { data, isLoading } = useDeployments()
@@ -35,7 +54,7 @@ import {
  *   data.deployments.forEach(d => console.log(d.name))
  * }
  */
-export function useDeployments() {
+export function useDeployments(): UseQueryResult<DeploymentsData, Error> {
   return useQuery({
     queryKey: QUERY_KEYS.DEPLOYMENTS,
     queryFn: async () => {
@@ -49,12 +68,8 @@ export function useDeployments() {
 /**
  * Get single deployment by directory path
  *
- * @param {string|null} directory - Directory path (null to disable query)
- * @returns {Object} React Query result
- * @returns {Object} data - Deployment metadata
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @param directory - Directory path (null to disable query)
+ * @returns React Query result
  *
  * @example
  * const { data, isLoading } = useDeployment('/photos/deployment1')
@@ -63,11 +78,11 @@ export function useDeployments() {
  *   console.log(`Location: ${data.location_name}`)
  * }
  */
-export function useDeployment(directory) {
+export function useDeployment(directory: string | null): UseQueryResult<DeploymentMetadata, Error> {
   return useQuery({
-    queryKey: QUERY_KEYS.DEPLOYMENT(directory),
+    queryKey: QUERY_KEYS.DEPLOYMENT(directory!),
     queryFn: async () => {
-      const response = await getDeployment(directory)
+      const response = await getDeployment(directory!)
       return response.data
     },
     enabled: !!directory, // Disable query if directory is null/undefined
@@ -80,13 +95,7 @@ export function useDeployment(directory) {
  *
  * Invalidates deployments list cache on success.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function (fire and forget)
- * @returns {Function} mutateAsync - Async mutation function (returns promise)
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useCreateDeployment()
@@ -108,11 +117,11 @@ export function useDeployment(directory) {
  *   })
  * }
  */
-export function useCreateDeployment() {
+export function useCreateDeployment(): UseMutationResult<unknown, Error, CreateDeploymentParams> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ directory, data }) => createDeployment(directory, data),
+    mutationFn: ({ directory, data }: CreateDeploymentParams) => createDeployment(directory, data),
     onSuccess: () => {
       // Invalidate deployments list to show new deployment
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DEPLOYMENTS })
@@ -125,13 +134,7 @@ export function useCreateDeployment() {
  *
  * Invalidates deployment cache and deployments list on success.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function with { directory, data } parameter
- * @returns {Function} mutateAsync - Async mutation function
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useUpdateDeployment()
@@ -147,11 +150,11 @@ export function useCreateDeployment() {
  *   })
  * }
  */
-export function useUpdateDeployment() {
+export function useUpdateDeployment(): UseMutationResult<unknown, Error, UpdateDeploymentParams> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ directory, data }) => updateDeployment(directory, data),
+    mutationFn: ({ directory, data }: UpdateDeploymentParams) => updateDeployment(directory, data),
     onSuccess: (response, { directory }) => {
       // Invalidate specific deployment to update immediately
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DEPLOYMENT(directory) })
@@ -166,13 +169,7 @@ export function useUpdateDeployment() {
  *
  * Invalidates deployment cache and deployments list on success.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function with directory parameter
- * @returns {Function} mutateAsync - Async mutation function
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useDeleteDeployment()
@@ -201,11 +198,11 @@ export function useUpdateDeployment() {
  *   isLoading={isPending}
  * />
  */
-export function useDeleteDeployment() {
+export function useDeleteDeployment(): UseMutationResult<unknown, Error, string> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (directory) => deleteDeployment(directory),
+    mutationFn: (directory: string) => deleteDeployment(directory),
     onSuccess: (response, directory) => {
       // Invalidate specific deployment cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DEPLOYMENT(directory) })

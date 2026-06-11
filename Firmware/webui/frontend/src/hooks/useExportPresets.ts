@@ -13,7 +13,7 @@
  * - Format-specific options
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {
   listExportPresets,
@@ -21,16 +21,39 @@ import {
   createExportPreset,
   deleteExportPreset,
 } from '../utils/exportApi'
+import type { ExportPreset } from '../types'
+
+type ExportFormat = 'darwin_core' | 'inaturalist' | 'json' | 'csv'
+
+interface ExportPresetsData {
+  presets: ExportPreset[]
+  counts: {
+    'built-in': number
+    user: number
+  }
+}
+
+interface ExportPresetDetail extends ExportPreset {
+  display_name?: string
+  category?: string
+  filter?: Record<string, unknown>
+  options?: Record<string, unknown>
+}
+
+interface CreateExportPresetParams {
+  name: string
+  display_name: string
+  export_format: ExportFormat
+  description?: string
+  filter?: Record<string, unknown>
+  options?: Record<string, unknown>
+}
 
 /**
  * List all available export presets (built-in + user)
  *
- * @param {string} [formatFilter] - Filter by export format (darwin_core, inaturalist, json, csv)
- * @returns {Object} React Query result
- * @returns {Object} data - { presets: [...], counts: { 'built-in': 6, user: 1 } }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @param formatFilter - Filter by export format (darwin_core, inaturalist, json, csv)
+ * @returns React Query result
  *
  * @example
  * // Get all presets
@@ -47,7 +70,7 @@ import {
  *   data.presets.forEach(preset => console.log(preset.display_name))
  * }
  */
-export function useExportPresets(formatFilter) {
+export function useExportPresets(formatFilter?: ExportFormat): UseQueryResult<ExportPresetsData, Error> {
   return useQuery({
     queryKey: formatFilter
       ? [...QUERY_KEYS.EXPORT_PRESETS, { format: formatFilter }]
@@ -63,12 +86,8 @@ export function useExportPresets(formatFilter) {
 /**
  * Get specific export preset by name
  *
- * @param {string|null} name - Preset name (without .json extension), null to disable query
- * @returns {Object} React Query result
- * @returns {Object} data - Preset details: { name, display_name, export_format, description, category, filter, options }
- * @returns {boolean} isLoading - Whether initial query is loading
- * @returns {boolean} isError - Whether an error occurred
- * @returns {Object} error - Error object if query failed
+ * @param name - Preset name (without .json extension), null to disable query
+ * @returns React Query result
  *
  * @example
  * const { data, isLoading } = useExportPreset('gbif_biodiversity')
@@ -78,11 +97,11 @@ export function useExportPresets(formatFilter) {
  *   console.log(`Category: ${data.category}`)
  * }
  */
-export function useExportPreset(name) {
+export function useExportPreset(name: string | null): UseQueryResult<ExportPresetDetail, Error> {
   return useQuery({
-    queryKey: QUERY_KEYS.EXPORT_PRESET(name),
+    queryKey: QUERY_KEYS.EXPORT_PRESET(name!),
     queryFn: async () => {
-      const response = await getExportPreset(name)
+      const response = await getExportPreset(name!)
       return response.data
     },
     enabled: !!name, // Disable query if name is null/undefined
@@ -95,13 +114,7 @@ export function useExportPreset(name) {
  *
  * Invalidates preset list cache on success to show new preset.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function (fire and forget)
- * @returns {Function} mutateAsync - Async mutation function (returns promise)
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useCreateExportPreset()
@@ -127,7 +140,7 @@ export function useExportPreset(name) {
  *   })
  * }
  */
-export function useCreateExportPreset() {
+export function useCreateExportPreset(): UseMutationResult<unknown, Error, CreateExportPresetParams> {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -145,13 +158,7 @@ export function useCreateExportPreset() {
  * Built-in presets are protected and cannot be deleted.
  * Invalidates preset cache and preset list on success.
  *
- * @returns {Object} React Query mutation result
- * @returns {Function} mutate - Mutation function with preset name parameter
- * @returns {Function} mutateAsync - Async mutation function
- * @returns {boolean} isPending - Whether mutation is in progress
- * @returns {boolean} isError - Whether mutation failed
- * @returns {Object} error - Error object if mutation failed
- * @returns {Object} data - Response data on success
+ * @returns React Query mutation result
  *
  * @example
  * const { mutate, isPending } = useDeleteExportPreset()
@@ -171,11 +178,11 @@ export function useCreateExportPreset() {
  *   }
  * }
  */
-export function useDeleteExportPreset() {
+export function useDeleteExportPreset(): UseMutationResult<unknown, Error, string> {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (name) => deleteExportPreset(name),
+    mutationFn: (name: string) => deleteExportPreset(name),
     onSuccess: (response, name) => {
       // Invalidate specific preset cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_PRESET(name) })

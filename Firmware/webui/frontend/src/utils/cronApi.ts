@@ -31,6 +31,34 @@ export const SCHEDULER_API_PREFIX = '/scheduler/ui'
 const API_TIMEOUT_MS = 10000
 
 // =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Cron validation response (success)
+ */
+interface CronValidationSuccess {
+  valid: true
+  expression: string
+  description: string
+  next_executions: string[]
+}
+
+/**
+ * Cron validation response (error)
+ */
+interface CronValidationError {
+  valid: false
+  expression: string
+  error: string
+}
+
+/**
+ * Cron validation response (union type)
+ */
+export type CronValidationResponse = CronValidationSuccess | CronValidationError
+
+// =============================================================================
 // Cron Validation
 // =============================================================================
 
@@ -65,7 +93,7 @@ const API_TIMEOUT_MS = 10000
  * console.log(response.data.description) // "At 21:00 every day"
  * console.log(response.data.next_executions) // ["2024-12-26T21:00:00", ...]
  */
-export const validateCronExpression = async (expression, count = 5) => {
+export const validateCronExpression = async (expression: string, count: number = 5): Promise<CronValidationResponse> => {
   const response = await api.post(
     `${SCHEDULER_API_PREFIX}/cron/validate`,
     { expression, count },

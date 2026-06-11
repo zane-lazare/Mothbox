@@ -22,6 +22,16 @@
  * ```
  */
 
+import type { Photo } from '../types/domain'
+
+/**
+ * Leaflet marker with cluster support
+ */
+interface ClusterMarker {
+  getAllChildMarkers?: () => ClusterMarker[]
+  options?: Record<string, unknown>
+}
+
 /**
  * Extract all photos from a cluster marker.
  *
@@ -35,7 +45,7 @@
  * const photos = extractPhotosFromCluster(clusterMarker)
  * // Returns: [{ filename, path, latitude, longitude, timestamp }, ...]
  */
-export function extractPhotosFromCluster(clusterMarker) {
+export function extractPhotosFromCluster(clusterMarker: ClusterMarker | null | undefined): Photo[] {
   // Handle null/undefined
   if (!clusterMarker) {
     return []
@@ -54,7 +64,7 @@ export function extractPhotosFromCluster(clusterMarker) {
   }
 
   // Extract photo data from markers (handle nested clusters recursively)
-  const photos = []
+  const photos: Photo[] = []
 
   for (const marker of childMarkers) {
     // Check if this is a nested cluster
@@ -65,8 +75,9 @@ export function extractPhotosFromCluster(clusterMarker) {
     } else if (marker.options && typeof marker.options === 'object') {
       // Extract photo data from marker options
       // Validate that we have at least some photo data
-      if (marker.options.filename || marker.options.path) {
-        photos.push({ ...marker.options })
+      const options = marker.options as Record<string, unknown>
+      if (options.filename || options.path) {
+        photos.push({ ...options } as Photo)
       }
     }
   }
@@ -89,7 +100,7 @@ export function extractPhotosFromCluster(clusterMarker) {
  * const index = findPhotoIndexInCluster(photos, '2024-11-10/photo_001.jpg')
  * // Returns: 0 (if photo is first in array)
  */
-export function findPhotoIndexInCluster(photos, photoPath) {
+export function findPhotoIndexInCluster(photos: Photo[] | null | undefined, photoPath: string | null | undefined): number {
   // Handle null/undefined inputs
   if (!photos || !photoPath) {
     return -1
@@ -118,7 +129,7 @@ export function findPhotoIndexInCluster(photos, photoPath) {
  * const sorted = sortPhotosByTimestamp(photos)
  * // Returns: Photos sorted by timestamp ascending
  */
-export function sortPhotosByTimestamp(photos) {
+export function sortPhotosByTimestamp(photos: Photo[] | null | undefined): Photo[] {
   // Handle null/undefined
   if (!photos) {
     return []
@@ -174,7 +185,7 @@ export function sortPhotosByTimestamp(photos) {
  * @param {*} timestamp - Timestamp value to validate
  * @returns {boolean} True if timestamp is valid number
  */
-function isValidTimestamp(timestamp) {
+function isValidTimestamp(timestamp: unknown): boolean {
   // Reject null/undefined
   if (timestamp === null || timestamp === undefined) {
     return false
