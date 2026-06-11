@@ -8,10 +8,29 @@
  * @module filterQueryBuilder
  */
 
+import type {
+  FilterState,
+  DateRangeFilter,
+  TagFilter,
+  SpeciesFilter,
+  NotesFilter,
+  CustomFieldsFilter,
+  FileTypeFilter,
+  CameraSettingsFilter,
+} from '../types/filters'
+
+/**
+ * Date preset configuration
+ */
+interface DatePreset {
+  label: string
+  getRange: () => { startDate: string; endDate: string }
+}
+
 /**
  * Date preset definitions with their range calculations
  */
-export const DATE_PRESETS = {
+export const DATE_PRESETS: Record<string, DatePreset> = {
   today: {
     label: 'Today',
     getRange: () => {
@@ -77,11 +96,20 @@ export const DATE_PRESETS = {
 }
 
 /**
+ * Filter summary item
+ */
+export interface FilterSummary {
+  type: string
+  label: string
+  value: string
+}
+
+/**
  * Format a Date object to YYYY-MM-DD string for query
  * @param {Date} date - Date to format
  * @returns {string} Formatted date string
  */
-export function formatDateForQuery(date) {
+export function formatDateForQuery(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -93,7 +121,7 @@ export function formatDateForQuery(date) {
  * @param {string} value - Value to escape
  * @returns {string} Escaped value
  */
-export function escapeQueryValue(value) {
+export function escapeQueryValue(value: string): string {
   if (!value) return ''
   // Escape double quotes by doubling them
   return value.replace(/"/g, '""')
@@ -107,7 +135,7 @@ export function escapeQueryValue(value) {
  * @param {string|null} dateRange.endDate - End date (YYYY-MM-DD)
  * @returns {string} Date query string or empty string
  */
-export function buildDateQuery(dateRange) {
+export function buildDateQuery(dateRange: DateRangeFilter | null | undefined): string {
   if (!dateRange) return ''
 
   let startDate = dateRange.startDate
@@ -142,7 +170,7 @@ export function buildDateQuery(dateRange) {
  * @param {string} tags.matchMode - 'any' for OR, 'all' for AND
  * @returns {string} Tag query string or empty string
  */
-export function buildTagQuery(tags) {
+export function buildTagQuery(tags: TagFilter | null | undefined): string {
   if (!tags || !tags.selected || tags.selected.length === 0) {
     return ''
   }
@@ -164,10 +192,10 @@ export function buildTagQuery(tags) {
  * @param {boolean} species.includeUnidentified - Include photos without species
  * @returns {string} Species query string or empty string
  */
-export function buildSpeciesQuery(species) {
+export function buildSpeciesQuery(species: SpeciesFilter | null | undefined): string {
   if (!species) return ''
 
-  const parts = []
+  const parts: string[] = []
 
   // Add selected species
   if (species.selected && species.selected.length > 0) {
@@ -195,10 +223,10 @@ export function buildSpeciesQuery(species) {
  * @param {string} notes.keywords - Keywords to search in notes
  * @returns {string} Notes query string or empty string
  */
-export function buildNotesQuery(notes) {
+export function buildNotesQuery(notes: NotesFilter | null | undefined): string {
   if (!notes) return ''
 
-  const parts = []
+  const parts: string[] = []
 
   // Keyword search in notes
   if (notes.keywords && notes.keywords.trim()) {
@@ -222,12 +250,12 @@ export function buildNotesQuery(notes) {
  * @param {Object} customFields - Custom fields filter state (key-value pairs)
  * @returns {string} Custom fields query string or empty string
  */
-export function buildCustomFieldsQuery(customFields) {
+export function buildCustomFieldsQuery(customFields: CustomFieldsFilter | null | undefined): string {
   if (!customFields || Object.keys(customFields).length === 0) {
     return ''
   }
 
-  const parts = []
+  const parts: string[] = []
 
   for (const [, value] of Object.entries(customFields)) {
     if (value !== null && value !== undefined && value !== '') {
@@ -247,11 +275,11 @@ export function buildCustomFieldsQuery(customFields) {
  * @param {Object} fileTypes - { selected: ['jpg', 'png', 'raw', 'video'] }
  * @returns {string} FTS5 query string
  */
-export function buildFileTypeQuery(fileTypes) {
+export function buildFileTypeQuery(fileTypes: FileTypeFilter | null | undefined): string {
   if (!fileTypes?.selected?.length) return ''
 
   // Map UI values to file extensions
-  const extensionMap = {
+  const extensionMap: Record<string, string[]> = {
     jpg: ['jpg', 'jpeg'],
     png: ['png'],
     raw: ['dng', 'cr2', 'nef', 'arw', 'orf', 'rw2'],
@@ -272,10 +300,10 @@ export function buildFileTypeQuery(fileTypes) {
  * @param {Object} cameraSettings - { iso: {min, max}, aperture: {min, max}, shutterSpeed: {min, max} }
  * @returns {string} FTS5 query string
  */
-export function buildCameraSettingsQuery(cameraSettings) {
+export function buildCameraSettingsQuery(cameraSettings: CameraSettingsFilter | null | undefined): string {
   if (!cameraSettings) return ''
 
-  const parts = []
+  const parts: string[] = []
 
   // ISO range query (e.g., iso:100-3200)
   if (cameraSettings.iso?.min != null || cameraSettings.iso?.max != null) {
@@ -306,10 +334,10 @@ export function buildCameraSettingsQuery(cameraSettings) {
  * @param {Object} filterState - Complete filter state object
  * @returns {string} Combined FTS5 query string
  */
-export function buildFilterQuery(filterState) {
+export function buildFilterQuery(filterState: Partial<FilterState> | null | undefined): string {
   if (!filterState) return ''
 
-  const queryParts = []
+  const queryParts: string[] = []
 
   // Date range
   const dateQuery = buildDateQuery(filterState.dateRange)
@@ -351,7 +379,7 @@ export function buildFilterQuery(filterState) {
  * @param {string} filterQuery - Generated filter query
  * @returns {string} Combined query string
  */
-export function combineWithUserSearch(userQuery, filterQuery) {
+export function combineWithUserSearch(userQuery: string | null | undefined, filterQuery: string | null | undefined): string {
   const trimmedUser = userQuery?.trim() || ''
   const trimmedFilter = filterQuery?.trim() || ''
 
@@ -367,7 +395,7 @@ export function combineWithUserSearch(userQuery, filterQuery) {
  * @param {Object} filterState - Filter state to check
  * @returns {boolean} True if any filters are active
  */
-export function hasActiveFilters(filterState) {
+export function hasActiveFilters(filterState: Partial<FilterState> | null | undefined): boolean {
   if (!filterState) return false
 
   // Date range
@@ -380,20 +408,20 @@ export function hasActiveFilters(filterState) {
   }
 
   // Tags
-  if (filterState.tags?.selected?.length > 0) {
+  if (filterState.tags?.selected?.length && filterState.tags.selected.length > 0) {
     return true
   }
 
   // Species
   if (
-    filterState.species?.selected?.length > 0 ||
+    (filterState.species?.selected?.length && filterState.species.selected.length > 0) ||
     filterState.species?.includeUnidentified
   ) {
     return true
   }
 
   // File types
-  if (filterState.fileTypes?.selected?.length > 0) {
+  if (filterState.fileTypes?.selected?.length && filterState.fileTypes.selected.length > 0) {
     return true
   }
 
@@ -426,7 +454,7 @@ export function hasActiveFilters(filterState) {
  * @param {Object} filterState - Filter state to count
  * @returns {number} Number of active filter types
  */
-export function countActiveFilters(filterState) {
+export function countActiveFilters(filterState: Partial<FilterState> | null | undefined): number {
   if (!filterState) return 0
 
   let count = 0
@@ -441,20 +469,20 @@ export function countActiveFilters(filterState) {
   }
 
   // Tags
-  if (filterState.tags?.selected?.length > 0) {
+  if (filterState.tags?.selected?.length && filterState.tags.selected.length > 0) {
     count++
   }
 
   // Species
   if (
-    filterState.species?.selected?.length > 0 ||
+    (filterState.species?.selected?.length && filterState.species.selected.length > 0) ||
     filterState.species?.includeUnidentified
   ) {
     count++
   }
 
   // File types
-  if (filterState.fileTypes?.selected?.length > 0) {
+  if (filterState.fileTypes?.selected?.length && filterState.fileTypes.selected.length > 0) {
     count++
   }
 
@@ -488,10 +516,10 @@ export function countActiveFilters(filterState) {
  * @param {Object} filterState - Filter state to summarize
  * @returns {Array<{type: string, label: string, value: string}>} Filter summaries
  */
-export function getActiveFilterSummaries(filterState) {
+export function getActiveFilterSummaries(filterState: Partial<FilterState> | null | undefined): FilterSummary[] {
   if (!filterState) return []
 
-  const summaries = []
+  const summaries: FilterSummary[] = []
 
   // Date range
   if (filterState.dateRange?.preset) {
@@ -512,7 +540,7 @@ export function getActiveFilterSummaries(filterState) {
   }
 
   // Tags
-  if (filterState.tags?.selected?.length > 0) {
+  if (filterState.tags?.selected?.length && filterState.tags.selected.length > 0) {
     const mode = filterState.tags.matchMode === 'all' ? 'all' : 'any'
     summaries.push({
       type: 'tags',
@@ -522,7 +550,7 @@ export function getActiveFilterSummaries(filterState) {
   }
 
   // Species
-  if (filterState.species?.selected?.length > 0) {
+  if (filterState.species?.selected?.length && filterState.species.selected.length > 0) {
     summaries.push({
       type: 'species',
       label: 'Species',
@@ -538,7 +566,7 @@ export function getActiveFilterSummaries(filterState) {
   }
 
   // File types
-  if (filterState.fileTypes?.selected?.length > 0) {
+  if (filterState.fileTypes?.selected?.length && filterState.fileTypes.selected.length > 0) {
     summaries.push({
       type: 'fileTypes',
       label: 'File Type',

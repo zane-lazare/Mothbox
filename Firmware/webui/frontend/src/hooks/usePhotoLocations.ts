@@ -1,6 +1,38 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { getPhotoLocations } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
+
+interface PhotoLocation {
+  filename: string
+  path: string
+  latitude: number
+  longitude: number
+  timestamp: string
+}
+
+interface PhotoLocationsData {
+  locations: PhotoLocation[]
+  total_with_gps: number
+  total_without_gps: number
+}
+
+interface PhotoLocationsParams {
+  limit?: number
+}
+
+interface PhotoLocationsOptions {
+  enabled?: boolean
+}
+
+interface UsePhotoLocationsResult {
+  locations: PhotoLocation[]
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+  totalWithGps: number
+  totalWithoutGps: number
+  refetch: () => void
+}
 
 /**
  * Custom hook for fetching photo locations using TanStack Query
@@ -8,18 +40,11 @@ import { QUERY_KEYS } from '../utils/queryKeys'
  * Fetches photos with GPS coordinates for map display. Returns location data
  * along with counts of photos with and without GPS data.
  *
- * @param {Object} params - Query parameters for the API
- * @param {number} [params.limit=1000] - Maximum number of photos to return (1-10000)
- * @param {Object} options - TanStack Query options
- * @param {boolean} [options.enabled=true] - Whether to enable the query
- * @returns {object} Object containing:
- *   - locations: Array of photo location objects with GPS coordinates
- *   - isLoading: Boolean indicating if the query is currently loading
- *   - isError: Boolean indicating if an error occurred
- *   - error: Error object if an error occurred, null otherwise
- *   - totalWithGps: Number of photos with GPS data
- *   - totalWithoutGps: Number of photos without GPS data
- *   - refetch: Function to manually refetch the data
+ * @param params - Query parameters for the API
+ * @param params.limit - Maximum number of photos to return (1-10000)
+ * @param options - TanStack Query options
+ * @param options.enabled - Whether to enable the query
+ * @returns Object containing locations, loading state, and statistics
  *
  * @example
  * const { locations, isLoading, totalWithGps } = usePhotoLocations()
@@ -35,7 +60,10 @@ import { QUERY_KEYS } from '../utils/queryKeys'
  * const { locations, refetch } = usePhotoLocations({}, { enabled: false })
  * // Later: refetch() to manually trigger fetch
  */
-export function usePhotoLocations(params = {}, options = {}) {
+export function usePhotoLocations(
+  params: PhotoLocationsParams = {},
+  options: PhotoLocationsOptions = {}
+): UsePhotoLocationsResult {
   const { enabled = true } = options
 
   // Build query key - include params for cache differentiation
@@ -44,7 +72,7 @@ export function usePhotoLocations(params = {}, options = {}) {
     ? [...QUERY_KEYS.PHOTO_LOCATIONS, params]
     : QUERY_KEYS.PHOTO_LOCATIONS
 
-  const query = useQuery({
+  const query: UseQueryResult<PhotoLocationsData, Error> = useQuery({
     queryKey,
 
     queryFn: async () => {

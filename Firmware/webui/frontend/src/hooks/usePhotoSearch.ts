@@ -1,9 +1,51 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, UseQueryResult } from '@tanstack/react-query'
 import { useState, useEffect, useMemo } from 'react'
 import { searchPhotos } from '../utils/api'
 
 const DEFAULT_DEBOUNCE_MS = 300
 const DEFAULT_LIMIT = 20
+
+interface SearchResult {
+  path: string
+  filename: string
+  score: number
+  snippet?: string
+}
+
+interface SearchPagination {
+  limit: number
+  offset: number
+  has_next: boolean
+  has_prev: boolean
+}
+
+interface SearchData {
+  results: SearchResult[]
+  total: number
+  took_ms: number
+  parsed_query: string
+  pagination: SearchPagination
+}
+
+export interface PhotoSearchOptions {
+  limit?: number
+  offset?: number
+  debounceMs?: number
+  enabled?: boolean
+}
+
+export interface UsePhotoSearchResult {
+  results: SearchResult[]
+  total: number
+  tookMs: number
+  parsedQuery: string
+  pagination: SearchPagination
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+  isFetching: boolean
+  refetch: () => void
+}
 
 /**
  * Custom hook for searching photos with debouncing and caching
@@ -11,23 +53,13 @@ const DEFAULT_LIMIT = 20
  * Provides full-text search of photos with automatic debouncing to reduce
  * API calls during typing, intelligent caching, and pagination support.
  *
- * @param {string} query - Search query string
- * @param {Object} options - Configuration options
- * @param {number} [options.limit=20] - Results per page
- * @param {number} [options.offset=0] - Results offset for pagination
- * @param {number} [options.debounceMs=300] - Debounce delay in milliseconds
- * @param {boolean} [options.enabled=true] - Enable/disable the hook
- * @returns {Object} Search state and helpers
- *   - results: Array of search result objects
- *   - total: Total number of matching photos
- *   - tookMs: Query execution time in milliseconds
- *   - parsedQuery: Parsed FTS5 query
- *   - pagination: Pagination state (limit, offset, hasNext, hasPrev)
- *   - isLoading: Boolean indicating if query is loading
- *   - isError: Boolean indicating if error occurred
- *   - error: Error object if error occurred
- *   - isFetching: Boolean indicating if query is fetching
- *   - refetch: Function to force refetch
+ * @param query - Search query string
+ * @param options - Configuration options
+ * @param options.limit - Results per page
+ * @param options.offset - Results offset for pagination
+ * @param options.debounceMs - Debounce delay in milliseconds
+ * @param options.enabled - Enable/disable the hook
+ * @returns Search state and helpers
  *
  * @example
  * const { results, total, isLoading } = usePhotoSearch('moth')
@@ -41,7 +73,10 @@ const DEFAULT_LIMIT = 20
  *   enabled: isInputFocused
  * })
  */
-export function usePhotoSearch(query, options = {}) {
+export function usePhotoSearch(
+  query: string,
+  options: PhotoSearchOptions = {}
+): UsePhotoSearchResult {
   const {
     limit = DEFAULT_LIMIT,
     offset = 0,
@@ -67,7 +102,7 @@ export function usePhotoSearch(query, options = {}) {
   }, [enabled, debouncedQuery])
 
   // Fetch search results
-  const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
+  const { data, isLoading, isError, error, isFetching, refetch }: UseQueryResult<SearchData, Error> = useQuery({
     // Query key: unique identifier for this query in the cache
     queryKey: ['photoSearch', debouncedQuery, limit, offset],
 
