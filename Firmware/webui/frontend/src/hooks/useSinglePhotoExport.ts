@@ -81,10 +81,10 @@ export interface UseSinglePhotoExportReturn {
   reset: () => void
 }
 
-export function useSinglePhotoExport(): UseSinglePhotoExportResult {
+export function useSinglePhotoExport(): UseSinglePhotoExportReturn {
   const [jobId, setJobId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [hasDownloaded, setHasDownloaded] = useState<boolean>(false)
+  const [hasDownloaded, setHasDownloaded] = useState(false)
   const toastIdRef = useRef<string | null>(null)
 
   const createExportJob = useCreateExportJob()
@@ -102,10 +102,10 @@ export function useSinglePhotoExport(): UseSinglePhotoExportResult {
   /**
    * Start export for a single photo
    *
-   * @param {string} photoPath - Absolute path to photo file
-   * @param {string} format - Export format (json, csv, darwin_core, inaturalist)
+   * @param photoPath - Absolute path to photo file
+   * @param format - Export format (json, csv, darwin_core, inaturalist)
    */
-  const exportPhoto = (photoPath: string, format: string): void => {
+  const exportPhoto = (photoPath: string, format: ExportFormat): void => {
     // Reset state
     setError(null)
     setHasDownloaded(false)
@@ -129,7 +129,7 @@ export function useSinglePhotoExport(): UseSinglePhotoExportResult {
           // Keep loading toast - will dismiss when job completes/fails
         },
         onError: (err) => {
-          setError(err as string)
+          setError(err instanceof Error ? err.message : String(err))
           if (toastIdRef.current) {
             toast.dismiss(toastIdRef.current)
           }
@@ -185,7 +185,7 @@ export function useSinglePhotoExport(): UseSinglePhotoExportResult {
 
     // Handle failure
     if (job.status === 'failed') {
-      const errorMessage = job.error_message || 'Unknown error'
+      const errorMessage = job.error || 'Unknown error'
       setError(errorMessage)
 
       // Dismiss loading toast
