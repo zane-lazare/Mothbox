@@ -44,7 +44,7 @@ export default function ProgressiveImage({
     isLoading: _isLoading,
     error,
     stage
-  } = useProgressiveImage(shouldUseProgressive ? photoPath : null, {
+  } = useProgressiveImage(shouldUseProgressive && photoPath ? photoPath : null, {
     thumbnailSize,
     fullSize,
     autoLoad: shouldUseProgressive,

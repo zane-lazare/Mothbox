@@ -187,7 +187,7 @@ function ThumbnailGrid({
         {displayPhotos.map((photo, index) => (
           <button
             key={photo.path}
-            ref={(el) => (buttonRefs.current[index] = el)}
+            ref={(el) => { buttonRefs.current[index] = el }}
             type="button"
             tabIndex={index === focusedIndex ? 0 : -1}
             onClick={() => onPhotoClick?.(photo)}

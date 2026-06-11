@@ -26,7 +26,7 @@ const VirtualPhotoGridItem = memo(function VirtualPhotoGridItem({
         photo={photo}
         size={size}
         alt={photo.filename}
-        onClick={onClick}
+        onClick={() => onClick?.(photo)}
         className="rounded-lg overflow-hidden"
       />
 

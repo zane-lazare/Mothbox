@@ -227,7 +227,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
 
   // Throttle wheel events to prevent performance issues (wheel can fire 50+ events/sec)
   // 16ms = ~60fps maximum update rate
-  const throttledHandleWheel = useMemo(() => throttle(handleWheel, 16), [handleWheel])
+  const throttledHandleWheel = useMemo(() => throttle(handleWheel as any, 16), [handleWheel])
 
   // Cleanup throttled wheel handler on unmount
   useEffect(() => {
@@ -409,7 +409,7 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
 
   // Touch gestures hook for mobile support
   const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
-    imageRef,
+    imageRef: imageRef as React.RefObject<HTMLElement>,
     zoom,
     setZoom,
     pan,
@@ -639,9 +639,9 @@ function PhotoLightbox({ photo, photos = [], onClose, onNavigate, onLocationClic
           {formatDate(photo.timestamp)} • {formatFileSize(Number(photo.metadata?.custom_fields?.size || 0))}
         </p>
         <LocationHeader
-          latitude={photoMetadata?.location?.latitude ?? (photo.gps?.latitude || null)}
-          longitude={photoMetadata?.location?.longitude ?? (photo.gps?.longitude || null)}
-          altitude={photoMetadata?.location?.altitude ?? (photo.gps?.altitude || null)}
+          latitude={photoMetadata?.gps?.lat ?? (photo.gps?.latitude || null)}
+          longitude={photoMetadata?.gps?.lon ?? (photo.gps?.longitude || null)}
+          altitude={photoMetadata?.gps?.altitude ?? (photo.gps?.altitude || null)}
           onLocationClick={onLocationClick}
         />
       </div>

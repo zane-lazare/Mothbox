@@ -52,7 +52,7 @@ interface UseProgressiveImageReturn {
  * @returns {object} { src, isLoading, error, loadImage, stage }
  */
 export default function useProgressiveImage(
-  photoPath: string,
+  photoPath: string | null,
   options: UseProgressiveImageOptions = {}
 ): UseProgressiveImageReturn {
   const {

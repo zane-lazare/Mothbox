@@ -51,7 +51,7 @@ function PhotoGridItem({ photo, onClick, index, photos }: PhotoGridItemProps) {
       if (e.shiftKey && index !== undefined && photos && selectRange) {
         selectRange(index, photos.map(p => p.path))
       } else {
-        togglePhoto(photo.path, index)
+        togglePhoto(photo.path, index ?? 0)
       }
       return
     }
@@ -72,7 +72,7 @@ function PhotoGridItem({ photo, onClick, index, photos }: PhotoGridItemProps) {
       if ((e.nativeEvent as MouseEvent).shiftKey && index !== undefined && photos && selectRange) {
         selectRange(index, photos.map(p => p.path))
       } else {
-        togglePhoto(photo.path, index)
+        togglePhoto(photo.path, index ?? 0)
       }
     }
   }, [togglePhoto, selectRange, photo.path, index, photos])
@@ -143,7 +143,7 @@ function PhotoGridItem({ photo, onClick, index, photos }: PhotoGridItemProps) {
 
       {/* Context Menu */}
       <PhotoContextMenu
-        photo={photo}
+        photo={photo as any}
         isOpen={contextMenuOpen}
         onClose={() => setContextMenuOpen(false)}
         position={contextMenuPosition}

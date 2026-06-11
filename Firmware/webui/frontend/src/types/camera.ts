@@ -42,3 +42,48 @@ export interface CameraMetadata {
   lux?: number
   colour_temperature?: number
 }
+
+export interface ActionResult {
+  success: boolean
+  type?: 'success' | 'error' | 'warning'
+  title?: string
+  message?: string
+  error?: string
+}
+
+export interface CalibrationProgress {
+  step: string
+  progress: number
+  total_steps?: number
+  message: string
+}
+
+export interface LiveControls {
+  exposure_time?: number
+  analogue_gain?: number
+  analogueGain?: number
+  lens_position?: number
+  lensPosition?: number
+  colour_gains?: [number, number]
+  colourGainRed?: number
+  colourGainBlue?: number
+  sharpness?: number
+  brightness?: number
+  contrast?: number
+  saturation?: number
+  [key: string]: unknown
+}
+
+export interface AfWindow {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface PresetData {
+  name: string
+  description?: string
+  settings: CameraSettings
+  is_builtin?: boolean
+}

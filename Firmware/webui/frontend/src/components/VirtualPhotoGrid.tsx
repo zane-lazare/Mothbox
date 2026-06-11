@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import { Grid as FixedSizeGrid, GridChildComponentProps } from 'react-window'
+import { Grid, CellComponentProps } from 'react-window'
 import useVirtualGrid from '../hooks/useVirtualGrid'
 import VirtualPhotoGridItem from './VirtualPhotoGridItem'
 import EmptyStateMessage from './EmptyStateMessage'
@@ -83,7 +83,10 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     window.addEventListener('resize', debouncedResize)
     return () => {
       window.removeEventListener('resize', debouncedResize)
-      debouncedResize.cancel() // Cancel pending updates on unmount
+      // Cancel pending updates on unmount if debounce function has cancel method
+      if (typeof (debouncedResize as any).cancel === 'function') {
+        (debouncedResize as any).cancel()
+      }
     }
   }, [updateViewportHeight])
 
@@ -118,7 +121,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   // Cell renderer for react-window
   // IMPORTANT: photos is accessed via photosRef.current to avoid dependency
   // This keeps Cell reference stable during infinite scroll, preventing unnecessary re-renders
-  const Cell = useCallback(({ columnIndex, rowIndex, style }: GridChildComponentProps) => {
+  const Cell = useCallback(({ columnIndex, rowIndex, style }: CellComponentProps) => {
     const photoIndex = rowIndex * columnCount + columnIndex
     const photo = photosRef.current[photoIndex]
 
@@ -128,7 +131,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     return (
       <div style={style}>
         <VirtualPhotoGridItem
-          photo={photo}
+          photo={photo as any}
           size={options.thumbnailSize || GALLERY_CONFIG.THUMBNAIL.SIZE}
           onClick={() => onPhotoClick?.(photo)}
         />
@@ -138,7 +141,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
 
   // Empty state
   if (!isLoading && photos.length === 0) {
-    return <EmptyStateMessage message="No photos found" />
+    return <EmptyStateMessage />
   }
 
   // Loading state (skeleton grid)
@@ -154,19 +157,18 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
 
   return (
     <div ref={containerRef} className="virtual-photo-grid-container">
-      <FixedSizeGrid
+      <Grid
+        cellComponent={Cell}
+        cellProps={{}}
         columnCount={columnCount}
         columnWidth={itemWidth}
-        height={viewportHeight} // Responsive viewport height (80vh, min 600px)
+        defaultHeight={viewportHeight}
         rowCount={rowCount}
         rowHeight={itemHeight}
-        width="100%" // Full container width
-        overscanRowCount={GALLERY_CONFIG.VIRTUALIZATION.OVERSCAN_ROW_COUNT}
+        overscanCount={GALLERY_CONFIG.VIRTUALIZATION.OVERSCAN_ROW_COUNT}
         className="virtual-photo-grid"
-        outerRef={scrollRef} // Attach scroll restoration ref
-      >
-        {Cell}
-      </FixedSizeGrid>
+        gridRef={scrollRef as any}
+      />
       {/* Note: Infinite scroll sentinel is managed by parent Gallery component */}
     </div>
   )

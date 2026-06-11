@@ -1,3 +1,4 @@
+import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'
@@ -47,7 +48,7 @@ export default function GPSSettings() {
 
   // Update selected source when config loads
   useEffect(() => {
-    if (exifConfig?.default_sources) {
+    if (exifConfig?.default_sources && Array.isArray(exifConfig.default_sources)) {
       setSelectedSource(exifConfig.default_sources.join(','))
     }
   }, [exifConfig])
@@ -118,8 +119,8 @@ export default function GPSSettings() {
     mutationFn: updateGpsConfig,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSuccess: (response: any) => {
-      queryClient.invalidateQueries(QUERY_KEYS.GPS_CONFIG)
-      queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_CONFIG })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_STATUS })
 
       if (response.data.gpsd_restarted) {
         toast.success('GPS configuration updated and service restarted!', { duration: 4000 })
@@ -228,8 +229,8 @@ export default function GPSSettings() {
           { duration: 8000 }
         )
       }
-      queryClient.invalidateQueries(QUERY_KEYS.GPS_STATUS)
-      queryClient.invalidateQueries(QUERY_KEYS.SYSTEM_STATUS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPS_STATUS })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SYSTEM_STATUS })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       clearInterval(progressInterval)
@@ -544,26 +545,26 @@ export default function GPSSettings() {
                 </div>
 
                 {exifSectionOpen && (
-                  <div className="mt-3 space-y-3">
-                    {/* Default Coordinate Source */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Default Coordinate Source
-                      </label>
-                      <select
-                        value={selectedSource}
-                        onChange={(e) => setSelectedSource(e.target.value)}
-                        aria-label="Default Coordinate Source"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="deployment,gps">Deployment → GPS fallback</option>
-                        <option value="gps">GPS only</option>
-                        <option value="manual">Manual coordinates</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Where to get GPS coordinates for tagging photos
-                      </p>
-                    </div>
+                  <>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Default Coordinate Source
+                        </label>
+                        <select
+                          value={selectedSource}
+                          onChange={(e) => setSelectedSource(e.target.value)}
+                          aria-label="Default Coordinate Source"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="deployment,gps">Deployment → GPS fallback</option>
+                          <option value="gps">GPS only</option>
+                          <option value="manual">Manual coordinates</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Where to get GPS coordinates for tagging photos
+                        </p>
+                      </div>
 
                     {/* Service Status */}
                     {exifStatus?.service_status && (
@@ -574,7 +575,7 @@ export default function GPSSettings() {
                           exifStatus.service_status === 'stopped' ? 'text-yellow-600' :
                           'text-gray-600'
                         }>
-                          {exifStatus.service_status}
+                          {String(exifStatus.service_status)}
                         </span>
                       </div>
                     )}
@@ -582,7 +583,7 @@ export default function GPSSettings() {
                     {/* Tagged Count */}
                     {exifStatus?.tagged_count != null && (
                       <div className="text-xs text-gray-600">
-                        <span className="font-medium">Photos tagged:</span> {exifStatus.tagged_count}
+                        <span className="font-medium">Photos tagged:</span> {String(exifStatus.tagged_count)}
                       </div>
                     )}
 
@@ -592,9 +593,10 @@ export default function GPSSettings() {
                       disabled={updateExifConfig.isPending}
                       className="w-full px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                      {updateExifConfig.isPending ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
+                        {updateExifConfig.isPending ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
 

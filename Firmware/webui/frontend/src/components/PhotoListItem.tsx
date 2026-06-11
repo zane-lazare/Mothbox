@@ -49,7 +49,7 @@ function PhotoListItem({ photo, onClick, index, photos }: PhotoListItemProps) {
       if (e.shiftKey && index !== undefined && photos && selectRange) {
         selectRange(index, photos.map(p => p.path))
       } else {
-        togglePhoto(photo.path, index)
+        togglePhoto(photo.path, index ?? 0)
       }
       return
     }
@@ -70,7 +70,7 @@ function PhotoListItem({ photo, onClick, index, photos }: PhotoListItemProps) {
       if ((e.nativeEvent as MouseEvent).shiftKey && index !== undefined && photos && selectRange) {
         selectRange(index, photos.map(p => p.path))
       } else {
-        togglePhoto(photo.path, index)
+        togglePhoto(photo.path, index ?? 0)
       }
     }
   }, [togglePhoto, selectRange, photo.path, index, photos])

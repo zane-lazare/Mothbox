@@ -9,7 +9,7 @@ import { MAP_CONFIG, CLUSTERING_CONFIG, Z_INDEX } from '../constants/config'
 import MarkerHoverPopup from './MarkerHoverPopup'
 import ErrorBoundary from './ErrorBoundary'
 import { useHoverPopup } from '../hooks/useHoverPopup'
-import { getThumbnailUrl } from '../utils/thumbnailUrl'
+import { getThumbnailUrl as getThumbnailUrlSingle } from '../utils/thumbnailUrl'
 
 export interface PhotoLocation {
   path: string
@@ -56,7 +56,7 @@ export interface ClusteringControlsProps {
 
 export interface ClusterMarkerProps {
   cluster: GeoCluster
-  onPhotoClick?: (photo: any) => void
+  onPhotoClick?: (photo: PhotoLocation) => void
   onMouseEnter?: (cluster: GeoCluster, event: MouseEvent) => void
   onMouseLeave?: () => void
   onPopupOpen?: (cluster: GeoCluster) => void
@@ -175,11 +175,11 @@ function ClusterMarker({ cluster, onPhotoClick, onMouseEnter, onMouseLeave, onPo
             {cluster.photos.slice(0, 6).map((photo) => (
               <img
                 key={photo.path}
-                src={photo.thumbnail_url || getThumbnailUrl(photo.path, 64)}
+                src={photo.thumbnail_url || getThumbnailUrlSingle(photo.path)}
                 alt={photo.filename || photo.path}
                 className="w-full h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => {
-                  if (onPhotoClick) {
+                  if (onPhotoClick && photo.filename && photo.latitude && photo.longitude) {
                     onPhotoClick({
                       path: photo.path,
                       filename: photo.filename,
@@ -386,24 +386,14 @@ const MapView = forwardRef<LeafletMap | null, MapViewProps>(function MapView({
   return (
     <div className={`w-full h-full relative ${className}`}>
       <MapContainer
-        data-testid="map-container"
-        data-highlighted-path={highlightedPhotoPath || ''}
-        role="application"
-        aria-label="Interactive map showing photo locations"
-        center={MAP_CONFIG.DEFAULT_CENTER}
+        center={MAP_CONFIG.DEFAULT_CENTER as [number, number]}
         zoom={MAP_CONFIG.DEFAULT_ZOOM}
         minZoom={MAP_CONFIG.MIN_ZOOM}
         maxZoom={MAP_CONFIG.MAX_ZOOM}
         style={{ width: '100%', height: '100%' }}
         className="rounded-lg"
-        // Touch optimization settings for mobile devices
-        tap={true} // Enable tap handler for touch devices
-        tapTolerance={15} // Tolerance for tap detection (pixels)
-        touchZoom={true} // Enable pinch-to-zoom on touch devices
-        dragging={true} // Enable touch dragging/panning
-        scrollWheelZoom={true} // Enable scroll wheel zoom (desktop) and pinch zoom (mobile)
-        doubleClickZoom={true} // Enable double-click/tap zoom
-        attributionControl={true} // Keep attribution visible
+        scrollWheelZoom={true}
+        attributionControl={true}
       >
         <TileLayer
           data-testid="tile-layer"
@@ -421,9 +411,9 @@ const MapView = forwardRef<LeafletMap | null, MapViewProps>(function MapView({
             key={cluster.cluster_id}
             cluster={cluster}
             onPhotoClick={onPhotoClick}
-            onMouseEnter={handleMouseEnter}
+            onMouseEnter={(c, e) => handleMouseEnter(c as any, e)}
             onMouseLeave={handleMouseLeave}
-            onPopupOpen={handlePopupOpen}
+            onPopupOpen={(c) => handlePopupOpen(c as any)}
             onPopupClose={handlePopupClose}
           />
         ))}
@@ -495,10 +485,10 @@ const MapView = forwardRef<LeafletMap | null, MapViewProps>(function MapView({
         onReset={handleMouseLeave}
       >
         <MarkerHoverPopup
-          cluster={targetCluster}
+          cluster={targetCluster as any}
           isVisible={isVisible}
-          position={position}
-          onPhotoClick={onPhotoClick}
+          position={position || undefined}
+          onPhotoClick={onPhotoClick as any}
           onClose={handleMouseLeave}
         />
       </ErrorBoundary>
