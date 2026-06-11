@@ -27,8 +27,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { validateDraftRoutines } from '../utils/schedulerApi'
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
+import { validateDraftRoutines, type DraftValidationResponse, type ScheduleEvent } from '../utils/schedulerApi'
+import type { AxiosResponse } from 'axios'
 
 // =============================================================================
 // Configuration
@@ -50,27 +51,54 @@ const DEBOUNCE_DELAY_MS = 400
 const STALE_TIME_MS = 30 * 1000
 
 // =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Hook options for configuring draft validation
+ */
+export interface UseValidateDraftOptions {
+  /** Number of days to preview (default: 1 for editor) */
+  days?: number
+  /** Latitude for solar calculations */
+  latitude?: number
+  /** Longitude for solar calculations */
+  longitude?: number
+  /** Timezone for time resolution */
+  timezone?: string
+  /** Additional React Query options */
+  queryOptions?: Partial<UseQueryOptions<DraftValidationResponse>>
+}
+
+/**
+ * Hook return type
+ */
+export interface UseValidateDraftReturn {
+  /** Function to trigger validation with routines array */
+  validateDraft: (routines: ScheduleEvent[]) => void
+  /** Validation result from API */
+  conflictReport: DraftValidationResponse | undefined
+  /** Whether validation is in progress */
+  isValidating: boolean
+  /** Whether validation failed */
+  isError: boolean
+  /** Error object if validation failed */
+  error: Error | null
+  /** Reset validation state */
+  reset: () => void
+}
+
+// =============================================================================
 // Hook
 // =============================================================================
 
 /**
  * Hook for validating draft routines with debouncing
  *
- * @param {Object} [options] - Hook options
- * @param {number} [options.days=1] - Number of days to preview (default: 1 for editor)
- * @param {number} [options.latitude] - Latitude for solar calculations
- * @param {number} [options.longitude] - Longitude for solar calculations
- * @param {string} [options.timezone] - Timezone for time resolution
- * @param {Object} [options.queryOptions] - Additional React Query options
- * @returns {Object} Hook result
- * @returns {Function} validateDraft - Function to trigger validation with routines array
- * @returns {Object|null} conflictReport - Validation result from API
- * @returns {boolean} isValidating - Whether validation is in progress
- * @returns {boolean} isError - Whether validation failed
- * @returns {Object|null} error - Error object if validation failed
- * @returns {Function} reset - Reset validation state
+ * @param options - Hook options
+ * @returns Hook result
  */
-export function useValidateDraft(options = {}) {
+export function useValidateDraft(options: UseValidateDraftOptions = {}): UseValidateDraftReturn {
   const {
     days = 1,
     latitude,
@@ -80,8 +108,8 @@ export function useValidateDraft(options = {}) {
   } = options
 
   // Track the routines to validate (debounced)
-  const [debouncedRoutines, setDebouncedRoutines] = useState(null)
-  const debounceTimerRef = useRef(null)
+  const [debouncedRoutines, setDebouncedRoutines] = useState<ScheduleEvent[] | null>(null)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Create stable hash of routines for query key
   const routinesHash = useMemo(() => {
@@ -105,12 +133,19 @@ export function useValidateDraft(options = {}) {
   // Validation query
   const query = useQuery({
     queryKey: ['scheduler', 'draft-validation', routinesHash, days, latitude, longitude, timezone],
-    queryFn: async () => {
+    queryFn: async (): Promise<DraftValidationResponse | null> => {
       if (!debouncedRoutines?.length) {
         return null
       }
 
-      const params = { routines: debouncedRoutines, days }
+      const params: {
+        routines: ScheduleEvent[]
+        days: number
+        latitude?: number
+        longitude?: number
+        timezone?: string
+      } = { routines: debouncedRoutines, days }
+
       if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude
         params.longitude = longitude
@@ -119,7 +154,7 @@ export function useValidateDraft(options = {}) {
         params.timezone = timezone
       }
 
-      const response = await validateDraftRoutines(params)
+      const response: AxiosResponse<DraftValidationResponse> = await validateDraftRoutines(params)
       return response.data
     },
     enabled: Boolean(routinesHash),
@@ -129,9 +164,9 @@ export function useValidateDraft(options = {}) {
 
   /**
    * Trigger validation with debouncing
-   * @param {Array} routines - Array of routine objects to validate
+   * @param routines - Array of routine objects to validate
    */
-  const validateDraft = useCallback((routines) => {
+  const validateDraft = useCallback((routines: ScheduleEvent[]) => {
     // Clear existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current)
@@ -139,7 +174,7 @@ export function useValidateDraft(options = {}) {
 
     // Filter to only routines with valid structure
     const validRoutines = routines?.filter(r =>
-      r?.trigger?.trigger_type && r?.actions?.length > 0
+      r?.trigger?.type && r?.action
     ) || []
 
     // Set debounced value after delay
@@ -160,7 +195,7 @@ export function useValidateDraft(options = {}) {
 
   return {
     validateDraft,
-    conflictReport: query.data,
+    conflictReport: query.data ?? undefined,
     isValidating: query.isFetching,
     isError: query.isError,
     error: query.error,

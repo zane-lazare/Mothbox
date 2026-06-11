@@ -1,5 +1,36 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
+interface PanPosition {
+  x: number
+  y: number
+}
+
+interface Boundaries {
+  maxX: number
+  maxY: number
+}
+
+interface UseZoomPanConfig {
+  minZoom?: number
+  maxZoom?: number
+  zoomStep?: number
+  imageWidth?: number
+  imageHeight?: number
+  containerWidth?: number
+  containerHeight?: number
+}
+
+interface UseZoomPanResult {
+  zoom: number
+  pan: PanPosition
+  setZoom: (newZoom: number) => void
+  setPan: (newPan: PanPosition) => void
+  handleZoomIn: () => void
+  handleZoomOut: () => void
+  handleWheel: (event: React.WheelEvent) => void
+  resetZoom: () => void
+}
+
 /**
  * Custom hook for managing zoom and pan state in the photo lightbox.
  *
@@ -63,9 +94,9 @@ function useZoomPan({
   imageHeight = 0,
   containerWidth = 0,
   containerHeight = 0,
-}) {
+}: UseZoomPanConfig): UseZoomPanResult {
   const [zoom, setZoomState] = useState(1.0)
-  const [pan, setPanState] = useState({ x: 0, y: 0 })
+  const [pan, setPanState] = useState<PanPosition>({ x: 0, y: 0 })
 
   // Use refs to track current zoom/pan without triggering callback recreations
   const zoomRef = useRef(zoom)
@@ -82,7 +113,7 @@ function useZoomPan({
    * @returns {Object} Boundaries {maxX, maxY}
    */
   const getBoundaries = useCallback(
-    (currentZoom) => {
+    (currentZoom: number): Boundaries => {
       // Guard against invalid dimensions to prevent division by zero or NaN
       if (containerWidth <= 0 || containerHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) {
         return { maxX: 0, maxY: 0 }
@@ -106,7 +137,7 @@ function useZoomPan({
    * @param {Object} boundaries - Boundaries {maxX, maxY}
    * @returns {Object} Constrained pan position {x, y}
    */
-  const constrainPan = useCallback((panPosition, boundaries) => {
+  const constrainPan = useCallback((panPosition: PanPosition, boundaries: Boundaries): PanPosition => {
     return {
       x: Math.max(-boundaries.maxX, Math.min(boundaries.maxX, panPosition.x)),
       y: Math.max(-boundaries.maxY, Math.min(boundaries.maxY, panPosition.y)),
@@ -121,7 +152,7 @@ function useZoomPan({
    * @param {number} newZoom - New zoom level
    */
   const setZoom = useCallback(
-    (newZoom) => {
+    (newZoom: number) => {
       const clampedZoom = Math.max(minZoom, Math.min(maxZoom, newZoom))
       setZoomState(clampedZoom)
 
@@ -148,7 +179,7 @@ function useZoomPan({
    * on every zoom change, which would cause event listener churn in PhotoLightbox
    */
   const setPan = useCallback(
-    (newPan) => {
+    (newPan: PanPosition) => {
       const boundaries = getBoundaries(zoomRef.current)
       const constrainedPan = constrainPan(newPan, boundaries)
       setPanState(constrainedPan)
@@ -188,7 +219,7 @@ function useZoomPan({
    * @param {WheelEvent} event - Wheel event
    */
   const handleWheel = useCallback(
-    (event) => {
+    (event: React.WheelEvent) => {
       event.preventDefault()
 
       const currentZoom = zoomRef.current
@@ -204,7 +235,7 @@ function useZoomPan({
       }
 
       // Get cursor position relative to image
-      const rect = event.currentTarget?.getBoundingClientRect()
+      const rect = (event.currentTarget as HTMLElement)?.getBoundingClientRect()
       if (!rect) {
         // Element not available (unmounted or invalid), skip cursor-relative zoom
         return

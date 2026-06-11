@@ -4,6 +4,22 @@ import toast from 'react-hot-toast'
 const UNDO_TIMEOUT = 5000 // 5 seconds
 
 /**
+ * Parameters for showing an undo toast
+ */
+interface ShowUndoToastParams {
+  message: string
+  onUndo: () => void
+}
+
+/**
+ * Return type for the useUndoToast hook
+ */
+interface UseUndoToastReturn {
+  showUndoToast: (message: string, onUndo: () => void) => string
+  dismissToast: (toastId: string) => void
+}
+
+/**
  * Custom hook for displaying success toasts with an Undo button
  *
  * Provides a simple interface for showing toast notifications with undo functionality.
@@ -15,7 +31,7 @@ const UNDO_TIMEOUT = 5000 // 5 seconds
  * - Position: bottom-center (less intrusive than top-right)
  * - Action: Undo button executes callback and dismisses toast immediately
  *
- * @returns {object} Hook functions
+ * @returns {UseUndoToastReturn} Hook functions
  * @returns {Function} showUndoToast - Show toast with undo button
  * @returns {Function} dismissToast - Dismiss specific toast by ID
  *
@@ -31,7 +47,8 @@ const UNDO_TIMEOUT = 5000 // 5 seconds
  * // Optionally dismiss programmatically
  * dismissToast(toastId)
  */
-export default function useUndoToast() {
+
+export default function useUndoToast(): UseUndoToastReturn {
   /**
    * Show a toast notification with an Undo button
    *
@@ -39,7 +56,7 @@ export default function useUndoToast() {
    * @param {Function} onUndo - Callback function to execute when Undo is clicked
    * @returns {string} Toast ID for programmatic dismissal
    */
-  const showUndoToast = useCallback((message, onUndo) => {
+  const showUndoToast = useCallback((message: string, onUndo: () => void): string => {
     const toastId = toast(
       (t) => (
         <div className="flex items-center gap-3">
@@ -70,7 +87,7 @@ export default function useUndoToast() {
    *
    * @param {string} toastId - ID of the toast to dismiss
    */
-  const dismissToast = useCallback((toastId) => {
+  const dismissToast = useCallback((toastId: string): void => {
     toast.dismiss(toastId)
   }, [])
 

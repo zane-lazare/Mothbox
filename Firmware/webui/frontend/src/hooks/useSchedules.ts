@@ -14,7 +14,7 @@
  * - useDeactivateSchedule: Deactivate schedule
  * - useValidateSchedule: Validate schedule configuration
  *
- * Routine hooks are in useRoutines.js (Issue #222, #322):
+ * Routine hooks are in useRoutines.ts (Issue #222, #322):
  * - useBuiltinRoutines: List built-in routines
  * - useValidateRoutine: Validate routine
  * - useRoutineDuration: Calculate routine duration
@@ -46,24 +46,46 @@ import {
   deactivateSchedule,
   validateSchedule,
   getNextActions,
-  type ScheduleListParams,
-  type ScheduleListResponse,
-  type ScheduleMetadata,
-  type ScheduleCreateData,
-  type ScheduleUpdateData,
-  type ScheduleOperationResponse,
-  type ScheduleDeleteResponse,
-  type ActiveScheduleResponse,
-  type ScheduleActivationOptions,
-  type ScheduleActivationResponse,
-  type ScheduleDeactivationResponse,
-  type NextActionsParams,
-  type NextActionsResponse,
-  type SchedulePreviewParams,
-  type SchedulePreviewResponse,
-  type ValidationResult,
-  type BuiltInSchedulesResponse,
 } from '../utils/schedulerApi'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface SchedulesParams {
+  include_builtin?: boolean
+}
+
+interface NextActionsParams {
+  limit?: number
+}
+
+interface SchedulePreviewParams {
+  days?: number
+  lat?: number
+  lon?: number
+  tz?: string
+}
+
+interface CloneScheduleParams {
+  id: string
+  name?: string
+}
+
+interface ActivateScheduleParams {
+  id: string
+  options?: Record<string, unknown>
+}
+
+type SchedulesListResponse = unknown
+type ScheduleResponse = unknown
+type ActiveScheduleResponse = unknown
+type NextActionsResponse = unknown
+type SchedulePreviewResponse = unknown
+type BuiltinSchedulesResponse = unknown
+type CreateScheduleRequest = unknown
+type UpdateScheduleRequest = unknown
+type ValidateScheduleRequest = unknown
 
 // =============================================================================
 // Configuration
@@ -97,113 +119,21 @@ const QUERY_CONFIG = {
  * @param error - The error from the mutation
  * @param operation - Name of the operation for context
  */
-function handleMutationError(error: Error, operation: string): void {
+function handleMutationError(error: unknown, operation: string): void {
   if (import.meta.env.DEV) {
-    console.error(`[Scheduler ${operation}]:`, error.message || error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`[Scheduler ${operation}]:`, errorMessage)
   }
   // Note: Could integrate error reporting service here in future
   // e.g., Sentry.captureException(error, { tags: { operation } })
 }
 
-// =============================================================================
-// Type Definitions for Hook Parameters
-// =============================================================================
-
-/**
- * Options for useSchedules query
- */
-type UseSchedulesOptions = Omit<
-  UseQueryOptions<ScheduleListResponse, Error, ScheduleListResponse, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Options for useSchedule query
- */
-type UseScheduleOptions = Omit<
-  UseQueryOptions<ScheduleMetadata, Error, ScheduleMetadata, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Options for useActiveSchedule query
- */
-type UseActiveScheduleOptions = Omit<
-  UseQueryOptions<ActiveScheduleResponse, Error, ActiveScheduleResponse, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Options for useNextActions query
- */
-type UseNextActionsOptions = Omit<
-  UseQueryOptions<NextActionsResponse, Error, NextActionsResponse, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Options for useSchedulePreview query
- */
-type UseSchedulePreviewOptions = Omit<
-  UseQueryOptions<SchedulePreviewResponse, Error, SchedulePreviewResponse, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Options for useBuiltinSchedules query
- */
-type UseBuiltinSchedulesOptions = Omit<
-  UseQueryOptions<BuiltInSchedulesResponse, Error, BuiltInSchedulesResponse, readonly unknown[]>,
-  'queryKey' | 'queryFn' | 'initialData'
-> & { initialData?: () => undefined }
-
-/**
- * Mutation variables for useUpdateSchedule
- */
-interface UpdateScheduleVariables {
-  id: string
-  data: ScheduleUpdateData
-}
-
-/**
- * Mutation variables for useCloneSchedule
- */
-interface CloneScheduleVariables {
-  id: string
-  name?: string
-}
-
-/**
- * Mutation variables for useActivateSchedule
- */
-interface ActivateScheduleVariables {
-  id: string
-  options?: ScheduleActivationOptions
-}
-
-/**
- * Mutation variables for useValidateSchedule
- */
-interface ValidateScheduleVariables {
-  id: string
-  data: ScheduleCreateData | ScheduleUpdateData
-}
-
-// =============================================================================
-// Query Hooks
-// =============================================================================
-
 /**
  * List all schedules
  *
  * @param params - API parameters
- * @param params.include_builtin - Include built-in schedules
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - { schedules: [...], total }
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useSchedules()
@@ -219,19 +149,22 @@ interface ValidateScheduleVariables {
  *   { refetchInterval: 60000 }
  * )
  */
-export function useSchedules(params: ScheduleListParams = {}, queryOptions: UseSchedulesOptions = {}) {
+export function useSchedules(
+  params: SchedulesParams = {},
+  queryOptions: Omit<UseQueryOptions<SchedulesListResponse, Error>, 'queryKey' | 'queryFn'> = {}
+) {
   const { include_builtin } = params
 
   // Build query key that includes params for proper cache separation
   // This ensures different param combinations have separate cache entries
   const queryKey = include_builtin !== undefined
-    ? [...QUERY_KEYS.SCHEDULES, { include_builtin }] as const
+    ? [...QUERY_KEYS.SCHEDULES, { include_builtin }]
     : QUERY_KEYS.SCHEDULES
 
-  return useQuery({
+  return useQuery<SchedulesListResponse, Error>({
     queryKey,
     queryFn: async () => {
-      const apiParams: ScheduleListParams = {}
+      const apiParams: SchedulesParams = {}
       if (include_builtin !== undefined) {
         apiParams.include_builtin = include_builtin
       }
@@ -249,10 +182,6 @@ export function useSchedules(params: ScheduleListParams = {}, queryOptions: UseS
  * @param id - Schedule ID (null to disable query)
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - Schedule details
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useSchedule('schedule_1')
@@ -261,9 +190,12 @@ export function useSchedules(params: ScheduleListParams = {}, queryOptions: UseS
  *   console.log(`Events: ${data.events.length}`)
  * }
  */
-export function useSchedule(id: string | null, queryOptions: UseScheduleOptions = {}) {
-  return useQuery({
-    queryKey: QUERY_KEYS.SCHEDULE(id || ''),
+export function useSchedule(
+  id: string | null,
+  queryOptions: Omit<UseQueryOptions<ScheduleResponse, Error>, 'queryKey' | 'queryFn' | 'enabled'> = {}
+) {
+  return useQuery<ScheduleResponse, Error>({
+    queryKey: QUERY_KEYS.SCHEDULE(id),
     queryFn: async () => {
       if (!id) throw new Error('Schedule ID is required')
       const response = await getSchedule(id)
@@ -280,10 +212,6 @@ export function useSchedule(id: string | null, queryOptions: UseScheduleOptions 
  *
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - { active_schedule: {...} | null }
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useActiveSchedule()
@@ -291,8 +219,10 @@ export function useSchedule(id: string | null, queryOptions: UseScheduleOptions 
  *   console.log(`Active: ${data.active_schedule.name}`)
  * }
  */
-export function useActiveSchedule(queryOptions: UseActiveScheduleOptions = {}) {
-  return useQuery({
+export function useActiveSchedule(
+  queryOptions: Omit<UseQueryOptions<ActiveScheduleResponse, Error>, 'queryKey' | 'queryFn'> = {}
+) {
+  return useQuery<ActiveScheduleResponse, Error>({
     queryKey: QUERY_KEYS.ACTIVE_SCHEDULE,
     queryFn: async () => {
       const response = await getActiveSchedule()
@@ -310,13 +240,8 @@ export function useActiveSchedule(queryOptions: UseActiveScheduleOptions = {}) {
  * the need to recalculate solar times via the preview API.
  *
  * @param params - API parameters
- * @param params.limit - Maximum number of actions (default: 5, max: 100)
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - { actions: [...], schedule_id, coordinates_source, total_stored }
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useNextActions({ limit: 10 })
@@ -327,15 +252,18 @@ export function useActiveSchedule(queryOptions: UseActiveScheduleOptions = {}) {
  *
  * Issue #331: Store cron entries in active_state.json
  */
-export function useNextActions(params: NextActionsParams = {}, queryOptions: UseNextActionsOptions = {}) {
+export function useNextActions(
+  params: NextActionsParams = {},
+  queryOptions: Omit<UseQueryOptions<NextActionsResponse, Error>, 'queryKey' | 'queryFn'> = {}
+) {
   const { limit } = params
 
   // Build query key that includes params for proper cache separation
   const queryKeyParams: NextActionsParams = {}
   if (limit !== undefined) queryKeyParams.limit = limit
 
-  return useQuery({
-    queryKey: [...QUERY_KEYS.NEXT_ACTIONS, queryKeyParams] as const,
+  return useQuery<NextActionsResponse, Error>({
+    queryKey: [...QUERY_KEYS.NEXT_ACTIONS, queryKeyParams],
     queryFn: async () => {
       const response = await getNextActions(queryKeyParams)
       return response.data
@@ -350,16 +278,8 @@ export function useNextActions(params: NextActionsParams = {}, queryOptions: Use
  *
  * @param id - Schedule ID (null to disable query)
  * @param params - Preview parameters
- * @param params.days - Number of days to preview (default: 7)
- * @param params.lat - Latitude for solar/moon calculations
- * @param params.lon - Longitude for solar/moon calculations
- * @param params.tz - Timezone (e.g., "America/New_York")
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - { schedule_id, preview_days, executions: [...], total }
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useSchedulePreview('schedule_1', { days: 14 })
@@ -368,7 +288,11 @@ export function useNextActions(params: NextActionsParams = {}, queryOptions: Use
  *   data.executions.forEach(e => console.log(e.scheduled_time))
  * }
  */
-export function useSchedulePreview(id: string | null, params: SchedulePreviewParams = {}, queryOptions: UseSchedulePreviewOptions = {}) {
+export function useSchedulePreview(
+  id: string | null,
+  params: SchedulePreviewParams = {},
+  queryOptions: Omit<UseQueryOptions<SchedulePreviewResponse, Error>, 'queryKey' | 'queryFn' | 'enabled'> = {}
+) {
   const { days, lat, lon, tz } = params
 
   // Only include defined params in query key to avoid cache misses from undefined values
@@ -378,8 +302,8 @@ export function useSchedulePreview(id: string | null, params: SchedulePreviewPar
   if (lon !== undefined) queryKeyParams.lon = lon
   if (tz !== undefined) queryKeyParams.tz = tz
 
-  return useQuery({
-    queryKey: [...QUERY_KEYS.SCHEDULE_PREVIEW(id || ''), queryKeyParams] as const,
+  return useQuery<SchedulePreviewResponse, Error>({
+    queryKey: [...QUERY_KEYS.SCHEDULE_PREVIEW(id), queryKeyParams],
     queryFn: async () => {
       if (!id) throw new Error('Schedule ID is required')
       const response = await getSchedulePreview(id, queryKeyParams)
@@ -396,10 +320,6 @@ export function useSchedulePreview(id: string | null, params: SchedulePreviewPar
  *
  * @param queryOptions - React Query options (refetchInterval, onSuccess, etc.)
  * @returns React Query result
- * @returns data - { schedules: [...], total }
- * @returns isLoading - Whether initial query is loading
- * @returns isError - Whether an error occurred
- * @returns error - Error object if query failed
  *
  * @example
  * const { data, isLoading } = useBuiltinSchedules()
@@ -408,8 +328,10 @@ export function useSchedulePreview(id: string | null, params: SchedulePreviewPar
  *   data.schedules.forEach(s => console.log(s.name))
  * }
  */
-export function useBuiltinSchedules(queryOptions: UseBuiltinSchedulesOptions = {}) {
-  return useQuery({
+export function useBuiltinSchedules(
+  queryOptions: Omit<UseQueryOptions<BuiltinSchedulesResponse, Error>, 'queryKey' | 'queryFn'> = {}
+) {
+  return useQuery<BuiltinSchedulesResponse, Error>({
     queryKey: QUERY_KEYS.BUILTIN_SCHEDULES,
     queryFn: async () => {
       const response = await listBuiltinSchedules()
@@ -420,22 +342,12 @@ export function useBuiltinSchedules(queryOptions: UseBuiltinSchedulesOptions = {
   })
 }
 
-// =============================================================================
-// Mutation Hooks
-// =============================================================================
-
 /**
  * Create new schedule mutation
  *
  * Invalidates schedules list cache on success.
  *
  * @returns React Query mutation result
- * @returns mutate - Mutation function (fire and forget)
- * @returns mutateAsync - Async mutation function (returns promise)
- * @returns isPending - Whether mutation is in progress
- * @returns isError - Whether mutation failed
- * @returns error - Error object if mutation failed
- * @returns data - Response data on success
  *
  * @example
  * const { mutate, isPending } = useCreateSchedule()
@@ -461,16 +373,19 @@ export function useBuiltinSchedules(queryOptions: UseBuiltinSchedulesOptions = {
  *   })
  * }
  */
-export function useCreateSchedule() {
+export function useCreateSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, CreateScheduleRequest>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: (data: ScheduleCreateData) => createSchedule(data),
+  return useMutation<unknown, Error, CreateScheduleRequest>({
+    mutationFn: (data) => createSchedule(data),
     onSuccess: () => {
       // Invalidate all schedule list variants (with and without include_builtin)
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
     },
-    onError: (error: Error) => handleMutationError(error, 'create'),
+    onError: (error) => handleMutationError(error, 'create'),
+    ...options,
   })
 }
 
@@ -480,12 +395,6 @@ export function useCreateSchedule() {
  * Invalidates schedule cache and schedules list on success.
  *
  * @returns React Query mutation result
- * @returns mutate - Mutation function with { id, data } parameter
- * @returns mutateAsync - Async mutation function
- * @returns isPending - Whether mutation is in progress
- * @returns isError - Whether mutation failed
- * @returns error - Error object if mutation failed
- * @returns data - Response data on success
  *
  * @example
  * const { mutate, isPending } = useUpdateSchedule()
@@ -501,11 +410,13 @@ export function useCreateSchedule() {
  *   })
  * }
  */
-export function useUpdateSchedule() {
+export function useUpdateSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, { id: string; data: UpdateScheduleRequest }>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: ({ id, data }: UpdateScheduleVariables) => updateSchedule(id, data),
+  return useMutation<unknown, Error, { id: string; data: UpdateScheduleRequest }>({
+    mutationFn: ({ id, data }) => updateSchedule(id, data),
     onSuccess: async (_, { id }) => {
       // Invalidate caches in parallel to avoid race conditions
       // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
@@ -514,7 +425,8 @@ export function useUpdateSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
-    onError: (error: Error) => handleMutationError(error, 'update'),
+    onError: (error) => handleMutationError(error, 'update'),
+    ...options,
   })
 }
 
@@ -524,12 +436,6 @@ export function useUpdateSchedule() {
  * Invalidates schedule cache and schedules list on success.
  *
  * @returns React Query mutation result
- * @returns mutate - Mutation function with id parameter
- * @returns mutateAsync - Async mutation function
- * @returns isPending - Whether mutation is in progress
- * @returns isError - Whether mutation failed
- * @returns error - Error object if mutation failed
- * @returns data - Response data on success
  *
  * @example
  * const { mutate, isPending } = useDeleteSchedule()
@@ -558,11 +464,13 @@ export function useUpdateSchedule() {
  *   isLoading={isPending}
  * />
  */
-export function useDeleteSchedule() {
+export function useDeleteSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, string>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: (id: string) => deleteSchedule(id),
+  return useMutation<unknown, Error, string>({
+    mutationFn: (id) => deleteSchedule(id),
     onSuccess: async (_, id) => {
       // Invalidate caches in parallel to avoid race conditions
       // Use exact: false for SCHEDULES to invalidate all variants (with/without include_builtin)
@@ -571,7 +479,8 @@ export function useDeleteSchedule() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
-    onError: (error: Error) => handleMutationError(error, 'delete'),
+    onError: (error) => handleMutationError(error, 'delete'),
+    ...options,
   })
 }
 
@@ -581,23 +490,24 @@ export function useDeleteSchedule() {
  * Creates a copy of an existing schedule. Invalidates schedules list cache on success.
  *
  * @returns React Query mutation result
- * @returns mutateAsync - Async mutation function with { id, name? } parameter
- * @returns isPending - Whether mutation is in progress
  *
  * @example
  * const { mutateAsync, isPending } = useCloneSchedule()
  * const response = await mutateAsync({ id: 'schedule_1' })
  * const clonedSchedule = response.data.schedule
  */
-export function useCloneSchedule() {
+export function useCloneSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, CloneScheduleParams>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: ({ id, name }: CloneScheduleVariables) => cloneSchedule(id, name ? { name } : {}),
+  return useMutation<unknown, Error, CloneScheduleParams>({
+    mutationFn: ({ id, name }) => cloneSchedule(id, name ? { name } : {}),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
     },
-    onError: (error: Error) => handleMutationError(error, 'clone'),
+    onError: (error) => handleMutationError(error, 'clone'),
+    ...options,
   })
 }
 
@@ -607,12 +517,6 @@ export function useCloneSchedule() {
  * Invalidates active schedule and schedules list on success.
  *
  * @returns React Query mutation result
- * @returns mutate - Mutation function with { id, options } parameter
- * @returns mutateAsync - Async mutation function
- * @returns isPending - Whether mutation is in progress
- * @returns isError - Whether mutation failed
- * @returns error - Error object if mutation failed
- * @returns data - Response data on success
  *
  * @example
  * const { mutate, isPending } = useActivateSchedule()
@@ -628,11 +532,13 @@ export function useCloneSchedule() {
  *   })
  * }
  */
-export function useActivateSchedule() {
+export function useActivateSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, ActivateScheduleParams>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: ({ id, options }: ActivateScheduleVariables) => activateSchedule(id, options),
+  return useMutation<unknown, Error, ActivateScheduleParams>({
+    mutationFn: ({ id, options }) => activateSchedule(id, options),
     onSuccess: async () => {
       // Refetch queries to ensure UI updates immediately after activation
       // Using refetchQueries instead of invalidateQueries ensures the refetch completes
@@ -643,7 +549,8 @@ export function useActivateSchedule() {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
-    onError: (error: Error) => handleMutationError(error, 'activate'),
+    onError: (error) => handleMutationError(error, 'activate'),
+    ...options,
   })
 }
 
@@ -653,12 +560,6 @@ export function useActivateSchedule() {
  * Invalidates active schedule and schedules list on success.
  *
  * @returns React Query mutation result
- * @returns mutate - Mutation function (no parameters)
- * @returns mutateAsync - Async mutation function
- * @returns isPending - Whether mutation is in progress
- * @returns isError - Whether mutation failed
- * @returns error - Error object if mutation failed
- * @returns data - Response data on success
  *
  * @example
  * const { mutate, isPending } = useDeactivateSchedule()
@@ -671,10 +572,12 @@ export function useActivateSchedule() {
  *   })
  * }
  */
-export function useDeactivateSchedule() {
+export function useDeactivateSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, void>, 'mutationFn'> = {}
+) {
   const queryClient = useQueryClient()
 
-  return useMutation({
+  return useMutation<unknown, Error, void>({
     mutationFn: () => deactivateSchedule(),
     onSuccess: async () => {
       // Refetch queries to ensure UI updates immediately after deactivation
@@ -686,7 +589,8 @@ export function useDeactivateSchedule() {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false }),
       ])
     },
-    onError: (error: Error) => handleMutationError(error, 'deactivate'),
+    onError: (error) => handleMutationError(error, 'deactivate'),
+    ...options,
   })
 }
 
@@ -699,10 +603,13 @@ export function useDeactivateSchedule() {
  * const { mutate, isPending } = useValidateSchedule()
  * mutate({ id: 'schedule_1', data: scheduleData })
  */
-export function useValidateSchedule() {
-  return useMutation({
-    mutationFn: ({ id, data }: ValidateScheduleVariables) => validateSchedule(id, data),
-    onError: (error: Error) => handleMutationError(error, 'validate'),
+export function useValidateSchedule(
+  options: Omit<UseMutationOptions<unknown, Error, { id: string; data: ValidateScheduleRequest }>, 'mutationFn'> = {}
+) {
+  return useMutation<unknown, Error, { id: string; data: ValidateScheduleRequest }>({
+    mutationFn: ({ id, data }) => validateSchedule(id, data),
+    onError: (error) => handleMutationError(error, 'validate'),
+    ...options,
   })
 }
 
@@ -711,7 +618,7 @@ export default useSchedules
 // =============================================================================
 // Re-exports for backward compatibility (Issue #222)
 // =============================================================================
-// Routine hooks have been moved to useRoutines.js (renamed from useEventPatterns.js in #322)
+// Routine hooks have been moved to useRoutines.ts (renamed from useEventPatterns.js in #322)
 // useRoutineDuration is a utility hook for calculating routine duration
 // These re-exports maintain backward compatibility for existing imports
 export { useBuiltinRoutines, useValidateRoutine, useRoutineDuration } from './useRoutines'

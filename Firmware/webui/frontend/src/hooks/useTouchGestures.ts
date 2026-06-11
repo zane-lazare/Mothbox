@@ -1,15 +1,135 @@
-import { useReducer, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useReducer, useCallback, useMemo, useRef, useEffect, RefObject } from 'react'
 import { LIGHTBOX_CONFIG } from '../constants/config'
+
+// ======================== Type Definitions ========================
+
+/**
+ * Position and timestamp for touch tracking
+ */
+interface TouchPosition {
+  x: number
+  y: number
+  timestamp: number
+}
+
+/**
+ * Pan offset coordinates
+ */
+interface PanOffset {
+  x: number
+  y: number
+}
+
+/**
+ * Touch gesture state managed by reducer
+ */
+interface TouchGestureState {
+  touchStartPos: TouchPosition | null
+  initialPinchDistance: number | null
+  initialZoom: number
+  initialPan: PanOffset
+  lastTapTime: number
+  isPinching: boolean
+}
+
+/**
+ * Actions for touch gesture reducer
+ */
+type TouchGestureAction =
+  | {
+      type: 'PINCH_START'
+      payload: {
+        distance: number
+        zoom: number
+        pan: PanOffset
+        touchStartPos: TouchPosition
+      }
+    }
+  | {
+      type: 'SINGLE_TOUCH_START'
+      payload: {
+        touchStartPos: TouchPosition
+        pan: PanOffset
+      }
+    }
+  | {
+      type: 'TAP_DETECTED'
+      payload: {
+        timestamp: number
+      }
+    }
+  | {
+      type: 'RESET_TAP'
+    }
+  | {
+      type: 'TOUCH_END'
+    }
+  | {
+      type: 'RESET'
+    }
+
+/**
+ * Simplified touch data structure for RAF queue
+ */
+interface TouchData {
+  clientX: number
+  clientY: number
+}
+
+/**
+ * Configuration object for useTouchGestures hook
+ */
+interface UseTouchGesturesConfig {
+  /** Reference to image element for bounds calculation */
+  imageRef: RefObject<HTMLElement>
+  /** Current zoom level (from useZoomPan) */
+  zoom: number
+  /** Zoom setter (from useZoomPan) */
+  setZoom: (zoom: number) => void
+  /** Current pan offset {x, y} (from useZoomPan) */
+  pan: PanOffset
+  /** Pan setter (from useZoomPan) */
+  setPan: (pan: PanOffset) => void
+  /** Navigation callback: (direction: 'prev' | 'next') => void */
+  onNavigate: ((direction: 'prev' | 'next') => void) | null
+  /** True if zoom > 1.0 (disables swipe navigation) */
+  isZoomed: boolean
+  /** Natural image width in pixels */
+  imageWidth: number
+  /** Natural image height in pixels */
+  imageHeight: number
+  /** Minimum zoom level (e.g., 1.0) */
+  minZoom: number
+  /** Maximum zoom level (e.g., 5.0) */
+  maxZoom: number
+}
+
+/**
+ * Return type of useTouchGestures hook
+ */
+interface UseTouchGesturesReturn {
+  /** Touch start event handler */
+  handleTouchStart: (event: React.TouchEvent<HTMLElement>) => void
+  /** Touch move event handler */
+  handleTouchMove: (event: React.TouchEvent<HTMLElement>) => void
+  /** Touch end event handler */
+  handleTouchEnd: (event: React.TouchEvent<HTMLElement>) => void
+}
+
+// ======================== Reducer ========================
 
 /**
  * Reducer for managing touch gesture state.
  * Centralizes state updates for cleaner state management vs. 6+ separate useState calls.
  *
- * @param {Object} state - Current state
- * @param {Object} action - Action object with type and payload
- * @returns {Object} New state
+ * @param state - Current state
+ * @param action - Action object with type and payload
+ * @returns New state
  */
-function touchGestureReducer(state, action) {
+function touchGestureReducer(
+  state: TouchGestureState,
+  action: TouchGestureAction
+): TouchGestureState {
   switch (action.type) {
     case 'PINCH_START':
       return {
@@ -65,6 +185,8 @@ function touchGestureReducer(state, action) {
   }
 }
 
+// ======================== Hook ========================
+
 /**
  * Custom hook for managing touch gestures in the photo lightbox.
  *
@@ -77,23 +199,23 @@ function touchGestureReducer(state, action) {
  * are centralized in touchGestureReducer.
  *
  * @hook
- * @param {Object} config - Hook configuration
- * @param {React.RefObject} config.imageRef - Reference to image element for bounds calculation
- * @param {number} config.zoom - Current zoom level (from useZoomPan)
- * @param {Function} config.setZoom - Zoom setter (from useZoomPan)
- * @param {Object} config.pan - Current pan offset {x, y} (from useZoomPan)
- * @param {Function} config.setPan - Pan setter (from useZoomPan)
- * @param {Function} config.onNavigate - Navigation callback: (direction: 'prev' | 'next') => void
- * @param {boolean} config.isZoomed - True if zoom > 1.0 (disables swipe navigation)
- * @param {number} config.imageWidth - Natural image width in pixels
- * @param {number} config.imageHeight - Natural image height in pixels
- * @param {number} config.minZoom - Minimum zoom level (e.g., 1.0)
- * @param {number} config.maxZoom - Maximum zoom level (e.g., 5.0)
+ * @param config - Hook configuration
+ * @param config.imageRef - Reference to image element for bounds calculation
+ * @param config.zoom - Current zoom level (from useZoomPan)
+ * @param config.setZoom - Zoom setter (from useZoomPan)
+ * @param config.pan - Current pan offset {x, y} (from useZoomPan)
+ * @param config.setPan - Pan setter (from useZoomPan)
+ * @param config.onNavigate - Navigation callback: (direction: 'prev' | 'next') => void
+ * @param config.isZoomed - True if zoom > 1.0 (disables swipe navigation)
+ * @param config.imageWidth - Natural image width in pixels
+ * @param config.imageHeight - Natural image height in pixels
+ * @param config.minZoom - Minimum zoom level (e.g., 1.0)
+ * @param config.maxZoom - Maximum zoom level (e.g., 5.0)
  *
- * @returns {Object} Touch event handlers
- * @returns {Function} returns.handleTouchStart - Touch start event handler
- * @returns {Function} returns.handleTouchMove - Touch move event handler
- * @returns {Function} returns.handleTouchEnd - Touch end event handler
+ * @returns Touch event handlers
+ * @returns returns.handleTouchStart - Touch start event handler
+ * @returns returns.handleTouchMove - Touch move event handler
+ * @returns returns.handleTouchEnd - Touch end event handler
  *
  * @example
  * const { handleTouchStart, handleTouchMove, handleTouchEnd } = useTouchGestures({
@@ -151,7 +273,7 @@ function useTouchGestures({
   imageHeight,
   minZoom,
   maxZoom,
-}) {
+}: UseTouchGesturesConfig): UseTouchGesturesReturn {
   // Touch gesture state (managed via reducer for cleaner state updates)
   const [gestureState, dispatch] = useReducer(touchGestureReducer, {
     touchStartPos: null,
@@ -173,9 +295,9 @@ function useTouchGestures({
   } = gestureState
 
   // RAF throttle for touch move (prevents 60+ updates/sec)
-  const rafIdRef = useRef(null)
-  const latestTouchDataRef = useRef(null)
-  const isMountedRef = useRef(true)
+  const rafIdRef = useRef<number | null>(null)
+  const latestTouchDataRef = useRef<TouchData[] | null>(null)
+  const isMountedRef = useRef<boolean>(true)
 
   // Gesture detection thresholds (from LIGHTBOX_CONFIG for consistency)
   const { TOUCH_GESTURES } = LIGHTBOX_CONFIG
@@ -208,11 +330,11 @@ function useTouchGestures({
    * Calculate distance between two touch points
    * Uses Pythagorean theorem: √(dx² + dy²)
    *
-   * @param {Touch} touch1 - First touch point
-   * @param {Touch} touch2 - Second touch point
-   * @returns {number} Distance in pixels
+   * @param touch1 - First touch point
+   * @param touch2 - Second touch point
+   * @returns Distance in pixels
    */
-  const getPinchDistance = useCallback((touch1, touch2) => {
+  const getPinchDistance = useCallback((touch1: TouchData, touch2: TouchData): number => {
     const dx = touch2.clientX - touch1.clientX
     const dy = touch2.clientY - touch1.clientY
     return Math.sqrt(dx * dx + dy * dy)
@@ -222,49 +344,61 @@ function useTouchGestures({
    * Calculate midpoint between two touch points
    * Used as the center point for pinch-to-zoom
    *
-   * @param {Touch} touch1 - First touch point
-   * @param {Touch} touch2 - Second touch point
-   * @returns {Object} Midpoint {x, y}
+   * @param touch1 - First touch point
+   * @param touch2 - Second touch point
+   * @returns Midpoint {x, y}
    */
-  const getPinchMidpoint = useCallback((touch1, touch2) => {
-    return {
-      x: (touch1.clientX + touch2.clientX) / 2,
-      y: (touch1.clientY + touch2.clientY) / 2,
-    }
-  }, [])
+  const getPinchMidpoint = useCallback(
+    (touch1: TouchData, touch2: TouchData): PanOffset => {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
+      }
+    },
+    []
+  )
 
   /**
    * Detect swipe gesture from touch start/end positions
    *
-   * @param {number} startX - Starting X position
-   * @param {number} startY - Starting Y position
-   * @param {number} endX - Ending X position
-   * @param {number} endY - Ending Y position
-   * @param {number} duration - Time duration in milliseconds
-   * @returns {string|null} Swipe direction ('left', 'right') or null
+   * @param startX - Starting X position
+   * @param startY - Starting Y position
+   * @param endX - Ending X position
+   * @param endY - Ending Y position
+   * @param duration - Time duration in milliseconds
+   * @returns Swipe direction ('left', 'right') or null
    */
-  const detectSwipe = useCallback((startX, startY, endX, endY, duration) => {
-    const deltaX = endX - startX
-    const deltaY = endY - startY
-    const distance = Math.abs(deltaX)
-    const velocity = duration > 0 ? distance / duration : 0 // px/ms
+  const detectSwipe = useCallback(
+    (
+      startX: number,
+      startY: number,
+      endX: number,
+      endY: number,
+      duration: number
+    ): 'left' | 'right' | null => {
+      const deltaX = endX - startX
+      const deltaY = endY - startY
+      const distance = Math.abs(deltaX)
+      const velocity = duration > 0 ? distance / duration : 0 // px/ms
 
-    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY)
-    const meetsThreshold = distance >= SWIPE_MIN_DISTANCE
-    const meetsVelocity = velocity >= SWIPE_MIN_VELOCITY
+      const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY)
+      const meetsThreshold = distance >= SWIPE_MIN_DISTANCE
+      const meetsVelocity = velocity >= SWIPE_MIN_VELOCITY
 
-    if (isHorizontal && meetsThreshold && meetsVelocity) {
-      return deltaX > 0 ? 'right' : 'left'
-    }
-    return null
-  }, [SWIPE_MIN_DISTANCE, SWIPE_MIN_VELOCITY])
+      if (isHorizontal && meetsThreshold && meetsVelocity) {
+        return deltaX > 0 ? 'right' : 'left'
+      }
+      return null
+    },
+    [SWIPE_MIN_DISTANCE, SWIPE_MIN_VELOCITY]
+  )
 
   /**
    * Handle touch start event
    * Detects gesture type: single tap, double tap, pinch, or pan
    */
   const handleTouchStart = useCallback(
-    (event) => {
+    (event: React.TouchEvent<HTMLElement>) => {
       const touches = event.touches
 
       if (touches.length === 2) {
@@ -314,7 +448,7 @@ function useTouchGestures({
    * Uses RAF throttling with queuing to prevent 60+ updates/sec while preserving latest input
    */
   const handleTouchMove = useCallback(
-    (event) => {
+    (event: React.TouchEvent<HTMLElement>) => {
       const touches = event.touches
 
       // Prevent default for pinch-to-zoom and single-finger pan when zoomed
@@ -326,7 +460,7 @@ function useTouchGestures({
       }
 
       // Capture touch data before RAF (touches list is reused by browser)
-      const touchData = Array.from(touches).map((t) => ({
+      const touchData: TouchData[] = Array.from(touches).map((t) => ({
         clientX: t.clientX,
         clientY: t.clientY,
       }))
@@ -371,7 +505,7 @@ function useTouchGestures({
 
             // Calculate pan adjustment to keep pinch point stable
             const deltaZoom = newZoom - zoom
-            const newPan = {
+            const newPan: PanOffset = {
               x: initialPan.x - relX * deltaZoom * imageWidth,
               y: initialPan.y - relY * deltaZoom * imageHeight,
             }
@@ -422,7 +556,7 @@ function useTouchGestures({
    * Detects double-tap or swipe gestures
    */
   const handleTouchEnd = useCallback(
-    (event) => {
+    (event: React.TouchEvent<HTMLElement>) => {
       if (!touchStartPos) {
         // Clean up any dirty state before early return (race condition fix)
         dispatch({ type: 'TOUCH_END' })
@@ -464,7 +598,7 @@ function useTouchGestures({
               const relY = (endY - rect.top) / rect.height - 0.5
 
               const deltaZoom = ZOOM_DOUBLE_TAP - zoom
-              const newPan = {
+              const newPan: PanOffset = {
                 x: -relX * deltaZoom * imageWidth,
                 y: -relY * deltaZoom * imageHeight,
               }

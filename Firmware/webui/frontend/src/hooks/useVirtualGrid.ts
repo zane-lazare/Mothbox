@@ -7,10 +7,28 @@
  * @module hooks/useVirtualGrid
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { calculateGridDimensions } from '../utils/gridCalculations';
-import { GALLERY_CONFIG } from '../constants/config';
-import { debounce } from '../utils/debounce';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { calculateGridDimensions } from '../utils/gridCalculations'
+import { GALLERY_CONFIG } from '../constants/config'
+import { debounce } from '../utils/debounce'
+
+interface GridDimensions {
+  columnCount: number
+  rowCount: number
+  itemWidth: number
+  itemHeight: number
+  totalHeight: number
+}
+
+interface UseVirtualGridOptions {
+  gap?: number
+  aspectRatio?: number
+  breakpoints?: Record<string, unknown>
+}
+
+interface UseVirtualGridResult extends GridDimensions {
+  containerRef: (node: HTMLElement | null) => void
+}
 
 /**
  * Custom hook for virtual grid layout calculations
@@ -42,56 +60,59 @@ import { debounce } from '../utils/debounce';
  *   </div>
  * );
  */
-export default function useVirtualGrid(photoCount, options = {}) {
-  const [containerWidth, setContainerWidth] = useState(0);
-  const resizeObserverRef = useRef(null);
-  const debouncedSetWidthRef = useRef(null);
+export default function useVirtualGrid(
+  photoCount: number,
+  options: UseVirtualGridOptions = {}
+): UseVirtualGridResult {
+  const [containerWidth, setContainerWidth] = useState(0)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const debouncedSetWidthRef = useRef<ReturnType<typeof debounce> | null>(null)
 
   // Extract options to primitive values for stable dependencies
   // This prevents unnecessary recalculations when parent doesn't memoize options object
   // Note: breakpoints is still an object reference, so callers should memoize it if it changes
-  const { gap, aspectRatio, breakpoints } = options;
+  const { gap, aspectRatio, breakpoints } = options
 
   // Create debounced width setter once and clean up on unmount
   useEffect(() => {
-    debouncedSetWidthRef.current = debounce((width) => {
-      setContainerWidth(width);
-    }, GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS); // Balance between responsiveness and performance
+    debouncedSetWidthRef.current = debounce((width: number) => {
+      setContainerWidth(width)
+    }, GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS) // Balance between responsiveness and performance
 
     return () => {
-      debouncedSetWidthRef.current?.cancel();
-    };
-  }, []); // Only create once
+      debouncedSetWidthRef.current?.cancel()
+    }
+  }, []) // Only create once
 
   // Callback ref that sets up ResizeObserver when element is attached
-  const containerRef = useCallback((node) => {
+  const containerRef = useCallback((node: HTMLElement | null) => {
     // Disconnect previous observer if any
     if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current.disconnect()
     }
 
     // Set up new observer for the new node
     if (node) {
       resizeObserverRef.current = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const { width } = entry.contentRect;
+          const { width } = entry.contentRect
           // Use debounced setter to prevent excessive re-renders during window resizing
-          debouncedSetWidthRef.current(width);
+          debouncedSetWidthRef.current?.(width)
         }
-      });
+      })
 
-      resizeObserverRef.current.observe(node);
+      resizeObserverRef.current.observe(node)
     }
-  }, []);
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current.disconnect()
       }
-    };
-  }, []);
+    }
+  }, [])
 
   // Calculate grid dimensions (memoized for performance)
   const gridDimensions = useMemo(() => {
@@ -103,14 +124,14 @@ export default function useVirtualGrid(photoCount, options = {}) {
         itemWidth: 0,
         itemHeight: 0,
         totalHeight: 0,
-      };
+      }
     }
 
-    return calculateGridDimensions(containerWidth, photoCount, { gap, aspectRatio, breakpoints });
-  }, [containerWidth, photoCount, gap, aspectRatio, breakpoints]);
+    return calculateGridDimensions(containerWidth, photoCount, { gap, aspectRatio, breakpoints })
+  }, [containerWidth, photoCount, gap, aspectRatio, breakpoints])
 
   return {
     containerRef,
     ...gridDimensions,
-  };
+  }
 }
