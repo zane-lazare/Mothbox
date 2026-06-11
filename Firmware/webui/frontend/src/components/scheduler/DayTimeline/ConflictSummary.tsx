@@ -8,15 +8,21 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import { countConflictsBySeverity } from './dayTimelineUtils'
+
+type ConflictSeverity = 'error' | 'warning'
+
+interface Conflict {
+  severity: ConflictSeverity
+  message?: string
+}
+
+interface ConflictSummaryProps {
+  conflicts: Conflict[]
+}
 
 /**
  * ConflictSummary component
- *
- * @param {Object} props - Component props
- * @param {Array} props.conflicts - Array of conflict objects
- * @returns {JSX.Element|null} Conflict summary banner or null if no conflicts
  *
  * @example
  * <ConflictSummary conflicts={[
@@ -24,7 +30,7 @@ import { countConflictsBySeverity } from './dayTimelineUtils'
  *   { severity: 'warning', message: '...' }
  * ]} />
  */
-function ConflictSummary({ conflicts }) {
+function ConflictSummary({ conflicts }: ConflictSummaryProps) {
   const counts = countConflictsBySeverity(conflicts)
 
   // Don't render if no conflicts
@@ -33,7 +39,7 @@ function ConflictSummary({ conflicts }) {
   }
 
   // Build breakdown text
-  const breakdownParts = []
+  const breakdownParts: string[] = []
   if (counts.errors > 0) {
     breakdownParts.push(`${counts.errors} collision${counts.errors > 1 ? 's' : ''}`)
   }
@@ -58,15 +64,6 @@ function ConflictSummary({ conflicts }) {
       <span className="text-gray-500">{breakdownText}</span>
     </div>
   )
-}
-
-ConflictSummary.propTypes = {
-  /** Array of conflict objects with severity field */
-  conflicts: PropTypes.arrayOf(
-    PropTypes.shape({
-      severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-    })
-  ).isRequired,
 }
 
 export default memo(ConflictSummary)

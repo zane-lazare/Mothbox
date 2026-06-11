@@ -1,8 +1,6 @@
-import React, { createContext, useReducer, useMemo, useCallback } from 'react'
+import React, { createContext, useReducer, useMemo, useCallback, ReactNode } from 'react'
 
 export const MAX_SELECTION = 500
-
-const SelectionContext = createContext(null)
 
 // Action types
 const ActionTypes = {
@@ -13,17 +11,32 @@ const ActionTypes = {
   SELECT_RANGE: 'SELECT_RANGE',
   SELECT_ALL: 'SELECT_ALL',
   DESELECT_ALL: 'DESELECT_ALL',
+} as const
+
+type SelectionAction =
+  | { type: 'TOGGLE_SELECT_MODE' }
+  | { type: 'SELECT_PHOTO'; payload: { path: string } }
+  | { type: 'DESELECT_PHOTO'; payload: { path: string } }
+  | { type: 'TOGGLE_PHOTO'; payload: { path: string; index: number } }
+  | { type: 'SELECT_RANGE'; payload: { toIndex: number; photos: string[] } }
+  | { type: 'SELECT_ALL'; payload: { photos: string[] } }
+  | { type: 'DESELECT_ALL' }
+
+interface State {
+  isSelectMode: boolean
+  selectedPhotos: Set<string>
+  lastClickedIndex: number
 }
 
 // Initial state
-const initialState = {
+const initialState: State = {
   isSelectMode: false,
   selectedPhotos: new Set(),
   lastClickedIndex: -1,
 }
 
 // Reducer
-function selectionReducer(state, action) {
+function selectionReducer(state: State, action: SelectionAction): State {
   switch (action.type) {
     case ActionTypes.TOGGLE_SELECT_MODE: {
       const newSelectMode = !state.isSelectMode
@@ -134,7 +147,7 @@ function selectionReducer(state, action) {
         return state
       }
 
-      const newSet = new Set()
+      const newSet = new Set<string>()
       for (let i = 0; i < photos.length && newSet.size < MAX_SELECTION; i++) {
         newSet.add(photos[i])
       }
@@ -158,7 +171,29 @@ function selectionReducer(state, action) {
   }
 }
 
-export function SelectionProvider({ children }) {
+interface SelectionContextValue {
+  isSelectMode: boolean
+  selectedPhotos: Set<string>
+  lastClickedIndex: number
+  selectedCount: number
+  selectedArray: string[]
+  toggleSelectMode: () => void
+  selectPhoto: (path: string) => void
+  deselectPhoto: (path: string) => void
+  togglePhoto: (path: string, index: number) => void
+  selectRange: (toIndex: number, photos: string[]) => void
+  selectAll: (photos: string[]) => void
+  deselectAll: () => void
+  isSelected: (path: string) => boolean
+}
+
+interface SelectionProviderProps {
+  children: ReactNode
+}
+
+const SelectionContext = createContext<SelectionContextValue | undefined>(undefined)
+
+export function SelectionProvider({ children }: SelectionProviderProps) {
   const [state, dispatch] = useReducer(selectionReducer, initialState)
 
   // Actions
@@ -166,23 +201,23 @@ export function SelectionProvider({ children }) {
     dispatch({ type: ActionTypes.TOGGLE_SELECT_MODE })
   }, [])
 
-  const selectPhoto = useCallback((path) => {
+  const selectPhoto = useCallback((path: string) => {
     dispatch({ type: ActionTypes.SELECT_PHOTO, payload: { path } })
   }, [])
 
-  const deselectPhoto = useCallback((path) => {
+  const deselectPhoto = useCallback((path: string) => {
     dispatch({ type: ActionTypes.DESELECT_PHOTO, payload: { path } })
   }, [])
 
-  const togglePhoto = useCallback((path, index) => {
+  const togglePhoto = useCallback((path: string, index: number) => {
     dispatch({ type: ActionTypes.TOGGLE_PHOTO, payload: { path, index } })
   }, [])
 
-  const selectRange = useCallback((toIndex, photos) => {
+  const selectRange = useCallback((toIndex: number, photos: string[]) => {
     dispatch({ type: ActionTypes.SELECT_RANGE, payload: { toIndex, photos } })
   }, [])
 
-  const selectAll = useCallback((photos) => {
+  const selectAll = useCallback((photos: string[]) => {
     dispatch({ type: ActionTypes.SELECT_ALL, payload: { photos } })
   }, [])
 
@@ -190,7 +225,7 @@ export function SelectionProvider({ children }) {
     dispatch({ type: ActionTypes.DESELECT_ALL })
   }, [])
 
-  const isSelected = useCallback((path) => {
+  const isSelected = useCallback((path: string): boolean => {
     return state.selectedPhotos.has(path)
   }, [state.selectedPhotos])
 
@@ -199,7 +234,7 @@ export function SelectionProvider({ children }) {
   const selectedArray = useMemo(() => Array.from(state.selectedPhotos), [state.selectedPhotos])
 
   // Memoize context value to prevent unnecessary re-renders
-  const contextValue = useMemo(
+  const contextValue = useMemo<SelectionContextValue>(
     () => ({
       isSelectMode: state.isSelectMode,
       selectedPhotos: state.selectedPhotos,
@@ -239,8 +274,14 @@ export function SelectionProvider({ children }) {
   )
 }
 
-export function useSelectionContext() {
-  return React.useContext(SelectionContext)
+export function useSelectionContext(): SelectionContextValue {
+  const context = React.useContext(SelectionContext)
+
+  if (!context) {
+    throw new Error('useSelectionContext must be used within SelectionProvider')
+  }
+
+  return context
 }
 
 export default SelectionContext

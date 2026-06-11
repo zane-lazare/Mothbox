@@ -1,7 +1,17 @@
-import React, { createContext, useState, useEffect, useMemo } from 'react'
-import { io } from 'socket.io-client'
+import React, { createContext, useState, useEffect, useMemo, ReactNode } from 'react'
+import { io, Socket } from 'socket.io-client'
 
-const SocketContext = createContext(null)
+interface SocketContextValue {
+  socket: Socket | null
+  connected: boolean
+  reconnecting: boolean
+}
+
+interface SocketProviderProps {
+  children: ReactNode
+}
+
+const SocketContext = createContext<SocketContextValue | undefined>(undefined)
 
 /**
  * SocketProvider - Centralized Socket.io connection provider (#368)
@@ -14,8 +24,8 @@ const SocketContext = createContext(null)
  * Only use socket.off() to remove event listeners. The provider owns the
  * connection lifecycle and will disconnect on unmount.
  */
-export function SocketProvider({ children }) {
-  const [socket, setSocket] = useState(null)
+export function SocketProvider({ children }: SocketProviderProps) {
+  const [socket, setSocket] = useState<Socket | null>(null)
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
 
@@ -56,7 +66,7 @@ export function SocketProvider({ children }) {
     }
   }, [])
 
-  const contextValue = useMemo(
+  const contextValue = useMemo<SocketContextValue>(
     () => ({ socket, connected, reconnecting }),
     [socket, connected, reconnecting]
   )
@@ -68,8 +78,14 @@ export function SocketProvider({ children }) {
   )
 }
 
-export function useSocketContext() {
-  return React.useContext(SocketContext)
+export function useSocketContext(): SocketContextValue {
+  const context = React.useContext(SocketContext)
+
+  if (!context) {
+    throw new Error('useSocketContext must be used within SocketProvider')
+  }
+
+  return context
 }
 
 export default SocketContext

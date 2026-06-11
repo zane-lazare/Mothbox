@@ -5,19 +5,31 @@ import MothIcon from './MothIcon'
  *
  * Displays context-aware empty state messages with moth icon branding.
  * Used in Gallery when no photos are available.
- *
- * @param {Object} props - Component props
- * @param {string} [props.variant='first-time'] - Empty state variant: 'first-time' | 'filtered' | 'error'
- * @param {Function} [props.onCtaClick] - Optional callback when CTA button is clicked
- * @param {string} [props.className=''] - Optional CSS classes for styling
  */
+
+type EmptyStateVariant = 'first-time' | 'filtered' | 'error'
+
+interface EmptyStateConfig {
+  title: string
+  message: string
+  ctaText: string | null
+  iconSize: number
+  iconOpacity: string
+}
+
+interface EmptyStateMessageProps {
+  variant?: EmptyStateVariant
+  onCtaClick?: () => void
+  className?: string
+}
+
 export default function EmptyStateMessage({
   variant = 'first-time',
   onCtaClick,
   className = '',
-}) {
+}: EmptyStateMessageProps) {
   // Define messages and CTAs for each variant
-  const variants = {
+  const variants: Record<EmptyStateVariant, EmptyStateConfig> = {
     'first-time': {
       title: 'No photos yet',
       message: "Let's capture your first insect!",

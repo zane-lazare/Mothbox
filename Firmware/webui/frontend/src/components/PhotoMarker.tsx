@@ -8,7 +8,7 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png'
 
 // Fix default Leaflet marker icon issue in React
 // https://github.com/Leaflet/Leaflet/issues/4968
-let DefaultIcon = L.icon({
+const DefaultIcon = L.icon({
   iconUrl: icon,
   shadowUrl: iconShadow,
   iconSize: [25, 41],
@@ -22,16 +22,22 @@ L.Marker.prototype.options.icon = DefaultIcon
  *
  * Displays a marker on the map with a popup showing the photo thumbnail.
  * Clicking the marker or the "View" button opens the lightbox.
- *
- * @param {Object} location - Photo location data
- * @param {string} location.photo_path - Photo file path (e.g., "2024-11-10/photo_001.jpg")
- * @param {string} location.filename - Photo filename
- * @param {number} location.latitude - Photo latitude coordinate
- * @param {number} location.longitude - Photo longitude coordinate
- * @param {string} [location.thumbnail_url] - Thumbnail URL (optional)
- * @param {Function} [onClick] - Callback when marker/button clicked (receives location object)
  */
-export default function PhotoMarker({ location, onClick }) {
+
+interface PhotoLocation {
+  photo_path: string
+  filename: string
+  latitude: number
+  longitude: number
+  thumbnail_url?: string
+}
+
+interface PhotoMarkerProps {
+  location: PhotoLocation
+  onClick?: (location: PhotoLocation) => void
+}
+
+export default function PhotoMarker({ location, onClick }: PhotoMarkerProps) {
   const { latitude, longitude, filename, thumbnail_url } = location
 
   const handleMarkerClick = () => {
@@ -40,7 +46,7 @@ export default function PhotoMarker({ location, onClick }) {
     }
   }
 
-  const handleViewClick = (e) => {
+  const handleViewClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     if (onClick) {
       onClick(location)
