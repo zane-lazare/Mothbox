@@ -1,4 +1,8 @@
-import PropTypes from 'prop-types';
+import React from 'react'
+
+export interface SchedulerHeaderProps {
+  children?: React.ReactNode
+}
 
 /**
  * SchedulerHeader Component
@@ -16,7 +20,7 @@ import PropTypes from 'prop-types';
  *   <button>Add Schedule</button>
  * </SchedulerHeader>
  */
-function SchedulerHeader({ children }) {
+function SchedulerHeader({ children }: SchedulerHeaderProps) {
   return (
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <h2 className="text-xl font-bold text-gray-900">Scheduler</h2>
@@ -26,11 +30,7 @@ function SchedulerHeader({ children }) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
-SchedulerHeader.propTypes = {
-  children: PropTypes.node,
-};
-
-export default SchedulerHeader;
+export default SchedulerHeader

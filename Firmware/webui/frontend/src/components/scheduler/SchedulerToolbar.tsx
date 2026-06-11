@@ -1,6 +1,10 @@
-import PropTypes from 'prop-types'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+
+export interface SchedulerToolbarProps {
+  onNewSchedule?: () => void
+  isCreating?: boolean
+}
 
 /**
  * Toolbar component for scheduler interface with "New Schedule" action button.
@@ -14,7 +18,7 @@ import toast from 'react-hot-toast'
  * @param {boolean} [props.isCreating=false] - Whether a schedule is currently being created (disables button)
  * @returns {JSX.Element} Toolbar with "New Schedule" button
  */
-function SchedulerToolbar({ onNewSchedule, isCreating = false }) {
+function SchedulerToolbar({ onNewSchedule, isCreating = false }: SchedulerToolbarProps) {
   /**
    * Handles "New Schedule" button click.
    * Calls onNewSchedule callback if provided, otherwise shows info toast.
@@ -37,11 +41,6 @@ function SchedulerToolbar({ onNewSchedule, isCreating = false }) {
       New Schedule
     </button>
   )
-}
-
-SchedulerToolbar.propTypes = {
-  onNewSchedule: PropTypes.func,
-  isCreating: PropTypes.bool,
 }
 
 export default SchedulerToolbar

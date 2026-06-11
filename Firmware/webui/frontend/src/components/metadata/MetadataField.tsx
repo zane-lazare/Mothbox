@@ -1,5 +1,13 @@
-import PropTypes from 'prop-types'
+import React from 'react'
 import CopyButton from './CopyButton'
+
+export interface MetadataFieldProps {
+  label: string
+  value?: any
+  copyable?: boolean
+  className?: string
+  testId?: string
+}
 
 /**
  * MetadataField - Display a single metadata field with label and value
@@ -13,7 +21,13 @@ import CopyButton from './CopyButton'
  * @param {string} className - Optional additional CSS classes for the container
  * @param {string} testId - Optional data-testid for E2E testing
  */
-export default function MetadataField({ label, value, copyable = false, className = '', testId }) {
+export default function MetadataField({
+  label,
+  value,
+  copyable = false,
+  className = '',
+  testId
+}: MetadataFieldProps) {
   // Check if value is "empty" (null, undefined, or empty string)
   // Note: 0 and false are valid values and should not be treated as empty
   const isEmpty = value === null || value === undefined || value === ''
@@ -33,12 +47,4 @@ export default function MetadataField({ label, value, copyable = false, classNam
       )}
     </div>
   )
-}
-
-MetadataField.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.any,
-  copyable: PropTypes.bool,
-  className: PropTypes.string,
-  testId: PropTypes.string,
 }

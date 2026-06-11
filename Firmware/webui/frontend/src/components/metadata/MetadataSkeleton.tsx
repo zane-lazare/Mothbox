@@ -1,4 +1,9 @@
-import PropTypes from 'prop-types'
+import React from 'react'
+
+export interface MetadataSkeletonProps {
+  rows?: number
+  className?: string
+}
 
 /**
  * MetadataSkeleton - Loading skeleton for metadata panel
@@ -9,7 +14,7 @@ import PropTypes from 'prop-types'
  * @param {number} rows - Number of skeleton rows to display (default: 6)
  * @param {string} className - Optional additional CSS classes for the container
  */
-export default function MetadataSkeleton({ rows = 6, className = '' }) {
+export default function MetadataSkeleton({ rows = 6, className = '' }: MetadataSkeletonProps) {
   // Generate array of widths for visual variety
   const widths = ['85%', '70%', '90%', '75%', '80%', '65%']
 
@@ -32,9 +37,4 @@ export default function MetadataSkeleton({ rows = 6, className = '' }) {
       </div>
     </div>
   )
-}
-
-MetadataSkeleton.propTypes = {
-  rows: PropTypes.number,
-  className: PropTypes.string,
 }

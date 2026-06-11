@@ -1,4 +1,7 @@
+import React from 'react'
 import { GALLERY_CONFIG } from '../constants/config'
+
+export interface PhotoSkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 /**
  * PhotoSkeleton - Skeleton loading component for photo cards
@@ -6,7 +9,7 @@ import { GALLERY_CONFIG } from '../constants/config'
  * Displays an animated placeholder while photos are loading in the gallery.
  * Matches the dimensions and layout of actual photo cards for smooth transitions.
  */
-export default function PhotoSkeleton({ ...props }) {
+export default function PhotoSkeleton({ ...props }: PhotoSkeletonProps) {
   return (
     <div
       data-testid="photo-skeleton"

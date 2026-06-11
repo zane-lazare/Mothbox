@@ -7,8 +7,11 @@
  * @module components/scheduler/ScheduleList/ActiveScheduleBadge
  */
 
-import PropTypes from 'prop-types'
 import { CheckCircleIcon } from '@heroicons/react/24/solid'
+
+export interface ActiveScheduleBadgeProps {
+  isActive?: boolean
+}
 
 /**
  * ActiveScheduleBadge component
@@ -25,7 +28,7 @@ import { CheckCircleIcon } from '@heroicons/react/24/solid'
  * <ActiveScheduleBadge isActive={false} />
  * // Renders: nothing
  */
-export default function ActiveScheduleBadge({ isActive = false }) {
+export default function ActiveScheduleBadge({ isActive = false }: ActiveScheduleBadgeProps) {
   if (!isActive) {
     return null
   }
@@ -40,8 +43,4 @@ export default function ActiveScheduleBadge({ isActive = false }) {
       Active
     </span>
   )
-}
-
-ActiveScheduleBadge.propTypes = {
-  isActive: PropTypes.bool,
 }

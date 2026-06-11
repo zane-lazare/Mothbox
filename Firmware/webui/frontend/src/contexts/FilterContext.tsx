@@ -1,0 +1,498 @@
+import React, { createContext, useReducer, useMemo, useCallback, useEffect, ReactNode } from 'react'
+import { countActiveFilters } from '../utils/filterQueryBuilder'
+import type {
+  FilterState,
+  DateRangeFilter,
+  TagFilter,
+  SpeciesFilter,
+  FileTypeFilter,
+  CameraSettingsFilter,
+  NotesFilter,
+  CustomFieldsFilter,
+} from '../types/filters'
+
+// localStorage keys for persisting UI state
+const STORAGE_KEY_DRAWER = 'mothbox-filter-drawer-open'
+const STORAGE_KEY_SECTIONS = 'mothbox-filter-sections'
+
+/**
+ * Load a value from localStorage with fallback to default
+ */
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? JSON.parse(stored) : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+/**
+ * Save a value to localStorage with error handling
+ */
+function saveToStorage<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Ignore storage errors (e.g., quota exceeded, private browsing)
+  }
+}
+
+// Action types
+const ActionTypes = {
+  SET_DATE_RANGE: 'SET_DATE_RANGE',
+  SET_TAGS: 'SET_TAGS',
+  SET_SPECIES: 'SET_SPECIES',
+  SET_FILE_TYPES: 'SET_FILE_TYPES',
+  SET_CAMERA_SETTINGS: 'SET_CAMERA_SETTINGS',
+  SET_NOTES: 'SET_NOTES',
+  SET_CUSTOM_FIELD: 'SET_CUSTOM_FIELD',
+  CLEAR_FILTER: 'CLEAR_FILTER',
+  CLEAR_ALL_FILTERS: 'CLEAR_ALL_FILTERS',
+  TOGGLE_DRAWER: 'TOGGLE_DRAWER',
+  TOGGLE_SECTION: 'TOGGLE_SECTION',
+  LOAD_STATE: 'LOAD_STATE',
+} as const
+
+type FilterAction =
+  | { type: 'SET_DATE_RANGE'; payload: Partial<DateRangeFilter> }
+  | { type: 'SET_TAGS'; payload: Partial<TagFilter> }
+  | { type: 'SET_SPECIES'; payload: Partial<SpeciesFilter> }
+  | { type: 'SET_FILE_TYPES'; payload: Partial<FileTypeFilter> }
+  | { type: 'SET_CAMERA_SETTINGS'; payload: { settings: Partial<CameraSettingsFilter> } }
+  | { type: 'SET_NOTES'; payload: Partial<NotesFilter> }
+  | { type: 'SET_CUSTOM_FIELD'; payload: { fieldName: string; value: unknown } }
+  | { type: 'CLEAR_FILTER'; payload: { filterType: keyof FilterState } }
+  | { type: 'CLEAR_ALL_FILTERS' }
+  | { type: 'TOGGLE_DRAWER' }
+  | { type: 'TOGGLE_SECTION'; payload: { sectionId: string } }
+  | { type: 'LOAD_STATE'; payload: { newState: Partial<State> } }
+
+interface State extends FilterState {
+  isDrawerOpen: boolean
+  expandedSections: string[]
+}
+
+// Initial state
+const initialState: State = {
+  // Date Range Filter
+  dateRange: {
+    preset: null,
+    startDate: null,
+    endDate: null,
+  },
+
+  // Tag Filter
+  tags: {
+    selected: [],
+    matchMode: 'any',
+  },
+
+  // Species Filter
+  species: {
+    selected: [],
+    includeUnidentified: false,
+  },
+
+  // File Type Filter
+  fileTypes: {
+    selected: [],
+  },
+
+  // Camera Settings Filter (EXIF)
+  cameraSettings: {
+    iso: { min: null, max: null },
+    aperture: { min: null, max: null },
+    shutterSpeed: { min: null, max: null },
+  },
+
+  // Notes Filter
+  notes: {
+    hasNotes: null,
+    keywords: '',
+  },
+
+  // Custom Fields Filter
+  customFields: {},
+
+  // UI State - loaded from localStorage with defaults
+  isDrawerOpen: loadFromStorage(STORAGE_KEY_DRAWER, true),
+  expandedSections: loadFromStorage(STORAGE_KEY_SECTIONS, ['dateRange']),
+}
+
+// Helper function to reset a specific filter to initial state
+function getInitialFilterState(filterType: keyof FilterState): FilterState[keyof FilterState] | null {
+  switch (filterType) {
+    case 'dateRange':
+      return initialState.dateRange
+    case 'tags':
+      return initialState.tags
+    case 'species':
+      return initialState.species
+    case 'fileTypes':
+      return initialState.fileTypes
+    case 'cameraSettings':
+      return initialState.cameraSettings
+    case 'notes':
+      return initialState.notes
+    case 'customFields':
+      return initialState.customFields
+    default:
+      return null
+  }
+}
+
+// Reducer
+// NOTE: We use `!== undefined` checks (not `!= null`) intentionally.
+// - Pass `null` to explicitly clear/reset a field to its empty state
+// - Omit the field (undefined) to preserve the current value
+// This allows partial updates: setDateRange({ preset: 'today' }) updates only preset
+function filterReducer(state: State, action: FilterAction): State {
+  switch (action.type) {
+    case ActionTypes.SET_DATE_RANGE: {
+      const { preset, startDate, endDate } = action.payload
+      return {
+        ...state,
+        dateRange: {
+          preset: preset !== undefined ? preset : state.dateRange.preset,
+          startDate: startDate !== undefined ? startDate : state.dateRange.startDate,
+          endDate: endDate !== undefined ? endDate : state.dateRange.endDate,
+        },
+      }
+    }
+
+    case ActionTypes.SET_TAGS: {
+      const { selected, matchMode } = action.payload
+      return {
+        ...state,
+        tags: {
+          selected: selected !== undefined ? selected : state.tags.selected,
+          matchMode: matchMode !== undefined ? matchMode : state.tags.matchMode,
+        },
+      }
+    }
+
+    case ActionTypes.SET_SPECIES: {
+      const { selected, includeUnidentified } = action.payload
+      return {
+        ...state,
+        species: {
+          selected: selected !== undefined ? selected : state.species.selected,
+          includeUnidentified: includeUnidentified !== undefined ? includeUnidentified : state.species.includeUnidentified,
+        },
+      }
+    }
+
+    case ActionTypes.SET_FILE_TYPES: {
+      const { selected } = action.payload
+      return {
+        ...state,
+        fileTypes: {
+          selected: selected !== undefined ? selected : state.fileTypes.selected,
+        },
+      }
+    }
+
+    case ActionTypes.SET_CAMERA_SETTINGS: {
+      const { settings } = action.payload
+      return {
+        ...state,
+        cameraSettings: {
+          ...state.cameraSettings,
+          ...settings, // Partial update
+        },
+      }
+    }
+
+    case ActionTypes.SET_NOTES: {
+      const { hasNotes, keywords } = action.payload
+      return {
+        ...state,
+        notes: {
+          hasNotes: hasNotes !== undefined ? hasNotes : state.notes.hasNotes,
+          keywords: keywords !== undefined ? keywords : state.notes.keywords,
+        },
+      }
+    }
+
+    case ActionTypes.SET_CUSTOM_FIELD: {
+      const { fieldName, value } = action.payload
+      return {
+        ...state,
+        customFields: {
+          ...state.customFields,
+          [fieldName]: value,
+        },
+      }
+    }
+
+    case ActionTypes.CLEAR_FILTER: {
+      const { filterType } = action.payload
+      const resetValue = getInitialFilterState(filterType)
+
+      if (resetValue === null) {
+        return state
+      }
+
+      return {
+        ...state,
+        [filterType]: resetValue,
+      }
+    }
+
+    case ActionTypes.CLEAR_ALL_FILTERS: {
+      return {
+        ...state,
+        dateRange: initialState.dateRange,
+        tags: initialState.tags,
+        species: initialState.species,
+        fileTypes: initialState.fileTypes,
+        cameraSettings: initialState.cameraSettings,
+        notes: initialState.notes,
+        customFields: initialState.customFields,
+      }
+    }
+
+    case ActionTypes.TOGGLE_DRAWER: {
+      return {
+        ...state,
+        isDrawerOpen: !state.isDrawerOpen,
+      }
+    }
+
+    case ActionTypes.TOGGLE_SECTION: {
+      const { sectionId } = action.payload
+      const isExpanded = state.expandedSections.includes(sectionId)
+
+      return {
+        ...state,
+        expandedSections: isExpanded
+          ? state.expandedSections.filter(id => id !== sectionId)
+          : [...state.expandedSections, sectionId],
+      }
+    }
+
+    case ActionTypes.LOAD_STATE: {
+      const { newState } = action.payload
+      return {
+        ...state,
+        ...newState,
+      }
+    }
+
+    default:
+      return state
+  }
+}
+
+interface FilterContextValue {
+  // State
+  isDrawerOpen: boolean
+  expandedSections: string[]
+  dateRange: DateRangeFilter
+  tags: TagFilter
+  species: SpeciesFilter
+  fileTypes: FileTypeFilter
+  cameraSettings: CameraSettingsFilter
+  notes: NotesFilter
+  customFields: CustomFieldsFilter
+  // Computed
+  activeFilterCount: number
+  hasActiveFilters: boolean
+  // Actions
+  setDateRange: (preset?: DateRangeFilter['preset'], startDate?: string | null, endDate?: string | null) => void
+  setTags: (selected?: string[], matchMode?: TagFilter['matchMode']) => void
+  setSpecies: (selected?: string[], includeUnidentified?: boolean) => void
+  setFileTypes: (selected?: string[]) => void
+  setCameraSettings: (settings: Partial<CameraSettingsFilter>) => void
+  setNotes: (hasNotes?: boolean | null, keywords?: string) => void
+  setCustomField: (fieldName: string, value: unknown) => void
+  clearFilter: (filterType: keyof FilterState) => void
+  clearAllFilters: () => void
+  toggleDrawer: () => void
+  toggleSection: (sectionId: string) => void
+  loadState: (newState: Partial<State>) => void
+}
+
+interface FilterProviderProps {
+  children: ReactNode
+}
+
+const FilterContext = createContext<FilterContextValue | undefined>(undefined)
+
+export function FilterProvider({ children }: FilterProviderProps) {
+  const [state, dispatch] = useReducer(filterReducer, initialState)
+
+  // Persist drawer open/closed state to localStorage
+  useEffect(() => {
+    saveToStorage(STORAGE_KEY_DRAWER, state.isDrawerOpen)
+  }, [state.isDrawerOpen])
+
+  // Persist expanded sections to localStorage
+  useEffect(() => {
+    saveToStorage(STORAGE_KEY_SECTIONS, state.expandedSections)
+  }, [state.expandedSections])
+
+  // Actions
+  const setDateRange = useCallback((preset?: DateRangeFilter['preset'], startDate?: string | null, endDate?: string | null) => {
+    dispatch({
+      type: ActionTypes.SET_DATE_RANGE,
+      payload: { preset, startDate, endDate },
+    })
+  }, [])
+
+  const setTags = useCallback((selected?: string[], matchMode?: TagFilter['matchMode']) => {
+    dispatch({
+      type: ActionTypes.SET_TAGS,
+      payload: { selected, matchMode },
+    })
+  }, [])
+
+  const setSpecies = useCallback((selected?: string[], includeUnidentified?: boolean) => {
+    dispatch({
+      type: ActionTypes.SET_SPECIES,
+      payload: { selected, includeUnidentified },
+    })
+  }, [])
+
+  const setFileTypes = useCallback((selected?: string[]) => {
+    dispatch({
+      type: ActionTypes.SET_FILE_TYPES,
+      payload: { selected },
+    })
+  }, [])
+
+  const setCameraSettings = useCallback((settings: Partial<CameraSettingsFilter>) => {
+    dispatch({
+      type: ActionTypes.SET_CAMERA_SETTINGS,
+      payload: { settings },
+    })
+  }, [])
+
+  const setNotes = useCallback((hasNotes?: boolean | null, keywords?: string) => {
+    dispatch({
+      type: ActionTypes.SET_NOTES,
+      payload: { hasNotes, keywords },
+    })
+  }, [])
+
+  const setCustomField = useCallback((fieldName: string, value: unknown) => {
+    dispatch({
+      type: ActionTypes.SET_CUSTOM_FIELD,
+      payload: { fieldName, value },
+    })
+  }, [])
+
+  const clearFilter = useCallback((filterType: keyof FilterState) => {
+    dispatch({
+      type: ActionTypes.CLEAR_FILTER,
+      payload: { filterType },
+    })
+  }, [])
+
+  const clearAllFilters = useCallback(() => {
+    dispatch({ type: ActionTypes.CLEAR_ALL_FILTERS })
+  }, [])
+
+  const toggleDrawer = useCallback(() => {
+    dispatch({ type: ActionTypes.TOGGLE_DRAWER })
+  }, [])
+
+  const toggleSection = useCallback((sectionId: string) => {
+    dispatch({
+      type: ActionTypes.TOGGLE_SECTION,
+      payload: { sectionId },
+    })
+  }, [])
+
+  const loadState = useCallback((newState: Partial<State>) => {
+    dispatch({
+      type: ActionTypes.LOAD_STATE,
+      payload: { newState },
+    })
+  }, [])
+
+  // Computed values - count active filters (uses shared utility to avoid duplication)
+  const activeFilterCount = useMemo(
+    () => countActiveFilters(state),
+    [state]
+  )
+
+  // Helper to check if any filters are active
+  const hasActiveFilters = activeFilterCount > 0
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo<FilterContextValue>(
+    () => ({
+      // State
+      isDrawerOpen: state.isDrawerOpen,
+      expandedSections: state.expandedSections,
+      dateRange: state.dateRange,
+      tags: state.tags,
+      species: state.species,
+      fileTypes: state.fileTypes,
+      cameraSettings: state.cameraSettings,
+      notes: state.notes,
+      customFields: state.customFields,
+      // Computed
+      activeFilterCount,
+      hasActiveFilters,
+      // Actions
+      setDateRange,
+      setTags,
+      setSpecies,
+      setFileTypes,
+      setCameraSettings,
+      setNotes,
+      setCustomField,
+      clearFilter,
+      clearAllFilters,
+      toggleDrawer,
+      toggleSection,
+      loadState,
+    }),
+    [
+      state.isDrawerOpen,
+      state.expandedSections,
+      state.dateRange,
+      state.tags,
+      state.species,
+      state.fileTypes,
+      state.cameraSettings,
+      state.notes,
+      state.customFields,
+      activeFilterCount,
+      hasActiveFilters,
+      setDateRange,
+      setTags,
+      setSpecies,
+      setFileTypes,
+      setCameraSettings,
+      setNotes,
+      setCustomField,
+      clearFilter,
+      clearAllFilters,
+      toggleDrawer,
+      toggleSection,
+      loadState,
+    ]
+  )
+
+  return (
+    <FilterContext.Provider value={contextValue}>
+      {children}
+    </FilterContext.Provider>
+  )
+}
+
+export function useFilterContext(): FilterContextValue {
+  const context = React.useContext(FilterContext)
+
+  if (!context) {
+    throw new Error('useFilterContext must be used within FilterProvider')
+  }
+
+  return context
+}
+
+export default FilterContext

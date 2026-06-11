@@ -1,9 +1,25 @@
 // Collapsible Card Component
 // Shared component for collapsible sections in Settings and related pages
 
-import PropTypes from 'prop-types'
+import React from 'react'
 
-export default function CollapsibleCard({ id, title, isCollapsed, onToggle, children, className = "settings-card" }) {
+export interface CollapsibleCardProps {
+  id: string
+  title: string
+  isCollapsed: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+  className?: string
+}
+
+export default function CollapsibleCard({
+  id,
+  title,
+  isCollapsed,
+  onToggle,
+  children,
+  className = "settings-card"
+}: CollapsibleCardProps) {
   return (
     <div className={className}>
       <button
@@ -25,13 +41,4 @@ export default function CollapsibleCard({ id, title, isCollapsed, onToggle, chil
       )}
     </div>
   )
-}
-
-CollapsibleCard.propTypes = {
-  id: PropTypes.string.isRequired,
-  title: PropTypes.string.isRequired,
-  isCollapsed: PropTypes.bool.isRequired,
-  onToggle: PropTypes.func.isRequired,
-  children: PropTypes.node.isRequired,
-  className: PropTypes.string
 }
