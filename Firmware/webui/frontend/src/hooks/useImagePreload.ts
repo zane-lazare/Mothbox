@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getPhotoUrl } from '../utils/api'
-
-/**
- * Photo object with required path property
- */
-interface Photo {
-  path: string
-  [key: string]: unknown
-}
+import type { Photo } from '../types/domain'
 
 /**
  * Return type for useImagePreload hook
