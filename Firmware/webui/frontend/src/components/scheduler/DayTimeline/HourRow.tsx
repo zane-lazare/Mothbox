@@ -8,10 +8,37 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
-import ExecutionChip from './ExecutionChip'
+import ExecutionChip, { type Execution } from './ExecutionChip'
 import { ROW_CONFLICT_STYLES } from './dayTimelineConstants'
 import { formatHourLabel, getExecutionKey } from './dayTimelineUtils'
+
+/**
+ * Conflict object structure
+ */
+interface HourConflict {
+  id?: string
+  severity: 'error' | 'warning'
+  message: string
+  conflict_type?: string
+}
+
+/**
+ * Execution conflict for highlighting individual chips
+ */
+interface ExecutionConflict {
+  severity: 'error' | 'warning'
+}
+
+/**
+ * Component props interface
+ */
+export interface HourRowProps {
+  hour: number
+  executions?: Execution[]
+  conflict?: HourConflict | null
+  onExecutionClick?: (execution: Execution) => void
+  executionConflicts?: Record<string, ExecutionConflict>
+}
 
 /**
  * HourRow component
@@ -41,7 +68,7 @@ function HourRow({
   conflict = null,
   onExecutionClick,
   executionConflicts = {},
-}) {
+}: HourRowProps) {
   // Get styling for this row based on conflict state
   const conflictState = conflict?.severity || 'none'
   const rowStyles = ROW_CONFLICT_STYLES[conflictState] || ROW_CONFLICT_STYLES.none
@@ -97,42 +124,6 @@ function HourRow({
       )}
     </div>
   )
-}
-
-HourRow.propTypes = {
-  /** Hour number (0-23) */
-  hour: PropTypes.number.isRequired,
-  /** Array of executions for this hour */
-  executions: PropTypes.arrayOf(
-    PropTypes.shape({
-      pattern_id: PropTypes.string.isRequired,
-      pattern_name: PropTypes.string.isRequired,
-      start_time: PropTypes.string.isRequired,
-      actions: PropTypes.arrayOf(
-        PropTypes.shape({
-          time: PropTypes.string,
-          action_name: PropTypes.string,
-          action_type: PropTypes.oneOf(['camera', 'gpio', 'gps_sync', 'service']),
-          offset_minutes: PropTypes.number,
-        })
-      ),
-    })
-  ),
-  /** Conflict affecting this hour (if any) */
-  conflict: PropTypes.shape({
-    id: PropTypes.string,
-    severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-    message: PropTypes.string.isRequired,
-    conflict_type: PropTypes.string,
-  }),
-  /** Click handler for execution chips */
-  onExecutionClick: PropTypes.func,
-  /** Map of execution pattern_id to conflict */
-  executionConflicts: PropTypes.objectOf(
-    PropTypes.shape({
-      severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-    })
-  ),
 }
 
 export default memo(HourRow)

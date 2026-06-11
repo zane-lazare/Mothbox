@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import PropTypes from 'prop-types'
 import { XMarkIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
 import { Z_INDEX } from '../../constants/config'
 
@@ -11,13 +10,15 @@ const PREVIEW_TABS = [
   { id: 'json', label: 'JSON' },
   { id: 'csv', label: 'CSV' },
   { id: 'darwin_core', label: 'Darwin Core' }
-]
+] as const
+
+type PreviewTab = typeof PREVIEW_TABS[number]['id']
 
 /**
  * Escape HTML entities to prevent XSS attacks.
  * Only escapes <, >, and & - quotes are left for JSON structure.
  */
-function escapeHTML(str) {
+function escapeHTML(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -28,7 +29,7 @@ function escapeHTML(str) {
  * Syntax highlight JSON string.
  * HTML is escaped first to prevent XSS from malicious metadata.
  */
-function highlightJSON(jsonString) {
+function highlightJSON(jsonString: string): string {
   const escaped = escapeHTML(jsonString)
   return escaped
     .replace(/("([^"\\]|\\.)*")\s*:/g, '<span class="json-key text-blue-600 dark:text-blue-400">$1</span>:')
@@ -40,7 +41,7 @@ function highlightJSON(jsonString) {
 /**
  * Render JSON preview with syntax highlighting
  */
-function JSONPreview({ data }) {
+function JSONPreview({ data }: { data: unknown[] }) {
   const jsonString = JSON.stringify(data, null, 2)
   const highlighted = highlightJSON(jsonString)
 
@@ -52,14 +53,10 @@ function JSONPreview({ data }) {
   )
 }
 
-JSONPreview.propTypes = {
-  data: PropTypes.array.isRequired
-}
-
 /**
  * Render CSV preview as table
  */
-function CSVPreview({ headers, data }) {
+function CSVPreview({ headers, data }: { headers: string[]; data: Record<string, unknown>[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -84,7 +81,7 @@ function CSVPreview({ headers, data }) {
                   className="px-4 py-2 text-gray-900 dark:text-gray-100"
                 >
                   {Array.isArray(row[header])
-                    ? row[header].join(', ')
+                    ? (row[header] as string[]).join(', ')
                     : String(row[header] ?? '')}
                 </td>
               ))}
@@ -96,9 +93,17 @@ function CSVPreview({ headers, data }) {
   )
 }
 
-CSVPreview.propTypes = {
-  headers: PropTypes.arrayOf(PropTypes.string).isRequired,
-  data: PropTypes.array.isRequired
+interface PreviewData {
+  format?: string
+  data: unknown[]
+  headers?: string[]
+}
+
+export interface PreviewModalProps {
+  isOpen: boolean
+  onClose: () => void
+  previewData?: PreviewData
+  format?: 'json' | 'csv' | 'darwin_core' | 'inaturalist'
 }
 
 /**
@@ -117,14 +122,14 @@ CSVPreview.propTypes = {
  *   format="json"
  * />
  */
-export default function PreviewModal({ isOpen, onClose, previewData, format }) {
-  const [activeTab, setActiveTab] = useState('json')
-  const [copyStatus, setCopyStatus] = useState(null)
+export default function PreviewModal({ isOpen, onClose, previewData, format }: PreviewModalProps) {
+  const [activeTab, setActiveTab] = useState<PreviewTab>('json')
+  const [copyStatus, setCopyStatus] = useState<'success' | 'error' | null>(null)
 
   // Sync activeTab with format prop
   useEffect(() => {
-    if (format) {
-      setActiveTab(format)
+    if (format && format !== 'inaturalist') {
+      setActiveTab(format as PreviewTab)
     }
   }, [format])
 
@@ -132,7 +137,7 @@ export default function PreviewModal({ isOpen, onClose, previewData, format }) {
   useEffect(() => {
     if (!isOpen) return
 
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
 
@@ -163,8 +168,8 @@ export default function PreviewModal({ isOpen, onClose, previewData, format }) {
       if (activeTab === 'csv' && previewData?.headers) {
         // CSV format
         const headerRow = previewData.headers.join(',')
-        const dataRows = previewData.data.map(row =>
-          previewData.headers.map(h => {
+        const dataRows = (previewData.data as Record<string, unknown>[]).map(row =>
+          previewData.headers!.map(h => {
             const value = row[h]
             if (Array.isArray(value)) return `"${value.join('; ')}"`
             if (typeof value === 'string' && value.includes(',')) return `"${value}"`
@@ -258,8 +263,8 @@ export default function PreviewModal({ isOpen, onClose, previewData, format }) {
             </div>
           ) : activeTab === 'csv' ? (
             <CSVPreview
-              headers={previewData.headers || Object.keys(previewData.data[0] || {})}
-              data={previewData.data}
+              headers={previewData.headers || Object.keys((previewData.data[0] as Record<string, unknown>) || {})}
+              data={previewData.data as Record<string, unknown>[]}
             />
           ) : (
             <JSONPreview data={previewData.data} />
@@ -270,19 +275,4 @@ export default function PreviewModal({ isOpen, onClose, previewData, format }) {
   )
 
   return createPortal(modal, document.body)
-}
-
-PreviewModal.propTypes = {
-  /** Whether the modal is open */
-  isOpen: PropTypes.bool.isRequired,
-  /** Close handler */
-  onClose: PropTypes.func.isRequired,
-  /** Preview data to display */
-  previewData: PropTypes.shape({
-    format: PropTypes.string,
-    data: PropTypes.array,
-    headers: PropTypes.arrayOf(PropTypes.string)
-  }),
-  /** Current format (json, csv, darwin_core, inaturalist) */
-  format: PropTypes.oneOf(['json', 'csv', 'darwin_core', 'inaturalist'])
 }

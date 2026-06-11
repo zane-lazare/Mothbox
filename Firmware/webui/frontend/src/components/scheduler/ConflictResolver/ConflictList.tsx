@@ -16,10 +16,8 @@
  * <ConflictList conflicts={conflicts} compact compactLimit={5} onViewAll={() => setShowAll(true)} />
  */
 
-import PropTypes from 'prop-types'
 import { ExclamationTriangleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
-import { ConflictsPropType } from './ConflictPropTypes'
-import ConflictItem from './ConflictItem'
+import ConflictItem, { type Conflict } from './ConflictItem'
 
 /**
  * Default maximum conflicts to show in compact mode
@@ -27,9 +25,27 @@ import ConflictItem from './ConflictItem'
 const DEFAULT_COMPACT_LIMIT = 3
 
 /**
+ * Grouped conflicts by severity
+ */
+interface GroupedConflicts {
+  errors: Conflict[]
+  warnings: Conflict[]
+}
+
+/**
+ * Component props interface
+ */
+export interface ConflictListProps {
+  conflicts?: Conflict[] | null
+  compact?: boolean
+  compactLimit?: number
+  onViewAll?: () => void
+}
+
+/**
  * Sort and group conflicts by severity (errors first)
  */
-function groupConflicts(conflicts) {
+function groupConflicts(conflicts: Conflict[]): GroupedConflicts {
   const errors = conflicts.filter((c) => c.severity === 'error')
   const warnings = conflicts.filter((c) => c.severity === 'warning')
   return { errors, warnings }
@@ -38,7 +54,12 @@ function groupConflicts(conflicts) {
 /**
  * ConflictList displays conflicts grouped by severity with optional compact mode
  */
-function ConflictList({ conflicts = null, compact = false, compactLimit = DEFAULT_COMPACT_LIMIT, onViewAll = undefined }) {
+function ConflictList({
+  conflicts = null,
+  compact = false,
+  compactLimit = DEFAULT_COMPACT_LIMIT,
+  onViewAll = undefined
+}: ConflictListProps) {
   // Handle empty/null/undefined conflicts
   if (!conflicts || conflicts.length === 0) {
     return null
@@ -49,7 +70,7 @@ function ConflictList({ conflicts = null, compact = false, compactLimit = DEFAUL
   const blockingCount = errors.length
 
   // In compact mode, limit to compactLimit conflicts
-  let displayConflicts = []
+  let displayConflicts: Conflict[] = []
   let hiddenCount = 0
 
   if (compact) {
@@ -143,17 +164,6 @@ function ConflictList({ conflicts = null, compact = false, compactLimit = DEFAUL
       )}
     </div>
   )
-}
-
-ConflictList.propTypes = {
-  /** Array of conflict objects to display */
-  conflicts: ConflictsPropType,
-  /** Whether to show compact mode (limits visible conflicts) */
-  compact: PropTypes.bool,
-  /** Maximum conflicts to show in compact mode (default: 3) */
-  compactLimit: PropTypes.number,
-  /** Callback when "+N more" is clicked in compact mode */
-  onViewAll: PropTypes.func,
 }
 
 export default ConflictList

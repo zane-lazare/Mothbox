@@ -1,0 +1,106 @@
+import { useState, useRef, useCallback, useEffect, memo } from 'react'
+import { TagIcon } from '@heroicons/react/24/outline'
+import QuickTagDropdown from './QuickTagDropdown'
+import ErrorBoundary from '../ErrorBoundary'
+import useSidecarMetadata from '../../hooks/useSidecarMetadata'
+
+interface QuickTagButtonProps {
+  filename: string
+  className?: string
+  onDropdownOpenChange?: (isOpen: boolean) => void
+}
+
+/**
+ * QuickTagButton Component
+ *
+ * Tag icon button that appears on photo thumbnails to quickly add/remove tags.
+ * Opens a QuickTagDropdown for tag management.
+ *
+ * Features:
+ * - Shows tag count badge if photo has tags
+ * - Visual feedback when dropdown is active
+ * - Stops event propagation to prevent lightbox opening
+ * - Accessible with proper ARIA attributes
+ * - Loading indicator while fetching tags
+ */
+function QuickTagButton({ filename, className = '', onDropdownOpenChange }: QuickTagButtonProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  // Get current tags for badge count
+  const { data, isLoading } = useSidecarMetadata(filename)
+  const tagCount = data?.tags?.length || 0
+
+  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setIsOpen(prev => !prev)
+  }, [])
+
+  // Notify parent of state changes after state is committed
+  useEffect(() => {
+    onDropdownOpenChange?.(isOpen)
+  }, [isOpen, onDropdownOpenChange])
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false)
+    // Parent notified via useEffect after state commits
+    // Restore focus to trigger button for keyboard accessibility
+    buttonRef.current?.focus()
+  }, [])
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleClick}
+        className={`
+          relative p-1.5 rounded-full transition-all duration-150
+          ${isOpen
+            ? 'bg-blue-500 text-white shadow-lg'
+            : 'bg-white/90 dark:bg-gray-800/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md'}
+          ${className}
+        `}
+        aria-label={`Add tags to photo${tagCount > 0 ? ` (${tagCount} tags)` : ''}`}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+      >
+        <TagIcon className="w-4 h-4" />
+
+        {/* Tag count badge */}
+        {tagCount > 0 && !isLoading && (
+          <span className={`
+            absolute -top-1 -right-1 min-w-[18px] h-[18px]
+            flex items-center justify-center
+            text-xs font-medium rounded-full
+            ${isOpen
+              ? 'bg-white text-blue-500'
+              : 'bg-blue-500 text-white'}
+          `}>
+            {tagCount}
+          </span>
+        )}
+
+        {/* Loading indicator */}
+        {isLoading && (
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-gray-300 rounded-full animate-pulse" />
+        )}
+      </button>
+
+      <ErrorBoundary
+        fallback={() => null}
+        onReset={handleClose}
+      >
+        <QuickTagDropdown
+          filename={filename}
+          isOpen={isOpen}
+          onClose={handleClose}
+          anchorEl={buttonRef.current}
+        />
+      </ErrorBoundary>
+    </>
+  )
+}
+
+export default memo(QuickTagButton)

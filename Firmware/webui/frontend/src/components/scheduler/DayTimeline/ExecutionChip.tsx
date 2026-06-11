@@ -9,10 +9,43 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import { CHIP_CONFLICT_RINGS } from './dayTimelineConstants'
 import { formatTimeShort, getExecutionTestId } from './dayTimelineUtils'
 import { getActionColor } from '@/utils/routineUtils'
+
+/**
+ * Action object structure
+ */
+interface Action {
+  time?: string
+  action_name?: string
+  action_type?: string
+  offset_minutes?: number
+}
+
+/**
+ * Execution object structure
+ */
+export interface Execution {
+  pattern_id: string
+  pattern_name: string
+  start_time: string
+  actions?: Action[]
+}
+
+/**
+ * Conflict severity levels
+ */
+type ConflictSeverity = 'error' | 'warning' | null
+
+/**
+ * Component props interface
+ */
+export interface ExecutionChipProps {
+  execution: Execution
+  onClick?: () => void
+  conflictSeverity?: ConflictSeverity
+}
 
 /**
  * ExecutionChip component
@@ -40,7 +73,7 @@ import { getActionColor } from '@/utils/routineUtils'
  *   conflictSeverity="error"
  * />
  */
-function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
+function ExecutionChip({ execution, onClick, conflictSeverity = null }: ExecutionChipProps) {
   const { pattern_name, start_time, actions } = execution
 
   // Format the time for tooltip/aria-label
@@ -49,7 +82,7 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
   // Find the "primary" action - prefer camera/gps_sync over flash_on/flash_off/attract_on/attract_off
   const auxiliaryActions = ['flash_on', 'flash_off', 'attract_on', 'attract_off']
   const primaryAction =
-    actions?.find((a) => !auxiliaryActions.includes(a.action_name)) ||
+    actions?.find((a) => !auxiliaryActions.includes(a.action_name || '')) ||
     actions?.[0]
 
   // Get solid color class for the dot (matches ScheduleCard style)
@@ -76,14 +109,14 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
     ? `${pattern_name} at ${timeStr} - ${conflictSeverity} conflict`
     : `${pattern_name} at ${timeStr}`
 
-  const handleClick = (e) => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     if (onClick) {
       onClick()
     }
   }
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       e.stopPropagation()
@@ -104,27 +137,6 @@ function ExecutionChip({ execution, onClick, conflictSeverity = null }) {
       aria-label={ariaLabel}
     />
   )
-}
-
-ExecutionChip.propTypes = {
-  /** Execution object containing pattern and timing details */
-  execution: PropTypes.shape({
-    pattern_id: PropTypes.string.isRequired,
-    pattern_name: PropTypes.string.isRequired,
-    start_time: PropTypes.string.isRequired,
-    actions: PropTypes.arrayOf(
-      PropTypes.shape({
-        time: PropTypes.string,
-        action_name: PropTypes.string,
-        action_type: PropTypes.string,
-        offset_minutes: PropTypes.number,
-      })
-    ),
-  }).isRequired,
-  /** Click handler for when chip is selected */
-  onClick: PropTypes.func,
-  /** Conflict severity for highlighting ('error'|'warning'|null) */
-  conflictSeverity: PropTypes.oneOf(['error', 'warning', null]),
 }
 
 export default memo(ExecutionChip)

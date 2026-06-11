@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/react'
 import {
   CircleStackIcon,
@@ -10,7 +9,16 @@ import {
 import { useSinglePhotoExport } from '../../hooks/useSinglePhotoExport'
 import { Z_INDEX } from '../../constants/config'
 
-const EXPORT_FORMATS = [
+type ExportFormatId = 'darwin_core' | 'inaturalist' | 'json' | 'csv'
+
+interface ExportFormat {
+  id: ExportFormatId
+  name: string
+  description: string
+  icon: typeof BeakerIcon
+}
+
+const EXPORT_FORMATS: ExportFormat[] = [
   {
     id: 'darwin_core',
     name: 'Darwin Core',
@@ -37,8 +45,27 @@ const EXPORT_FORMATS = [
   },
 ]
 
-function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
-  const menuRef = useRef(null)
+interface Position {
+  x: number
+  y: number
+}
+
+export interface ExportOptionsMenuProps {
+  photoPath: string
+  isOpen: boolean
+  onClose: () => void
+  anchorEl?: Element | null
+  position?: Position
+}
+
+export default function ExportOptionsMenu({
+  photoPath,
+  isOpen,
+  onClose,
+  anchorEl,
+  position
+}: ExportOptionsMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
   // Use refs to stabilize event listener dependencies
@@ -80,7 +107,7 @@ function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
   }, [isOpen])
 
   // Handle format selection
-  const handleFormatSelect = useCallback((formatId) => {
+  const handleFormatSelect = useCallback((formatId: ExportFormatId) => {
     if (isExporting) return
 
     exportPhoto(photoPath, formatId)
@@ -91,7 +118,7 @@ function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
   useEffect(() => {
     if (!isOpen) return
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'Escape':
           onCloseRef.current()
@@ -119,10 +146,10 @@ function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
       }
     }
 
-    const handleClickOutside = (e) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current &&
-          !menuRef.current.contains(e.target) &&
-          !anchorElRef.current?.contains(e.target)) {
+          !menuRef.current.contains(e.target as Node) &&
+          !anchorElRef.current?.contains(e.target as Node)) {
         onCloseRef.current()
       }
     }
@@ -141,7 +168,7 @@ function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
   // Determine positioning style
   const menuStyle = position
     ? {
-        position: 'absolute',
+        position: 'absolute' as const,
         left: `${position.x}px`,
         top: `${position.y}px`,
       }
@@ -217,16 +244,3 @@ function ExportOptionsMenu({ photoPath, isOpen, onClose, anchorEl, position }) {
     </div>
   )
 }
-
-ExportOptionsMenu.propTypes = {
-  photoPath: PropTypes.string.isRequired,
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  anchorEl: PropTypes.instanceOf(Element),
-  position: PropTypes.shape({
-    x: PropTypes.number.isRequired,
-    y: PropTypes.number.isRequired,
-  }),
-}
-
-export default ExportOptionsMenu

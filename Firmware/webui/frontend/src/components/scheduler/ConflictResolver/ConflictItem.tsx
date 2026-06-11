@@ -21,7 +21,6 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import {
   ExclamationTriangleIcon,
   ExclamationCircleIcon,
@@ -29,13 +28,47 @@ import {
   CubeIcon,
   BoltIcon,
 } from '@heroicons/react/24/outline'
-import { ConflictPropType, CONFLICT_TYPE_LABELS } from './ConflictPropTypes'
+import { CONFLICT_TYPE_LABELS } from './ConflictPropTypes'
 import { formatTime } from '../CalendarView/calendarUtils'
+
+/**
+ * Conflict type identifiers
+ */
+type ConflictType = 'time_overlap' | 'resource_contention' | 'gpio_state_conflict'
+
+/**
+ * Severity levels
+ */
+type SeverityLevel = 'error' | 'warning'
+
+/**
+ * Conflict data structure matching backend Conflict.to_dict()
+ */
+export interface Conflict {
+  conflict_type: ConflictType
+  severity: SeverityLevel
+  event1_id: string
+  event1_name: string
+  event2_id: string
+  event2_name: string
+  start_time: string
+  end_time: string
+  resource?: string
+  message: string
+  suggested_resolution: string
+}
+
+/**
+ * Component props interface
+ */
+export interface ConflictItemProps {
+  conflict: Conflict
+}
 
 /**
  * Get the appropriate icon for a conflict type
  */
-function getConflictTypeIcon(conflictType) {
+function getConflictTypeIcon(conflictType: ConflictType) {
   switch (conflictType) {
     case 'time_overlap':
       return ClockIcon
@@ -68,12 +101,12 @@ const SEVERITY_STYLES = {
     icon: 'text-amber-600 dark:text-amber-400',
     badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200',
   },
-}
+} as const
 
 /**
  * ConflictItem displays a single schedule conflict with appropriate styling
  */
-function ConflictItem({ conflict }) {
+function ConflictItem({ conflict }: ConflictItemProps) {
   const {
     conflict_type,
     severity,
@@ -145,11 +178,6 @@ function ConflictItem({ conflict }) {
       </div>
     </li>
   )
-}
-
-ConflictItem.propTypes = {
-  /** The conflict object to display */
-  conflict: ConflictPropType.isRequired,
 }
 
 export default memo(ConflictItem)
