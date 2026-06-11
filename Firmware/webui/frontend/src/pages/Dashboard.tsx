@@ -4,30 +4,84 @@ import { formatTimestamp } from '../utils/helpers'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import type { Photo } from '../types/domain'
+import type { AxiosError, AxiosResponse } from 'axios'
+
+// System Status Types
+interface DiskStatus {
+  free_gb: number
+  total_gb: number
+  used_percent: number
+}
+
+interface HardwareStatus {
+  ina260_enabled: boolean
+  gps_enabled: boolean
+  epaper_enabled: boolean
+}
+
+interface GPSStatus {
+  enabled: boolean
+  latitude: number | null
+  longitude: number | null
+  last_sync: string | null
+  utc_offset: number | null
+  has_fix: boolean
+}
+
+interface SystemStatus {
+  cpu_temp: number | null
+  disk: DiskStatus
+  photo_count: number
+  hardware: HardwareStatus
+  gps: GPSStatus
+}
+
+// Power Status Types
+interface PowerStatus {
+  enabled: boolean
+  voltage?: number | null
+  current?: number | null
+  power?: number | null
+  error?: string
+}
+
+// GPS Sync Response Types
+interface GPSSyncSuccessResponse {
+  success: true
+  latitude: number
+  longitude: number
+}
+
+interface GPSSyncFailureResponse {
+  success: false
+}
+
+type GPSSyncResponse = GPSSyncSuccessResponse | GPSSyncFailureResponse
 
 export default function Dashboard() {
-  const [capturing, setCapturing] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+  const [capturing, setCapturing] = useState<boolean>(false)
+  const [syncing, setSyncing] = useState<boolean>(false)
   const queryClient = useQueryClient()
 
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const { data: status, isLoading: statusLoading } = useQuery<SystemStatus>({
     queryKey: QUERY_KEYS.SYSTEM_STATUS,
-    queryFn: () => getSystemStatus().then(res => res.data),
+    queryFn: () => getSystemStatus().then((res: AxiosResponse<SystemStatus>) => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds
   })
 
-  const { data: power } = useQuery({
+  const { data: power } = useQuery<PowerStatus>({
     queryKey: QUERY_KEYS.POWER_STATUS,
-    queryFn: () => getPowerStatus().then(res => res.data),
+    queryFn: () => getPowerStatus().then((res: AxiosResponse<PowerStatus>) => res.data),
     refetchInterval: 5000,
   })
 
-  const { data: photos } = useQuery({
+  const { data: photos } = useQuery<Photo[]>({
     queryKey: QUERY_KEYS.PHOTOS,
-    queryFn: () => getPhotos().then(res => res.data.photos),
+    queryFn: () => getPhotos().then((res: AxiosResponse<{ photos: Photo[] }>) => res.data.photos),
   })
 
-  const handleCapturePhoto = async () => {
+  const handleCapturePhoto = async (): Promise<void> => {
     setCapturing(true)
     try {
       await capturePhoto()
@@ -42,7 +96,7 @@ export default function Dashboard() {
     }
   }
 
-  const handleSyncGPS = async () => {
+  const handleSyncGPS = async (): Promise<void> => {
     setSyncing(true)
 
     // Show progress toast
@@ -56,8 +110,9 @@ export default function Dashboard() {
       toast.dismiss(toastId)
 
       if (result.data.success) {
+        const successData = result.data as GPSSyncSuccessResponse
         toast.success(
-          `✅ GPS synced!\n📍 ${result.data.latitude}, ${result.data.longitude}`,
+          `✅ GPS synced!\n📍 ${successData.latitude}, ${successData.longitude}`,
           { duration: 4000 }
         )
       } else {
@@ -77,8 +132,10 @@ export default function Dashboard() {
     } catch (error) {
       toast.dismiss(toastId)
       console.error('Failed to sync GPS:', error)
-      const message = error.response?.data?.message || error.message
-      const isTimeout = message.includes('timeout') || error.response?.status === 408
+
+      const axiosError = error as AxiosError<{ message?: string }>
+      const message = axiosError.response?.data?.message || axiosError.message
+      const isTimeout = message.includes('timeout') || axiosError.response?.status === 408
 
       if (isTimeout) {
         toast.error(
@@ -240,7 +297,7 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold mb-4">Latest Photo</h3>
           <div className="space-y-2">
             <p className="text-sm text-gray-600">{latestPhoto.filename}</p>
-            <p className="text-xs text-gray-500">{new Date(latestPhoto.date).toLocaleString()}</p>
+            <p className="text-xs text-gray-500">{new Date(latestPhoto.timestamp).toLocaleString()}</p>
           </div>
         </div>
       )}

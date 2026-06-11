@@ -16,7 +16,9 @@ import { SocketProvider } from './contexts/SocketContext'
 
 const queryClient = new QueryClient()
 
-// Layout wrapper component that conditionally applies standard layout
+/**
+ * Layout wrapper component that conditionally applies standard layout
+ */
 function AppLayout() {
   const location = useLocation()
 

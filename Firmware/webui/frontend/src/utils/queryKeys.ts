@@ -28,6 +28,7 @@ export const QUERY_KEYS = {
 
   // GPIO/Hardware queries
   GPIO_STATUS: ['gpio-status'] as const,
+  GPIO_HEALTH: ['gpio-health'] as const,
   HARDWARE_CONFIG: ['hardware-config'] as const,
   CONTROLS: ['controls'] as const,
 

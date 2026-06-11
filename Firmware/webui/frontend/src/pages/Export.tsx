@@ -10,6 +10,7 @@ import useExportPreview from '../hooks/useExportPreview';
 import FormatSelector from '../components/export/FormatSelector';
 import PresetDropdown from '../components/export/PresetDropdown';
 import FilterPanel from '../components/export/FilterPanel';
+import type { PhotoFilter } from '../components/export/FilterPanel';
 import DeploymentSelector from '../components/export/DeploymentSelector';
 import DeploymentEditor from '../components/export/DeploymentEditor';
 import FormatOptionsPanel from '../components/export/FormatOptionsPanel';
@@ -18,23 +19,51 @@ import ExportPreview from '../components/export/ExportPreview';
 import ExportJobProgress from '../components/export/ExportJobProgress';
 import ExportJobList from '../components/export/ExportJobList';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import type { ExportJob, DeploymentMetadata } from '../types';
+
+// Export format types
+type ExportFormat = 'darwin_core' | 'inaturalist' | 'json' | 'csv';
+
+// Format options types
+interface FormatOptions {
+  include_raw_exif?: boolean;
+  compression_level?: number;
+  include_photos?: boolean;
+  include_metadata?: boolean;
+  schema_version?: string;
+  [key: string]: unknown;
+}
+
+// Selected fields mapping (format -> field array)
+interface SelectedFieldsMap {
+  [format: string]: string[];
+}
+
+// Preset types (from hooks)
+interface PresetData {
+  format?: ExportFormat;
+  export_format?: ExportFormat;
+  filter?: PhotoFilter;
+  options?: FormatOptions;
+  selected_fields?: string[];
+}
 
 const Export = () => {
   // Form state
-  const [selectedFormat, setSelectedFormat] = useState('');
-  const [filter, setFilter] = useState({});
-  const [options, setOptions] = useState({});
-  const [selectedFields, setSelectedFields] = useState({});
-  const [selectedDeploymentDir, setSelectedDeploymentDir] = useState(null);
-  const [selectedPreset, setSelectedPreset] = useState(null);
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat | ''>('');
+  const [filter, setFilter] = useState<PhotoFilter>({});
+  const [options, setOptions] = useState<FormatOptions>({});
+  const [selectedFields, setSelectedFields] = useState<SelectedFieldsMap>({});
+  const [selectedDeploymentDir, setSelectedDeploymentDir] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   // TODO: Implement SavePresetModal component to use this state
-  // eslint-disable-next-line no-unused-vars
-  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
-  const [showDeploymentEditor, setShowDeploymentEditor] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [showSavePresetModal, setShowSavePresetModal] = useState<boolean>(false);
+  const [showDeploymentEditor, setShowDeploymentEditor] = useState<boolean>(false);
 
   // Export jobs
   const { data: jobsData } = useExportJobs();
-  const jobs = jobsData?.jobs || [];
+  const jobs: ExportJob[] = jobsData?.jobs || [];
 
   // Export presets
   const { data: presetsData } = useExportPresets();
@@ -50,12 +79,12 @@ const Export = () => {
 
   // Find current running/pending job
   const currentJob = jobs.find(
-    (job) => job.status === 'running' || job.status === 'pending'
+    (job: ExportJob) => job.status === 'running' || job.status === 'pending'
   );
 
   // Get photo count from preview
   const { data: previewData } = useExportPreview({
-    format: selectedFormat,
+    format: selectedFormat as 'json' | 'csv' | 'darwin_core' | 'inaturalist',
     filter,
     selectedFields: selectedFields[selectedFormat] || [],
   });
@@ -63,7 +92,7 @@ const Export = () => {
   const photoCount = previewData?.metadata?.total_photos || 0;
 
   // Handle preset selection (applies preset data to form)
-  const handlePresetSelect = (preset) => {
+  const handlePresetSelect = (preset: PresetData) => {
     if (preset) {
       setSelectedFormat(preset.format || preset.export_format || '');
       setFilter(preset.filter || {});
@@ -73,14 +102,14 @@ const Export = () => {
       if (preset.selected_fields) {
         setSelectedFields({
           ...selectedFields,
-          [preset.format || preset.export_format]: preset.selected_fields,
+          [preset.format || preset.export_format || '']: preset.selected_fields,
         });
       }
     }
   };
 
   // Handle preset dropdown change
-  const handlePresetChange = (presetName) => {
+  const handlePresetChange = (presetName: string | null) => {
     setSelectedPreset(presetName);
   };
 
@@ -97,7 +126,7 @@ const Export = () => {
   };
 
   // Handle format change
-  const handleFormatChange = (format) => {
+  const handleFormatChange = (format: ExportFormat) => {
     setSelectedFormat(format);
 
     // Reset options when format changes
@@ -105,33 +134,39 @@ const Export = () => {
   };
 
   // Handle filter change
-  const handleFilterChange = (newFilter) => {
+  const handleFilterChange = (newFilter: PhotoFilter) => {
     setFilter(newFilter);
   };
 
   // Handle options change
-  const handleOptionsChange = (newOptions) => {
+  const handleOptionsChange = (newOptions: FormatOptions) => {
     setOptions(newOptions);
   };
 
   // Handle field selection change
-  const handleFieldsChange = (fields) => {
+  const handleFieldsChange = (format: ExportFormat, fields: string[]) => {
     setSelectedFields({
       ...selectedFields,
-      [selectedFormat]: fields,
+      [format]: fields,
     });
   };
 
   // Handle deployment save (from editor)
-  const handleDeploymentSave = (savedDeployment) => {
+  const handleDeploymentSave = (savedDeployment: { directory: string }) => {
     setSelectedDeploymentDir(savedDeployment.directory);
     setShowDeploymentEditor(false);
   };
 
   // Handle export submission
   const handleStartExport = () => {
-    const jobRequest = {
-      format: selectedFormat,
+    const jobRequest: {
+      format: ExportFormat;
+      filter: PhotoFilter;
+      options: FormatOptions;
+      selected_fields?: string[];
+      deployment?: string;
+    } = {
+      format: selectedFormat as ExportFormat,
       filter,
       options,
     };
@@ -152,7 +187,7 @@ const Export = () => {
   };
 
   // Handle job cancel
-  const handleCancelJob = (jobId) => {
+  const handleCancelJob = (jobId: string) => {
     cancelJobMutation.mutate(jobId);
   };
 
@@ -220,9 +255,9 @@ const Export = () => {
                 <p className="font-medium">Using photo EXIF data</p>
                 <p className="mt-1 text-xs">
                   GPS coordinates will be extracted from individual photo metadata.
-                  {previewData?.metadata?.photos_with_gps !== undefined && (
+                  {previewData?.metadata && 'photos_with_gps' in previewData.metadata && (
                     <span className="block mt-1">
-                      GPS coverage: {previewData.metadata.photos_with_gps} of {photoCount} photos ({Math.round((previewData.metadata.photos_with_gps / photoCount) * 100)}%)
+                      GPS coverage: {(previewData.metadata as { photos_with_gps: number }).photos_with_gps} of {photoCount} photos ({Math.round(((previewData.metadata as { photos_with_gps: number }).photos_with_gps / photoCount) * 100)}%)
                     </span>
                   )}
                 </p>
@@ -253,7 +288,7 @@ const Export = () => {
           {(selectedFormat === 'json' || selectedFormat === 'csv') && (
             <FieldSelector
               format={selectedFormat}
-              selectedFields={selectedFields[selectedFormat] || []}
+              selectedFields={selectedFields}
               onChange={handleFieldsChange}
             />
           )}

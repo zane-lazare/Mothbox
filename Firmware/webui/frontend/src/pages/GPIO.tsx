@@ -2,7 +2,45 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpioStatus, getGpioHealth, controlGpio, triggerFlash } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 
-function formatUptime(seconds) {
+/**
+ * GPIO status interface representing relay states
+ */
+interface GpioStatus {
+  Relay_Ch1?: boolean
+  Relay_Ch2?: boolean
+  Relay_Ch3?: boolean
+  error?: string
+}
+
+/**
+ * Health data interface for daemon status
+ */
+interface HealthData {
+  reachable: boolean
+  uptime_seconds?: number | null
+}
+
+/**
+ * Control mutation parameters
+ */
+interface ControlMutationParams {
+  relay: string
+  state: boolean
+}
+
+/**
+ * Context returned from optimistic update
+ */
+interface MutationContext {
+  previousStatus?: GpioStatus
+}
+
+/**
+ * Format uptime seconds into human-readable string
+ * @param seconds - Uptime in seconds
+ * @returns Formatted uptime string (e.g., "2d 5h", "3h 15m", "45m")
+ */
+function formatUptime(seconds: number | null | undefined): string {
   if (seconds == null || seconds < 0) return ''
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
@@ -12,10 +50,10 @@ function formatUptime(seconds) {
   return `${minutes}m`
 }
 
-export default function GPIO() {
+export default function GPIO(): React.JSX.Element {
   const queryClient = useQueryClient()
 
-  const { data: gpioStatus, isLoading } = useQuery({
+  const { data: gpioStatus, isLoading } = useQuery<GpioStatus>({
     queryKey: QUERY_KEYS.GPIO_STATUS,
     queryFn: () => getGpioStatus().then(res => res.data),
     refetchInterval: 5000, // Refresh every 5 seconds instead of 2
@@ -23,7 +61,7 @@ export default function GPIO() {
     staleTime: 2000, // Consider data fresh for 2 seconds
   })
 
-  const { data: healthData, isError: isHealthError } = useQuery({
+  const { data: healthData, isError: isHealthError } = useQuery<HealthData>({
     queryKey: QUERY_KEYS.GPIO_HEALTH,
     queryFn: () => getGpioHealth().then(res => res.data),
     refetchInterval: 10000,
@@ -34,24 +72,24 @@ export default function GPIO() {
 
   const daemonOnline = healthData?.reachable === true && !isHealthError
 
-  const controlMutation = useMutation({
-    mutationFn: ({ relay, state }) => controlGpio(relay, state),
-    onMutate: async ({ relay, state }) => {
+  const controlMutation = useMutation<unknown, Error, ControlMutationParams, MutationContext>({
+    mutationFn: ({ relay, state }: ControlMutationParams) => controlGpio(relay, state),
+    onMutate: async ({ relay, state }: ControlMutationParams) => {
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries(QUERY_KEYS.GPIO_STATUS)
+      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.GPIO_STATUS })
 
       // Snapshot the previous value
-      const previousStatus = queryClient.getQueryData(QUERY_KEYS.GPIO_STATUS)
+      const previousStatus = queryClient.getQueryData<GpioStatus>(QUERY_KEYS.GPIO_STATUS)
 
       // Optimistically update to the new value
-      queryClient.setQueryData(QUERY_KEYS.GPIO_STATUS, (old) => ({
+      queryClient.setQueryData<GpioStatus>(QUERY_KEYS.GPIO_STATUS, (old) => ({
         ...old,
         [relay]: state
       }))
 
       return { previousStatus }
     },
-    onError: (err, variables, context) => {
+    onError: (_err: Error, _variables: ControlMutationParams, context: MutationContext | undefined) => {
       // Rollback on error
       if (context?.previousStatus) {
         queryClient.setQueryData(QUERY_KEYS.GPIO_STATUS, context.previousStatus)
@@ -59,19 +97,19 @@ export default function GPIO() {
     },
     onSettled: () => {
       // Refetch after mutation
-      queryClient.invalidateQueries(QUERY_KEYS.GPIO_STATUS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GPIO_STATUS })
     },
   })
 
-  const flashMutation = useMutation({
+  const flashMutation = useMutation<unknown, Error>({
     mutationFn: triggerFlash,
   })
 
-  const handleToggle = (relay, currentState) => {
+  const handleToggle = (relay: string, currentState: boolean | undefined): void => {
     controlMutation.mutate({ relay, state: !currentState })
   }
 
-  const handleFlash = () => {
+  const handleFlash = (): void => {
     flashMutation.mutate()
   }
 
@@ -102,7 +140,7 @@ export default function GPIO() {
         {daemonOnline ? (
           <span>
             Daemon connected
-            {healthData.uptime_seconds != null && (
+            {healthData?.uptime_seconds != null && (
               <span className="text-gray-500"> &mdash; uptime {formatUptime(healthData.uptime_seconds)}</span>
             )}
           </span>

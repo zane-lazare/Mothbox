@@ -2,15 +2,51 @@ import { useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { Map as LeafletMap } from 'leaflet'
 import { getPhotosPaginated } from '../utils/api'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import { MAP_CONFIG } from '../constants/config'
-import MapView from '../components/MapView'
+import MapView, { PhotoLocation } from '../components/MapView'
 import PhotoLightbox from '../components/PhotoLightbox'
 import ErrorBoundary from '../components/ErrorBoundary'
 import LightboxErrorFallback from '../components/LightboxErrorFallback'
 import { useClusteredLocations } from '../hooks/useClusteredLocations'
 import useMapLightboxSync from '../hooks/useMapLightboxSync'
+import type { Photo } from '../types/domain'
+
+/**
+ * Pagination metadata returned from API
+ */
+interface PaginationMetadata {
+  offset: number
+  limit: number
+  total: number
+  has_next: boolean
+}
+
+/**
+ * Response structure from getPhotosPaginated API
+ */
+interface PhotosPaginatedResponse {
+  photos: Photo[]
+  pagination: PaginationMetadata
+}
+
+/**
+ * Virtual cluster structure for cluster-like navigation through all photos
+ * Simulates a cluster marker's getAllChildMarkers method
+ */
+interface VirtualCluster {
+  getAllChildMarkers: () => Array<{ options: Photo }>
+}
+
+/**
+ * Error with message and callback for error boundary fallback
+ */
+interface ErrorFallbackProps {
+  error: Error
+  onClose: () => void
+}
 
 /**
  * MapPage - Full-screen immersive map experience for GPS-tagged photos
@@ -33,22 +69,22 @@ import useMapLightboxSync from '../hooks/useMapLightboxSync'
  * <Route path="/gallery/map" element={<MapPage />} />
  */
 export default function MapPage() {
-  const mapRef = useRef(null)
+  const mapRef = useRef<LeafletMap | null>(null)
 
   // Fetch all photos for lightbox navigation
   // Using infinite query to match Gallery.jsx pattern
   const {
     data: photosData,
-  } = useInfiniteQuery({
+  } = useInfiniteQuery<PhotosPaginatedResponse, Error, PhotosPaginatedResponse, string[], number>({
     queryKey: QUERY_KEYS.PHOTOS_INFINITE,
     queryFn: ({ pageParam = 0 }) =>
       getPhotosPaginated({
         limit: MAP_CONFIG.PHOTO_BATCH_SIZE,
         offset: pageParam,
         sort: 'date_desc',
-      }).then((res) => res.data),
+      }).then((res) => res.data as PhotosPaginatedResponse),
     initialPageParam: 0,
-    getNextPageParam: (lastPage) => {
+    getNextPageParam: (lastPage: PhotosPaginatedResponse) => {
       if (lastPage.pagination.has_next) {
         return lastPage.pagination.offset + lastPage.pagination.limit
       }
@@ -58,7 +94,7 @@ export default function MapPage() {
 
   // Flatten all pages into single photo array
   // Memoize to prevent new array reference on each render when data is undefined
-  const photos = useMemo(
+  const photos = useMemo<Photo[]>(
     () => photosData?.pages.flatMap((page) => page.photos) ?? [],
     [photosData?.pages]
   )
@@ -95,13 +131,13 @@ export default function MapPage() {
 
   // Memoize virtual cluster to avoid recreation on every call
   // This pattern allows navigation through all photos even from single marker clicks
-  const virtualCluster = useMemo(() => ({
+  const virtualCluster = useMemo<VirtualCluster>(() => ({
     getAllChildMarkers: () => photos.map(p => ({ options: { ...p } }))
   }), [photos])
 
   // Handle map marker click - open lightbox with the clicked photo
   const handleMapPhotoClick = useCallback(
-    (location) => {
+    (location: PhotoLocation) => {
       // Find the photo object in the photos array by matching the path
       const photo = photos.find((p) => p.path === location.path)
       if (photo) {
@@ -110,11 +146,12 @@ export default function MapPage() {
       } else {
         // Fallback: Create a minimal photo object from location data
         // This ensures the lightbox can still open even if photo isn't in the loaded set
-        const minimalPhoto = {
+        const minimalPhoto: Photo = {
           path: location.path,
           filename: location.filename,
-          thumbnail_url: location.thumbnail_url,
-          date: location.timestamp,
+          thumbnail_url: location.thumbnail_url || '',
+          full_url: location.photo_path || location.path,
+          timestamp: location.timestamp ? new Date(location.timestamp * 1000).toISOString() : new Date().toISOString(),
         }
         onMarkerClick(null, minimalPhoto)
       }
@@ -124,7 +161,7 @@ export default function MapPage() {
 
   // Handle lightbox navigation - simple forward to openLightbox
   const handleNavigate = useCallback(
-    (photo) => {
+    (photo: Photo) => {
       // Validate photo exists in current photos array before navigating
       if (photos.some((p) => p.path === photo.path)) {
         // Open lightbox with new photo (maintains cluster context if present)
@@ -136,7 +173,7 @@ export default function MapPage() {
 
   // Handle location click in lightbox (pan map to coordinates)
   const handleLocationClick = useCallback(
-    (lat, lon) => {
+    (lat: number, lon: number) => {
       if (mapRef.current && lat !== null && lon !== null) {
         try {
           const currentZoom = mapRef.current.getZoom?.() || 13
@@ -213,7 +250,7 @@ export default function MapPage() {
 
       {/* Photo Lightbox with Navigation (wrapped in ErrorBoundary) */}
       <ErrorBoundary
-        fallback={({ error, onClose }) => (
+        fallback={({ error, onClose }: ErrorFallbackProps) => (
           <LightboxErrorFallback error={error} onClose={onClose} />
         )}
         onReset={closeLightbox}
