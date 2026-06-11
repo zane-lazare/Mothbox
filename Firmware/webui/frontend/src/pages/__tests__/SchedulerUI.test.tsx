@@ -53,7 +53,6 @@ vi.mock('../../components/scheduler/ScheduleEditor', () => ({
 }))
 
 // Import the mocked hooks to configure them
-// @ts-expect-error -- .js module
 import { useSchedules } from '../../hooks/useSchedules'
 
 // Create QueryClient wrapper

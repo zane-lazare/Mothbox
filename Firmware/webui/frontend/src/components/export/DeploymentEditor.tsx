@@ -5,9 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import CoordinateInput from './CoordinateInput'
-// @ts-expect-error — ConfirmDialog.jsx has no type declarations (pre-migration)
 import ConfirmDialog from '../common/ConfirmDialog'
-// @ts-expect-error — usePhotoAggregation.js has no type declarations (pre-migration)
 import { usePhotoAggregation } from '../../hooks/usePhotoAggregation'
 import {
   deploymentSchema,

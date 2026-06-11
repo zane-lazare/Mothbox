@@ -185,7 +185,7 @@ export function useCancelExportJob(): UseMutationResult<unknown, Error, string> 
 
   return useMutation({
     mutationFn: (jobId: string) => cancelExportJob(jobId),
-    onSuccess: (response, jobId) => {
+    onSuccess: (_response, jobId) => {
       // Invalidate specific job to update status immediately
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_JOB(jobId) })
       // Invalidate job list to update counts
@@ -220,7 +220,7 @@ export function useDeleteExportJob(): UseMutationResult<unknown, Error, string> 
 
   return useMutation({
     mutationFn: (jobId: string) => deleteExportJob(jobId),
-    onSuccess: (response, jobId) => {
+    onSuccess: (_response, jobId) => {
       // Invalidate specific job cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_JOB(jobId) })
       // Invalidate job list

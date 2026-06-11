@@ -46,19 +46,6 @@ interface PowerStatus {
   error?: string
 }
 
-// GPS Sync Response Types
-interface GPSSyncSuccessResponse {
-  success: true
-  latitude: number
-  longitude: number
-}
-
-interface GPSSyncFailureResponse {
-  success: false
-}
-
-type GPSSyncResponse = GPSSyncSuccessResponse | GPSSyncFailureResponse
-
 export default function Dashboard() {
   const [capturing, setCapturing] = useState<boolean>(false)
   const [syncing, setSyncing] = useState<boolean>(false)

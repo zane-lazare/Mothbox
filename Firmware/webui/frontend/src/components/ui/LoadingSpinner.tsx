@@ -1,5 +1,3 @@
-import React from 'react'
-
 export interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   variant?: 'primary' | 'secondary' | 'light' | 'dark'

@@ -1,4 +1,4 @@
-import type { WebuiSettings, CollapsedCardsState, Preset, PresetsData, ResolutionPreset } from '../../types/settings'
+import type { WebuiSettings, CollapsedCardsState, PresetsData, ResolutionPreset } from '../../types/settings'
 import SettingCard from './SettingCard'
 import { UseMutationResult } from '@tanstack/react-query'
 

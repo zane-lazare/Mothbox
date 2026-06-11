@@ -63,11 +63,6 @@ interface Conflict {
 }
 
 /**
- * Display hour item - either a regular hour or collapsed indicator
- */
-type DisplayHourItem = { type: 'hour'; hour: number } | { type: 'collapsed'; count: number }
-
-/**
  * Component props interface
  */
 export interface DayTimelineProps {

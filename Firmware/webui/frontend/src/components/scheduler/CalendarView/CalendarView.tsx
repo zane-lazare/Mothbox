@@ -60,12 +60,6 @@ interface Execution {
   }>
 }
 
-interface MoonPhase {
-  phase?: string
-  phase_name: string
-  illumination?: number
-}
-
 /**
  * CalendarView component
  *

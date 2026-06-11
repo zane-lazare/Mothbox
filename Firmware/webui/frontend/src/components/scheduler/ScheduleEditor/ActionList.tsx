@@ -1,7 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import InlineActionRow from './InlineActionRow'
-// @ts-expect-error -- .js module
 import { generateUUID } from '../../../utils/uuid'
 import type { RoutineAction } from './scheduler-types'
 

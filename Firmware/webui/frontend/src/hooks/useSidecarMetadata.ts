@@ -120,7 +120,7 @@ export default function useSidecarMetadata(filename: string | null | undefined):
       // Return context for rollback
       return { previousData }
     },
-    onError: (err, updates, context) => {
+    onError: (_err, _updates, context) => {
       // Rollback to previous value on error
       if (context?.previousData) {
         queryClient.setQueryData(['sidecarMetadata', filename], context.previousData)

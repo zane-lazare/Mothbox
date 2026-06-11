@@ -6,11 +6,6 @@ import useTags from '../../hooks/useTags'
 import useSidecarMetadata from '../../hooks/useSidecarMetadata'
 import { METADATA_VALIDATION, Z_INDEX } from '../../constants/config'
 
-interface Tag {
-  name: string
-  count: number
-}
-
 interface QuickTagDropdownProps {
   filename: string
   isOpen: boolean

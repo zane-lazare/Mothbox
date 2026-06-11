@@ -19,7 +19,7 @@ import ExportPreview from '../components/export/ExportPreview';
 import ExportJobProgress from '../components/export/ExportJobProgress';
 import ExportJobList from '../components/export/ExportJobList';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import type { ExportJob, DeploymentMetadata } from '../types';
+import type { ExportJob } from '../types';
 
 // Export format types
 type ExportFormat = 'darwin_core' | 'inaturalist' | 'json' | 'csv';
@@ -57,8 +57,6 @@ const Export = () => {
   const [selectedDeploymentDir, setSelectedDeploymentDir] = useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   // TODO: Implement SavePresetModal component to use this state
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [showSavePresetModal, setShowSavePresetModal] = useState<boolean>(false);
   const [showDeploymentEditor, setShowDeploymentEditor] = useState<boolean>(false);
 
   // Export jobs

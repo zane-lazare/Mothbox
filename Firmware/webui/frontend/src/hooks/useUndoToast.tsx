@@ -4,14 +4,6 @@ import toast from 'react-hot-toast'
 const UNDO_TIMEOUT = 5000 // 5 seconds
 
 /**
- * Parameters for showing an undo toast
- */
-interface ShowUndoToastParams {
-  message: string
-  onUndo: () => void
-}
-
-/**
  * Return type for the useUndoToast hook
  */
 interface UseUndoToastReturn {

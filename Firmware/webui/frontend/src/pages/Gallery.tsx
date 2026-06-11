@@ -66,11 +66,6 @@ interface PhotoSeries {
   cover_photo: string
 }
 
-interface SeriesData {
-  series: PhotoSeries[]
-  total: number
-}
-
 interface GpsExifStatus {
   untagged_count?: number
   [key: string]: unknown
@@ -96,13 +91,6 @@ interface SpeciesData {
   species: string
   species_confidence?: string
   species_common_name?: string
-}
-
-interface ExportProgress {
-  current: number
-  total: number
-  percent: number
-  phase: string
 }
 
 /**

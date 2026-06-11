@@ -183,7 +183,7 @@ export function useDeleteExportPreset(): UseMutationResult<unknown, Error, strin
 
   return useMutation({
     mutationFn: (name: string) => deleteExportPreset(name),
-    onSuccess: (response, name) => {
+    onSuccess: (_response, name) => {
       // Invalidate specific preset cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.EXPORT_PRESET(name) })
       // Invalidate preset list

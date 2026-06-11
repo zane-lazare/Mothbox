@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { XMarkIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
 import { Z_INDEX } from '../../constants/config'
 
 type OperationType = 'tag' | 'species' | 'delete' | 'export'

@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import CronExpressionInput from '../CronExpressionInput'
 import type { CronExpressionInputProps } from '../CronExpressionInput'
 import type { CronValidationResult } from '../../../../hooks/useCronValidation'
-// @ts-expect-error — cronApi.js has no type declarations (pre-migration)
 import * as cronApi from '../../../../utils/cronApi'
 
 // Mock the cronApi module

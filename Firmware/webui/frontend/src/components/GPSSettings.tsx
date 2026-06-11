@@ -1,4 +1,3 @@
-import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getGpsConfig, updateGpsConfig, getGpsStatus, syncGps } from '../utils/api'
 import { formatTimestamp } from '../utils/helpers'

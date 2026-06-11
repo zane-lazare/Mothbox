@@ -1,4 +1,3 @@
-import React from 'react'
 import CopyButton from './CopyButton'
 
 export interface MetadataFieldProps {

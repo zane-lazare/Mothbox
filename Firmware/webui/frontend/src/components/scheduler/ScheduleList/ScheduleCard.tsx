@@ -16,7 +16,6 @@
 
 import { memo, useCallback } from 'react'
 import { EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
-// @ts-expect-error -- .jsx module
 import ActiveScheduleBadge from './ActiveScheduleBadge'
 import {
   getActionColor,

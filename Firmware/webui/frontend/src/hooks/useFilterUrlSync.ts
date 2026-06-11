@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { DATE_PRESETS } from '../utils/filterQueryBuilder'
-import type { FilterState, DateRangeFilter, TagFilter, SpeciesFilter, FileTypeFilter, CameraSettingsFilter, NotesFilter, CustomFieldsFilter } from '../types'
+import type { FilterState, DateRangeFilter, TagFilter, SpeciesFilter, CameraSettingsFilter, NotesFilter, CustomFieldsFilter } from '../types'
 
 /**
  * Filter URL Synchronization Hook

@@ -276,11 +276,11 @@ function useMapLightboxSync({ mapRef }: UseMapLightboxSyncParams): UseMapLightbo
   /**
    * Handler for individual marker clicks
    *
-   * @param {Object} marker - Leaflet marker instance
+   * @param {Object} _marker - Leaflet marker instance (unused)
    * @param {Object} photo - Photo data associated with marker
    */
   const onMarkerClick = useCallback(
-    (marker: Marker, photo: PhotoWithLocation) => {
+    (_marker: Marker, photo: PhotoWithLocation) => {
       openLightbox(photo)
     },
     [openLightbox]

@@ -18,7 +18,7 @@
 
 import { useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import type { UseQueryOptions, UseMutationOptions, UseMutationResult } from '@tanstack/react-query'
+import type { UseQueryOptions, UseMutationResult } from '@tanstack/react-query'
 import type { AxiosResponse } from 'axios'
 import { QUERY_KEYS } from '../utils/queryKeys'
 import {

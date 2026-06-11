@@ -12,7 +12,7 @@
  * @module components/scheduler/ActivationProgress/ActivationProgress
  */
 
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import useSocket from '../../../hooks/useSocket'
 import { PHASE_LABELS } from './constants'
 

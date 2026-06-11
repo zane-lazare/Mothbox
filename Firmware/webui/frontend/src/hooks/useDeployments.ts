@@ -155,7 +155,7 @@ export function useUpdateDeployment(): UseMutationResult<unknown, Error, UpdateD
 
   return useMutation({
     mutationFn: ({ directory, data }: UpdateDeploymentParams) => updateDeployment(directory, data),
-    onSuccess: (response, { directory }) => {
+    onSuccess: (_response, { directory }) => {
       // Invalidate specific deployment to update immediately
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DEPLOYMENT(directory) })
       // Invalidate deployments list to update names/counts
@@ -203,7 +203,7 @@ export function useDeleteDeployment(): UseMutationResult<unknown, Error, string>
 
   return useMutation({
     mutationFn: (directory: string) => deleteDeployment(directory),
-    onSuccess: (response, directory) => {
+    onSuccess: (_response, directory) => {
       // Invalidate specific deployment cache
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DEPLOYMENT(directory) })
       // Invalidate deployments list

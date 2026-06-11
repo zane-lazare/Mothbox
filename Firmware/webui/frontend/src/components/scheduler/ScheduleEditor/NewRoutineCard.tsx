@@ -15,7 +15,6 @@ import TriggerForm from './TriggerForm'
 import PreConditionForm from './PreConditionForm'
 import ActionList from './ActionList'
 import { TRIGGER_DEFAULTS } from './constants'
-// @ts-expect-error -- .js module
 import { generateUUID } from '@/utils/uuid'
 import { intervalTriggerSchema } from '@/schemas/scheduler/interval'
 import { solarTriggerSchema } from '@/schemas/scheduler/solar'

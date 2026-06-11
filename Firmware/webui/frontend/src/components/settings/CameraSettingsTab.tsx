@@ -1,4 +1,4 @@
-import type { CameraSettings, CollapsedCardsState, Preset, PresetsData, Preferences } from '../../types/settings'
+import type { CameraSettings, CollapsedCardsState, PresetsData } from '../../types/settings'
 import { CAMERA_SETTINGS } from '../../constants/config'
 import SettingCard from './SettingCard'
 import { UseMutationResult } from '@tanstack/react-query'

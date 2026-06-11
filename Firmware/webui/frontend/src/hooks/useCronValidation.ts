@@ -7,9 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
-// @ts-expect-error — queryKeys.js has no type declarations (pre-migration)
 import { QUERY_KEYS } from '../utils/queryKeys'
-// @ts-expect-error — cronApi.js has no type declarations (pre-migration)
 import { validateCronExpression } from '../utils/cronApi'
 
 // -- Types -------------------------------------------------------------------

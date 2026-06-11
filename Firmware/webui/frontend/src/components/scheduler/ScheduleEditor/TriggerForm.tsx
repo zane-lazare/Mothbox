@@ -13,7 +13,6 @@ import SensorTriggerForm from './SensorTriggerForm';
 import type { SensorTriggerValue } from './SensorTriggerForm';
 import RecurringDaysTriggerForm from './RecurringDaysTriggerForm';
 import type { RecurringDaysTriggerValue } from './RecurringDaysTriggerForm';
-// @ts-expect-error -- .jsx module
 import ExpertModeToggle from '../ExpertMode/ExpertModeToggle';
 import CronExpressionInput from '../ExpertMode/CronExpressionInput';
 
