@@ -1,7 +1,40 @@
 import { useCallback, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import useSidecarMetadata from './useSidecarMetadata'
+import useSidecarMetadata, { SidecarMetadata, UseSidecarMetadataResult } from './useSidecarMetadata'
 import { TOAST_CONFIG } from '../constants/config'
+
+/**
+ * Operation type for tracking last tag operation
+ */
+interface TagOperation {
+  type: 'add' | 'remove' | null
+  tag: string | null
+}
+
+/**
+ * Return type for useTagOperations hook
+ */
+export interface UseTagOperationsResult {
+  // Query state
+  data: SidecarMetadata | undefined
+  isLoading: boolean
+  isError: boolean
+  isSuccess: boolean
+  error: Error | null
+
+  // Mutation functions with toast notifications
+  addTag: (tag: string) => void
+  removeTag: (tag: string) => void
+
+  // Pass through other mutation functions (no toast)
+  updateTags: (tags: string[]) => void
+  updateSpecies: (species: string) => void
+  updateNotes: (notes: string) => void
+
+  // Mutation state
+  isUpdating: boolean
+  updateError: Error | null
+}
 
 /**
  * Custom hook for tag operations with toast notifications
@@ -13,19 +46,19 @@ import { TOAST_CONFIG } from '../constants/config'
  * - Success: 3 seconds (add/remove successful)
  * - Error: 5 seconds with undo button
  *
- * @param {string|null|undefined} filename - Photo filename
- * @returns {object} Hook state and mutation functions with toast notifications
- * @returns {object} data - Sidecar metadata object with tags, species, notes
- * @returns {boolean} isLoading - Whether the query is currently loading
- * @returns {boolean} isError - Whether an error occurred during fetch
- * @returns {object} error - Error object if fetch failed
- * @returns {Function} addTag - Add a single tag with success/error toast
- * @returns {Function} removeTag - Remove a single tag with success/error toast
- * @returns {Function} updateTags - Update tags array (no toast)
- * @returns {Function} updateSpecies - Update species field (no toast)
- * @returns {Function} updateNotes - Update notes field (no toast)
- * @returns {boolean} isUpdating - Whether a mutation is in progress
- * @returns {object} updateError - Error object if mutation failed
+ * @param filename - Photo filename
+ * @returns Hook state and mutation functions with toast notifications
+ * @returns data - Sidecar metadata object with tags, species, notes
+ * @returns isLoading - Whether the query is currently loading
+ * @returns isError - Whether an error occurred during fetch
+ * @returns error - Error object if fetch failed
+ * @returns addTag - Add a single tag with success/error toast
+ * @returns removeTag - Remove a single tag with success/error toast
+ * @returns updateTags - Update tags array (no toast)
+ * @returns updateSpecies - Update species field (no toast)
+ * @returns updateNotes - Update notes field (no toast)
+ * @returns isUpdating - Whether a mutation is in progress
+ * @returns updateError - Error object if mutation failed
  *
  * @example
  * const { data, addTag, removeTag, isUpdating } = useTagOperations('photo.jpg')
@@ -38,23 +71,23 @@ import { TOAST_CONFIG } from '../constants/config'
  *
  * // On error, toast will show with undo button to revert
  */
-export default function useTagOperations(filename) {
-  const sidecar = useSidecarMetadata(filename)
+export default function useTagOperations(filename: string | null | undefined): UseTagOperationsResult {
+  const sidecar: UseSidecarMetadataResult = useSidecarMetadata(filename)
 
   // Track previous state for undo functionality
-  const previousTagsRef = useRef(null)
+  const previousTagsRef = useRef<string[] | null>(null)
 
   // Track last operation for error handling
-  const lastOperationRef = useRef({ type: null, tag: null })
+  const lastOperationRef = useRef<TagOperation>({ type: null, tag: null })
 
   /**
    * Add a tag with toast notification
    * Shows success toast on add, error toast with undo on failure
    *
-   * @param {string} tag - Tag to add
+   * @param tag - Tag to add
    */
   const addTag = useCallback(
-    (tag) => {
+    (tag: string) => {
       const currentTags = sidecar.data?.tags || []
 
       // Check for duplicate tag
@@ -87,10 +120,10 @@ export default function useTagOperations(filename) {
    * Remove a tag with toast notification
    * Shows success toast on remove, error toast with undo on failure
    *
-   * @param {string} tag - Tag to remove
+   * @param tag - Tag to remove
    */
   const removeTag = useCallback(
-    (tag) => {
+    (tag: string) => {
       const currentTags = sidecar.data?.tags || []
 
       // Check if tag exists
@@ -125,7 +158,7 @@ export default function useTagOperations(filename) {
    * so we use custom content with a button
    */
   const showErrorWithUndo = useCallback(
-    (operation, tag) => {
+    (operation: 'add' | 'remove', tag: string) => {
       const undoTags = previousTagsRef.current
 
       if (undoTags) {
@@ -164,7 +197,7 @@ export default function useTagOperations(filename) {
   // Note: The rollback already happens in useSidecarMetadata's onError
   // We just need to notify the user with the option to manually undo
   // Track previous error reference to detect new errors vs same error persisting
-  const prevErrorRef = useRef(null)
+  const prevErrorRef = useRef<Error | null>(null)
 
   useEffect(() => {
     // Only show toast if this is a new error (not the same reference)

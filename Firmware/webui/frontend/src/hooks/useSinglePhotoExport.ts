@@ -39,20 +39,45 @@
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useCreateExportJob, useExportJob } from './useExportJobs'
-import { getExportJobDownloadUrl } from '../utils/exportApi'
+import { getExportJobDownloadUrl, type ExportFormat, type ExportJobProgress } from '../utils/exportApi'
 
-interface Progress {
-  current: number
-  total: number
-  percent: number
-  phase: string
+/**
+ * Hook parameters interface
+ */
+export interface UseSinglePhotoExportParams {
+  // Currently no parameters, but interface provided for future extensibility
 }
 
-interface UseSinglePhotoExportResult {
-  exportPhoto: (photoPath: string, format: string) => void
+/**
+ * Hook return type interface
+ */
+export interface UseSinglePhotoExportReturn {
+  /**
+   * Start export for a single photo
+   *
+   * @param photoPath - Absolute path to photo file
+   * @param format - Export format (json, csv, darwin_core, inaturalist)
+   */
+  exportPhoto: (photoPath: string, format: ExportFormat) => void
+
+  /**
+   * Whether export is in progress
+   */
   isExporting: boolean
-  progress: Progress | null
+
+  /**
+   * Progress data: { current, total, percent, phase }
+   */
+  progress: ExportJobProgress | null
+
+  /**
+   * Error message if export failed
+   */
   error: string | null
+
+  /**
+   * Clear error and progress state
+   */
   reset: () => void
 }
 
