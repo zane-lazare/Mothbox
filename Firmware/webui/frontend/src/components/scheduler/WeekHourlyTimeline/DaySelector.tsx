@@ -8,10 +8,19 @@
  */
 
 import { memo } from 'react'
-import PropTypes from 'prop-types'
 import { isToday } from './weekTimelineUtils'
 
 const CALENDAR_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+/**
+ * Component props interface
+ */
+export interface DaySelectorProps {
+  weekDates: Date[]
+  currentIndex: number
+  onDaySelect: (index: number) => void
+  patternOffset?: number | null
+}
 
 /**
  * DaySelector component
@@ -26,7 +35,7 @@ const CALENDAR_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
  * @param {number|null} [props.patternOffset=null] - Pattern offset for pattern mode (0, 7, 14, etc.)
  * @returns {JSX.Element} Day selector component
  */
-function DaySelector({ weekDates, currentIndex, onDaySelect, patternOffset = null }) {
+function DaySelector({ weekDates, currentIndex, onDaySelect, patternOffset = null }: DaySelectorProps) {
   return (
     <div
       className="flex justify-center gap-2 py-3 bg-gray-900 border-b border-gray-700"
@@ -85,17 +94,6 @@ function DaySelector({ weekDates, currentIndex, onDaySelect, patternOffset = nul
       })}
     </div>
   )
-}
-
-DaySelector.propTypes = {
-  /** Array of 7 Date objects for the week */
-  weekDates: PropTypes.arrayOf(PropTypes.instanceOf(Date)).isRequired,
-  /** Currently selected day index (0-6) */
-  currentIndex: PropTypes.number.isRequired,
-  /** Handler when a day button is clicked */
-  onDaySelect: PropTypes.func.isRequired,
-  /** Pattern offset for pattern mode (null for calendar mode) */
-  patternOffset: PropTypes.number,
 }
 
 export default memo(DaySelector)
