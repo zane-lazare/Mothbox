@@ -2,6 +2,22 @@ import { useEffect, useState } from 'react'
 import { getPhotoUrl } from '../utils/api'
 
 /**
+ * Photo object with required path property
+ */
+interface Photo {
+  path: string
+  [key: string]: unknown
+}
+
+/**
+ * Return type for useImagePreload hook
+ */
+interface UseImagePreloadResult {
+  currentImage: string | null
+  isLoading: boolean
+}
+
+/**
  * Custom hook for progressive image preloading in the photo lightbox.
  *
  * Preloads the current image first (priority), then preloads adjacent images
@@ -46,9 +62,13 @@ import { getPhotoUrl } from '../utils/api'
  * - Automatic cleanup on unmount
  * - Restarts preload sequence when currentPhoto changes
  */
-function useImagePreload({ currentPhoto, photos, currentIndex }) {
+function useImagePreload({ currentPhoto, photos, currentIndex }: {
+  currentPhoto: Photo | null
+  photos: Photo[] | null
+  currentIndex: number
+}): UseImagePreloadResult {
   const [isLoading, setIsLoading] = useState(true)
-  const [currentImage, setCurrentImage] = useState(null)
+  const [currentImage, setCurrentImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!currentPhoto || !photos || currentIndex < 0) {
@@ -62,7 +82,7 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     // Build list of images to preload (max 3: current + next + prev)
     // Note: Rapid navigation is handled by cleanup - previous effect cancels
     // pending loads before starting new ones, preventing request queue buildup
-    const imagesToPreload = []
+    const imagesToPreload: Array<{ url: string; priority: string }> = []
 
     // Always load current image first
     const currentUrl = getPhotoUrl(currentPhoto.path)
@@ -83,7 +103,7 @@ function useImagePreload({ currentPhoto, photos, currentIndex }) {
     }
 
     // Track loaded images - create ALL images synchronously for proper cleanup
-    const images = []
+    const images: HTMLImageElement[] = []
 
     // Create current image
     const currentImg = new Image()

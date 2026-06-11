@@ -23,12 +23,21 @@ import {
   getActiveFilterSummaries,
 } from '../utils/filterQueryBuilder'
 
+interface UseFiltersResult {
+  searchQuery: string
+  hasFilters: boolean
+  activeFilterCount: number
+  filterSummaries: Array<{ type: string; label: string }>
+  isFilterActive: (filterType: string) => boolean
+  [key: string]: unknown
+}
+
 /**
  * Main filters hook
  *
- * @returns {Object} Filter state, computed values, and utility functions
+ * @returns Filter state, computed values, and utility functions
  */
-export function useFilters() {
+export function useFilters(): UseFiltersResult {
   const context = useFilterContext()
 
   // Get the filter query string for search API
@@ -114,10 +123,10 @@ export function useFilters() {
   /**
    * Check if a specific filter type is active
    *
-   * @param {string} filterType - Filter type to check
-   * @returns {boolean} True if filter type has active values
+   * @param filterType - Filter type to check
+   * @returns True if filter type has active values
    */
-  const isFilterActive = (filterType) => {
+  const isFilterActive = (filterType: string): boolean => {
     switch (filterType) {
       case 'dateRange':
         return (
@@ -126,14 +135,14 @@ export function useFilters() {
           !!context.dateRange?.endDate
         )
       case 'tags':
-        return context.tags?.selected?.length > 0
+        return context.tags?.selected?.length ? context.tags.selected.length > 0 : false
       case 'species':
         return (
-          context.species?.selected?.length > 0 ||
+          (context.species?.selected?.length ? context.species.selected.length > 0 : false) ||
           context.species?.includeUnidentified === true
         )
       case 'fileTypes':
-        return context.fileTypes?.selected?.length > 0
+        return context.fileTypes?.selected?.length ? context.fileTypes.selected.length > 0 : false
       case 'cameraSettings': {
         const { iso, aperture, shutterSpeed } = context.cameraSettings || {}
         return (
@@ -172,16 +181,23 @@ export function useFilters() {
   }
 }
 
+interface UseDebouncedFiltersResult {
+  debouncedQuery: string
+  hasFilters: boolean
+  activeFilterCount: number
+  isDebouncing: boolean
+}
+
 /**
  * Debounced filters hook
  *
  * Returns debounced search query to avoid excessive API calls when
  * users are adjusting filters rapidly.
  *
- * @param {number} delay - Debounce delay in milliseconds (default: 300)
- * @returns {Object} Debounced query and filter state
+ * @param delay - Debounce delay in milliseconds (default: 300)
+ * @returns Debounced query and filter state
  */
-export function useDebouncedFilters(delay = 300) {
+export function useDebouncedFilters(delay = 300): UseDebouncedFiltersResult {
   const { searchQuery, hasFilters, activeFilterCount } = useFilters()
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery)
 
