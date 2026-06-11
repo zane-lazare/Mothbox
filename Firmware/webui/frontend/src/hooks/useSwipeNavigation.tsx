@@ -1,6 +1,34 @@
 import { useState, useCallback, useRef } from 'react'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
 
+interface TouchPosition {
+  x: number
+  y: number
+}
+
+interface SwipeNavigationOptions {
+  totalItems: number
+  visibleItems?: number
+  onPageChange?: (startIndex: number, endIndex: number) => void
+}
+
+interface TouchHandlers {
+  onTouchStart: (e: React.TouchEvent) => void
+  onTouchMove: (e: React.TouchEvent) => void
+  onTouchEnd: () => void
+}
+
+interface SwipeNavigationReturn {
+  currentPage: number
+  totalPages: number
+  startIndex: number
+  endIndex: number
+  handlers: TouchHandlers
+  goToPage: (page: number) => void
+  goNext: () => void
+  goPrev: () => void
+}
+
 /**
  * Custom hook for swipe-based navigation with touch gestures
  *
@@ -45,10 +73,10 @@ export function useSwipeNavigation({
   totalItems,
   visibleItems = HOVER_POPUP_CONFIG.MAX_PHOTOS,
   onPageChange,
-}) {
+}: SwipeNavigationOptions): SwipeNavigationReturn {
   const [currentPage, setCurrentPage] = useState(0)
-  const touchStartRef = useRef({ x: 0, y: 0 })
-  const touchEndRef = useRef({ x: 0, y: 0 })
+  const touchStartRef = useRef<TouchPosition>({ x: 0, y: 0 })
+  const touchEndRef = useRef<TouchPosition>({ x: 0, y: 0 })
 
   const totalPages = Math.ceil(totalItems / visibleItems)
 
@@ -56,7 +84,7 @@ export function useSwipeNavigation({
   const endIndex = Math.min(startIndex + visibleItems, totalItems)
 
   const goToPage = useCallback(
-    (page) => {
+    (page: number) => {
       const newPage = Math.max(0, Math.min(page, totalPages - 1))
       setCurrentPage(newPage)
       const newStart = newPage * visibleItems
@@ -78,14 +106,14 @@ export function useSwipeNavigation({
     }
   }, [currentPage, goToPage])
 
-  const onTouchStart = useCallback((e) => {
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartRef.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
     }
   }, [])
 
-  const onTouchMove = useCallback((e) => {
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
     touchEndRef.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,

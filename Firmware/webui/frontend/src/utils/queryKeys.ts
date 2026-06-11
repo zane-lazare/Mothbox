@@ -34,6 +34,10 @@ export const QUERY_KEYS = {
   // Scheduler queries
   SCHEDULES: ['schedules'] as const,
   SCHEDULE: (id: string) => ['schedule', id] as const,
+  ACTIVE_SCHEDULE: ['active-schedule'] as const,
+  SCHEDULE_PREVIEW: (id: string) => ['schedule-preview', id] as const,
+  NEXT_ACTIONS: ['next-actions'] as const,
+  BUILTIN_SCHEDULES: ['builtin-schedules'] as const,
   SCHEDULE_CONFLICTS: ['schedule-conflicts'] as const,
 
   // Export queries
