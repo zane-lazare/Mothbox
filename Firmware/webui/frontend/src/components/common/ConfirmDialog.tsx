@@ -1,8 +1,28 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import PropTypes from 'prop-types'
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { Z_INDEX } from '../../constants/config'
+
+export interface ConfirmDialogProps {
+  /** Whether the dialog is open */
+  isOpen: boolean
+  /** Close handler (Cancel button or backdrop click) */
+  onClose: () => void
+  /** Confirm handler (Confirm button click) */
+  onConfirm: () => void
+  /** Dialog title */
+  title: string
+  /** Dialog message/description */
+  message: string
+  /** Confirm button label */
+  confirmLabel?: string
+  /** Cancel button label */
+  cancelLabel?: string
+  /** Visual variant: 'default', 'warning', or 'danger' */
+  variant?: 'default' | 'warning' | 'danger'
+  /** Loading state - disables buttons */
+  isLoading?: boolean
+}
 
 /**
  * ConfirmDialog Component
@@ -43,14 +63,14 @@ export default function ConfirmDialog({
   cancelLabel = 'Cancel',
   variant = 'default',
   isLoading = false
-}) {
-  const confirmButtonRef = useRef(null)
+}: ConfirmDialogProps) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   // Handle Escape key
   useEffect(() => {
     if (!isOpen) return
 
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isLoading) {
         onClose()
       }
@@ -178,25 +198,4 @@ export default function ConfirmDialog({
   )
 
   return createPortal(modal, document.body)
-}
-
-ConfirmDialog.propTypes = {
-  /** Whether the dialog is open */
-  isOpen: PropTypes.bool.isRequired,
-  /** Close handler (Cancel button or backdrop click) */
-  onClose: PropTypes.func.isRequired,
-  /** Confirm handler (Confirm button click) */
-  onConfirm: PropTypes.func.isRequired,
-  /** Dialog title */
-  title: PropTypes.string.isRequired,
-  /** Dialog message/description */
-  message: PropTypes.string.isRequired,
-  /** Confirm button label */
-  confirmLabel: PropTypes.string,
-  /** Cancel button label */
-  cancelLabel: PropTypes.string,
-  /** Visual variant: 'default', 'warning', or 'danger' */
-  variant: PropTypes.oneOf(['default', 'warning', 'danger']),
-  /** Loading state - disables buttons */
-  isLoading: PropTypes.bool
 }

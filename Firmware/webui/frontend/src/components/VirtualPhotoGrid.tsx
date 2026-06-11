@@ -1,11 +1,10 @@
-import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react';
-import PropTypes from 'prop-types';
-import { Grid as FixedSizeGrid } from 'react-window';
-import useVirtualGrid from '../hooks/useVirtualGrid';
-import VirtualPhotoGridItem from './VirtualPhotoGridItem';
-import EmptyStateMessage from './EmptyStateMessage';
-import { GALLERY_CONFIG } from '../constants/config';
-import { debounce } from '../utils/debounce';
+import React, { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react'
+import { Grid as FixedSizeGrid, GridChildComponentProps } from 'react-window'
+import useVirtualGrid from '../hooks/useVirtualGrid'
+import VirtualPhotoGridItem from './VirtualPhotoGridItem'
+import EmptyStateMessage from './EmptyStateMessage'
+import { GALLERY_CONFIG } from '../constants/config'
+import { debounce } from '../utils/debounce'
 
 /**
  * VirtualPhotoGrid - Virtualized photo grid using react-window
@@ -21,6 +20,29 @@ import { debounce } from '../utils/debounce';
  *
  * Note: Infinite scroll loading indicators are managed by parent Gallery component
  */
+
+export interface VirtualPhotoGridPhoto {
+  path: string
+  filename: string
+  size?: number
+  timestamp?: number
+}
+
+export interface VirtualPhotoGridOptions {
+  gap?: number
+  aspectRatio?: number
+  thumbnailSize?: 64 | 128 | 256
+}
+
+export interface VirtualPhotoGridProps {
+  photos?: VirtualPhotoGridPhoto[]
+  isLoading?: boolean
+  onPhotoClick?: (photo: VirtualPhotoGridPhoto) => void
+  viewMode?: 'grid' | 'list'
+  options?: VirtualPhotoGridOptions
+  scrollRef?: React.RefObject<HTMLElement>
+}
+
 const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   photos = [],
   isLoading = false,
@@ -28,7 +50,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
   viewMode = 'grid',
   options = {},
   scrollRef
-}) {
+}: VirtualPhotoGridProps) {
   // Calculate responsive viewport height
   const [viewportHeight, setViewportHeight] = useState(() => {
     // Default: configured ratio of window height or minimum for good UX
@@ -37,8 +59,8 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
           window.innerHeight * GALLERY_CONFIG.VIRTUALIZATION.VIEWPORT_HEIGHT_RATIO,
           GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT
         )
-      : GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT;
-  });
+      : GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT
+  })
 
   // Stable callback for height calculation
   const updateViewportHeight = useCallback(() => {
@@ -47,8 +69,8 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
         window.innerHeight * GALLERY_CONFIG.VIRTUALIZATION.VIEWPORT_HEIGHT_RATIO,
         GALLERY_CONFIG.VIRTUALIZATION.MIN_VIEWPORT_HEIGHT
       )
-    );
-  }, []);
+    )
+  }, [])
 
   // Update viewport height on window resize with debouncing
   useEffect(() => {
@@ -56,21 +78,21 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     const debouncedResize = debounce(
       updateViewportHeight,
       GALLERY_CONFIG.VIRTUALIZATION.RESIZE_DEBOUNCE_MS
-    );
+    )
 
-    window.addEventListener('resize', debouncedResize);
+    window.addEventListener('resize', debouncedResize)
     return () => {
-      window.removeEventListener('resize', debouncedResize);
-      debouncedResize.cancel(); // Cancel pending updates on unmount
-    };
-  }, [updateViewportHeight]);
+      window.removeEventListener('resize', debouncedResize)
+      debouncedResize.cancel() // Cancel pending updates on unmount
+    }
+  }, [updateViewportHeight])
 
   // Memoize breakpoints object to prevent unnecessary recalculations
   // viewMode changes infrequently (only on user toggle), so this is efficient
   const breakpoints = useMemo(
     () => (viewMode === 'list' ? { sm: 0 } : undefined),
     [viewMode]
-  );
+  )
 
   // Get grid layout parameters
   const {
@@ -84,24 +106,24 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
     gap: options.gap,
     aspectRatio: options.aspectRatio,
     breakpoints // Force 1 column for list view
-  });
+  })
 
   // Use ref to avoid stale closure in Cell callback
   // Critical: Prevents Cell from recreating on every photo array change (infinite scroll)
   // Without this, react-window would re-render ALL cells on every new page load
   // Update ref synchronously before render to avoid 1-frame delay during rapid infinite scroll
-  const photosRef = useRef(photos);
-  photosRef.current = photos;
+  const photosRef = useRef(photos)
+  photosRef.current = photos
 
   // Cell renderer for react-window
   // IMPORTANT: photos is accessed via photosRef.current to avoid dependency
   // This keeps Cell reference stable during infinite scroll, preventing unnecessary re-renders
-  const Cell = useCallback(({ columnIndex, rowIndex, style }) => {
-    const photoIndex = rowIndex * columnCount + columnIndex;
-    const photo = photosRef.current[photoIndex];
+  const Cell = useCallback(({ columnIndex, rowIndex, style }: GridChildComponentProps) => {
+    const photoIndex = rowIndex * columnCount + columnIndex
+    const photo = photosRef.current[photoIndex]
 
     // Handle partial last row
-    if (!photo) return null;
+    if (!photo) return null
 
     return (
       <div style={style}>
@@ -111,12 +133,12 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
           onClick={() => onPhotoClick?.(photo)}
         />
       </div>
-    );
-  }, [columnCount, onPhotoClick, options.thumbnailSize]); // photos removed from deps
+    )
+  }, [columnCount, onPhotoClick, options.thumbnailSize]) // photos removed from deps
 
   // Empty state
   if (!isLoading && photos.length === 0) {
-    return <EmptyStateMessage message="No photos found" />;
+    return <EmptyStateMessage message="No photos found" />
   }
 
   // Loading state (skeleton grid)
@@ -127,7 +149,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
           <div key={i} className="skeleton-loader aspect-[4/3]" />
         ))}
       </div>
-    );
+    )
   }
 
   return (
@@ -147,27 +169,7 @@ const VirtualPhotoGrid = memo(function VirtualPhotoGrid({
       </FixedSizeGrid>
       {/* Note: Infinite scroll sentinel is managed by parent Gallery component */}
     </div>
-  );
-});
+  )
+})
 
-VirtualPhotoGrid.propTypes = {
-  photos: PropTypes.arrayOf(
-    PropTypes.shape({
-      path: PropTypes.string.isRequired,
-      filename: PropTypes.string.isRequired,
-      size: PropTypes.number,
-      timestamp: PropTypes.number,
-    })
-  ).isRequired,
-  isLoading: PropTypes.bool,
-  onPhotoClick: PropTypes.func,
-  viewMode: PropTypes.oneOf(['grid', 'list']),
-  options: PropTypes.shape({
-    gap: PropTypes.number,
-    aspectRatio: PropTypes.number,
-    thumbnailSize: PropTypes.oneOf([64, 128, 256]),
-  }),
-  scrollRef: PropTypes.object // Ref for scroll restoration
-};
-
-export default VirtualPhotoGrid;
+export default VirtualPhotoGrid

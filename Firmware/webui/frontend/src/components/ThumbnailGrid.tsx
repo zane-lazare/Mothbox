@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback, useMemo, memo } from 'react'
-import PropTypes from 'prop-types'
 import ThumbnailSkeleton from './ThumbnailSkeleton'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation'
@@ -47,6 +46,30 @@ import { useSwipeNavigation } from '../hooks/useSwipeNavigation'
  * // Empty state
  * <ThumbnailGrid photos={[]} />
  */
+
+export interface ThumbnailGridPhoto {
+  path: string
+  filename?: string
+  thumbnail_url?: string
+  lat?: number
+  lon?: number
+  latitude?: number
+  longitude?: number
+  timestamp?: string
+  tags?: string[]
+}
+
+export interface ThumbnailGridProps {
+  photos?: ThumbnailGridPhoto[]
+  maxPhotos?: number
+  thumbnailSize?: number
+  onPhotoClick?: (photo: ThumbnailGridPhoto) => void
+  isLoading?: boolean
+  className?: string
+  enableSwipe?: boolean
+  showPagination?: boolean
+}
+
 function ThumbnailGrid({
   photos = [],
   maxPhotos = HOVER_POPUP_CONFIG.MAX_PHOTOS,
@@ -56,10 +79,10 @@ function ThumbnailGrid({
   className = '',
   enableSwipe = false,
   showPagination = false,
-}) {
+}: ThumbnailGridProps) {
   // State for keyboard navigation
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const buttonRefs = useRef([])
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   // Calculate grid columns from config (used for keyboard navigation)
   const gridColumns = HOVER_POPUP_CONFIG.GRID_SIZE
@@ -95,7 +118,7 @@ function ThumbnailGrid({
    * Supports arrow keys, Home, End, Enter, and Space
    */
   const handleKeyDown = useCallback(
-    (e, index) => {
+    (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
       const maxIndex = displayPhotos.length - 1
       let newIndex = index
 
@@ -202,29 +225,6 @@ function ThumbnailGrid({
       )}
     </div>
   )
-}
-
-ThumbnailGrid.propTypes = {
-  photos: PropTypes.arrayOf(
-    PropTypes.shape({
-      path: PropTypes.string.isRequired,
-      filename: PropTypes.string,
-      thumbnail_url: PropTypes.string,
-      lat: PropTypes.number,
-      lon: PropTypes.number,
-      latitude: PropTypes.number,
-      longitude: PropTypes.number,
-      timestamp: PropTypes.string,
-      tags: PropTypes.arrayOf(PropTypes.string),
-    })
-  ),
-  maxPhotos: PropTypes.number,
-  thumbnailSize: PropTypes.number,
-  onPhotoClick: PropTypes.func,
-  isLoading: PropTypes.bool,
-  className: PropTypes.string,
-  enableSwipe: PropTypes.bool,
-  showPagination: PropTypes.bool,
 }
 
 export default memo(ThumbnailGrid)
