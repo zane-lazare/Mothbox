@@ -146,14 +146,14 @@ export default function CameraControls({
         <div>
           <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
             <span>Sharpness</span>
-            <span className="text-blue-300 font-mono">{liveControls.sharpness.toFixed(1)}</span>
+            <span className="text-blue-300 font-mono">{(liveControls.sharpness ?? 1.0).toFixed(1)}</span>
           </label>
           <input
             type="range"
             min="0"
             max="4"
             step="0.1"
-            value={liveControls.sharpness}
+            value={liveControls.sharpness ?? 1.0}
             onChange={(e) => onControlChange(toPicameraControl('sharpness'), parseFloat(e.target.value))}
             className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
@@ -168,14 +168,14 @@ export default function CameraControls({
         <div>
           <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
             <span>Brightness</span>
-            <span className="text-blue-300 font-mono">{liveControls.brightness.toFixed(1)}</span>
+            <span className="text-blue-300 font-mono">{(liveControls.brightness ?? 0.0).toFixed(1)}</span>
           </label>
           <input
             type="range"
             min="-1"
             max="1"
             step="0.1"
-            value={liveControls.brightness}
+            value={liveControls.brightness ?? 0.0}
             onChange={(e) => onControlChange(toPicameraControl('brightness'), parseFloat(e.target.value))}
             className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
@@ -190,14 +190,14 @@ export default function CameraControls({
         <div>
           <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
             <span>Contrast</span>
-            <span className="text-blue-300 font-mono">{liveControls.contrast.toFixed(1)}</span>
+            <span className="text-blue-300 font-mono">{(liveControls.contrast ?? 1.0).toFixed(1)}</span>
           </label>
           <input
             type="range"
             min="0"
             max="4"
             step="0.1"
-            value={liveControls.contrast}
+            value={liveControls.contrast ?? 1.0}
             onChange={(e) => onControlChange(toPicameraControl('contrast'), parseFloat(e.target.value))}
             className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
@@ -212,14 +212,14 @@ export default function CameraControls({
         <div>
           <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
             <span>Saturation</span>
-            <span className="text-blue-300 font-mono">{liveControls.saturation.toFixed(1)}</span>
+            <span className="text-blue-300 font-mono">{(liveControls.saturation ?? 1.0).toFixed(1)}</span>
           </label>
           <input
             type="range"
             min="0"
             max="4"
             step="0.1"
-            value={liveControls.saturation}
+            value={liveControls.saturation ?? 1.0}
             onChange={(e) => onControlChange(toPicameraControl('saturation'), parseFloat(e.target.value))}
             className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
@@ -238,14 +238,14 @@ export default function CameraControls({
           <div className="mb-3">
             <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
               <span>Red Gain</span>
-              <span className="text-red-300 font-mono">{liveControls.colourGainRed.toFixed(3)}</span>
+              <span className="text-red-300 font-mono">{(liveControls.colourGainRed ?? 1.5).toFixed(3)}</span>
             </label>
             <input
               type="range"
               min="1.0"
               max="4.0"
               step="0.001"
-              value={liveControls.colourGainRed}
+              value={liveControls.colourGainRed ?? 1.5}
               onChange={(e) => onControlChange(toPicameraControl('colourGainRed'), parseFloat(e.target.value))}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-red-500"
             />
@@ -260,14 +260,14 @@ export default function CameraControls({
           <div>
             <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
               <span>Blue Gain</span>
-              <span className="text-blue-300 font-mono">{liveControls.colourGainBlue.toFixed(3)}</span>
+              <span className="text-blue-300 font-mono">{(liveControls.colourGainBlue ?? 1.5).toFixed(3)}</span>
             </label>
             <input
               type="range"
               min="1.0"
               max="4.0"
               step="0.001"
-              value={liveControls.colourGainBlue}
+              value={liveControls.colourGainBlue ?? 1.5}
               onChange={(e) => onControlChange(toPicameraControl('colourGainBlue'), parseFloat(e.target.value))}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
@@ -312,7 +312,7 @@ export default function CameraControls({
             <div className="pt-2 mt-2">
               <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
                 <span>⏱️ Exposure Time</span>
-                <span className="text-orange-300 font-mono">{liveControls.exposureTime} µs</span>
+                <span className="text-orange-300 font-mono">{liveControls.exposureTime as number} µs</span>
               </label>
               <input
                 type="range"
@@ -320,7 +320,7 @@ export default function CameraControls({
                 max="100"
                 step="1"
                 value={(() => {
-                  const exposure = liveControls.exposureTime || 500
+                  const exposure = (liveControls.exposureTime as number) || 500
                   const minLog = Math.log2(100)
                   const maxLog = Math.log2(200000)
                   const logValue = Math.log2(Math.max(100, Math.min(200000, exposure)))
@@ -348,14 +348,14 @@ export default function CameraControls({
             <div className="pt-2 mt-2">
               <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
                 <span>📈 Gain (ISO)</span>
-                <span className="text-orange-300 font-mono">{liveControls.analogueGain.toFixed(1)}x</span>
+                <span className="text-orange-300 font-mono">{(liveControls.analogueGain ?? 1.0).toFixed(1)}x</span>
               </label>
               <input
                 type="range"
                 min="1"
                 max="16"
                 step="0.5"
-                value={liveControls.analogueGain}
+                value={liveControls.analogueGain ?? 1.0}
                 onChange={(e) => {
                   const newValue = parseFloat(e.target.value)
                   setLiveControls(prev => ({ ...prev, analogueGain: newValue }))
@@ -379,7 +379,7 @@ export default function CameraControls({
               📊 Metering Mode
             </label>
             <select
-              value={liveControls.aeMeteringMode}
+              value={liveControls.aeMeteringMode as number}
               onChange={(e) => onControlChange(toPicameraControl('aeMeteringMode'), parseInt(e.target.value))}
               className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
@@ -401,7 +401,7 @@ export default function CameraControls({
             🎯 Focus Mode
           </label>
           <select
-            value={liveControls.afMode}
+            value={liveControls.afMode as number}
             onChange={(e) => {
               const newValue = parseInt(e.target.value)
               setLiveControls(prev => ({ ...prev, afMode: newValue }))
@@ -425,14 +425,14 @@ export default function CameraControls({
           <div className="pt-2 mt-2">
             <label className="flex justify-between items-center text-xs font-medium text-gray-200 mb-1">
               <span>🔍 Lens Position</span>
-              <span className="text-orange-300 font-mono">{liveControls.lensPosition.toFixed(1)} dpt</span>
+              <span className="text-orange-300 font-mono">{(liveControls.lensPosition ?? 0.0).toFixed(1)} dpt</span>
             </label>
             <input
               type="range"
               min="0"
               max="10"
               step="0.1"
-              value={liveControls.lensPosition}
+              value={liveControls.lensPosition ?? 0.0}
               onChange={(e) => {
                 const newValue = parseFloat(e.target.value)
                 setLiveControls(prev => ({ ...prev, lensPosition: newValue }))
@@ -455,7 +455,7 @@ export default function CameraControls({
               📏 AF Range
             </label>
             <select
-              value={liveControls.afRange}
+              value={liveControls.afRange as number}
               onChange={(e) => onControlChange(toPicameraControl('afRange'), parseInt(e.target.value))}
               className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             >
@@ -478,7 +478,7 @@ export default function CameraControls({
               ⚡ AF Speed
             </label>
             <select
-              value={liveControls.afSpeed}
+              value={liveControls.afSpeed as number}
               onChange={(e) => onControlChange(toPicameraControl('afSpeed'), parseInt(e.target.value))}
               className="w-full px-2 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             >
@@ -502,7 +502,7 @@ export default function CameraControls({
             </span>
           </label>
           <select
-            value={liveControls.noiseReductionMode}
+            value={liveControls.noiseReductionMode as number}
             onChange={(e) => onControlChange(toPicameraControl('noiseReductionMode'), parseInt(e.target.value))}
             className="w-full px-2 py-1.5 bg-white/20 text-white text-xs rounded border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -583,7 +583,7 @@ export default function CameraControls({
             <span>🔍 Focus Peaking</span>
             <input
               type="checkbox"
-              checked={liveControls.focusPeakingEnabled}
+              checked={liveControls.focusPeakingEnabled as boolean}
               onChange={(e) => {
                 const enabled = e.target.checked
                 setLiveControls(prev => ({ ...prev, focusPeakingEnabled: enabled }))
@@ -599,14 +599,14 @@ export default function CameraControls({
               <div>
                 <label className="flex justify-between items-center text-[10px] text-gray-300 mb-1">
                   <span>Intensity</span>
-                  <span className="text-green-300 font-mono">{liveControls.focusPeakingIntensity}</span>
+                  <span className="text-green-300 font-mono">{liveControls.focusPeakingIntensity as number}</span>
                 </label>
                 <input
                   type="range"
                   min="50"
                   max="200"
                   step="10"
-                  value={liveControls.focusPeakingIntensity}
+                  value={liveControls.focusPeakingIntensity as number}
                   onChange={(e) => {
                     const value = parseInt(e.target.value)
                     setLiveControls(prev => ({ ...prev, focusPeakingIntensity: value }))
@@ -625,9 +625,9 @@ export default function CameraControls({
               <div>
                 <label className="text-[10px] text-gray-300 mb-1 block">Colour</label>
                 <select
-                  value={liveControls.focusPeakingColour}
+                  value={liveControls.focusPeakingColour as string}
                   onChange={(e) => {
-                    const colour = e.target.value as LiveControls['focusPeakingColour']
+                    const colour = e.target.value
                     setLiveControls(prev => ({ ...prev, focusPeakingColour: colour }))
                     debouncedEmitControl('FocusPeakingColour', colour)
                   }}
@@ -645,9 +645,9 @@ export default function CameraControls({
               <div>
                 <label className="text-[10px] text-gray-300 mb-1 block">Algorithm</label>
                 <select
-                  value={liveControls.focusPeakingAlgorithm}
+                  value={liveControls.focusPeakingAlgorithm as string}
                   onChange={(e) => {
-                    const algorithm = e.target.value as LiveControls['focusPeakingAlgorithm']
+                    const algorithm = e.target.value
                     setLiveControls(prev => ({ ...prev, focusPeakingAlgorithm: algorithm }))
                     debouncedEmitControl('FocusPeakingAlgorithm', algorithm)
                   }}

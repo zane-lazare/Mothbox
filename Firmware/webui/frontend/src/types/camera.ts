@@ -38,16 +38,33 @@ export interface CameraMetadata {
   colour_gains?: [number, number]
   lens_position?: number
   focus_fo_m?: number
+  focus_fom?: number
   af_state?: string
   lux?: number
   colour_temperature?: number
+  actual_zoom_center_x?: number
+  actual_zoom_center_y?: number
+  crop_fraction_x?: number
+  crop_fraction_y?: number
+  error?: string
+  sensor_timestamp?: number
+  frame_duration?: number
+  sensor_black_level?: number
+  sensor_temperature?: number
+  scaler_crop?: [number, number, number, number]
+  ae_locked?: boolean
+  awb_locked?: boolean
+  saturation?: number
+  contrast?: number
+  sharpness?: number
+  brightness?: number
 }
 
 export interface ActionResult {
-  success: boolean
-  type?: 'success' | 'error' | 'warning'
-  title?: string
-  message?: string
+  success?: boolean
+  type: 'success' | 'error' | 'warning'
+  title: string
+  message: string
   error?: string
 }
 
@@ -79,11 +96,28 @@ export interface AfWindow {
   y: number
   width: number
   height: number
+  active?: boolean
+  focusing?: boolean
+}
+
+export interface ZoomCenter {
+  x: number
+  y: number
+}
+
+export interface LastCapture {
+  timestamp: number
+  filename: string
+  path: string
+  latest_photo?: string
 }
 
 export interface PresetData {
   name: string
+  display_name?: string
   description?: string
   settings: CameraSettings
   is_builtin?: boolean
+  category?: 'built-in' | 'user'
+  workflow?: 'photo' | 'liveview' | 'both'
 }

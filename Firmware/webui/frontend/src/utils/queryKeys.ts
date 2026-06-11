@@ -19,7 +19,9 @@ export const QUERY_KEYS = {
   // Camera queries
   CAMERA_SETTINGS: ['camera-settings'] as const,
   CAMERA_PRESETS: ['camera-presets'] as const,
+  PRESETS: ['camera-presets'] as const,  // Alias for compatibility
   LIVEVIEW_SETTINGS: ['liveview-settings'] as const,
+  WEBUI_SETTINGS: ['liveview-settings'] as const,  // Alias for compatibility
 
   // System queries
   SYSTEM_INFO: ['system', 'info'] as const,

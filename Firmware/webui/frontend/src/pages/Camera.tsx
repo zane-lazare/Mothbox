@@ -13,7 +13,7 @@ import useSocket from '../hooks/useSocket'
 import toast from 'react-hot-toast'
 import SavePresetModal from '../components/SavePresetModal'
 import InstantCaptureButton from '../components/InstantCaptureButton'
-import { convertFromBackend, toPicameraControl } from '../utils/cameraControlMapping'
+import { convertFromBackend } from '../utils/cameraControlMapping'
 import { validateLiveviewSettings, formatLiveviewValidationErrors } from '../schemas/liveview-settings'
 
 // Component imports
@@ -349,6 +349,8 @@ export default function Camera() {
           setAfWindow({
             x: data.x,
             y: data.y,
+            width: 0.2,
+            height: 0.2,
             active: true,
             focusing: true
           })
@@ -779,6 +781,8 @@ export default function Camera() {
     setAfWindow({
       x: clampedX,
       y: clampedY,
+      width: 0.2,
+      height: 0.2,
       active: true,
       focusing: true
     })
@@ -1078,9 +1082,7 @@ export default function Camera() {
               zoomLevel={zoomLevel}
               zoomCenter={zoomCenter}
               liveControls={liveControls}
-              socket={socket}
               onImageClick={handleImageClick}
-              setAfWindow={setAfWindow}
             />
 
             {/* Live Controls Overlay */}

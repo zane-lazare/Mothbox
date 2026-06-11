@@ -16,7 +16,8 @@ import type {
   WebuiSettings,
   TabId,
   CollapsedCardsState,
-  ResolutionPreset
+  ResolutionPreset,
+  Preset
 } from '../types/settings'
 
 export default function Settings() {
@@ -52,7 +53,7 @@ export default function Settings() {
   })
 
   const toggleCard = (id: string) => {
-    setCollapsedCards(prev => ({ ...prev, [id]: !prev[id] }))
+    setCollapsedCards(prev => ({ ...prev, [id]: !prev[id as keyof CollapsedCardsState] }))
   }
 
   // Queries
@@ -96,7 +97,7 @@ export default function Settings() {
     mutationFn: updateControls,
     onSuccess: () => {
       isDirtyRef.current.controls = false
-      queryClient.invalidateQueries(QUERY_KEYS.CONTROLS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CONTROLS })
       toast.success('Hardware controls updated successfully!')
     },
     onError: (error: any) => {
@@ -109,7 +110,7 @@ export default function Settings() {
     mutationFn: updateCameraSettings,
     onSuccess: () => {
       isDirtyRef.current.camera = false
-      queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CAMERA_SETTINGS })
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || 'Failed to update camera settings'
@@ -121,7 +122,7 @@ export default function Settings() {
     mutationFn: updateWebuiSettings,
     onSuccess: () => {
       isDirtyRef.current.webui = false
-      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WEBUI_SETTINGS })
       if (socket) {
         socket.emit('reload_stream_settings')
       }
@@ -135,8 +136,8 @@ export default function Settings() {
   const applyPresetMutation = useMutation({
     mutationFn: ({ name, applyTo }: { name: string; applyTo: string }) => applyPreset(name, applyTo),
     onSuccess: () => {
-      queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
-      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CAMERA_SETTINGS })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WEBUI_SETTINGS })
     },
     onError: () => {
       // Error toasts handled by individual callers
@@ -146,7 +147,7 @@ export default function Settings() {
   const deletePresetMutation = useMutation({
     mutationFn: (name: string) => deletePreset(name),
     onSuccess: () => {
-      queryClient.invalidateQueries(QUERY_KEYS.PRESETS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRESETS })
       setSelectedPhotoPreset('')
       setSelectedLiveViewPreset('')
       toast.success('Preset deleted successfully!')
@@ -160,7 +161,7 @@ export default function Settings() {
   const createPresetMutation = useMutation({
     mutationFn: (data: any) => createPreset(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(QUERY_KEYS.PRESETS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRESETS })
       setShowSaveModal(false)
     },
     onError: (error: any) => {
@@ -172,7 +173,7 @@ export default function Settings() {
   const setPreferenceMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) => setPreference(key, value),
     onSuccess: () => {
-      queryClient.invalidateQueries(QUERY_KEYS.PREFERENCES)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PREFERENCES })
       toast.success('Default preset updated!')
     },
     onError: (error: any) => {
@@ -221,7 +222,7 @@ export default function Settings() {
     if (!socket) return
 
     const handleSettingsReloaded = () => {
-      queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WEBUI_SETTINGS })
     }
 
     socket.on('settings_reloaded', handleSettingsReloaded)
@@ -234,7 +235,7 @@ export default function Settings() {
   // Wrapper functions to mark forms as dirty when updated
   const updateControlsForm = (updates: Partial<ControlSettings>) => {
     isDirtyRef.current.controls = true
-    setControlsForm(prev => ({ ...prev, ...updates }))
+    setControlsForm(prev => ({ ...prev, ...updates } as ControlSettings))
   }
 
   const updateCameraForm = (updates: Partial<CameraSettings>) => {
@@ -259,13 +260,13 @@ export default function Settings() {
   const initializePhotoPreset = async (presetName: string) => {
     try {
       await applyPresetMutation.mutateAsync({ name: presetName, applyTo: 'capture' })
-      await queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CAMERA_SETTINGS })
     } catch (error: any) {
       console.error('Failed to initialize photo preset:', error)
       const errorMsg = error.response?.data?.error || error.message
 
       if (errorMsg.includes('not found') || errorMsg.includes('workflow')) {
-        const fallbackPreset = presetsData?.presets?.find(p =>
+        const fallbackPreset = presetsData?.presets?.find((p: Preset) =>
           (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced'
         )
         if (fallbackPreset) {
@@ -286,13 +287,13 @@ export default function Settings() {
   const initializeVideoPreset = async (presetName: string) => {
     try {
       await applyPresetMutation.mutateAsync({ name: presetName, applyTo: 'liveview' })
-      await queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WEBUI_SETTINGS })
     } catch (error: any) {
       console.error('Failed to initialize live view preset:', error)
       const errorMsg = error.response?.data?.error || error.message
 
       if (errorMsg.includes('not found') || errorMsg.includes('workflow')) {
-        const fallbackPreset = presetsData?.presets?.find(p =>
+        const fallbackPreset = presetsData?.presets?.find((p: Preset) =>
           (p.workflow === 'liveview' || p.workflow === 'both') && p.name === 'balanced'
         )
         if (fallbackPreset) {
@@ -314,11 +315,11 @@ export default function Settings() {
   useEffect(() => {
     if (presetsData?.presets && preferences && !selectedPhotoPreset && !photoPresetInitialized.current) {
       const savedDefault = preferences?.default_capture_preset
-      const defaultExists = savedDefault && presetsData.presets.some(p => p.name === savedDefault)
+      const defaultExists = savedDefault && presetsData.presets.some((p: Preset) => p.name === savedDefault)
 
       const defaultPreset = (defaultExists ? savedDefault : null) ||
-                           presetsData.presets.find(p => (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced')?.name ||
-                           presetsData.presets.find(p => p.workflow === 'photo' || p.workflow === 'both')?.name
+                           presetsData.presets.find((p: Preset) => (p.workflow === 'photo' || p.workflow === 'both') && p.name === 'balanced')?.name ||
+                           presetsData.presets.find((p: Preset) => p.workflow === 'photo' || p.workflow === 'both')?.name
       if (defaultPreset) {
         setSelectedPhotoPreset(defaultPreset)
         initializePhotoPreset(defaultPreset)
@@ -330,11 +331,11 @@ export default function Settings() {
   useEffect(() => {
     if (presetsData?.presets && preferences && !selectedLiveViewPreset && !liveViewPresetInitialized.current) {
       const savedDefault = preferences?.default_liveview_preset || preferences?.default_preview_preset
-      const defaultExists = savedDefault && presetsData.presets.some(p => p.name === savedDefault)
+      const defaultExists = savedDefault && presetsData.presets.some((p: Preset) => p.name === savedDefault)
 
       const defaultPreset = (defaultExists ? savedDefault : null) ||
-                           presetsData.presets.find(p => (p.workflow === 'liveview' || p.workflow === 'both') && p.name === 'balanced')?.name ||
-                           presetsData.presets.find(p => p.workflow === 'liveview' || p.workflow === 'both')?.name
+                           presetsData.presets.find((p: Preset) => (p.workflow === 'liveview' || p.workflow === 'both') && p.name === 'balanced')?.name ||
+                           presetsData.presets.find((p: Preset) => p.workflow === 'liveview' || p.workflow === 'both')?.name
       if (defaultPreset) {
         setSelectedLiveViewPreset(defaultPreset)
         initializeVideoPreset(defaultPreset)
@@ -350,9 +351,9 @@ export default function Settings() {
 
     try {
       await applyPresetMutation.mutateAsync({ name: presetName, applyTo: 'capture' })
-      await queryClient.invalidateQueries(QUERY_KEYS.CAMERA_SETTINGS)
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CAMERA_SETTINGS })
 
-      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const preset = presetsData?.presets?.find((p: Preset) => p.name === presetName)
       const displayName = preset?.display_name || presetName
 
       if (photoPresetInitialized.current) {
@@ -370,9 +371,9 @@ export default function Settings() {
 
     try {
       await applyPresetMutation.mutateAsync({ name: presetName, applyTo: 'liveview' })
-      await queryClient.invalidateQueries(QUERY_KEYS.WEBUI_SETTINGS)
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WEBUI_SETTINGS })
 
-      const preset = presetsData?.presets?.find(p => p.name === presetName)
+      const preset = presetsData?.presets?.find((p: Preset) => p.name === presetName)
       const displayName = preset?.display_name || presetName
 
       if (liveViewPresetInitialized.current) {
@@ -386,7 +387,7 @@ export default function Settings() {
 
   const handleUpdatePhotoPreset = async () => {
     if (!selectedPhotoPreset) return
-    const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
+    const selectedPhotoPresetData = presetsData?.presets?.find((p: Preset) => p.name === selectedPhotoPreset)
 
     if (selectedPhotoPresetData?.category === 'built-in') {
       toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
@@ -416,7 +417,7 @@ export default function Settings() {
 
   const handleUpdateVideoPreset = async () => {
     if (!selectedLiveViewPreset) return
-    const selectedLiveViewPresetData = presetsData?.presets?.find(p => p.name === selectedLiveViewPreset)
+    const selectedLiveViewPresetData = presetsData?.presets?.find((p: Preset) => p.name === selectedLiveViewPreset)
 
     if (selectedLiveViewPresetData?.category === 'built-in') {
       toast.error('Cannot modify built-in presets. Use "Save As" to create a copy.')
@@ -481,7 +482,7 @@ export default function Settings() {
 
   const handleDeletePhotoPreset = () => {
     if (!selectedPhotoPreset) return
-    const selectedPhotoPresetData = presetsData?.presets?.find(p => p.name === selectedPhotoPreset)
+    const selectedPhotoPresetData = presetsData?.presets?.find((p: Preset) => p.name === selectedPhotoPreset)
 
     if (selectedPhotoPresetData?.category === 'built-in') {
       toast.error('Cannot delete built-in presets')
@@ -494,7 +495,7 @@ export default function Settings() {
 
   const handleDeleteVideoPreset = () => {
     if (!selectedLiveViewPreset) return
-    const selectedLiveViewPresetData = presetsData?.presets?.find(p => p.name === selectedLiveViewPreset)
+    const selectedLiveViewPresetData = presetsData?.presets?.find((p: Preset) => p.name === selectedLiveViewPreset)
 
     if (selectedLiveViewPresetData?.category === 'built-in') {
       toast.error('Cannot delete built-in presets')

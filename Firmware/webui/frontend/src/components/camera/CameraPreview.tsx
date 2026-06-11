@@ -6,8 +6,6 @@
  */
 
 import { AfWindow, CameraMetadata, LiveControls, ZoomCenter } from '../../types/camera'
-import { Socket } from 'socket.io-client'
-import toast from 'react-hot-toast'
 
 interface CameraPreviewProps {
   currentFrame: string | null
@@ -17,9 +15,7 @@ interface CameraPreviewProps {
   zoomLevel: number
   zoomCenter: ZoomCenter
   liveControls: LiveControls
-  socket: Socket | null
   onImageClick: (e: React.MouseEvent<HTMLImageElement>) => void
-  setAfWindow: (window: AfWindow | null) => void
 }
 
 export default function CameraPreview({
@@ -30,18 +26,8 @@ export default function CameraPreview({
   zoomLevel,
   zoomCenter,
   liveControls,
-  socket,
-  onImageClick,
-  setAfWindow
+  onImageClick
 }: CameraPreviewProps) {
-
-  const handleClearAfWindow = () => {
-    if (socket) {
-      socket.emit('set_af_window', { x: null, y: null })
-      setAfWindow(null)
-      toast.success('AF window cleared')
-    }
-  }
 
   // Calculate AF window viewport position for rendering
   const calculateAfWindowPosition = () => {
