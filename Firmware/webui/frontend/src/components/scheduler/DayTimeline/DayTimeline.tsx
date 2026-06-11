@@ -17,9 +17,9 @@
  */
 
 import { memo, useMemo } from 'react'
-import PropTypes from 'prop-types'
 import HourRow from './HourRow'
 import ConflictSummary from './ConflictSummary'
+import type { Execution } from './ExecutionChip'
 import {
   groupExecutionsByHourCycleAware,
   getConflictForHour,
@@ -32,10 +32,57 @@ import {
 } from './dayTimelineUtils'
 
 /**
+ * Cycle information for schedule rendering
+ */
+interface CycleInfo {
+  start_hour?: number
+  end_hour?: number
+  spans_midnight?: boolean
+  suggested_preview_days?: number
+}
+
+/**
+ * Conflict type identifiers
+ */
+type ConflictType = 'time_overlap' | 'resource_contention' | 'gpio_state_conflict'
+
+/**
+ * Conflict object structure
+ */
+interface Conflict {
+  id?: string
+  conflict_type?: ConflictType
+  severity: 'error' | 'warning'
+  event1_id?: string
+  event1_name?: string
+  event2_id?: string
+  event2_name?: string
+  start_time?: string
+  end_time?: string
+  message?: string
+}
+
+/**
+ * Display hour item - either a regular hour or collapsed indicator
+ */
+type DisplayHourItem = { type: 'hour'; hour: number } | { type: 'collapsed'; count: number }
+
+/**
+ * Component props interface
+ */
+export interface DayTimelineProps {
+  date: string
+  executions?: Execution[]
+  conflicts?: Conflict[]
+  cycleInfo?: CycleInfo | null
+  onExecutionClick?: (execution: Execution) => void
+}
+
+/**
  * Collapsed hours indicator row
  * Shows "... continues" when repetitive hours are collapsed
  */
-const CollapsedIndicator = memo(function CollapsedIndicator({ count }) {
+const CollapsedIndicator = memo(function CollapsedIndicator({ count }: { count: number }) {
   return (
     <div className="flex p-3 text-gray-600 dark:text-gray-500">
       <span className="w-14 text-xs">...</span>
@@ -45,10 +92,6 @@ const CollapsedIndicator = memo(function CollapsedIndicator({ count }) {
     </div>
   )
 })
-
-CollapsedIndicator.propTypes = {
-  count: PropTypes.number.isRequired,
-}
 
 /**
  * DayTimeline component
@@ -76,7 +119,7 @@ function DayTimeline({
   conflicts = [],
   cycleInfo = null,
   onExecutionClick,
-}) {
+}: DayTimelineProps) {
   // Get cycle-aware hours array (e.g., [17, 18, ..., 23, 0, 1, ..., 6] for overnight)
   const cycleHours = useMemo(
     () => getCycleHours(cycleInfo),
@@ -118,7 +161,7 @@ function DayTimeline({
 
   // Build map of execution pattern_id to conflict for chip highlighting
   const executionConflictsMap = useMemo(() => {
-    const map = {}
+    const map: Record<string, { severity: 'error' | 'warning' }> = {}
     executions.forEach((execution) => {
       const conflict = getConflictForExecution(execution, conflicts)
       if (conflict) {
@@ -185,60 +228,6 @@ function DayTimeline({
       </div>
     </div>
   )
-}
-
-DayTimeline.propTypes = {
-  /** ISO date string (YYYY-MM-DD) for the day to display */
-  date: PropTypes.string.isRequired,
-  /** Array of execution objects from preview API */
-  executions: PropTypes.arrayOf(
-    PropTypes.shape({
-      pattern_id: PropTypes.string.isRequired,
-      pattern_name: PropTypes.string.isRequired,
-      start_time: PropTypes.string.isRequired,
-      actions: PropTypes.arrayOf(
-        PropTypes.shape({
-          time: PropTypes.string,
-          action_name: PropTypes.string,
-          action_type: PropTypes.oneOf([
-            'camera',
-            'gpio',
-            'gps_sync',
-            'service',
-          ]),
-          offset_minutes: PropTypes.number,
-        })
-      ),
-    })
-  ),
-  /** Array of conflict objects from preview API */
-  conflicts: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      conflict_type: PropTypes.oneOf([
-        'time_overlap',
-        'resource_contention',
-        'gpio_state_conflict',
-      ]),
-      severity: PropTypes.oneOf(['error', 'warning']).isRequired,
-      event1_id: PropTypes.string,
-      event1_name: PropTypes.string,
-      event2_id: PropTypes.string,
-      event2_name: PropTypes.string,
-      start_time: PropTypes.string,
-      end_time: PropTypes.string,
-      message: PropTypes.string,
-    })
-  ),
-  /** Cycle info from preview API for cycle-aware rendering */
-  cycleInfo: PropTypes.shape({
-    start_hour: PropTypes.number,
-    end_hour: PropTypes.number,
-    spans_midnight: PropTypes.bool,
-    suggested_preview_days: PropTypes.number,
-  }),
-  /** Callback when an execution chip is clicked */
-  onExecutionClick: PropTypes.func,
 }
 
 export default memo(DayTimeline)

@@ -1,17 +1,18 @@
 import { memo, useMemo } from 'react'
-import PropTypes from 'prop-types'
+
+interface Segment {
+  text: string
+  isHighlight: boolean
+}
 
 /**
  * Parse highlighted text and split into segments
  * Safely extracts text between <mark> tags without using dangerouslySetInnerHTML
- *
- * @param {string} text - Text with <mark></mark> tags
- * @returns {Array} Array of {text, isHighlight} segments
  */
-function parseHighlight(text) {
+function parseHighlight(text: string): Segment[] {
   if (!text) return []
 
-  const segments = []
+  const segments: Segment[] = []
   const markRegex = /<mark>(.*?)<\/mark>/gi
 
   let lastIndex = 0
@@ -49,18 +50,19 @@ function parseHighlight(text) {
   return segments
 }
 
+interface SearchHighlightProps {
+  highlights?: Record<string, string>
+  maxFields?: number
+  className?: string
+}
+
 /**
  * SearchHighlight Component
  *
  * Renders search result highlights with matched terms marked.
  * Safely parses <mark> tags without using dangerouslySetInnerHTML.
- *
- * @param {Object} props - Component props
- * @param {Object} props.highlights - Object mapping field names to highlighted text
- * @param {number} [props.maxFields=2] - Maximum number of fields to display
- * @param {string} [props.className] - Additional CSS classes
  */
-function SearchHighlight({ highlights, maxFields = 2, className = '' }) {
+function SearchHighlight({ highlights, maxFields = 2, className = '' }: SearchHighlightProps) {
   // Get fields that have highlights, limited to maxFields
   const displayFields = useMemo(() => {
     if (!highlights || typeof highlights !== 'object') return []
@@ -100,12 +102,6 @@ function SearchHighlight({ highlights, maxFields = 2, className = '' }) {
       ))}
     </div>
   )
-}
-
-SearchHighlight.propTypes = {
-  highlights: PropTypes.objectOf(PropTypes.string),
-  maxFields: PropTypes.number,
-  className: PropTypes.string
 }
 
 export default memo(SearchHighlight)

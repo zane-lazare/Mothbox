@@ -1,31 +1,32 @@
 import { memo, useCallback, useMemo } from 'react'
-import PropTypes from 'prop-types'
 import { XMarkIcon } from '@heroicons/react/20/solid'
+
+type TagSize = 'sm' | 'md'
+
+export interface TagChipProps {
+  /** Tag name to display */
+  tag: string
+  /** Optional count to show */
+  count?: number
+  /** Whether tag is selected/applied */
+  selected?: boolean
+  /** Show remove (X) button */
+  removable?: boolean
+  /** Click handler for selection */
+  onClick?: () => void
+  /** Remove button handler */
+  onRemove?: () => void
+  /** Size variant */
+  size?: TagSize
+  /** Additional classes */
+  className?: string
+}
 
 /**
  * TagChip Component
  *
- * TypeScript types: ./TagChip.d.ts (keep in sync)
- *
  * Reusable tag badge component for displaying and interacting with tags.
  * Supports selection, removal, and count display.
- *
- * @component
- * @example
- * // Basic tag
- * <TagChip tag="moth" />
- *
- * @example
- * // Tag with count
- * <TagChip tag="nocturnal" count={5} />
- *
- * @example
- * // Selectable tag
- * <TagChip tag="moth" selected onClick={() => console.log('clicked')} />
- *
- * @example
- * // Removable tag
- * <TagChip tag="moth" removable onRemove={() => console.log('removed')} />
  */
 function TagChip({
   tag,
@@ -36,10 +37,10 @@ function TagChip({
   onRemove,
   size = 'sm',
   className = '',
-}) {
+}: TagChipProps) {
   // Memoize computed class strings
   const { baseClasses, stateClasses } = useMemo(() => {
-    const sizeClasses = {
+    const sizeClasses: Record<TagSize, string> = {
       sm: 'text-xs px-2 py-0.5',
       md: 'text-sm px-3 py-1',
     }
@@ -63,14 +64,14 @@ function TagChip({
     }
   }, [onClick])
 
-  const handleRemove = useCallback((e) => {
+  const handleRemove = useCallback((e: React.MouseEvent<HTMLSpanElement> | React.KeyboardEvent<HTMLSpanElement>) => {
     e.stopPropagation()
     if (onRemove) {
       onRemove()
     }
   }, [onRemove])
 
-  const handleRemoveKeyDown = useCallback((e) => {
+  const handleRemoveKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === 'Enter') {
       handleRemove(e)
     }
@@ -102,25 +103,6 @@ function TagChip({
       )}
     </button>
   )
-}
-
-TagChip.propTypes = {
-  /** Tag name to display */
-  tag: PropTypes.string.isRequired,
-  /** Optional count to show */
-  count: PropTypes.number,
-  /** Whether tag is selected/applied */
-  selected: PropTypes.bool,
-  /** Show remove (X) button */
-  removable: PropTypes.bool,
-  /** Click handler for selection */
-  onClick: PropTypes.func,
-  /** Remove button handler */
-  onRemove: PropTypes.func,
-  /** Size variant */
-  size: PropTypes.oneOf(['sm', 'md']),
-  /** Additional classes */
-  className: PropTypes.string,
 }
 
 export default memo(TagChip)
