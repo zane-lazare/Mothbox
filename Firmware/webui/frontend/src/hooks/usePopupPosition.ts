@@ -2,6 +2,56 @@ import { useMemo, useEffect, useState, useLayoutEffect } from 'react'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
 
 /**
+ * Trigger position coordinates
+ */
+interface TriggerPosition {
+  x: number
+  y: number
+}
+
+/**
+ * Calculated popup position
+ */
+interface PopupPosition {
+  left: number
+  top: number
+}
+
+/**
+ * Viewport dimensions
+ */
+interface Viewport {
+  width: number
+  height: number
+}
+
+/**
+ * Popup placement direction
+ */
+type Placement = 'above' | 'below'
+
+/**
+ * Options for usePopupPosition hook
+ */
+interface UsePopupPositionOptions {
+  triggerPosition: TriggerPosition | null
+  popupWidth?: number
+  popupHeight?: number
+  offset?: number
+  isVisible?: boolean
+  popupRef?: React.RefObject<HTMLElement> | null
+}
+
+/**
+ * Return type for usePopupPosition hook
+ */
+interface UsePopupPositionReturn {
+  position: PopupPosition
+  placement: Placement
+  measuredHeight: number | null
+}
+
+/**
  * Hook for calculating viewport-aware popup positioning
  *
  * @param {Object} options - Configuration options
@@ -20,14 +70,14 @@ export function usePopupPosition({
   offset = 10,
   isVisible = false,
   popupRef = null,
-}) {
-  const [viewport, setViewport] = useState({
+}: UsePopupPositionOptions): UsePopupPositionReturn {
+  const [viewport, setViewport] = useState<Viewport>({
     width: typeof window !== 'undefined' ? window.innerWidth : 1024,
     height: typeof window !== 'undefined' ? window.innerHeight : 768,
   })
 
   // Dynamic height measurement from actual popup element
-  const [measuredHeight, setMeasuredHeight] = useState(null)
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
 
   // Measure popup height after render using useLayoutEffect
   // This runs synchronously after DOM mutations but before paint
@@ -63,7 +113,7 @@ export function usePopupPosition({
 
   const { position, placement } = useMemo(() => {
     if (!triggerPosition || !isVisible) {
-      return { position: { left: 0, top: 0 }, placement: 'below' }
+      return { position: { left: 0, top: 0 }, placement: 'below' as Placement }
     }
 
     const { x, y } = triggerPosition
@@ -74,8 +124,8 @@ export function usePopupPosition({
     const spaceAbove = y - offset
 
     // Determine vertical placement (use actualHeight which may be measured or estimated)
-    let top
-    let placement
+    let top: number
+    let placement: Placement
     if (spaceBelow >= actualHeight + margin) {
       // Enough space below
       top = y + offset

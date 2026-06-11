@@ -1,27 +1,39 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { HOVER_POPUP_CONFIG } from '../constants/config'
 
-interface ClusterPosition {
+/**
+ * Position interface for popup coordinates
+ */
+interface Position {
   x: number
   y: number
 }
 
+/**
+ * Cluster center coordinates
+ */
 interface ClusterCenter {
   lat: number
   lon: number
 }
 
+/**
+ * Cluster object with location data
+ */
 interface Cluster {
   cluster_id?: string
   center?: ClusterCenter
   [key: string]: unknown
 }
 
-interface UseHoverPopupResult {
+/**
+ * Return type for useHoverPopup hook
+ */
+interface UseHoverPopupReturn {
   isVisible: boolean
   targetCluster: Cluster | null
-  position: ClusterPosition | null
-  handleMouseEnter: (cluster: Cluster, event: React.MouseEvent) => void
+  position: Position | null
+  handleMouseEnter: (cluster: Cluster, event: MouseEvent) => void
   handleMouseLeave: () => void
   handleClick: (cluster: Cluster) => void
   handlePopupOpen: (cluster: Cluster) => void
@@ -36,16 +48,16 @@ interface UseHoverPopupResult {
  * and mobile touch detection. Provides consistent hover behavior across desktop
  * and mobile devices.
  *
- * @returns Popup state and handlers
- * @returns isVisible - Whether the popup should be displayed
- * @returns targetCluster - The cluster currently being hovered
- * @returns position - Popup position {x, y} relative to viewport
- * @returns handleMouseEnter - Handler for mouse enter events
- * @returns handleMouseLeave - Handler for mouse leave events
- * @returns handleClick - Handler for click/tap events (mobile)
- * @returns handlePopupOpen - Handler for Leaflet popup open events
- * @returns handlePopupClose - Handler for Leaflet popup close events
- * @returns isMobile - Whether the device is detected as mobile/touch
+ * @returns {Object} Popup state and handlers
+ * @returns {boolean} isVisible - Whether the popup should be displayed
+ * @returns {Object|null} targetCluster - The cluster currently being hovered
+ * @returns {Object|null} position - Popup position {x, y} relative to viewport
+ * @returns {Function} handleMouseEnter - Handler for mouse enter events
+ * @returns {Function} handleMouseLeave - Handler for mouse leave events
+ * @returns {Function} handleClick - Handler for click/tap events (mobile)
+ * @returns {Function} handlePopupOpen - Handler for Leaflet popup open events
+ * @returns {Function} handlePopupClose - Handler for Leaflet popup close events
+ * @returns {boolean} isMobile - Whether the device is detected as mobile/touch
  *
  * @example
  * const {
@@ -68,16 +80,16 @@ interface UseHoverPopupResult {
  *   onClick={() => handleClick(cluster)}
  * />
  */
-export function useHoverPopup(): UseHoverPopupResult {
+export function useHoverPopup(): UseHoverPopupReturn {
   // State management
-  const [isVisible, setIsVisible] = useState(false)
+  const [isVisible, setIsVisible] = useState<boolean>(false)
   const [targetCluster, setTargetCluster] = useState<Cluster | null>(null)
-  const [position, setPosition] = useState<ClusterPosition | null>(null)
+  const [position, setPosition] = useState<Position | null>(null)
   const [clickedClusterId, setClickedClusterId] = useState<string | null>(null)
 
   // Timer references for cleanup
-  const showTimerRef = useRef<number | null>(null)
-  const hideTimerRef = useRef<number | null>(null)
+  const showTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Detect mobile/touch devices
   const isMobile =
@@ -102,8 +114,8 @@ export function useHoverPopup(): UseHoverPopupResult {
    * Get a unique identifier for a cluster
    * Prefers native cluster_id, falls back to coordinate-based ID
    *
-   * @param cluster - The cluster object
-   * @returns Cluster identifier or null if invalid
+   * @param {Object} cluster - The cluster object
+   * @returns {string|null} Cluster identifier or null if invalid
    */
   const getClusterId = useCallback((cluster: Cluster): string | null => {
     // Prefer native cluster_id if available (better performance)
