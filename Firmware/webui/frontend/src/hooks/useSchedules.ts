@@ -46,26 +46,28 @@ import {
   deactivateSchedule,
   validateSchedule,
   getNextActions,
+  type ScheduleListResponse,
+  type ScheduleMetadata,
+  type ActiveScheduleMetadata,
+  type NextActionsResponse,
+  type SchedulePreviewResponse,
+  type BuiltInSchedulesResponse,
+  type ScheduleCreateData,
+  type ScheduleUpdateData,
+  type DraftValidationData,
+  type DraftValidationResponse,
+  type ScheduleOperationResponse,
+  type ScheduleDeleteResponse,
+  type ScheduleActivationResponse,
+  type ScheduleDeactivationResponse,
+  type NextActionsParams,
+  type SchedulePreviewParams,
+  type ScheduleListParams,
 } from '../utils/schedulerApi'
 
 // =============================================================================
 // Types
 // =============================================================================
-
-interface SchedulesParams {
-  include_builtin?: boolean
-}
-
-interface NextActionsParams {
-  limit?: number
-}
-
-interface SchedulePreviewParams {
-  days?: number
-  lat?: number
-  lon?: number
-  tz?: string
-}
 
 interface CloneScheduleParams {
   id: string
@@ -76,16 +78,6 @@ interface ActivateScheduleParams {
   id: string
   options?: Record<string, unknown>
 }
-
-type SchedulesListResponse = unknown
-type ScheduleResponse = unknown
-type ActiveScheduleResponse = unknown
-type NextActionsResponse = unknown
-type SchedulePreviewResponse = unknown
-type BuiltinSchedulesResponse = unknown
-type CreateScheduleRequest = unknown
-type UpdateScheduleRequest = unknown
-type ValidateScheduleRequest = unknown
 
 // =============================================================================
 // Configuration
@@ -150,8 +142,8 @@ function handleMutationError(error: unknown, operation: string): void {
  * )
  */
 export function useSchedules(
-  params: SchedulesParams = {},
-  queryOptions: Omit<UseQueryOptions<SchedulesListResponse, Error>, 'queryKey' | 'queryFn'> = {}
+  params: ScheduleListParams = {},
+  queryOptions: Omit<UseQueryOptions<ScheduleListResponse, Error>, 'queryKey' | 'queryFn'> = {}
 ) {
   const { include_builtin } = params
 
@@ -161,7 +153,7 @@ export function useSchedules(
     ? [...QUERY_KEYS.SCHEDULES, { include_builtin }]
     : QUERY_KEYS.SCHEDULES
 
-  return useQuery<SchedulesListResponse, Error>({
+  return useQuery<ScheduleListResponse, Error>({
     queryKey,
     queryFn: async () => {
       const apiParams: SchedulesParams = {}
@@ -192,9 +184,9 @@ export function useSchedules(
  */
 export function useSchedule(
   id: string | null,
-  queryOptions: Omit<UseQueryOptions<ScheduleResponse, Error>, 'queryKey' | 'queryFn' | 'enabled'> = {}
+  queryOptions: Omit<UseQueryOptions<ScheduleMetadata, Error>, 'queryKey' | 'queryFn' | 'enabled'> = {}
 ) {
-  return useQuery<ScheduleResponse, Error>({
+  return useQuery<ScheduleMetadata, Error>({
     queryKey: QUERY_KEYS.SCHEDULE(id),
     queryFn: async () => {
       if (!id) throw new Error('Schedule ID is required')
@@ -220,9 +212,9 @@ export function useSchedule(
  * }
  */
 export function useActiveSchedule(
-  queryOptions: Omit<UseQueryOptions<ActiveScheduleResponse, Error>, 'queryKey' | 'queryFn'> = {}
+  queryOptions: Omit<UseQueryOptions<ActiveScheduleMetadata, Error>, 'queryKey' | 'queryFn'> = {}
 ) {
-  return useQuery<ActiveScheduleResponse, Error>({
+  return useQuery<ActiveScheduleMetadata, Error>({
     queryKey: QUERY_KEYS.ACTIVE_SCHEDULE,
     queryFn: async () => {
       const response = await getActiveSchedule()
@@ -329,9 +321,9 @@ export function useSchedulePreview(
  * }
  */
 export function useBuiltinSchedules(
-  queryOptions: Omit<UseQueryOptions<BuiltinSchedulesResponse, Error>, 'queryKey' | 'queryFn'> = {}
+  queryOptions: Omit<UseQueryOptions<BuiltInSchedulesResponse, Error>, 'queryKey' | 'queryFn'> = {}
 ) {
-  return useQuery<BuiltinSchedulesResponse, Error>({
+  return useQuery<BuiltInSchedulesResponse, Error>({
     queryKey: QUERY_KEYS.BUILTIN_SCHEDULES,
     queryFn: async () => {
       const response = await listBuiltinSchedules()
@@ -374,11 +366,11 @@ export function useBuiltinSchedules(
  * }
  */
 export function useCreateSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, CreateScheduleRequest>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleOperationResponse, Error, ScheduleCreateData>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, CreateScheduleRequest>({
+  return useMutation<ScheduleOperationResponse, Error, ScheduleCreateData>({
     mutationFn: (data) => createSchedule(data),
     onSuccess: () => {
       // Invalidate all schedule list variants (with and without include_builtin)
@@ -411,11 +403,11 @@ export function useCreateSchedule(
  * }
  */
 export function useUpdateSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, { id: string; data: UpdateScheduleRequest }>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleOperationResponse, Error, { id: string; data: ScheduleUpdateData }>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, { id: string; data: UpdateScheduleRequest }>({
+  return useMutation<ScheduleOperationResponse, Error, { id: string; data: ScheduleUpdateData }>({
     mutationFn: ({ id, data }) => updateSchedule(id, data),
     onSuccess: async (_, { id }) => {
       // Invalidate caches in parallel to avoid race conditions
@@ -465,11 +457,11 @@ export function useUpdateSchedule(
  * />
  */
 export function useDeleteSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, string>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleDeleteResponse, Error, string>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, string>({
+  return useMutation<ScheduleDeleteResponse, Error, string>({
     mutationFn: (id) => deleteSchedule(id),
     onSuccess: async (_, id) => {
       // Invalidate caches in parallel to avoid race conditions
@@ -497,11 +489,11 @@ export function useDeleteSchedule(
  * const clonedSchedule = response.data.schedule
  */
 export function useCloneSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, CloneScheduleParams>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleOperationResponse, Error, CloneScheduleParams>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, CloneScheduleParams>({
+  return useMutation<ScheduleOperationResponse, Error, CloneScheduleParams>({
     mutationFn: ({ id, name }) => cloneSchedule(id, name ? { name } : {}),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SCHEDULES, exact: false })
@@ -533,11 +525,11 @@ export function useCloneSchedule(
  * }
  */
 export function useActivateSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, ActivateScheduleParams>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleActivationResponse, Error, ActivateScheduleParams>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, ActivateScheduleParams>({
+  return useMutation<ScheduleActivationResponse, Error, ActivateScheduleParams>({
     mutationFn: ({ id, options }) => activateSchedule(id, options),
     onSuccess: async () => {
       // Refetch queries to ensure UI updates immediately after activation
@@ -573,11 +565,11 @@ export function useActivateSchedule(
  * }
  */
 export function useDeactivateSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, void>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<ScheduleDeactivationResponse, Error, void>, 'mutationFn'> = {}
 ) {
   const queryClient = useQueryClient()
 
-  return useMutation<unknown, Error, void>({
+  return useMutation<ScheduleDeactivationResponse, Error, void>({
     mutationFn: () => deactivateSchedule(),
     onSuccess: async () => {
       // Refetch queries to ensure UI updates immediately after deactivation
@@ -604,9 +596,9 @@ export function useDeactivateSchedule(
  * mutate({ id: 'schedule_1', data: scheduleData })
  */
 export function useValidateSchedule(
-  options: Omit<UseMutationOptions<unknown, Error, { id: string; data: ValidateScheduleRequest }>, 'mutationFn'> = {}
+  options: Omit<UseMutationOptions<DraftValidationResponse, Error, { id: string; data: DraftValidationData }>, 'mutationFn'> = {}
 ) {
-  return useMutation<unknown, Error, { id: string; data: ValidateScheduleRequest }>({
+  return useMutation<DraftValidationResponse, Error, { id: string; data: DraftValidationData }>({
     mutationFn: ({ id, data }) => validateSchedule(id, data),
     onError: (error) => handleMutationError(error, 'validate'),
     ...options,
