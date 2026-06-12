@@ -1,17 +1,18 @@
 /**
- * Filter Components - Photo filtering and search
+ * Filter Components Barrel Export
  *
- * Components for filtering photos by date, tags, species, camera settings, and custom fields
+ * Centralized export point for all filter-related components.
+ * This allows for cleaner imports throughout the application.
+ *
+ * @example
+ * import { FilterDrawer, FilterDrawerToggle } from '@/components/filters'
  */
 
-// Main filter components
 export { FilterDrawer } from './FilterDrawer'
-export { default as FilterDrawerHeader } from './FilterDrawerHeader'
-export { default as FilterDrawerFooter } from './FilterDrawerFooter'
-export { default as FilterDrawerToggle } from './FilterDrawerToggle'
-export { default as FilterSection } from './FilterSection'
-
-// Individual filter types
+export { FilterDrawerHeader } from './FilterDrawerHeader'
+export { FilterDrawerFooter } from './FilterDrawerFooter'
+export { FilterSection } from './FilterSection'
+export { FilterDrawerToggle } from './FilterDrawerToggle'
 export { DateRangeFilter } from './DateRangeFilter'
 export { TagFilter } from './TagFilter'
 export { SpeciesFilter } from './SpeciesFilter'
@@ -19,14 +20,8 @@ export { FileTypeFilter } from './FileTypeFilter'
 export { CameraSettingsFilter } from './CameraSettingsFilter'
 export { NotesFilter } from './NotesFilter'
 export { CustomFieldsFilter } from './CustomFieldsFilter'
-
-// Filter UI components
-export { default as ActiveFilterChips } from './ActiveFilterChips'
 export { default as RangeSlider } from './RangeSlider'
-
-// Filter preset management
-export { default as FilterPresetManager } from './FilterPresetManager'
+export { FilterPresetManager } from './FilterPresetManager'
 export { default as SaveFilterPresetModal } from './SaveFilterPresetModal'
-
-// Error handling
+export { default as ActiveFilterChips } from './ActiveFilterChips'
 export { default as FilterErrorFallback } from './FilterErrorFallback'
