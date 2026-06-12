@@ -8,13 +8,47 @@
  */
 
 /**
+ * Execution item (extended from ScheduleExecution with additional fields)
+ */
+export interface ExecutionItem {
+  start_time: string
+  pattern_id: string
+  event_name?: string
+  action?: string
+  scheduled_time?: string
+  trigger_info?: Record<string, unknown>
+}
+
+/**
+ * Cycle information from preview API
+ */
+export interface CycleInfo {
+  start_hour: number
+  end_hour?: number
+}
+
+/**
+ * Execution grouped by hour
+ */
+export interface ExecutionsByHour {
+  [hour: number]: ExecutionItem[]
+}
+
+/**
+ * Cycle group structure (day-0 through day-6)
+ */
+export interface CycleGroup {
+  [dayKey: `day-${number}`]: ExecutionsByHour
+}
+
+/**
  * Calculates the first cycle start time from a reference date.
  *
- * @param {Date} referenceDate - First date of the display period
- * @param {number} startHour - Hour when each cycle starts (0-23)
- * @returns {Date} When the first cycle begins
+ * @param referenceDate - First date of the display period
+ * @param startHour - Hour when each cycle starts (0-23)
+ * @returns When the first cycle begins
  */
-export function getFirstCycleStart(referenceDate, startHour) {
+export function getFirstCycleStart(referenceDate: Date, startHour: number): Date {
   const firstCycleStart = new Date(referenceDate)
   firstCycleStart.setHours(startHour, 0, 0, 0)
 
@@ -32,12 +66,12 @@ export function getFirstCycleStart(referenceDate, startHour) {
  * A "cycle" starts at startHour each day. For overnight schedules,
  * post-midnight hours belong to the previous day's cycle.
  *
- * @param {Date} execTime - Execution timestamp
- * @param {Date} firstCycleStart - When the first cycle begins
- * @param {number} startHour - Hour when each cycle starts (0-23)
- * @returns {number} Cycle day (0-6), or -1 if outside range
+ * @param execTime - Execution timestamp
+ * @param firstCycleStart - When the first cycle begins
+ * @param startHour - Hour when each cycle starts (0-23)
+ * @returns Cycle day (0-6), or -1 if outside range
  */
-export function getCycleDay(execTime, firstCycleStart, startHour) {
+export function getCycleDay(execTime: Date, firstCycleStart: Date, startHour: number): number {
   const CYCLE_MS = 24 * 60 * 60 * 1000
   const hour = execTime.getHours()
 
@@ -60,24 +94,28 @@ export function getCycleDay(execTime, firstCycleStart, startHour) {
 /**
  * Groups executions by cycle day (0-6) and hour for pattern mode.
  *
- * @param {Array} executions - Execution objects with start_time
- * @param {Object} cycleInfo - { start_hour } from preview API
- * @param {Date} referenceDate - First date of the week
- * @returns {Object} { 'day-0': { hour: [execs] }, ... 'day-6': { hour: [execs] } }
+ * @param executions - Execution objects with start_time
+ * @param cycleInfo - { start_hour } from preview API
+ * @param referenceDate - First date of the week
+ * @returns { 'day-0': { hour: [execs] }, ... 'day-6': { hour: [execs] } }
  */
-export function groupExecutionsByCycleDay(executions, cycleInfo, referenceDate) {
+export function groupExecutionsByCycleDay(
+  executions: ExecutionItem[] | null | undefined,
+  cycleInfo: CycleInfo | null | undefined,
+  referenceDate: Date
+): CycleGroup {
   if (!executions?.length) return {}
 
   const startHour = cycleInfo?.start_hour ?? 0
   const firstCycleStart = getFirstCycleStart(referenceDate, startHour)
 
   // Initialize structure for 7 cycle days
-  const grouped = {}
+  const grouped: CycleGroup = {}
   for (let d = 0; d < 7; d++) {
     grouped[`day-${d}`] = {}
   }
 
-  const seen = new Set()
+  const seen = new Set<string>()
 
   for (const exec of executions) {
     if (!exec.start_time) continue
@@ -95,7 +133,7 @@ export function groupExecutionsByCycleDay(executions, cycleInfo, referenceDate) 
     if (seen.has(key)) continue
     seen.add(key)
 
-    const dayKey = `day-${cycleDay}`
+    const dayKey = `day-${cycleDay}` as `day-${number}`
     if (!grouped[dayKey][hour]) {
       grouped[dayKey][hour] = []
     }

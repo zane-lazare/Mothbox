@@ -8,19 +8,14 @@
  */
 
 import { memo } from 'react'
-import ExecutionChip, { type Execution } from './ExecutionChip'
+import ExecutionChip from './ExecutionChip'
 import { ROW_CONFLICT_STYLES } from './dayTimelineConstants'
-import { formatHourLabel, getExecutionKey } from './dayTimelineUtils'
-
-/**
- * Conflict object structure
- */
-interface HourConflict {
-  id?: string
-  severity: 'error' | 'warning'
-  message: string
-  conflict_type?: string
-}
+import {
+  formatHourLabel,
+  getExecutionKey,
+  type Execution,
+  type Conflict,
+} from './dayTimelineUtils'
 
 /**
  * Execution conflict for highlighting individual chips
@@ -35,7 +30,7 @@ interface ExecutionConflict {
 export interface HourRowProps {
   hour: number
   executions?: Execution[]
-  conflict?: HourConflict | null
+  conflict?: Conflict | null
   onExecutionClick?: (execution: Execution) => void
   executionConflicts?: Record<string, ExecutionConflict>
 }

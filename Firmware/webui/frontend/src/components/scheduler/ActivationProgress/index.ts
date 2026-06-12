@@ -6,3 +6,5 @@
 
 export { default as ActivationProgress } from './ActivationProgress'
 export { PHASE_LABELS } from './constants'
+
+export type { ActivationProgressProps } from './ActivationProgress'

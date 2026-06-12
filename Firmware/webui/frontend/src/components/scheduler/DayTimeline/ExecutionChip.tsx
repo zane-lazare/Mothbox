@@ -10,33 +10,18 @@
 
 import { memo } from 'react'
 import { CHIP_CONFLICT_RINGS } from './dayTimelineConstants'
-import { formatTimeShort, getExecutionTestId } from './dayTimelineUtils'
+import {
+  formatTimeShort,
+  getExecutionTestId,
+  type Execution,
+  type ConflictSeverity,
+} from './dayTimelineUtils'
 import { getActionColor } from '@/utils/routineUtils'
 
 /**
- * Action object structure
+ * Conflict severity levels (including null for no conflict)
  */
-interface Action {
-  time?: string
-  action_name?: string
-  action_type?: string
-  offset_minutes?: number
-}
-
-/**
- * Execution object structure
- */
-export interface Execution {
-  pattern_id: string
-  pattern_name: string
-  start_time: string
-  actions?: Action[]
-}
-
-/**
- * Conflict severity levels
- */
-type ConflictSeverity = 'error' | 'warning' | null
+type ConflictSeverityOrNull = ConflictSeverity | null
 
 /**
  * Component props interface
@@ -44,7 +29,7 @@ type ConflictSeverity = 'error' | 'warning' | null
 export interface ExecutionChipProps {
   execution: Execution
   onClick?: () => void
-  conflictSeverity?: ConflictSeverity
+  conflictSeverity?: ConflictSeverityOrNull
 }
 
 /**

@@ -17,7 +17,8 @@
  */
 
 import { ExclamationTriangleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline'
-import ConflictItem, { type Conflict } from './ConflictItem'
+import ConflictItem from './ConflictItem'
+import type { Conflict } from './ConflictPropTypes'
 
 /**
  * Default maximum conflicts to show in compact mode

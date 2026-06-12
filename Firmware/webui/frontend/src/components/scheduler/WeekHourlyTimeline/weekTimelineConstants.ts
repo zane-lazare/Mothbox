@@ -33,12 +33,20 @@ export const WEEK_VIEW_CONFIG = {
 
   /** Hour row height class */
   HOUR_ROW_HEIGHT: 'min-h-8',
+} as const
+
+/**
+ * Legend item type definition
+ */
+export interface LegendItem {
+  label: string
+  color: string
 }
 
 /**
  * Legend items for the week view (same as day view)
  */
-export const LEGEND_ITEMS = [
+export const LEGEND_ITEMS: readonly LegendItem[] = [
   { label: 'Camera', color: 'bg-blue-400' },
   { label: 'GPIO', color: 'bg-orange-400' },
   { label: 'HDR', color: 'bg-purple-400' },
@@ -46,7 +54,7 @@ export const LEGEND_ITEMS = [
   { label: 'Service', color: 'bg-gray-400' },
   { label: 'Collision', color: 'ring-2 ring-red-400 bg-transparent' },
   { label: 'Warning', color: 'ring-2 ring-yellow-400 bg-transparent' },
-]
+] as const
 
 /**
  * Day header styling classes
@@ -55,7 +63,7 @@ export const DAY_HEADER_STYLES = {
   base: 'p-2 text-center border-b border-gray-700 cursor-pointer hover:bg-gray-800 transition-colors',
   today: 'bg-blue-500 text-white rounded-full w-7 h-7 mx-auto flex items-center justify-center font-semibold text-sm',
   normal: 'text-sm font-semibold dark:text-gray-200',
-}
+} as const
 
 /**
  * Chip conflict ring classes for week view
@@ -63,4 +71,11 @@ export const DAY_HEADER_STYLES = {
 export const CHIP_CONFLICT_RINGS = {
   error: 'ring-1 ring-red-400',
   warning: 'ring-1 ring-yellow-400',
-}
+} as const
+
+/**
+ * Type definitions for WeekHourlyTimeline constants
+ */
+export type WeekViewConfig = typeof WEEK_VIEW_CONFIG
+export type DayHeaderStyles = typeof DAY_HEADER_STYLES
+export type ChipConflictRings = typeof CHIP_CONFLICT_RINGS

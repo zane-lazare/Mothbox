@@ -19,7 +19,6 @@
 import { memo, useMemo } from 'react'
 import HourRow from './HourRow'
 import ConflictSummary from './ConflictSummary'
-import type { Execution } from './ExecutionChip'
 import {
   groupExecutionsByHourCycleAware,
   getConflictForHour,
@@ -29,38 +28,10 @@ import {
   getLocalDateFromIso,
   getNextDateKey,
   getHourFromIsoTime,
+  type Execution,
+  type Conflict,
+  type CycleInfo,
 } from './dayTimelineUtils'
-
-/**
- * Cycle information for schedule rendering
- */
-interface CycleInfo {
-  start_hour?: number
-  end_hour?: number
-  spans_midnight?: boolean
-  suggested_preview_days?: number
-}
-
-/**
- * Conflict type identifiers
- */
-type ConflictType = 'time_overlap' | 'resource_contention' | 'gpio_state_conflict'
-
-/**
- * Conflict object structure
- */
-interface Conflict {
-  id?: string
-  conflict_type?: ConflictType
-  severity: 'error' | 'warning'
-  event1_id?: string
-  event1_name?: string
-  event2_id?: string
-  event2_name?: string
-  start_time?: string
-  end_time?: string
-  message?: string
-}
 
 /**
  * Component props interface
@@ -136,7 +107,7 @@ function DayTimeline({
       if (execDate === date) return true
       if (nextDate && execDate === nextDate) {
         const hour = getHourFromIsoTime(exec.start_time)
-        return hour <= endHour
+        return hour !== null && hour <= endHour
       }
       return false
     })

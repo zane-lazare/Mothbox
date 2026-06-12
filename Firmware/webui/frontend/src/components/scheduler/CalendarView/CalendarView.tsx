@@ -23,6 +23,7 @@ import LoadingSpinner from '../../LoadingSpinner'
 import { useSchedules, useSchedulePreview, useActiveSchedule } from '../../../hooks/useSchedules'
 import { getDateKey } from './calendarUtils'
 import { PANEL_STYLES } from '../constants'
+import type { Execution } from '../DayTimeline/dayTimelineUtils'
 
 const VIEW_MODE_STORAGE_KEY = 'mothbox-calendar-view-mode'
 
@@ -43,21 +44,6 @@ const PREVIEW_DAYS: Record<ViewMode, number> = {
   month: 42,
   week: 7,
   day: 2,
-}
-
-interface Execution {
-  id?: string
-  pattern_id: string
-  pattern_name: string
-  start_time: string
-  end_time?: string
-  trigger_info?: string
-  actions?: Array<{
-    action_type?: string
-    type?: string
-    action_name?: string
-    offset_minutes?: number
-  }>
 }
 
 /**

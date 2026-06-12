@@ -18,4 +18,14 @@ export const PHASE_LABELS = {
   updating_state: 'Updating state...',
   complete: 'Complete',
   failed: 'Failed',
-}
+} as const
+
+/**
+ * Type definition for phase labels
+ */
+export type PhaseLabels = typeof PHASE_LABELS
+
+/**
+ * Type for valid phase keys
+ */
+export type PhaseKey = keyof typeof PHASE_LABELS

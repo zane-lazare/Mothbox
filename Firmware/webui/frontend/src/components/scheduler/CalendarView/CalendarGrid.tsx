@@ -18,45 +18,18 @@ import {
   getDateKey,
 } from './calendarUtils'
 import { PANEL_STYLES } from '../constants'
+import {
+  type Execution,
+  type Conflict,
+  type CycleInfo,
+} from '../DayTimeline/dayTimelineUtils'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-interface Action {
-  action_type?: string
-  type?: string
-  action_name?: string
-  offset_minutes?: number
-}
-
-interface Execution {
-  id?: string
-  pattern_id: string
-  pattern_name: string
-  start_time: string
-  end_time?: string
-  trigger_info?: string
-  actions?: Action[]
-}
-
-interface Conflict {
-  id?: string
-  conflict_type?: string
-  severity?: 'error' | 'warning'
-  message?: string
-  start_time?: string
-}
 
 interface MoonPhase {
   phase?: string
   phase_name: string
   illumination?: number
-}
-
-interface CycleInfo {
-  start_hour?: number
-  end_hour: number
-  spans_midnight?: boolean
-  suggested_preview_days?: number
 }
 
 export interface CalendarGridProps {

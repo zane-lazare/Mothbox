@@ -11,3 +11,7 @@ export { default as ExecutionChip } from './ExecutionChip'
 export { default as ConflictSummary } from './ConflictSummary'
 export * from './dayTimelineUtils'
 export * from './dayTimelineConstants'
+
+export type { DayTimelineProps } from './DayTimeline'
+export type { HourRowProps } from './HourRow'
+export type { ExecutionChipProps } from './ExecutionChip'

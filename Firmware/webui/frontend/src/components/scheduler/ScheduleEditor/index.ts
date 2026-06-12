@@ -73,4 +73,36 @@ export {
   TIME_FORMAT_REGEX,
 } from './constants';
 
-// TypeScript types (shared shapes) — see scheduler-types.ts
+// Type exports
+export type { ScheduleSaveData } from './ScheduleEditor';
+export type { IntervalTriggerValue } from './IntervalTriggerForm';
+export type { SolarTriggerValue } from './SolarTriggerForm';
+export type { MoonPhaseTriggerValue } from './MoonPhaseTriggerForm';
+export type { FixedTimeTriggerValue } from './FixedTimeTriggerForm';
+export type { SensorTriggerValue } from './SensorTriggerForm';
+export type { RecurringDaysTriggerValue } from './RecurringDaysTriggerForm';
+export type { TimeWindowValue } from './TimeWindowInput';
+export type { PreConditionValue } from './PreConditionForm';
+export type { SolarEventValue, MoonPhaseValue } from './constants';
+
+// Shared TypeScript types from scheduler-types.ts
+export type {
+  TimeWindow,
+  TimeWindowErrors,
+  TriggerType,
+  BaseTrigger,
+  IntervalTrigger,
+  SolarTrigger,
+  MoonPhaseTrigger,
+  FixedTimeTrigger,
+  SensorTrigger,
+  CronTrigger,
+  RecurringDaysTrigger,
+  Trigger,
+  TriggerErrors,
+  RoutineAction,
+  PreCondition,
+  Routine,
+  Schedule,
+  ConflictReport,
+} from './scheduler-types';

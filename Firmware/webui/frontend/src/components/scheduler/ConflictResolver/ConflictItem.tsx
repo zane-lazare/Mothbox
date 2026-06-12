@@ -29,34 +29,8 @@ import {
   BoltIcon,
 } from '@heroicons/react/24/outline'
 import { CONFLICT_TYPE_LABELS } from './ConflictPropTypes'
+import type { Conflict, ConflictType } from './ConflictPropTypes'
 import { formatTime } from '../CalendarView/calendarUtils'
-
-/**
- * Conflict type identifiers
- */
-type ConflictType = 'time_overlap' | 'resource_contention' | 'gpio_state_conflict'
-
-/**
- * Severity levels
- */
-type SeverityLevel = 'error' | 'warning'
-
-/**
- * Conflict data structure matching backend Conflict.to_dict()
- */
-export interface Conflict {
-  conflict_type: ConflictType
-  severity: SeverityLevel
-  event1_id: string
-  event1_name: string
-  event2_id: string
-  event2_name: string
-  start_time: string
-  end_time: string
-  resource?: string
-  message: string
-  suggested_resolution: string
-}
 
 /**
  * Component props interface

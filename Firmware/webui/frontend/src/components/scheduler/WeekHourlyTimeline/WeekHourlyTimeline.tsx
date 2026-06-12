@@ -16,8 +16,9 @@ import { memo, useMemo, useState, useEffect, useCallback, useRef, Fragment } fro
 import DaySelector from './DaySelector'
 import MoonPhaseIcon from '../CalendarView/MoonPhaseIcon'
 import ConflictSummary from '../DayTimeline/ConflictSummary'
-import ExecutionChip, { type Execution } from '../DayTimeline/ExecutionChip'
+import ExecutionChip from '../DayTimeline/ExecutionChip'
 import HourRow from '../DayTimeline/HourRow'
+import { type Execution } from '../DayTimeline/dayTimelineUtils'
 import {
   WEEK_VIEW_CONFIG,
   DAY_HEADER_STYLES,

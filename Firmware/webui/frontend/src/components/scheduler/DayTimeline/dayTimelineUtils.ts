@@ -20,13 +20,130 @@ import {
   DEFAULT_ACTION_COLORS,
   isHdrAction,
 } from './dayTimelineConstants'
+import type { ActionType } from '@/utils/schedulerApi'
+
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+/**
+ * Action object within an execution
+ */
+export interface ExecutionAction {
+  time?: string
+  action_name?: string
+  action_type?: ActionType
+  offset_minutes?: number
+}
+
+/**
+ * Execution object from preview API
+ */
+export interface Execution {
+  id?: string | number
+  pattern_id: string
+  pattern_name: string
+  start_time: string
+  end_time?: string
+  actions?: ExecutionAction[]
+}
+
+/**
+ * Conflict severity levels
+ */
+export type ConflictSeverity = 'error' | 'warning'
+
+/**
+ * Conflict type identifiers
+ */
+export type ConflictType = 'time_overlap' | 'resource_contention' | 'gpio_state_conflict'
+
+/**
+ * Conflict object from preview API
+ */
+export interface Conflict {
+  id?: string
+  conflict_type?: ConflictType
+  severity: ConflictSeverity
+  event1_id?: string
+  event1_name?: string
+  event2_id?: string
+  event2_name?: string
+  start_time?: string
+  end_time?: string
+  message?: string
+}
+
+/**
+ * Cycle information from preview API
+ */
+export interface CycleInfo {
+  start_hour?: number
+  end_hour?: number
+  spans_midnight?: boolean
+  suggested_preview_days?: number
+}
+
+/**
+ * Conflict count summary
+ */
+export interface ConflictCounts {
+  total: number
+  errors: number
+  warnings: number
+}
+
+/**
+ * Display colors for action types
+ */
+export interface ActionColors {
+  bg: string
+  text: string
+}
+
+/**
+ * Collapsed hour indicator
+ */
+export interface CollapsedHour {
+  type: 'collapsed'
+  count: number
+}
+
+/**
+ * Regular hour display
+ */
+export interface RegularHour {
+  type: 'hour'
+  hour: number
+}
+
+/**
+ * Display hour (either collapsed or regular)
+ */
+export type DisplayHour = CollapsedHour | RegularHour
+
+/**
+ * Map of hour (0-23) to executions
+ */
+export type ExecutionsByHour = Record<number, Execution[]>
+
+/**
+ * Pattern count map for fingerprinting
+ */
+interface PatternCounts {
+  [patternId: string]: number
+}
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
 
 /**
  * Logs a warning in development mode for invalid time strings.
- * @param {string} isoString - The invalid ISO string
- * @param {string} context - Function name for context
+ * @param isoString - The invalid ISO string
+ * @param context - Function name for context
  */
-function warnInvalidTime(isoString, context) {
+function warnInvalidTime(isoString: string, context: string): void {
   if (import.meta.env.DEV) {
     console.warn(`[${context}] Invalid ISO time string:`, isoString)
   }
@@ -35,10 +152,10 @@ function warnInvalidTime(isoString, context) {
 /**
  * Extracts the hour (0-23) from an ISO datetime string in local timezone.
  *
- * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T18:30:00Z")
- * @returns {number|null} Hour number (0-23) in local timezone, or null if invalid
+ * @param isoString - ISO datetime string (e.g., "2025-12-17T18:30:00Z")
+ * @returns Hour number (0-23) in local timezone, or null if invalid
  */
-export function getHourFromIsoTime(isoString) {
+export function getHourFromIsoTime(isoString: string): number | null {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }
@@ -57,10 +174,10 @@ export function getHourFromIsoTime(isoString) {
 /**
  * Extracts the minute (0-59) from an ISO datetime string in local timezone.
  *
- * @param {string} isoString - ISO datetime string
- * @returns {number|null} Minute number (0-59) in local timezone, or null if invalid
+ * @param isoString - ISO datetime string
+ * @returns Minute number (0-59) in local timezone, or null if invalid
  */
-export function getMinuteFromIsoTime(isoString) {
+export function getMinuteFromIsoTime(isoString: string): number | null {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }
@@ -79,10 +196,10 @@ export function getMinuteFromIsoTime(isoString) {
 /**
  * Formats an hour number to a display string (e.g., 18 -> "18:00").
  *
- * @param {number} hour - Hour number (0-23)
- * @returns {string} Formatted time string
+ * @param hour - Hour number (0-23)
+ * @returns Formatted time string
  */
-export function formatHourLabel(hour) {
+export function formatHourLabel(hour: number): string {
   if (typeof hour !== 'number' || hour < 0 || hour > 23) {
     return ''
   }
@@ -92,10 +209,10 @@ export function formatHourLabel(hour) {
 /**
  * Formats an ISO datetime string to a short time string in local timezone (e.g., "18:30").
  *
- * @param {string} isoString - ISO datetime string
- * @returns {string} Formatted time string (HH:MM) in local timezone
+ * @param isoString - ISO datetime string
+ * @returns Formatted time string (HH:MM) in local timezone
  */
-export function formatTimeShort(isoString) {
+export function formatTimeShort(isoString: string): string {
   if (!isoString || typeof isoString !== 'string') {
     return ''
   }
@@ -117,10 +234,10 @@ export function formatTimeShort(isoString) {
  * Extracts local date (YYYY-MM-DD) from an ISO datetime string.
  * Converts UTC time to local timezone before extracting date.
  *
- * @param {string} isoString - ISO datetime string
- * @returns {string|null} Local date in YYYY-MM-DD format, or null if invalid
+ * @param isoString - ISO datetime string
+ * @returns Local date in YYYY-MM-DD format, or null if invalid
  */
-export function getLocalDateFromIso(isoString) {
+export function getLocalDateFromIso(isoString: string): string | null {
   if (!isoString || typeof isoString !== 'string') {
     return null
   }
@@ -135,10 +252,10 @@ export function getLocalDateFromIso(isoString) {
  * Get the next calendar date key (YYYY-MM-DD) from a given date string.
  * Handles month/year boundaries correctly by using Date arithmetic.
  *
- * @param {string} dateStr - Date string in YYYY-MM-DD format
- * @returns {string} Next date in YYYY-MM-DD format
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @returns Next date in YYYY-MM-DD format
  */
-export function getNextDateKey(dateStr) {
+export function getNextDateKey(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00') // noon avoids DST edge cases
   d.setDate(d.getDate() + 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -147,16 +264,16 @@ export function getNextDateKey(dateStr) {
 /**
  * Groups executions by hour (0-23) for a given local date.
  *
- * @param {Array} executions - Array of execution objects with start_time
- * @param {string} date - Local date string (YYYY-MM-DD) to filter by
- * @returns {Object} Map of hour (0-23) -> array of executions
+ * @param executions - Array of execution objects with start_time
+ * @param date - Local date string (YYYY-MM-DD) to filter by
+ * @returns Map of hour (0-23) -> array of executions
  */
-export function groupExecutionsByHour(executions, date) {
+export function groupExecutionsByHour(executions: Execution[], date: string): ExecutionsByHour {
   if (!executions || !Array.isArray(executions)) {
     return {}
   }
 
-  const grouped = {}
+  const grouped: ExecutionsByHour = {}
 
   executions.forEach((execution) => {
     if (!execution.start_time) return
@@ -181,12 +298,12 @@ export function groupExecutionsByHour(executions, date) {
 /**
  * Finds the most severe conflict affecting a specific hour.
  *
- * @param {Array} conflicts - Array of conflict objects with start_time/end_time
- * @param {number} hour - Hour to check (0-23) in local timezone
- * @param {string} date - Local date string (YYYY-MM-DD)
- * @returns {Object|null} Most severe conflict for this hour, or null
+ * @param conflicts - Array of conflict objects with start_time/end_time
+ * @param hour - Hour to check (0-23) in local timezone
+ * @param date - Local date string (YYYY-MM-DD)
+ * @returns Most severe conflict for this hour, or null
  */
-export function getConflictForHour(conflicts, hour, date) {
+export function getConflictForHour(conflicts: Conflict[], hour: number, date: string): Conflict | null {
   if (!conflicts || !Array.isArray(conflicts) || conflicts.length === 0) {
     return null
   }
@@ -219,11 +336,11 @@ export function getConflictForHour(conflicts, hour, date) {
 /**
  * Gets display information for an action type.
  *
- * @param {string} actionType - Action type ('camera', 'gpio', 'gps_sync', 'service')
- * @param {string} actionName - Action name (used to detect HDR)
- * @returns {Object} { bg, text, darkBg, darkText } Tailwind classes
+ * @param actionType - Action type ('camera', 'gpio', 'gps_sync', 'service')
+ * @param actionName - Action name (used to detect HDR)
+ * @returns { bg, text, darkBg, darkText } Tailwind classes
  */
-export function getActionTypeDisplay(actionType, actionName) {
+export function getActionTypeDisplay(actionType: string, actionName: string): ActionColors {
   // Check for HDR first (special purple color)
   if (isHdrAction(actionName)) {
     return ACTION_TYPE_COLORS.hdr
@@ -236,10 +353,10 @@ export function getActionTypeDisplay(actionType, actionName) {
 /**
  * Counts conflicts by severity.
  *
- * @param {Array} conflicts - Array of conflict objects
- * @returns {Object} { total, errors, warnings }
+ * @param conflicts - Array of conflict objects
+ * @returns { total, errors, warnings }
  */
-export function countConflictsBySeverity(conflicts) {
+export function countConflictsBySeverity(conflicts: Conflict[]): ConflictCounts {
   if (!conflicts || !Array.isArray(conflicts)) {
     return { total: 0, errors: 0, warnings: 0 }
   }
@@ -257,11 +374,11 @@ export function countConflictsBySeverity(conflicts) {
 /**
  * Checks if an execution is involved in a conflict.
  *
- * @param {Object} execution - Execution object with pattern_id
- * @param {Array} conflicts - Array of conflict objects
- * @returns {Object|null} Conflict affecting this execution, or null
+ * @param execution - Execution object with pattern_id
+ * @param conflicts - Array of conflict objects
+ * @returns Conflict affecting this execution, or null
  */
-export function getConflictForExecution(execution, conflicts) {
+export function getConflictForExecution(execution: Execution, conflicts: Conflict[]): Conflict | null {
   if (!execution || !conflicts || !Array.isArray(conflicts)) {
     return null
   }
@@ -293,11 +410,11 @@ export function getConflictForExecution(execution, conflicts) {
  * The index parameter prevents key collisions when multiple executions share
  * the same pattern_id and start_time.
  *
- * @param {Object} execution - Execution object
- * @param {number} [index=0] - Array index for uniqueness fallback
- * @returns {string} Unique key for React rendering
+ * @param execution - Execution object
+ * @param index - Array index for uniqueness fallback
+ * @returns Unique key for React rendering
  */
-export function getExecutionKey(execution, index = 0) {
+export function getExecutionKey(execution: Execution, index: number = 0): string {
   const patternId = execution.pattern_id || 'unknown'
   const time = execution.start_time || ''
   const uniqueId = execution.id || index
@@ -308,10 +425,10 @@ export function getExecutionKey(execution, index = 0) {
  * Formats execution for data-testid attribute.
  * Format: execution-{routine_id}-{time}
  *
- * @param {Object} execution - Execution object
- * @returns {string} data-testid value
+ * @param execution - Execution object
+ * @returns data-testid value
  */
-export function getExecutionTestId(execution) {
+export function getExecutionTestId(execution: Execution): string {
   const routineId = execution.pattern_id || 'unknown'
   const time = formatTimeShort(execution.start_time).replace(':', '')
   return `execution-${routineId}-${time}`
@@ -332,20 +449,17 @@ export function getExecutionTestId(execution) {
  *
  * If no cycleInfo provided, returns all 24 hours [0, 1, ..., 23].
  *
- * @param {Object|null} cycleInfo - Cycle info from preview API
- * @param {number} cycleInfo.start_hour - Hour when cycle begins (0-23)
- * @param {number} cycleInfo.end_hour - Hour when cycle ends (0-23)
- * @param {boolean} cycleInfo.spans_midnight - True if cycle crosses midnight
- * @returns {Array<number>} Array of hours in cycle order
+ * @param cycleInfo - Cycle info from preview API
+ * @returns Array of hours in cycle order
  */
-export function getCycleHours(cycleInfo) {
-  // Default to all 24 hours if no cycle info
-  if (!cycleInfo) {
+export function getCycleHours(cycleInfo: CycleInfo | null | undefined): number[] {
+  // Default to all 24 hours if no cycle info or missing required properties
+  if (!cycleInfo || cycleInfo.start_hour === undefined || cycleInfo.end_hour === undefined) {
     return Array.from({ length: 24 }, (_, i) => i)
   }
 
   const { start_hour, end_hour, spans_midnight } = cycleInfo
-  const hours = []
+  const hours: number[] = []
 
   if (spans_midnight) {
     // Overnight: start_hour -> 23, then 0 -> end_hour
@@ -372,22 +486,22 @@ export function getCycleHours(cycleInfo) {
  * one cycle's worth of executions (avoiding duplicates from day 2's
  * evening hours that would start another cycle).
  *
- * @param {Array} executions - Array of execution objects with start_time
- * @returns {Object} Map of hour (0-23) -> array of executions
+ * @param executions - Array of execution objects with start_time
+ * @returns Map of hour (0-23) -> array of executions
  */
-export function groupExecutionsByHourCycleAware(executions) {
+export function groupExecutionsByHourCycleAware(executions: Execution[]): ExecutionsByHour {
   if (!executions || !Array.isArray(executions)) {
     return {}
   }
 
   // Sort executions by time to get chronological order
   const sorted = [...executions].sort((a, b) => {
-    return new Date(a.start_time) - new Date(b.start_time)
+    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
   })
 
   // Track which time strings we've seen to dedupe
-  const seenTimes = new Set()
-  const grouped = {}
+  const seenTimes = new Set<string>()
+  const grouped: ExecutionsByHour = {}
 
   sorted.forEach((execution) => {
     if (!execution.start_time) return
@@ -419,16 +533,16 @@ export function groupExecutionsByHourCycleAware(executions) {
  * Used to compare hours for collapse logic - two hours are "identical"
  * if they have the same number of executions and the same routine types.
  *
- * @param {Array} executions - Array of executions for an hour
- * @returns {string} Fingerprint string for comparison
+ * @param executions - Array of executions for an hour
+ * @returns Fingerprint string for comparison
  */
-function getHourFingerprint(executions) {
+function getHourFingerprint(executions: Execution[] | undefined): string {
   if (!executions || executions.length === 0) {
     return 'empty'
   }
 
   // Count executions per pattern
-  const patternCounts = {}
+  const patternCounts: PatternCounts = {}
   executions.forEach((exec) => {
     const patternId = exec.pattern_id || 'unknown'
     patternCounts[patternId] = (patternCounts[patternId] || 0) + 1
@@ -450,16 +564,16 @@ function getHourFingerprint(executions) {
  * of executions from the same routines), collapses them into a single
  * "continues" indicator.
  *
- * @param {Array<number>} hours - Array of hours in cycle order
- * @param {Object} executionsByHour - Map of hour -> executions
- * @returns {Array} Array of {type: 'hour', hour} or {type: 'collapsed', count}
+ * @param hours - Array of hours in cycle order
+ * @param executionsByHour - Map of hour -> executions
+ * @returns Array of {type: 'hour', hour} or {type: 'collapsed', count}
  */
-export function collapseRepetitiveHours(hours, executionsByHour) {
+export function collapseRepetitiveHours(hours: number[], executionsByHour: ExecutionsByHour): DisplayHour[] {
   if (!hours || hours.length === 0) {
     return []
   }
 
-  const result = []
+  const result: DisplayHour[] = []
   let i = 0
 
   while (i < hours.length) {

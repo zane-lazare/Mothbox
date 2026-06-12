@@ -5,28 +5,55 @@
  * and execution grouping for the Mothbox Scheduler Calendar View.
  */
 
+import type { Execution } from '../DayTimeline/dayTimelineUtils'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Re-export Execution type from dayTimelineUtils for calendar visualization
+ */
+export type { Execution }
+
+/**
+ * Grouped executions by date key (YYYY-MM-DD).
+ * Used by calendar views to display executions on specific days.
+ */
+export interface GroupedExecutions {
+  [dateKey: string]: Execution[]
+}
+
+// =============================================================================
+// Constants
+// =============================================================================
+
 /**
  * Array of Tailwind color classes for pattern visualization
  */
-export const PATTERN_COLORS = [
+export const PATTERN_COLORS: readonly string[] = [
   'bg-blue-500',
   'bg-green-500',
   'bg-purple-500',
   'bg-orange-500',
   'bg-pink-500',
   'bg-cyan-500',
-]
+] as const
+
+// =============================================================================
+// Date Grid Functions
+// =============================================================================
 
 /**
  * Gets an array of 42 dates for a month grid (6 weeks)
  * Starts on Sunday and includes overflow days from previous/next months
  *
- * @param {number} year - Full year (e.g., 2025)
- * @param {number} month - Month (0-indexed, 0 = January, 11 = December)
- * @returns {Date[]} Array of 42 Date objects
+ * @param year - Full year (e.g., 2025)
+ * @param month - Month (0-indexed, 0 = January, 11 = December)
+ * @returns Array of 42 Date objects
  */
-export function getMonthGridDates(year, month) {
-  const dates = []
+export function getMonthGridDates(year: number, month: number): Date[] {
+  const dates: Date[] = []
 
   // Get the first day of the month
   const firstDayOfMonth = new Date(year, month, 1)
@@ -50,11 +77,11 @@ export function getMonthGridDates(year, month) {
  * Gets an array of 7 dates for the week containing the given date
  * Week starts on Sunday
  *
- * @param {Date} centerDate - Any date within the target week
- * @returns {Date[]} Array of 7 Date objects (Sunday to Saturday)
+ * @param centerDate - Any date within the target week
+ * @returns Array of 7 Date objects (Sunday to Saturday)
  */
-export function getWeekDates(centerDate) {
-  const dates = []
+export function getWeekDates(centerDate: Date): Date[] {
+  const dates: Date[] = []
   const dayOfWeek = centerDate.getDay() // 0 = Sunday, 6 = Saturday
 
   // Calculate Sunday of this week
@@ -74,32 +101,38 @@ export function getWeekDates(centerDate) {
 /**
  * Gets an array of hour markers for day view (0-23)
  *
- * @returns {number[]} Array of hours [0, 1, 2, ..., 23]
+ * @returns Array of hours [0, 1, 2, ..., 23]
  */
-export function getDayHours() {
+export function getDayHours(): number[] {
   return Array.from({ length: 24 }, (_, i) => i)
 }
+
+// =============================================================================
+// Execution Grouping
+// =============================================================================
 
 /**
  * Groups execution objects by local date (YYYY-MM-DD)
  * Converts ISO UTC time to local date before grouping
  *
- * @param {Array} executions - Array of execution objects with start_time field
- * @returns {Object} Object keyed by local date (YYYY-MM-DD), values are arrays of executions
+ * @param executions - Array of execution objects with scheduled_time or start_time field
+ * @returns Object keyed by local date (YYYY-MM-DD), values are arrays of executions
  */
-export function groupExecutionsByDate(executions) {
+export function groupExecutionsByDate(executions: Execution[] | null | undefined): GroupedExecutions {
   if (!executions || !Array.isArray(executions)) {
     return {}
   }
 
-  const grouped = {}
+  const grouped: GroupedExecutions = {}
 
   executions.forEach(execution => {
-    if (!execution.start_time) return
+    // Support both scheduled_time (new API) and start_time (legacy API)
+    const timeString = execution.scheduled_time || execution.start_time
+    if (!timeString) return
 
     // Convert ISO string to Date and extract local date
     // This ensures executions appear on the correct calendar day for the user's timezone
-    const date = new Date(execution.start_time)
+    const date = new Date(timeString)
     if (isNaN(date.getTime())) return
 
     const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -114,16 +147,25 @@ export function groupExecutionsByDate(executions) {
   return grouped
 }
 
+// =============================================================================
+// Date Formatting
+// =============================================================================
+
+/**
+ * View mode for date range formatting
+ */
+export type ViewMode = 'month' | 'week' | 'day'
+
 /**
  * Formats date range display based on view mode
  *
- * @param {string} viewMode - 'month', 'week', or 'day'
- * @param {Date} currentDate - The current date being displayed
- * @param {number|null} [patternOffset=null] - Pattern offset for week view pattern mode (0, 7, 14, etc.)
- *                                              When provided, returns "Days X-Y" format
- * @returns {string} Formatted date range string
+ * @param viewMode - 'month', 'week', or 'day'
+ * @param currentDate - The current date being displayed
+ * @param patternOffset - Pattern offset for week view pattern mode (0, 7, 14, etc.)
+ *                        When provided, returns "Days X-Y" format
+ * @returns Formatted date range string
  */
-export function formatDateRange(viewMode, currentDate, patternOffset = null) {
+export function formatDateRange(viewMode: ViewMode, currentDate: Date, patternOffset: number | null = null): string {
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -178,13 +220,17 @@ export function formatDateRange(viewMode, currentDate, patternOffset = null) {
   return ''
 }
 
+// =============================================================================
+// Color Utilities
+// =============================================================================
+
 /**
  * Gets a consistent color for a pattern ID using hash-based selection
  *
- * @param {string} patternId - The pattern identifier
- * @returns {string} Tailwind color class
+ * @param patternId - The pattern identifier
+ * @returns Tailwind color class
  */
-export function getPatternColor(patternId) {
+export function getPatternColor(patternId: string | null | undefined): string {
   if (!patternId) {
     return PATTERN_COLORS[0]
   }
@@ -201,13 +247,17 @@ export function getPatternColor(patternId) {
   return PATTERN_COLORS[index]
 }
 
+// =============================================================================
+// Date Comparison
+// =============================================================================
+
 /**
  * Checks if a date is today (ignoring time component)
  *
- * @param {Date} date - The date to check
- * @returns {boolean} True if date is today
+ * @param date - The date to check
+ * @returns True if date is today
  */
-export function isToday(date) {
+export function isToday(date: Date): boolean {
   const today = new Date()
   return isSameDay(date, today)
 }
@@ -215,11 +265,11 @@ export function isToday(date) {
 /**
  * Checks if two dates are the same day (ignoring time component)
  *
- * @param {Date} date1 - First date
- * @param {Date} date2 - Second date
- * @returns {boolean} True if both dates are the same day
+ * @param date1 - First date
+ * @param date2 - Second date
+ * @returns True if both dates are the same day
  */
-export function isSameDay(date1, date2) {
+export function isSameDay(date1: Date, date2: Date): boolean {
   return (
     date1.getFullYear() === date2.getFullYear() &&
     date1.getMonth() === date2.getMonth() &&
@@ -227,14 +277,18 @@ export function isSameDay(date1, date2) {
   )
 }
 
+// =============================================================================
+// Time Formatting
+// =============================================================================
+
 /**
  * Formats ISO datetime string to time string (HH:MM format)
  * Always displays in user's local timezone for consistent display.
  *
- * @param {string} isoString - ISO datetime string (e.g., "2025-12-17T08:30:00Z")
- * @returns {string} Formatted time string in local timezone (e.g., "8:30")
+ * @param isoString - ISO datetime string (e.g., "2025-12-17T08:30:00Z")
+ * @returns Formatted time string in local timezone (e.g., "8:30")
  */
-export function formatTime(isoString) {
+export function formatTime(isoString: string | null | undefined): string {
   if (!isoString || typeof isoString !== 'string') {
     return ''
   }
@@ -257,10 +311,10 @@ export function formatTime(isoString) {
 /**
  * Get ISO date key (YYYY-MM-DD) from a Date object or ISO string
  *
- * @param {Date|string} date - Date object or ISO date string
- * @returns {string|null} Date key in YYYY-MM-DD format, or null if invalid
+ * @param date - Date object or ISO date string
+ * @returns Date key in YYYY-MM-DD format, or null if invalid
  */
-export function getDateKey(date) {
+export function getDateKey(date: Date | string | null | undefined): string | null {
   if (typeof date === 'string') {
     // Validate ISO date format (YYYY-MM-DD at start of string)
     const isoDateMatch = date.match(/^(\d{4}-\d{2}-\d{2})/)

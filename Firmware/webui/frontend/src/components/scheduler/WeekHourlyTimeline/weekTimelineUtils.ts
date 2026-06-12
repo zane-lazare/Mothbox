@@ -27,13 +27,69 @@ export { getWeekDates, isToday, getDateKey } from '../CalendarView/calendarUtils
 // Re-export shared cycle utilities
 export { groupExecutionsByCycleDay } from '../utils/cycleGroupingUtils'
 
+// Import types from schedulerApi
+import type { ScheduleExecution } from '../../../utils/schedulerApi'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Conflict information object
+ */
+export interface ConflictInfo {
+  event1_id?: string
+  event2_id?: string
+  start_time?: string
+  type?: string
+  severity?: 'blocking' | 'warning'
+  message?: string
+  routines?: string[]
+}
+
+/**
+ * Execution with pattern_id for week timeline
+ */
+export interface WeekExecution extends ScheduleExecution {
+  pattern_id: string
+  start_time: string
+}
+
+/**
+ * Cycle info with start and end hours
+ */
+export interface CycleInfo {
+  start_hour: number
+  end_hour: number
+}
+
+/**
+ * Nested map structure: date -> hour -> executions
+ */
+export interface ExecutionsByDayAndHour {
+  [dateKey: string]: {
+    [hour: number]: WeekExecution[]
+  }
+}
+
+/**
+ * Map of pattern_id to conflict
+ */
+export interface ExecutionConflictsMap {
+  [patternId: string]: ConflictInfo
+}
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
+
 /**
  * Gets a date key (YYYY-MM-DD) from a Date object in local timezone.
  *
- * @param {Date} date - Date object
- * @returns {string} Date key in YYYY-MM-DD format
+ * @param date - Date object
+ * @returns Date key in YYYY-MM-DD format
  */
-function getLocalDateKey(date) {
+function getLocalDateKey(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -43,10 +99,10 @@ function getLocalDateKey(date) {
 /**
  * Gets a date key from an ISO datetime string in local timezone.
  *
- * @param {string} isoString - ISO datetime string
- * @returns {string|null} Date key in YYYY-MM-DD format, or null if invalid
+ * @param isoString - ISO datetime string
+ * @returns Date key in YYYY-MM-DD format, or null if invalid
  */
-function getDateKeyFromIso(isoString) {
+function getDateKeyFromIso(isoString: string): string | null {
   if (!isoString || typeof isoString !== 'string') return null
   const date = new Date(isoString)
   if (isNaN(date.getTime())) return null
@@ -56,15 +112,19 @@ function getDateKeyFromIso(isoString) {
 /**
  * Gets the hour (0-23) from an ISO datetime string in local timezone.
  *
- * @param {string} isoString - ISO datetime string
- * @returns {number|null} Hour number or null if invalid
+ * @param isoString - ISO datetime string
+ * @returns Hour number or null if invalid
  */
-function getHourFromIso(isoString) {
+function getHourFromIso(isoString: string): number | null {
   if (!isoString || typeof isoString !== 'string') return null
   const date = new Date(isoString)
   if (isNaN(date.getTime())) return null
   return date.getHours()
 }
+
+// =============================================================================
+// Exported Functions
+// =============================================================================
 
 /**
  * Groups executions by day (date key) and hour.
@@ -74,16 +134,20 @@ function getHourFromIso(isoString) {
  * For overnight schedules (where start_hour > end_hour), post-midnight executions
  * are grouped with the previous day to show complete cycles per day column.
  *
- * @param {Array} executions - Array of execution objects with start_time
- * @param {Date[]} weekDates - Array of 7 Date objects for the week
- * @param {Object} [cycleInfo] - Cycle info with start_hour, end_hour for overnight handling
- * @returns {Object} Nested map of date -> hour -> executions
+ * @param executions - Array of execution objects with start_time
+ * @param weekDates - Array of 7 Date objects for the week
+ * @param cycleInfo - Cycle info with start_hour, end_hour for overnight handling
+ * @returns Nested map of date -> hour -> executions
  *
  * @example
  * const grouped = groupExecutionsByDayAndHour(executions, weekDates, cycleInfo)
  * // grouped['2025-01-15'][18] = [{ pattern_id: '...', ... }]
  */
-export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = null) {
+export function groupExecutionsByDayAndHour(
+  executions: WeekExecution[],
+  weekDates: Date[],
+  cycleInfo: CycleInfo | null = null
+): ExecutionsByDayAndHour {
   if (!executions || !Array.isArray(executions)) {
     return {}
   }
@@ -91,7 +155,7 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
   // Determine if this is an overnight schedule
   // cycleInfo hours are already in local time (backend converts based on tz param)
   let isOvernight = false
-  let endHour = null
+  let endHour: number | null = null
 
   if (cycleInfo && typeof cycleInfo.start_hour === 'number' && typeof cycleInfo.end_hour === 'number') {
     // Hours are already in local time from the API
@@ -109,17 +173,17 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
   const dateKeyIndex = new Map(dateKeyList.map((key, idx) => [key, idx]))
 
   // Initialize empty structure for all dates
-  const grouped = {}
+  const grouped: ExecutionsByDayAndHour = {}
   weekDates.forEach(date => {
     grouped[getLocalDateKey(date)] = {}
   })
 
   // Track seen executions to deduplicate (same pattern at same time)
-  const seenKeys = new Set()
+  const seenKeys = new Set<string>()
 
   // Sort chronologically first
   const sorted = [...executions].sort((a, b) =>
-    new Date(a.start_time) - new Date(b.start_time)
+    new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
   )
 
   sorted.forEach(execution => {
@@ -133,7 +197,7 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
 
     // For overnight schedules, shift post-midnight hours to previous day
     // This keeps complete cycles (dusk-to-dawn) in the same day column
-    if (isOvernight && hour < endHour) {
+    if (isOvernight && endHour !== null && hour < endHour) {
       const dateIndex = dateKeyIndex.get(dateKey)
       if (dateIndex === undefined) return
       if (dateIndex > 0) {
@@ -164,11 +228,11 @@ export function groupExecutionsByDayAndHour(executions, weekDates, cycleInfo = n
 /**
  * Gets conflicts that affect a specific date.
  *
- * @param {Array} conflicts - Array of conflict objects with start_time
- * @param {string} dateKey - Date key in YYYY-MM-DD format
- * @returns {Array} Conflicts for that day
+ * @param conflicts - Array of conflict objects with start_time
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Conflicts for that day
  */
-export function getConflictsForDay(conflicts, dateKey) {
+export function getConflictsForDay(conflicts: ConflictInfo[], dateKey: string): ConflictInfo[] {
   if (!conflicts || !Array.isArray(conflicts) || !dateKey) {
     return []
   }
@@ -184,24 +248,27 @@ export function getConflictsForDay(conflicts, dateKey) {
 /**
  * Creates a map of pattern_id to conflict for all executions.
  *
- * @param {Array} executions - Array of execution objects
- * @param {Array} conflicts - Array of conflict objects
- * @returns {Object} Map of pattern_id -> conflict
+ * @param executions - Array of execution objects
+ * @param conflicts - Array of conflict objects
+ * @returns Map of pattern_id -> conflict
  */
-export function buildExecutionConflictsMap(executions, conflicts) {
+export function buildExecutionConflictsMap(
+  executions: WeekExecution[],
+  conflicts: ConflictInfo[]
+): ExecutionConflictsMap {
   if (!executions || !conflicts) return {}
 
   // Pre-index conflicts for O(1) lookup instead of O(m) find per execution
-  const byEvent1 = new Map()
-  const byEvent2 = new Map()
-  const byStartTime = new Map()
+  const byEvent1 = new Map<string, ConflictInfo>()
+  const byEvent2 = new Map<string, ConflictInfo>()
+  const byStartTime = new Map<string, ConflictInfo>()
   conflicts.forEach(c => {
     if (c.event1_id && !byEvent1.has(c.event1_id)) byEvent1.set(c.event1_id, c)
     if (c.event2_id && !byEvent2.has(c.event2_id)) byEvent2.set(c.event2_id, c)
     if (c.start_time && !byStartTime.has(c.start_time)) byStartTime.set(c.start_time, c)
   })
 
-  const map = {}
+  const map: ExecutionConflictsMap = {}
   executions.forEach(execution => {
     const conflict =
       byEvent1.get(execution.pattern_id) ||
@@ -213,4 +280,3 @@ export function buildExecutionConflictsMap(executions, conflicts) {
   })
   return map
 }
-

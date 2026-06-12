@@ -11,3 +11,6 @@ export { default as DaySelector } from './DaySelector'
 // Utility exports for testing
 export * from './weekTimelineUtils'
 export * from './weekTimelineConstants'
+
+export type { WeekHourlyTimelineProps } from './WeekHourlyTimeline'
+export type { DaySelectorProps } from './DaySelector'

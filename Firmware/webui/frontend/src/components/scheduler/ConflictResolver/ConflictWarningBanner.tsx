@@ -31,7 +31,8 @@ import {
   ChevronUpIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
-import ConflictList, { type Conflict } from './ConflictList'
+import ConflictList from './ConflictList'
+import type { Conflict } from './ConflictPropTypes'
 
 /**
  * Component props interface
